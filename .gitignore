@@ -34,3 +34,84 @@ private/
 # Test output
 coverage/
 .nyc_output/
+
+# C compilation artefacts that could land outside build/ if someone
+# builds by hand. CMake puts everything under build/ but defending in
+# depth is cheap and the patterns are unambiguous.
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Code coverage / profiling output
+*.gcno
+*.gcda
+*.gcov
+*.profraw
+*.profdata
+gmon.out
+
+# Core dumps
+core
+core.*
+vgcore.*
+
+# Distributable packages produced by electron-builder / packagers.
+# The release/ directory is the conventional electron-builder output;
+# the per-format extensions catch loose artefacts dropped elsewhere.
+release/
+*.AppImage
+*.deb
+*.rpm
+*.dmg
+*.pkg
+*.msi
+*.snap
+*.flatpak
+
+# IDE caches & generated metadata. compile_commands.json is the
+# clangd index — useful locally, never useful in the repo (it bakes
+# in absolute paths). CLion writes cmake-build-* trees alongside
+# anything it touches.
+.cache/
+.eslintcache
+compile_commands.json
+cmake-build-*/
+
+# Environment files. .env-style files commonly hold secrets; ship a
+# .env.example template instead when one is needed and re-open it
+# through the negation rule below.
+.env
+.env.*
+!.env.example
+
+# Certificates / keys / credential bundles. Never commit these —
+# even in a public OSS repo, accidental leakage is what gitleaks is
+# meant to backstop and these patterns are the front line.
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+secrets.json
+credentials.json
+
+# Backup / merge-conflict / scratch leftovers
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej
+
+# npm / Node logs that npm CLI sometimes drops at the repo root
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
