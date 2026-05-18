@@ -3,16 +3,8 @@
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
-import type {
-  AxesValues,
-  ButtonEventPayload,
-  SpaceUxBridge,
-} from '../shared/bridge.js';
-import {
-  IpcChannel,
-  type DaemonStatusPayload,
-  type MenuOpenPayload,
-} from '../shared/ipc.js';
+import type { AxesValues, ButtonEventPayload, SpaceUxBridge } from '../shared/bridge.js';
+import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '../shared/ipc.js';
 import type { MenuConfig } from '../shared/menu.js';
 
 /**
