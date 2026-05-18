@@ -31,6 +31,9 @@ export type PieGeometryConfig = {
   /** Magnitude below which no selection is made. Same unit as the raw
    *  axis values fed in. */
   deadzone: number;
+  /** Flip the X axis. Useful when the puck's TX sign points opposite
+   *  to what the user expects from the screen layout. */
+  invertX: boolean;
   /** Flip the Y axis so pushing the puck forward feels like "up" on
    *  screen — most users expect this. False keeps the raw evdev sign. */
   invertY: boolean;
@@ -39,6 +42,7 @@ export type PieGeometryConfig = {
 export const DEFAULT_PIE_GEOMETRY: PieGeometryConfig = {
   sectorCount: 8,
   deadzone: 50,
+  invertX: false,
   invertY: true,
 };
 
@@ -52,7 +56,7 @@ const TAU = Math.PI * 2;
  */
 export function axesToSector(axes: PieAxes, config: PieGeometryConfig = DEFAULT_PIE_GEOMETRY): number | null {
   const sectors = Math.max(2, Math.floor(config.sectorCount));
-  const x = axes.tx;
+  const x = config.invertX ? -axes.tx : axes.tx;
   // invertY=true maps the puck's "push forward" (+ty) to math-up
   // (+Y), which axesToSector treats as sector 0 (12 o'clock). The
   // raw-evdev case (invertY=false) keeps +ty pointing down because

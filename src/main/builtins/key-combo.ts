@@ -4,9 +4,9 @@
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 
-import type { ActionHandler } from '../../shared/plugin-types';
+import type { ActionHandler } from '../../shared/plugin-types.js';
 
-import { parseChord } from './keycodes';
+import { parseChord } from './keycodes.js';
 
 /**
  * Built-in key-combo action.

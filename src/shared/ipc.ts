@@ -16,10 +16,15 @@ export const IpcChannel = {
   BUTTON: 'spaceux:button',
   /** Main pushes connection-state changes (connected / disconnected / hello). */
   DAEMON_STATUS: 'spaceux:daemon-status',
-  /** Main pushes the validated MenuConfig (defaults or user file) once
-   *  the renderer is ready and again on hot-reload. The renderer uses
-   *  it to size + label the pie and to look up bindings at commit
-   *  time. */
+  /** Renderer pulls the validated MenuConfig (defaults or user file)
+   *  on mount via ipcRenderer.invoke. Pull instead of push so the
+   *  startup race ("main sends before renderer subscribes") is
+   *  unobservable — invoke returns the current value at call time. */
+  GET_MENU_CONFIG: 'spaceux:get-menu-config',
+  /** Main pushes a new config to the renderer on hot-reload (Phase 2
+   *  uses fs.watch; the channel is wired now so we don't re-route
+   *  later). The renderer treats this as authoritative for the
+   *  current value. */
   MENU_CONFIG: 'spaceux:menu-config',
   /** Main signals the renderer to open the pie menu at the given anchor
    *  (renderer-window coordinates — main does the screen-to-window

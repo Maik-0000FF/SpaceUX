@@ -12,7 +12,7 @@ import {
   isDaemonEvent,
   type DaemonCommand,
   type DaemonEvent,
-} from '../shared/protocol';
+} from '../shared/protocol.js';
 
 /**
  * UNIX-socket client for the daemon.

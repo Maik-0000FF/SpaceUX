@@ -23,6 +23,12 @@ export type PieMenuProps = {
    *  labels are read from here; bindings are inspected at commit
    *  time by App.tsx (not by this component). */
   config: MenuConfig;
+  /** Force a specific sector to render as active, overriding the
+   *  live axes-to-sector calculation. Used by App.tsx for sticky
+   *  selection (the highlight persists when the puck returns to
+   *  neutral so the user can confirm the choice without holding it).
+   *  `null` means "no override, use live axes". */
+  activeSector?: number | null;
   /** Override the geometry knobs that aren't derived from the config
    *  (deadzone, invert). Sector count always comes from the config. */
   geometryOverrides?: Omit<Partial<PieGeometryConfig>, 'sectorCount'>;
@@ -41,17 +47,34 @@ export type PieMenuProps = {
  * DOM; what *happens* on selection lives in App.tsx (it looks up
  * the binding and asks main to invoke the action).
  */
-export function PieMenu({ axes, position, config, geometryOverrides, radius = 240 }: PieMenuProps) {
+export function PieMenu({
+  axes,
+  position,
+  config,
+  activeSector: overrideSector = null,
+  geometryOverrides,
+  radius = 240,
+}: PieMenuProps) {
   const geometry = useMemo<PieGeometryConfig>(
     () => ({
       ...DEFAULT_PIE_GEOMETRY,
       ...geometryOverrides,
       sectorCount: config.sectors.length,
+      // Per-axis sign comes from the menu config so the user can flip
+      // whichever feels wrong without touching code. Fall back to the
+      // built-in default when the config doesn't specify either knob.
+      invertX: config.axisInvert?.x ?? DEFAULT_PIE_GEOMETRY.invertX,
+      invertY: config.axisInvert?.y ?? DEFAULT_PIE_GEOMETRY.invertY,
     }),
-    [geometryOverrides, config.sectors.length],
+    [geometryOverrides, config.sectors.length, config.axisInvert?.x, config.axisInvert?.y],
   );
 
-  const activeSector = axesToSector(axes, geometry);
+  // App owns the sticky-sector state so the highlight persists when
+  // the user lets the puck snap back to neutral; we still compute
+  // the live sector here for the rare callers that don't pass an
+  // override (e.g. screenshots / future tests).
+  const computedSector = axesToSector(axes, geometry);
+  const activeSector = overrideSector ?? computedSector;
   const sectorCount = geometry.sectorCount;
   const size = radius * 2;
 

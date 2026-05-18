@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { DEFAULT_MENU_CONFIG, validateMenuConfig, type MenuConfig } from '../shared/menu';
+import { DEFAULT_MENU_CONFIG, validateMenuConfig, type MenuConfig } from '../shared/menu.js';
 
 /**
  * Loader for the user's pie-menu config.

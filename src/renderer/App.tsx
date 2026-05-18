@@ -27,34 +27,66 @@ export function App() {
   const { axes, daemonStatus } = useSpaceMouse();
   const [menuConfig, setMenuConfig] = useState<MenuConfig | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  // Sticky selection: latest non-deadzone sector the user pointed at.
+  // The pie highlights this sector and the commit handler fires its
+  // binding, even after the puck has snapped back to centre — so the
+  // user can release the puck and *then* press the trigger without
+  // losing the selection.
+  const [stickySector, setStickySector] = useState<number | null>(null);
 
-  // The commit handler needs the latest axes at the moment the
-  // trigger is released — not the axes value captured when the
-  // handler was wired up. A ref tracks the live value so the
-  // listener can read it without re-subscribing on every frame.
-  const axesRef = useRef(axes);
-  axesRef.current = axes;
+  // Refs let the commit listener read the latest values without
+  // re-subscribing on every frame.
+  const stickySectorRef = useRef<number | null>(null);
+  stickySectorRef.current = stickySector;
   const configRef = useRef(menuConfig);
   configRef.current = menuConfig;
 
+  // Update sticky selection as the puck moves. Only writes when the
+  // axes leave the deadzone, so a return-to-centre preserves the
+  // user's last choice.
   useEffect(() => {
+    if (!menuAnchor || !menuConfig) return;
+    const sec = axesToSector(
+      { tx: axes.tx, ty: axes.ty },
+      {
+        ...DEFAULT_PIE_GEOMETRY,
+        sectorCount: menuConfig.sectors.length,
+        invertX: menuConfig.axisInvert?.x ?? DEFAULT_PIE_GEOMETRY.invertX,
+        invertY: menuConfig.axisInvert?.y ?? DEFAULT_PIE_GEOMETRY.invertY,
+      },
+    );
+    if (sec !== null && sec !== stickySector) {
+      setStickySector(sec);
+    }
+  }, [axes, menuAnchor, menuConfig, stickySector]);
+
+  useEffect(() => {
+    // Pull once on mount so we never miss the initial config to a
+    // startup race; the push channel handles hot-reloads later.
+    window.spaceux
+      .getMenuConfig()
+      .then((cfg) => setMenuConfig(cfg))
+      .catch(() => {
+        // Main returned null (loader hadn't completed yet). The
+        // hot-reload push will catch us up shortly; a noop here is
+        // the right behaviour.
+      });
     const offConfig = window.spaceux.onMenuConfig((config) => {
       setMenuConfig(config);
     });
     const offOpen = window.spaceux.onMenuOpen(({ x, y }) => {
+      // Every menu open starts with a clean selection slate so a
+      // previous session's leftover doesn't fire when the user only
+      // wanted to open + close.
+      setStickySector(null);
       setMenuAnchor({ x, y });
     });
     const offCommit = window.spaceux.onMenuCommit(() => {
       const cfg = configRef.current;
-      const liveAxes = axesRef.current;
+      const sectorIndex = stickySectorRef.current;
       setMenuAnchor(null);
-      if (!cfg) return;
-
-      const sectorIndex = axesToSector(
-        { tx: liveAxes.tx, ty: liveAxes.ty },
-        { ...DEFAULT_PIE_GEOMETRY, sectorCount: cfg.sectors.length },
-      );
-      if (sectorIndex === null) return; // Inside deadzone → dismiss without firing.
+      setStickySector(null);
+      if (!cfg || sectorIndex === null) return; // Never left deadzone → silent dismiss.
       const sector = cfg.sectors[sectorIndex];
       if (!sector?.binding) return;
       const { action, config: actionConfig } = sector.binding;
@@ -77,9 +109,66 @@ export function App() {
   return (
     <div className="root">
       {menuAnchor && menuConfig && (
-        <PieMenu axes={axes} position={menuAnchor} config={menuConfig} />
+        <PieMenu
+          axes={axes}
+          position={menuAnchor}
+          config={menuConfig}
+          activeSector={stickySector}
+        />
       )}
       <DaemonStatusIndicator status={daemonStatus} />
+      <DebugPanel
+        daemonStatus={daemonStatus}
+        axes={axes}
+        menuOpen={menuAnchor !== null}
+        menuConfig={menuConfig}
+        stickySector={stickySector}
+      />
+    </div>
+  );
+}
+
+/**
+ * Always-visible debug card in the top-right corner. Renders only
+ * outside packaged builds (`spaceux` runs from the dev npm start)
+ * so end-users never see it. Lets a developer watch axes flow,
+ * confirm the daemon is connected, and see the menu open/close
+ * lifecycle without having to read DevTools logs.
+ */
+function DebugPanel({
+  daemonStatus,
+  axes,
+  menuOpen,
+  menuConfig,
+  stickySector,
+}: {
+  daemonStatus: 'connecting' | 'connected' | 'disconnected';
+  axes: { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number };
+  menuOpen: boolean;
+  menuConfig: import('@/shared/menu').MenuConfig | null;
+  stickySector: number | null;
+}) {
+  const fmt = (n: number) => n.toString().padStart(5, ' ');
+  const selectedLabel =
+    menuConfig && stickySector !== null ? (menuConfig.sectors[stickySector]?.label ?? '?') : '—';
+  return (
+    <div className="debug-panel" data-status={daemonStatus}>
+      <div className="debug-row">
+        <strong>daemon:</strong> {daemonStatus}
+      </div>
+      <div className="debug-row">
+        <strong>menu:</strong> {menuOpen ? 'OPEN' : 'closed'}{' '}
+        {menuConfig ? `(${menuConfig.sectors.length} sectors)` : '(no config)'}
+      </div>
+      <div className="debug-row">
+        <strong>selected:</strong> {selectedLabel}
+      </div>
+      <div className="debug-row mono">
+        TX {fmt(axes.tx)} TY {fmt(axes.ty)} TZ {fmt(axes.tz)}
+      </div>
+      <div className="debug-row mono">
+        RX {fmt(axes.rx)} RY {fmt(axes.ry)} RZ {fmt(axes.rz)}
+      </div>
     </div>
   );
 }

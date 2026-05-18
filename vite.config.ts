@@ -18,7 +18,10 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(__dirname, 'dist/renderer'),
+    // Land alongside the compiled Electron main so the relative
+    // `loadFile('../renderer/index.html')` from dist-electron/main
+    // resolves without crossing build directories.
+    outDir: path.resolve(__dirname, 'dist-electron/renderer'),
     emptyOutDir: true,
   },
   // Renderer dev server lives on a fixed port so the Electron main

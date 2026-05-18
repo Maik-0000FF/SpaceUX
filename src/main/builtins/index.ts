@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { BUILTIN_ACTION, BUILTIN_PLUGIN_ID } from '../../shared/menu';
+import { BUILTIN_ACTION, BUILTIN_PLUGIN_ID } from '../../shared/menu.js';
 
-import type { LoadedPlugin } from '../plugin-loader';
-import { execAction } from './exec';
-import { keyCombo } from './key-combo';
+import type { LoadedPlugin } from '../plugin-loader.js';
+import { execAction } from './exec.js';
+import { keyCombo } from './key-combo.js';
 
 /**
  * Built-in actions, shipped with the app.

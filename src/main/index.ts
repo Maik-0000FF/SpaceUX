@@ -5,14 +5,19 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '../shared/ipc';
-import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu';
-import type { DaemonEvent } from '../shared/protocol';
+import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '../shared/ipc.js';
+import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
+import type { DaemonEvent } from '../shared/protocol.js';
 
-import { BUILTIN_PLUGIN } from './builtins';
-import { DaemonClient } from './daemon-client';
-import { loadMenuConfig } from './menu-loader';
-import { indexActions, loadPlugins, makeActionContext, pluginSearchPaths } from './plugin-loader';
+import { BUILTIN_PLUGIN } from './builtins/index.js';
+import { DaemonClient } from './daemon-client.js';
+import { loadMenuConfig } from './menu-loader.js';
+import {
+  indexActions,
+  loadPlugins,
+  makeActionContext,
+  pluginSearchPaths,
+} from './plugin-loader.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,25 +31,41 @@ let mainWindow: BrowserWindow | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
 let menuConfig: MenuConfig | null = null;
+// True between MENU_OPEN and MENU_COMMIT — drives the click-to-toggle
+// trigger lifecycle so a second press commits instead of re-opening.
+let menuShown = false;
 
 async function createWindow(): Promise<void> {
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.workAreaSize;
 
+  // Dev mode uses a normal opaque framed window so KDE Plasma
+  // Wayland actually renders the surface (transparent + frameless
+  // overlays often paint nothing visible until the compositor sees
+  // an opaque region). Production drops the frame and goes
+  // transparent + click-through as designed.
+  const devMode = !app.isPackaged;
+
   mainWindow = new BrowserWindow({
-    width,
-    height,
-    x: 0,
-    y: 0,
-    frame: false,
-    transparent: true,
-    alwaysOnTop: true,
-    skipTaskbar: true,
-    resizable: false,
-    movable: false,
-    show: false, // Render the pie offscreen first; renderer toggles visibility.
+    width: devMode ? Math.min(900, width) : width,
+    height: devMode ? Math.min(700, height) : height,
+    x: devMode ? undefined : 0,
+    y: devMode ? undefined : 0,
+    frame: devMode ? true : false,
+    transparent: devMode ? false : true,
+    backgroundColor: devMode ? '#101218' : undefined,
+    alwaysOnTop: devMode ? false : true,
+    skipTaskbar: devMode ? false : true,
+    resizable: devMode,
+    movable: devMode,
+    show: devMode,
+    title: 'SpaceUX (dev)',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      // .cjs extension: preload is bundled by esbuild as CommonJS so
+      // Electron's sandboxed preload context (which doesn't grok ESM
+      // import statements) can load it. The main process itself stays
+      // ESM — only this single file gets the CJS treatment.
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -56,17 +77,19 @@ async function createWindow(): Promise<void> {
     await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
-  // Click-through by default. Phase 1 controls the pie purely with
-  // the SpaceMouse — mouse interaction lands here later if we add
-  // a "pick-with-cursor" mode.
-  mainWindow.setIgnoreMouseEvents(true);
+  // Click-through only matters for the production transparent
+  // overlay; the dev window is a normal interactive surface so
+  // we can resize / click DevTools / etc.
+  if (!devMode) {
+    mainWindow.setIgnoreMouseEvents(true);
+  }
 
-  // Push the current menu config to the renderer now that webContents
-  // is ready. Done here (rather than blindly on app start) so the
-  // renderer never receives a config before its IPC subscription is
-  // installed.
-  if (menuConfig) {
-    mainWindow.webContents.send(IpcChannel.MENU_CONFIG, menuConfig);
+  // Auto-open DevTools while we're still in MVP shake-down.
+  // 'undocked' produces a true separate window that KDE Plasma
+  // tracks individually; 'detach' was getting bundled under the
+  // overlay's task-bar entry and disappearing visually.
+  if (devMode) {
+    mainWindow.webContents.openDevTools({ mode: 'undocked' });
   }
 
   mainWindow.on('closed', () => {
@@ -94,20 +117,32 @@ async function createWindow(): Promise<void> {
 function handleTriggerButton(bnum: number, pressed: boolean): void {
   if (!mainWindow) return;
   if (bnum !== DEFAULT_TRIGGER_BUTTON) return;
+  // Click-to-toggle UX: press 1 opens, press 2 commits + closes.
+  // Release events are intentionally ignored so the user can navigate
+  // the open pie without holding the button down.
+  if (!pressed) return;
 
-  if (pressed) {
-    const cursor = screen.getCursorScreenPoint();
-    const bounds = mainWindow.getBounds();
-    const payload: MenuOpenPayload = {
-      x: cursor.x - bounds.x,
-      y: cursor.y - bounds.y,
-    };
-    mainWindow.show();
-    mainWindow.webContents.send(IpcChannel.MENU_OPEN, payload);
-  } else {
+  // show()/hide() drives the production transparent-overlay lifecycle.
+  // In dev mode the window stays permanently visible so the debug
+  // panel keeps showing axes between menu interactions.
+  const togglesVisibility = app.isPackaged;
+
+  if (menuShown) {
     mainWindow.webContents.send(IpcChannel.MENU_COMMIT);
-    mainWindow.hide();
+    if (togglesVisibility) mainWindow.hide();
+    menuShown = false;
+    return;
   }
+
+  const cursor = screen.getCursorScreenPoint();
+  const bounds = mainWindow.getBounds();
+  const payload: MenuOpenPayload = {
+    x: cursor.x - bounds.x,
+    y: cursor.y - bounds.y,
+  };
+  if (togglesVisibility) mainWindow.show();
+  mainWindow.webContents.send(IpcChannel.MENU_OPEN, payload);
+  menuShown = true;
 }
 
 function wireDaemonEvents(): void {
@@ -168,6 +203,11 @@ function wireActionDispatch(): void {
       await handler(config, makeActionContext(entry.plugin.manifest.id));
     },
   );
+
+  // Renderer-pulled menu config. Pull-based so the renderer can fetch
+  // the current value at mount-time without racing the push-based
+  // channel that handles hot-reloads later.
+  ipcMain.handle(IpcChannel.GET_MENU_CONFIG, () => menuConfig);
 }
 
 app.whenReady().then(async () => {

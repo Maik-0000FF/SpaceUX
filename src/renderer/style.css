@@ -93,3 +93,34 @@ body {
 .status-indicator[data-status='disconnected'] {
   color: var(--status-fg-error);
 }
+
+/* ── Debug panel (dev only) ────────────────────────────────────────── */
+
+.debug-panel {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 10px 14px;
+  background: rgba(20, 22, 28, 0.92);
+  color: rgba(240, 240, 240, 0.95);
+  border: 1px solid rgba(120, 160, 240, 0.4);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: 220px;
+  pointer-events: auto;
+}
+
+.debug-panel[data-status='disconnected'] {
+  border-color: var(--status-fg-error);
+}
+
+.debug-row {
+  white-space: nowrap;
+}
+
+.debug-row.mono {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: rgba(200, 220, 255, 0.85);
+}

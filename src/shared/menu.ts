@@ -67,12 +67,27 @@ export type MenuSector = {
   binding?: ActionRef;
 };
 
+/** Per-axis sign overrides for the pie geometry. The default
+ *  geometry assumes "push the puck forward = select the top sector"
+ *  but every SpaceMouse model wires its TX/TY signs slightly
+ *  differently and KDE Plasma's tilt sense varies too — these
+ *  toggles let the user flip whichever feels wrong without a code
+ *  change. */
+export type MenuAxisInvert = {
+  x?: boolean;
+  y?: boolean;
+};
+
 /** Top-level menu config. */
 export type MenuConfig = {
   /** Schema version this config was written against. Compared against
    *  :data:`MENU_CONFIG_VERSION` at load time; mismatches go through
    *  the migrator (or fall back to the default config). */
   version: number;
+  /** Optional per-axis sign overrides. Omitting either falls back
+   *  to the project default (`{ x: false, y: true }`) which matches
+   *  the SpaceNavigator's "+ty = push forward" convention. */
+  axisInvert?: MenuAxisInvert;
   /** Sectors in clockwise order starting at 12 o'clock. The pie's
    *  sector count = sectors.length — there is no separate "count"
    *  knob and there cannot be one. */
@@ -96,6 +111,11 @@ export function builtinAction(name: (typeof BUILTIN_ACTION)[keyof typeof BUILTIN
 
 export const DEFAULT_MENU_CONFIG: MenuConfig = {
   version: MENU_CONFIG_VERSION,
+  // Neutral start — every SpaceMouse model wires TX/TY signs slightly
+  // differently and every desktop has its own idea of "up on screen".
+  // Both axes go in untouched; users (and the in-app editor later)
+  // flip whichever direction feels backwards.
+  axisInvert: { x: false, y: false },
   sectors: [
     {
       label: 'Switch Window',
@@ -190,7 +210,31 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     sectors.push(sector);
   }
 
-  return { ok: true, config: { version: MENU_CONFIG_VERSION, sectors } };
+  const result: MenuConfig = { version: MENU_CONFIG_VERSION, sectors };
+  if (obj.axisInvert !== undefined) {
+    if (
+      typeof obj.axisInvert !== 'object' ||
+      obj.axisInvert === null ||
+      Array.isArray(obj.axisInvert)
+    ) {
+      return { ok: false, reason: 'menu config field "axisInvert" must be an object when present' };
+    }
+    const inv = obj.axisInvert as Record<string, unknown>;
+    const axisInvert: MenuAxisInvert = {};
+    for (const k of ['x', 'y'] as const) {
+      if (inv[k] !== undefined) {
+        if (typeof inv[k] !== 'boolean') {
+          return {
+            ok: false,
+            reason: `menu config axisInvert.${k} must be a boolean when present`,
+          };
+        }
+        axisInvert[k] = inv[k] as boolean;
+      }
+    }
+    result.axisInvert = axisInvert;
+  }
+  return { ok: true, config: result };
 }
 
 type ActionRefValidation = { ok: true; value: ActionRef } | { ok: false; reason: string };

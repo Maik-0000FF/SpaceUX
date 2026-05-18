@@ -12,7 +12,7 @@ import {
 } from '../src/core/pie-geometry';
 
 describe('axesToSector', () => {
-  const eight: PieGeometryConfig = { sectorCount: 8, deadzone: 50, invertY: true };
+  const eight: PieGeometryConfig = { sectorCount: 8, deadzone: 50, invertX: false, invertY: true };
 
   it('returns null inside the deadzone', () => {
     expect(axesToSector({ tx: 0, ty: 0 }, eight)).toBeNull();
@@ -57,7 +57,12 @@ describe('axesToSector', () => {
   });
 
   it('handles four-sector pies (cardinal directions)', () => {
-    const four: PieGeometryConfig = { sectorCount: 4, deadzone: 50, invertY: true };
+    const four: PieGeometryConfig = {
+      sectorCount: 4,
+      deadzone: 50,
+      invertX: false,
+      invertY: true,
+    };
     expect(axesToSector({ tx: 0, ty: 200 }, four)).toBe(0); // up
     expect(axesToSector({ tx: 200, ty: 0 }, four)).toBe(1); // right
     expect(axesToSector({ tx: 0, ty: -200 }, four)).toBe(2); // down
