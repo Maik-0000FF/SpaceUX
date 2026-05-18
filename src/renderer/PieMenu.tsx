@@ -9,6 +9,7 @@ import {
   sectorCenterAngle,
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
+import type { MenuConfig, MenuSector } from '@/shared/menu';
 
 const TAU = Math.PI * 2;
 
@@ -18,8 +19,13 @@ export type PieMenuProps = {
    *  this point so the menu opens "at the cursor" wherever the user
    *  triggered it. Omit to fall back to viewport-centre. */
   position?: { x: number; y: number };
-  /** Override the default geometry (sector count, deadzone, invert). */
-  geometry?: Partial<PieGeometryConfig>;
+  /** Validated menu config from main. The sector count + per-sector
+   *  labels are read from here; bindings are inspected at commit
+   *  time by App.tsx (not by this component). */
+  config: MenuConfig;
+  /** Override the geometry knobs that aren't derived from the config
+   *  (deadzone, invert). Sector count always comes from the config. */
+  geometryOverrides?: Omit<Partial<PieGeometryConfig>, 'sectorCount'>;
   /** Outer radius in CSS pixels. */
   radius?: number;
 };
@@ -27,23 +33,26 @@ export type PieMenuProps = {
 /**
  * Radial menu component.
  *
- * Pure presentational: takes the current axes and renders the wheel
- * with the appropriate sector highlighted. Selection logic lives in
- * the core/pie-geometry module so the same maths can be unit-tested
- * without a DOM.
- *
- * The initial scaffold renders one sector per slot with a placeholder
- * label. Plugin-bound actions land in here once the editor / config
- * pipeline is in place.
+ * Pure presentational: takes the current axes plus the menu config
+ * and renders the wheel with the appropriate sector highlighted.
+ * The sector count is derived from config.sectors.length — there is
+ * no separate count knob. Selection maths live in
+ * core/pie-geometry so the same code can be unit-tested without a
+ * DOM; what *happens* on selection lives in App.tsx (it looks up
+ * the binding and asks main to invoke the action).
  */
-export function PieMenu({ axes, position, geometry, radius = 240 }: PieMenuProps) {
-  const config = useMemo<PieGeometryConfig>(
-    () => ({ ...DEFAULT_PIE_GEOMETRY, ...geometry }),
-    [geometry],
+export function PieMenu({ axes, position, config, geometryOverrides, radius = 240 }: PieMenuProps) {
+  const geometry = useMemo<PieGeometryConfig>(
+    () => ({
+      ...DEFAULT_PIE_GEOMETRY,
+      ...geometryOverrides,
+      sectorCount: config.sectors.length,
+    }),
+    [geometryOverrides, config.sectors.length],
   );
 
-  const activeSector = axesToSector(axes, config);
-  const sectors = Math.max(2, Math.floor(config.sectorCount));
+  const activeSector = axesToSector(axes, geometry);
+  const sectorCount = geometry.sectorCount;
   const size = radius * 2;
 
   // Absolute positioning so the pie sits at the supplied window-
@@ -64,17 +73,23 @@ export function PieMenu({ axes, position, geometry, radius = 240 }: PieMenuProps
   return (
     <div className="pie-menu" style={style}>
       <svg viewBox={`-${radius} -${radius} ${size} ${size}`} width={size} height={size}>
-        {Array.from({ length: sectors }, (_, i) => (
+        {config.sectors.map((_, i) => (
           <SectorWedge
             key={i}
             index={i}
-            sectorCount={sectors}
+            sectorCount={sectorCount}
             radius={radius}
             active={activeSector === i}
           />
         ))}
-        {Array.from({ length: sectors }, (_, i) => (
-          <SectorLabel key={i} index={i} sectorCount={sectors} radius={radius * 0.62} />
+        {config.sectors.map((sector, i) => (
+          <SectorLabel
+            key={i}
+            index={i}
+            sectorCount={sectorCount}
+            radius={radius * 0.62}
+            sector={sector}
+          />
         ))}
       </svg>
     </div>
@@ -104,10 +119,12 @@ function SectorLabel({
   index,
   sectorCount,
   radius,
+  sector,
 }: {
   index: number;
   sectorCount: number;
   radius: number;
+  sector: MenuSector;
 }) {
   const angle = sectorCenterAngle(index, sectorCount);
   // The geometry convention places angle 0 at "12 o'clock"; SVG uses
@@ -116,7 +133,7 @@ function SectorLabel({
   const y = -Math.cos(angle) * radius;
   return (
     <text className="pie-label" x={x} y={y} textAnchor="middle" dominantBaseline="middle">
-      {index + 1}
+      {sector.label}
     </text>
   );
 }

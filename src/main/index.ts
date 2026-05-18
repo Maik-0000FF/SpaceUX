@@ -6,10 +6,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '@/shared/ipc';
-import { DEFAULT_TRIGGER_BUTTON } from '@/shared/menu';
+import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '@/shared/menu';
 import type { DaemonEvent } from '@/shared/protocol';
 
+import { BUILTIN_PLUGIN } from './builtins';
 import { DaemonClient } from './daemon-client';
+import { loadMenuConfig } from './menu-loader';
 import { indexActions, loadPlugins, makeActionContext, pluginSearchPaths } from './plugin-loader';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -23,6 +25,7 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 let mainWindow: BrowserWindow | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
+let menuConfig: MenuConfig | null = null;
 
 async function createWindow(): Promise<void> {
   const display = screen.getPrimaryDisplay();
@@ -57,6 +60,14 @@ async function createWindow(): Promise<void> {
   // the SpaceMouse — mouse interaction lands here later if we add
   // a "pick-with-cursor" mode.
   mainWindow.setIgnoreMouseEvents(true);
+
+  // Push the current menu config to the renderer now that webContents
+  // is ready. Done here (rather than blindly on app start) so the
+  // renderer never receives a config before its IPC subscription is
+  // installed.
+  if (menuConfig) {
+    mainWindow.webContents.send(IpcChannel.MENU_CONFIG, menuConfig);
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -162,11 +173,22 @@ function wireActionDispatch(): void {
 app.whenReady().then(async () => {
   const repoRoot = path.resolve(__dirname, '..', '..');
   const { plugins, errors } = await loadPlugins(pluginSearchPaths(repoRoot));
-  actionIndex = indexActions(plugins);
   for (const err of errors) {
     // eslint-disable-next-line no-console
     console.warn(`[plugin] skipped ${err.dir}: ${err.reason}`);
   }
+  // Built-ins go first so they appear in error messages with the
+  // friendly id; third-party plugins layered on top can shadow a
+  // built-in only by colliding on the same composite action key,
+  // which the indexer reports through its normal duplicate path.
+  actionIndex = indexActions([BUILTIN_PLUGIN, ...plugins]);
+
+  const menuResult = await loadMenuConfig();
+  if (menuResult.fallbackReason) {
+    // eslint-disable-next-line no-console
+    console.warn(`[menu-config] using defaults: ${menuResult.fallbackReason}`);
+  }
+  menuConfig = menuResult.config;
 
   wireActionDispatch();
   wireDaemonEvents();

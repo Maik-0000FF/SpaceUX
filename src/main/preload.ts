@@ -4,6 +4,7 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '@/shared/ipc';
+import type { MenuConfig } from '@/shared/menu';
 
 /**
  * Renderer-visible API.
@@ -22,6 +23,8 @@ export type SpaceUxBridge = {
   onAxes(handler: (values: AxesValues) => void): () => void;
   onButton(handler: (payload: { bnum: number; pressed: boolean }) => void): () => void;
   onDaemonStatus(handler: (payload: DaemonStatusPayload) => void): () => void;
+  /** Main pushes the resolved menu config (user file or default). */
+  onMenuConfig(handler: (config: MenuConfig) => void): () => void;
   /** Pie menu opened at the given anchor (renderer-window coords). */
   onMenuOpen(handler: (payload: MenuOpenPayload) => void): () => void;
   /** Pie menu commit / dismiss request from main (no payload). */
@@ -39,6 +42,7 @@ const bridge: SpaceUxBridge = {
   onAxes: (handler) => subscribe<AxesValues>(IpcChannel.AXES, handler),
   onButton: (handler) => subscribe<{ bnum: number; pressed: boolean }>(IpcChannel.BUTTON, handler),
   onDaemonStatus: (handler) => subscribe<DaemonStatusPayload>(IpcChannel.DAEMON_STATUS, handler),
+  onMenuConfig: (handler) => subscribe<MenuConfig>(IpcChannel.MENU_CONFIG, handler),
   onMenuOpen: (handler) => subscribe<MenuOpenPayload>(IpcChannel.MENU_OPEN, handler),
   // MENU_COMMIT has no payload — wrap the subscribe helper so the
   // handler signature stays () => void instead of (_: void) => void.

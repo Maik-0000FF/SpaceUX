@@ -1,0 +1,101 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+import { DEFAULT_MENU_CONFIG, validateMenuConfig, type MenuConfig } from '@/shared/menu';
+
+/**
+ * Loader for the user's pie-menu config.
+ *
+ * Search order (first hit wins):
+ *   1. $XDG_CONFIG_HOME/spaceux/menu.json
+ *   2. ~/.config/spaceux/menu.json
+ *
+ * Anything missing or malformed falls back to DEFAULT_MENU_CONFIG so
+ * a fresh install always has a working pie. The reason for the
+ * fallback is logged so the user knows why their (broken) config did
+ * not take effect.
+ *
+ * Hot-reload is deliberately out of scope for v0 — the renderer
+ * receives the menu over IPC after startup. Phase 2 adds fs.watch.
+ */
+
+const MENU_CONFIG_FILENAME = 'menu.json';
+const MENU_CONFIG_SUBDIR = 'spaceux';
+
+export type MenuLoadResult = {
+  /** The config the app should run with. Always populated — either
+   *  the validated user config or the default. */
+  config: MenuConfig;
+  /** Absolute path the user config was loaded from, or null if the
+   *  loader fell back. Useful for logs and future hot-reload. */
+  source: string | null;
+  /** Human-readable reason for the fallback, or null on success. */
+  fallbackReason: string | null;
+};
+
+/** Build the ordered list of paths the loader will probe. Exposed
+ *  so tests can substitute fake locations. */
+export function menuConfigSearchPaths(): string[] {
+  const xdg = process.env.XDG_CONFIG_HOME?.trim();
+  const home = os.homedir();
+  const paths = [
+    xdg ? path.join(xdg, MENU_CONFIG_SUBDIR, MENU_CONFIG_FILENAME) : null,
+    path.join(home, '.config', MENU_CONFIG_SUBDIR, MENU_CONFIG_FILENAME),
+  ];
+  const seen = new Set<string>();
+  return paths.filter((p): p is string => {
+    if (!p) return false;
+    if (seen.has(p)) return false;
+    seen.add(p);
+    return true;
+  });
+}
+
+export async function loadMenuConfig(
+  searchPaths: string[] = menuConfigSearchPaths(),
+): Promise<MenuLoadResult> {
+  for (const candidate of searchPaths) {
+    let raw: string;
+    try {
+      raw = await fs.readFile(candidate, 'utf8');
+    } catch {
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      return {
+        config: DEFAULT_MENU_CONFIG,
+        source: candidate,
+        fallbackReason: `${candidate}: not valid JSON (${describeError(err)})`,
+      };
+    }
+
+    const result = validateMenuConfig(parsed);
+    if (!result.ok) {
+      return {
+        config: DEFAULT_MENU_CONFIG,
+        source: candidate,
+        fallbackReason: `${candidate}: ${result.reason}`,
+      };
+    }
+
+    return { config: result.config, source: candidate, fallbackReason: null };
+  }
+
+  return {
+    config: DEFAULT_MENU_CONFIG,
+    source: null,
+    fallbackReason: 'no menu.json found in any XDG config path',
+  };
+}
+
+function describeError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
