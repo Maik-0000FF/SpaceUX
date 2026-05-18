@@ -78,6 +78,14 @@ export type MenuAxisInvert = {
   y?: boolean;
 };
 
+/** Shipped default for :type:`MenuAxisInvert` — both axes raw
+ *  (correct for the SpaceNavigator we tested on). Used as the
+ *  explicit setting in :data:`DEFAULT_MENU_CONFIG` *and* as the
+ *  renderer's fallback when a user-supplied config omits
+ *  `axisInvert`. Keeping both pinned to the same constant means
+ *  the "leave field blank" path doesn't silently flip an axis. */
+export const DEFAULT_AXIS_INVERT: Required<MenuAxisInvert> = { x: false, y: false };
+
 /** Top-level menu config. */
 export type MenuConfig = {
   /** Schema version this config was written against. Compared against
@@ -89,9 +97,8 @@ export type MenuConfig = {
    *  button mappings (or wanting a non-primary button to trigger)
    *  set this. */
   triggerButton?: number;
-  /** Optional per-axis sign overrides. Omitting either falls back
-   *  to the project default (`{ x: false, y: true }`) which matches
-   *  the SpaceNavigator's "+ty = push forward" convention. */
+  /** Optional per-axis sign overrides. Omitting the field (or one
+   *  side of it) falls back to :data:`DEFAULT_AXIS_INVERT`. */
   axisInvert?: MenuAxisInvert;
   /** Sectors in clockwise order starting at 12 o'clock. The pie's
    *  sector count = sectors.length — there is no separate "count"
@@ -117,11 +124,7 @@ export function builtinAction(name: (typeof BUILTIN_ACTION)[keyof typeof BUILTIN
 export const DEFAULT_MENU_CONFIG: MenuConfig = {
   version: MENU_CONFIG_VERSION,
   triggerButton: DEFAULT_TRIGGER_BUTTON,
-  // Neutral start — every SpaceMouse model wires TX/TY signs slightly
-  // differently and every desktop has its own idea of "up on screen".
-  // Both axes go in untouched; users (and the in-app editor later)
-  // flip whichever direction feels backwards.
-  axisInvert: { x: false, y: false },
+  axisInvert: DEFAULT_AXIS_INVERT,
   sectors: [
     {
       label: 'Switch Window',

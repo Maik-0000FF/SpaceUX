@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { axesToSector, DEFAULT_PIE_GEOMETRY } from '@/core/pie-geometry';
-import type { MenuConfig } from '@/shared/menu';
+import { DEFAULT_AXIS_INVERT, type MenuConfig } from '@/shared/menu';
 
 import { PieMenu } from './PieMenu';
 import { useSpaceMouse } from './hooks/useSpaceMouse';
@@ -51,8 +51,8 @@ export function App() {
       {
         ...DEFAULT_PIE_GEOMETRY,
         sectorCount: menuConfig.sectors.length,
-        invertX: menuConfig.axisInvert?.x ?? DEFAULT_PIE_GEOMETRY.invertX,
-        invertY: menuConfig.axisInvert?.y ?? DEFAULT_PIE_GEOMETRY.invertY,
+        invertX: menuConfig.axisInvert?.x ?? DEFAULT_AXIS_INVERT.x,
+        invertY: menuConfig.axisInvert?.y ?? DEFAULT_AXIS_INVERT.y,
       },
     );
     if (sec !== null && sec !== stickySector) {

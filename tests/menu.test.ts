@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BUILTIN_ACTION,
   BUILTIN_PLUGIN_ID,
+  DEFAULT_AXIS_INVERT,
   DEFAULT_MENU_CONFIG,
   DEFAULT_TRIGGER_BUTTON,
   MENU_CONFIG_VERSION,
@@ -129,6 +130,15 @@ describe('DEFAULT_MENU_CONFIG', () => {
     // copying the config as a starting point see the field instead
     // of relying on the loader's implicit fallback.
     expect(DEFAULT_MENU_CONFIG.triggerButton).toBe(DEFAULT_TRIGGER_BUTTON);
+  });
+
+  it('pins axisInvert to DEFAULT_AXIS_INVERT (no default drift)', () => {
+    // The renderer falls back to DEFAULT_AXIS_INVERT when a user
+    // config omits the field. If the shipped DEFAULT_MENU_CONFIG
+    // drifts away from that constant, a config with no axisInvert
+    // would silently differ from one that copy-pastes the
+    // shipped value.
+    expect(DEFAULT_MENU_CONFIG.axisInvert).toEqual(DEFAULT_AXIS_INVERT);
   });
 });
 
