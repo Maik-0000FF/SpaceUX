@@ -1,0 +1,34 @@
+# Node / Electron
+node_modules/
+dist/
+dist-electron/
+out/
+.vite/
+*.tsbuildinfo
+
+# Lock file deliberately untracked — see project README for the
+# trade-off (looser version pinning, in exchange for keeping
+# transitive-dependency metadata out of the repo).
+package-lock.json
+
+# Daemon build artefacts
+src/daemon/*.o
+src/daemon/spaceux-daemon
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local notes
+private/
+
+# Test output
+coverage/
+.nyc_output/

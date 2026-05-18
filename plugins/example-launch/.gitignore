@@ -1,0 +1,2 @@
+# Plugin authors may add per-plugin secrets / build artefacts here.
+# The directory itself is tracked because manifest.json + index.js are.

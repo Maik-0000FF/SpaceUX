@@ -1,0 +1,22 @@
+{
+  "id": "org.spaceux.example-launch",
+  "name": "Example Launcher",
+  "version": "0.1.0",
+  "author": "Maik-0000FF",
+  "license": "GPL-3.0-or-later",
+  "actions": [
+    {
+      "name": "launch",
+      "label": "Launch program",
+      "description": "Spawn a desktop application as a fire-and-forget subprocess.",
+      "config": {
+        "command": {
+          "kind": "string",
+          "label": "Command",
+          "placeholder": "firefox --new-window https://example.com",
+          "default": ""
+        }
+      }
+    }
+  ]
+}

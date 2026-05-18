@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# REUSE specification metadata. Every source file in this repository
+# carries its own SPDX header; this file backfills coverage for asset
+# directories and generated artefacts where per-file headers are
+# impractical. See https://reuse.software/ for the full spec.
+
+version = 1
+
+[[annotations]]
+path = "package-lock.json"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Maik-0000FF"
+SPDX-License-Identifier = "GPL-3.0-or-later"
