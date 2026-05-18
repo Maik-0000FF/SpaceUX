@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { BUILTIN_ACTION, BUILTIN_PLUGIN_ID } from '@/shared/menu';
+import { BUILTIN_ACTION, BUILTIN_PLUGIN_ID } from '../../shared/menu';
 
 import type { LoadedPlugin } from '../plugin-loader';
 import { execAction } from './exec';

@@ -3,8 +3,8 @@
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
-import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '@/shared/ipc';
-import type { MenuConfig } from '@/shared/menu';
+import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '../shared/ipc';
+import type { MenuConfig } from '../shared/menu';
 
 /**
  * Renderer-visible API.

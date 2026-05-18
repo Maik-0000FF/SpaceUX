@@ -12,7 +12,7 @@ import type {
   ActionHandler,
   PluginManifest,
   PluginModule,
-} from '@/shared/plugin-types';
+} from '../shared/plugin-types';
 
 /**
  * Discover plugins under the standard XDG paths, validate their

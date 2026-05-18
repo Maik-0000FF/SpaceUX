@@ -5,9 +5,9 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '@/shared/ipc';
-import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '@/shared/menu';
-import type { DaemonEvent } from '@/shared/protocol';
+import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '../shared/ipc';
+import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu';
+import type { DaemonEvent } from '../shared/protocol';
 
 import { BUILTIN_PLUGIN } from './builtins';
 import { DaemonClient } from './daemon-client';

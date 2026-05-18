@@ -23,6 +23,5 @@
       "@/core/*": ["src/core/*"]
     }
   },
-  "include": ["src/renderer", "src/shared", "src/core", "tests"],
-  "references": [{ "path": "./tsconfig.electron.json" }]
+  "include": ["src/renderer", "src/shared", "src/core", "tests"]
 }

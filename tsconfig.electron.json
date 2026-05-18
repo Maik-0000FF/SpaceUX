@@ -16,13 +16,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "moduleDetection": "force",
-    "composite": true,
-    "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@/shared/*": ["src/shared/*"],
-      "@/core/*": ["src/core/*"]
-    }
+    "types": ["node"]
   },
   "include": ["src/main", "src/shared", "src/core"]
 }
