@@ -2,10 +2,20 @@
  * SPDX-FileCopyrightText: Maik-0000FF
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * kernel_input - implementation. See kernel_input.h.
+ * input_linux - Linux backend for input.h.
+ *
+ * Reads a 3Dconnexion puck via the kernel's evdev interface
+ * (/dev/input/eventN). Coalesces per-axis EV_ABS deltas until the
+ * kernel emits SYN_REPORT, at which point one full PE_AXES snapshot
+ * goes out. Button transitions are forwarded one-for-one as
+ * PE_BUTTON events.
+ *
+ * The local <linux/input.h> declares ::struct input_event for the
+ * kernel's wire format; our higher-level event type is ::struct
+ * puck_event so the two never collide.
  */
 #define _GNU_SOURCE
-#include "kernel_input.h"
+#include "input.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -54,7 +64,7 @@ static int looks_like_spacemouse(int fd)
 	return 1;
 }
 
-int kinput_open(void)
+int input_open(void)
 {
 	DIR *d = opendir("/dev/input");
 	if (!d)
@@ -88,7 +98,7 @@ int kinput_open(void)
 	return found_fd;
 }
 
-void kinput_close(int fd)
+void input_close(int fd)
 {
 	if (fd >= 0)
 		close(fd);
@@ -111,7 +121,7 @@ static int code_to_bnum(int code)
 	return bnum;
 }
 
-int kinput_poll(int fd, struct kinput_event *out)
+int input_poll(int fd, struct puck_event *out)
 {
 	struct input_event ie;
 	ssize_t n;
@@ -125,7 +135,7 @@ int kinput_poll(int fd, struct kinput_event *out)
 			int bnum = code_to_bnum(ie.code);
 			if (bnum < 0)
 				continue;
-			out->kind = KIE_BUTTON;
+			out->kind = PE_BUTTON;
 			out->bnum = bnum;
 			out->pressed = ie.value;
 			return 1;
@@ -133,7 +143,7 @@ int kinput_poll(int fd, struct kinput_event *out)
 			if (!g_axis_dirty)
 				continue;
 			g_axis_dirty = 0;
-			out->kind = KIE_AXES;
+			out->kind = PE_AXES;
 			memcpy(out->values, g_axis_state, sizeof(g_axis_state));
 			return 1;
 		}

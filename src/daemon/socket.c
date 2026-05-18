@@ -6,6 +6,7 @@
  */
 #define _GNU_SOURCE
 #include "socket.h"
+#include "platform.h"
 #include "protocol.h"
 
 #include <errno.h>
@@ -55,8 +56,8 @@ int sock_init(struct sock_state *s)
 	for (int i = 0; i < SPACEUX_MAX_CLIENTS; i++)
 		s->clients[i].fd = -1;
 
-	uid_t uid = getuid();
-	snprintf(s->path, sizeof(s->path), "/run/user/%u/%s", uid, SPACEUX_SOCK_BASENAME);
+	if (platform_socket_path(s->path, sizeof(s->path)) < 0)
+		return -1;
 	unlink(s->path); /* stale socket from a previous run */
 
 	s->listen_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);

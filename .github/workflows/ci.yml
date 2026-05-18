@@ -42,10 +42,11 @@ jobs:
         run: npm test
 
   # ─── Daemon C build ─────────────────────────────────────────────────
-  # Builds against the distro toolchain — proves the daemon compiles
-  # cleanly without any TypeScript / Node baggage. Warnings are
-  # promoted to errors so a regression in -Wall / -Wextra fails the
-  # build instead of slipping through.
+  # Builds via CMake against the distro toolchain — proves the daemon
+  # compiles cleanly under both gcc and clang. -Werror is added via
+  # CMAKE_C_FLAGS so a new warning fails the build instead of slipping
+  # through; the local dev configure does not enable it so working on
+  # a fresh compiler version stays comfortable.
 
   daemon:
     name: daemon (gcc + clang)
@@ -59,9 +60,11 @@ jobs:
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ${{ matrix.cc }} make
-      - name: Build daemon
-        run: make -C src/daemon CC=${{ matrix.cc }} EXTRA_CFLAGS="-Werror"
+          sudo apt-get install -y --no-install-recommends ${{ matrix.cc }} cmake
+      - name: Configure
+        run: cmake -S . -B build/daemon -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_C_FLAGS=-Werror
+      - name: Build
+        run: cmake --build build/daemon
 
   # ─── REUSE compliance ──────────────────────────────────────────────
   # Verifies every file has an SPDX header (or a sidecar .license file)
@@ -73,3 +76,21 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - uses: fsfe/reuse-action@v6
+
+  # ─── Secret scanning ───────────────────────────────────────────────
+  # gitleaks scans the full history for accidental secrets (API keys,
+  # tokens, credentials). Cheap to run, catches the kind of mistake
+  # that's painful to clean up post-push.
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history needed so gitleaks can scan every commit, not
+          # just the most recent tree.
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

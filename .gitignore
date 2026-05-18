@@ -14,9 +14,8 @@ out/
 # transitive-dependency metadata out of the repo).
 package-lock.json
 
-# Daemon build artefacts
-src/daemon/*.o
-src/daemon/spaceux-daemon
+# CMake build tree (daemon binary lands here)
+build/
 
 # OS
 .DS_Store

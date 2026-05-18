@@ -50,9 +50,9 @@
  * long enough that an idle daemon barely uses CPU. */
 #define SPACEUX_POLL_TIMEOUT_MS 100
 
-/* How often the daemon retries kinput_open() after a device unplug.
+/* How often the daemon retries input_open() after a device unplug.
  * Cheap enough to feel responsive on hot-plug, slow enough not to
  * spam syslog with "no device" while the cable is out. */
-#define SPACEUX_KINPUT_RETRY_MS 1000
+#define SPACEUX_INPUT_RETRY_MS 1000
 
 #endif /* SPACEUX_DAEMON_CONFIG_H */
