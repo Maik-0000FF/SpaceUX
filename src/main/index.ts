@@ -5,12 +5,14 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { describeError } from '../shared/errors.js';
 import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '../shared/ipc.js';
 import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
 import type { DaemonEvent } from '../shared/protocol.js';
 
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
+import { KWinCursorService } from './kwin-cursor.js';
 import { loadMenuConfig, menuConfigSearchPaths } from './menu-loader.js';
 import { watchMenuConfig } from './menu-watcher.js';
 import {
@@ -35,7 +37,26 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 // surface can be tested without electron-builder packaging.
 const OVERLAY_MODE = app.isPackaged || Boolean(process.env.SPACEUX_OVERLAY_MODE);
 
+// Caps the dev-mode framed window so it fits on a typical laptop
+// display without forcing the developer to alt-drag it smaller.
+// Overlay mode ignores these — the window covers the full display
+// under the cursor.
+const DEV_WINDOW_MAX_WIDTH = 900;
+const DEV_WINDOW_MAX_HEIGHT = 700;
+
+// On KDE Plasma Wayland, Electron's screen.getCursorScreenPoint()
+// is frozen (Wayland forbids clients from polling the global
+// cursor). We round-trip through a KWin script over DBus when this
+// flag is true. Other Wayland compositors (GNOME, Hyprland, ...)
+// need their own backends; X11 doesn't need one because the
+// Electron API works there.
+const IS_KDE_WAYLAND =
+  process.platform === 'linux' &&
+  process.env.XDG_SESSION_TYPE === 'wayland' &&
+  (process.env.XDG_CURRENT_DESKTOP ?? '').toLowerCase().includes('kde');
+
 let mainWindow: BrowserWindow | null = null;
+let kwinCursor: KWinCursorService | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
 let menuConfig: MenuConfig | null = null;
@@ -58,8 +79,8 @@ async function createWindow(): Promise<void> {
   const devMode = !OVERLAY_MODE;
 
   mainWindow = new BrowserWindow({
-    width: devMode ? Math.min(900, width) : width,
-    height: devMode ? Math.min(700, height) : height,
+    width: devMode ? Math.min(DEV_WINDOW_MAX_WIDTH, width) : width,
+    height: devMode ? Math.min(DEV_WINDOW_MAX_HEIGHT, height) : height,
     x: devMode ? undefined : 0,
     y: devMode ? undefined : 0,
     frame: devMode ? true : false,
@@ -70,6 +91,17 @@ async function createWindow(): Promise<void> {
     resizable: devMode,
     movable: devMode,
     show: devMode,
+    // On KDE Plasma Wayland (and other wlroots-based compositors)
+    // a plain toplevel client cannot reposition itself — setBounds()
+    // is a silent no-op because Wayland leaves window placement to
+    // the compositor. Specific window types (`toolbar`, `utility`,
+    // `dock`) are an opt-out: the compositor treats them as panel-
+    // adjacent surfaces that may set their own geometry. Kando uses
+    // `toolbar` on KDE for the same reason (`dock` would also let
+    // setBounds() through, but it loses keyboard focus). We only set
+    // it on Linux + overlay mode — the dev window stays a normal
+    // toplevel so the dev WM treats it as a regular framed window.
+    type: OVERLAY_MODE && process.platform === 'linux' ? 'toolbar' : undefined,
     title: 'SpaceUX (dev)',
     webPreferences: {
       // .cjs extension: preload is bundled by esbuild as CommonJS so
@@ -86,6 +118,13 @@ async function createWindow(): Promise<void> {
     await mainWindow.loadURL(VITE_DEV_SERVER_URL);
   } else {
     await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  }
+
+  if (!devMode) {
+    // Promote the overlay above regular alwaysOnTop. Kando uses
+    // this on KDE; on Plasma some compositor placement rules apply
+    // differently to screen-saver-level windows.
+    mainWindow.setAlwaysOnTop(true, 'screen-saver');
   }
 
   // Click-through only matters for the production transparent
@@ -108,6 +147,61 @@ async function createWindow(): Promise<void> {
   });
 }
 
+/** Pull the live cursor position. Prefers the KWin DBus service
+ *  on KDE Wayland; falls back to Electron's API everywhere else
+ *  (or when the KWin path fails for any reason). */
+async function getCursor(): Promise<{ x: number; y: number }> {
+  if (kwinCursor) {
+    try {
+      return await kwinCursor.getCursor();
+    } catch (err: unknown) {
+      // eslint-disable-next-line no-console
+      console.warn(`[cursor] KWin script failed, falling back: ${describeError(err)}`);
+    }
+  }
+  return screen.getCursorScreenPoint();
+}
+
+/**
+ * Open the pie at the cursor. In overlay mode the window is first
+ * moved + resized onto the display containing the cursor, so the pie
+ * lands on the right monitor in multi-display setups. In dev mode
+ * the small framed window stays put — moving it between displays on
+ * every trigger would just confuse the developer flow, and the
+ * cursor is almost certainly already inside the dev window anyway.
+ */
+async function openMenuAtCursor(window: BrowserWindow): Promise<void> {
+  const cursor = await getCursor();
+  let originX: number;
+  let originY: number;
+  if (OVERLAY_MODE) {
+    const targetDisplay = screen.getDisplayNearestPoint(cursor);
+    window.setBounds(targetDisplay.bounds);
+    originX = targetDisplay.bounds.x;
+    originY = targetDisplay.bounds.y;
+  } else {
+    const bounds = window.getBounds();
+    originX = bounds.x;
+    originY = bounds.y;
+  }
+  const payload: MenuOpenPayload = {
+    x: cursor.x - originX,
+    y: cursor.y - originY,
+  };
+  if (OVERLAY_MODE) window.show();
+  window.webContents.send(IpcChannel.MENU_OPEN, payload);
+  menuShown = true;
+}
+
+/** Commit the currently-highlighted sector (or dismiss when none)
+ *  and hide the overlay. In dev mode the window stays visible so
+ *  the debug panel keeps showing axes between menu interactions. */
+function closeMenu(window: BrowserWindow): void {
+  window.webContents.send(IpcChannel.MENU_COMMIT);
+  if (OVERLAY_MODE) window.hide();
+  menuShown = false;
+}
+
 /**
  * Trigger-button handler. The active button comes from the live
  * menu config (`triggerButton`) and falls back to
@@ -115,48 +209,22 @@ async function createWindow(): Promise<void> {
  * so a hot-reload of menu.json swaps the trigger live without an
  * app restart.
  *
- * Lifecycle:
- *   press   → capture cursor, show the overlay, send MENU_OPEN(x, y)
- *             so the renderer positions the pie at the cursor.
- *   release → send MENU_COMMIT (renderer picks the highlighted sector
- *             or dismisses if none) and hide the overlay.
- *
- * Multi-monitor caveat: the overlay window currently only covers the
- * primary display (see createWindow). If the cursor is on a secondary
- * display when the trigger fires, the pie still renders but lands
- * outside the visible window. Phase 3 of the roadmap resizes the
- * overlay to the display containing the cursor before show().
+ * Click-to-toggle UX: press 1 opens, press 2 commits + closes.
+ * Release events are intentionally ignored so the user can navigate
+ * the open pie without holding the button down.
  */
 function handleTriggerButton(bnum: number, pressed: boolean): void {
   if (!mainWindow) return;
   const activeTrigger = menuConfig?.triggerButton ?? DEFAULT_TRIGGER_BUTTON;
-  if (bnum !== activeTrigger) return;
-  // Click-to-toggle UX: press 1 opens, press 2 commits + closes.
-  // Release events are intentionally ignored so the user can navigate
-  // the open pie without holding the button down.
-  if (!pressed) return;
-
-  // show()/hide() drives the overlay-mode lifecycle. In dev mode the
-  // window stays permanently visible so the debug panel keeps
-  // showing axes between menu interactions.
-  const togglesVisibility = OVERLAY_MODE;
-
+  if (bnum !== activeTrigger || !pressed) return;
   if (menuShown) {
-    mainWindow.webContents.send(IpcChannel.MENU_COMMIT);
-    if (togglesVisibility) mainWindow.hide();
-    menuShown = false;
-    return;
+    closeMenu(mainWindow);
+  } else {
+    void openMenuAtCursor(mainWindow).catch((err: unknown) => {
+      // eslint-disable-next-line no-console
+      console.warn(`[menu] openMenuAtCursor failed: ${describeError(err)}`);
+    });
   }
-
-  const cursor = screen.getCursorScreenPoint();
-  const bounds = mainWindow.getBounds();
-  const payload: MenuOpenPayload = {
-    x: cursor.x - bounds.x,
-    y: cursor.y - bounds.y,
-  };
-  if (togglesVisibility) mainWindow.show();
-  mainWindow.webContents.send(IpcChannel.MENU_OPEN, payload);
-  menuShown = true;
 }
 
 function wireDaemonEvents(): void {
@@ -231,6 +299,24 @@ app.whenReady().then(async () => {
       '[overlay] SPACEUX_OVERLAY_MODE=1 — window stays hidden until the trigger button fires',
     );
   }
+
+  // Set up the KWin cursor service on KDE Wayland so the pie can
+  // open under the real mouse on multi-display setups. Init failures
+  // (no DBus, no KWin, unexpected version) leave kwinCursor null and
+  // the app falls back to screen.getCursorScreenPoint().
+  if (OVERLAY_MODE && IS_KDE_WAYLAND) {
+    const service = new KWinCursorService();
+    try {
+      await service.init();
+      kwinCursor = service;
+      // eslint-disable-next-line no-console
+      console.info('[cursor] KWin DBus cursor service ready');
+    } catch (err: unknown) {
+      // eslint-disable-next-line no-console
+      console.warn(`[cursor] KWin DBus cursor service unavailable: ${describeError(err)}`);
+    }
+  }
+
   const repoRoot = path.resolve(__dirname, '..', '..');
   const { plugins, errors } = await loadPlugins(pluginSearchPaths(repoRoot));
   for (const err of errors) {
