@@ -5,7 +5,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
+import { describeError } from '../shared/errors.js';
 import { DEFAULT_MENU_CONFIG, validateMenuConfig, type MenuConfig } from '../shared/menu.js';
+import { dedupPreserveOrder } from '../shared/util.js';
 
 /**
  * Loader for the user's pie-menu config.
@@ -42,17 +44,10 @@ export type MenuLoadResult = {
 export function menuConfigSearchPaths(): string[] {
   const xdg = process.env.XDG_CONFIG_HOME?.trim();
   const home = os.homedir();
-  const paths = [
+  return dedupPreserveOrder<string>([
     xdg ? path.join(xdg, MENU_CONFIG_SUBDIR, MENU_CONFIG_FILENAME) : null,
     path.join(home, '.config', MENU_CONFIG_SUBDIR, MENU_CONFIG_FILENAME),
-  ];
-  const seen = new Set<string>();
-  return paths.filter((p): p is string => {
-    if (!p) return false;
-    if (seen.has(p)) return false;
-    seen.add(p);
-    return true;
-  });
+  ]);
 }
 
 export async function loadMenuConfig(
@@ -94,8 +89,4 @@ export async function loadMenuConfig(
     source: null,
     fallbackReason: 'no menu.json found in any XDG config path',
   };
-}
-
-function describeError(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

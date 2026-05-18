@@ -3,25 +3,22 @@
 
 import { useEffect, useState } from 'react';
 
+// `@/shared/bridge` ships the `declare global` augmentation that
+// types window.spaceux. Side-effect import — the runtime cost is
+// nil since the module only contributes a TypeScript ambient
+// declaration plus a couple of types.
+import '@/shared/bridge';
 import type { DaemonStatusPayload } from '@/shared/ipc';
-
-import type { SpaceUxBridge } from '../../main/preload';
 
 /**
  * React hook that surfaces live SpaceMouse state from the Electron
  * preload bridge.
  *
  * Subscribes once on mount and tears down on unmount. The bridge is
- * exposed by the main process at window.spaceux; the cast below
- * imports the type from the preload module for editor support
- * without dragging Electron's runtime into the renderer bundle.
+ * exposed by the main process at window.spaceux; the shared bridge
+ * module provides the global type so the renderer never has to
+ * reach into src/main/.
  */
-
-declare global {
-  interface Window {
-    spaceux: SpaceUxBridge;
-  }
-}
 
 export type SpaceMouseAxes = {
   tx: number;
@@ -32,15 +29,12 @@ export type SpaceMouseAxes = {
   rz: number;
 };
 
-export type SpaceMouseButtonEvent = { bnum: number; pressed: boolean };
-
 export type DaemonState = 'connecting' | 'connected' | 'disconnected';
 
 const ZERO_AXES: SpaceMouseAxes = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
 
 export function useSpaceMouse() {
   const [axes, setAxes] = useState<SpaceMouseAxes>(ZERO_AXES);
-  const [lastButton, setLastButton] = useState<SpaceMouseButtonEvent | null>(null);
   const [daemonStatus, setDaemonStatus] = useState<DaemonState>('connecting');
 
   useEffect(() => {
@@ -54,16 +48,14 @@ export function useSpaceMouse() {
         rz: values[5],
       });
     });
-    const offButton = window.spaceux.onButton(setLastButton);
     const offStatus = window.spaceux.onDaemonStatus((payload: DaemonStatusPayload) => {
       setDaemonStatus(payload.state === 'connected' ? 'connected' : 'disconnected');
     });
     return () => {
       offAxes();
-      offButton();
       offStatus();
     };
   }, []);
 
-  return { axes, lastButton, daemonStatus };
+  return { axes, daemonStatus };
 }

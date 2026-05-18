@@ -3,6 +3,7 @@
 
 import { spawn } from 'node:child_process';
 
+import { describeError } from '../../shared/errors.js';
 import type { ActionHandler } from '../../shared/plugin-types.js';
 
 /**
@@ -38,6 +39,6 @@ export const execAction: ActionHandler = async (config, ctx) => {
     child.unref();
     ctx.log(`spawned ${bin} (pid ${child.pid ?? 'unknown'})`);
   } catch (err) {
-    ctx.log(`exec: spawn failed: ${err instanceof Error ? err.message : String(err)}`);
+    ctx.log(`exec: spawn failed: ${describeError(err)}`);
   }
 };

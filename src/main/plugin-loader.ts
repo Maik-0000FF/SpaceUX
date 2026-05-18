@@ -6,6 +6,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 
+import { describeError } from '../shared/errors.js';
 import type {
   ActionContext,
   ActionDescriptor,
@@ -13,6 +14,7 @@ import type {
   PluginManifest,
   PluginModule,
 } from '../shared/plugin-types.js';
+import { dedupPreserveOrder } from '../shared/util.js';
 
 /**
  * Discover plugins under the standard XDG paths, validate their
@@ -44,21 +46,13 @@ export type LoadResult = {
 export function pluginSearchPaths(repoRoot?: string): string[] {
   const xdg = process.env.XDG_DATA_HOME?.trim();
   const home = os.homedir();
-  const paths = [
+  return dedupPreserveOrder<string>([
     xdg ? path.join(xdg, 'spaceux', 'plugins') : null,
     path.join(home, '.local', 'share', 'spaceux', 'plugins'),
     '/usr/local/share/spaceux/plugins',
     '/usr/share/spaceux/plugins',
     repoRoot ? path.join(repoRoot, 'plugins') : null,
-  ];
-  // Dedup while preserving order. Filter out empty strings + nulls.
-  const seen = new Set<string>();
-  return paths.filter((p): p is string => {
-    if (!p) return false;
-    if (seen.has(p)) return false;
-    seen.add(p);
-    return true;
-  });
+  ]);
 }
 
 export async function loadPlugins(searchPaths: string[]): Promise<LoadResult> {
@@ -168,11 +162,6 @@ function validateManifest(value: unknown): string | null {
       return 'action.label must be a non-empty string';
   }
   return null;
-}
-
-function describeError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
 }
 
 /** Build a per-plugin ActionContext with a logger that prefixes every
