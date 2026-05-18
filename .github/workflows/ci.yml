@@ -79,18 +79,45 @@ jobs:
 
   # ─── Secret scanning ───────────────────────────────────────────────
   # gitleaks scans the full history for accidental secrets (API keys,
-  # tokens, credentials). Cheap to run, catches the kind of mistake
-  # that's painful to clean up post-push.
+  # tokens, credentials). Run the CLI directly instead of going through
+  # gitleaks/gitleaks-action@v2 — that action still ships Node 20 which
+  # GitHub is deprecating, and direct invocation drops a third-party
+  # supply-chain dependency at the same time. Same ruleset, same result.
 
   gitleaks:
     name: gitleaks
     runs-on: ubuntu-latest
+    # Pin gitleaks so a surprise upstream change can't break or relax CI.
+    # Bump deliberately by checking the latest release and updating here.
+    env:
+      GITLEAKS_VERSION: 8.30.1
     steps:
       - uses: actions/checkout@v5
         with:
           # Full history needed so gitleaks can scan every commit, not
           # just the most recent tree.
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install gitleaks
+        run: |
+          curl -sSLf "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Scan
+        # --redact masks any finding in the report (safe to read on a public log).
+        # --report-format sarif uploads as a code-scanning artefact below.
+        # No custom config: CI uses the upstream default ruleset, which is
+        # explicitly NOT the AI-attribution-strict variant some contributors
+        # may run locally. See project README for the rationale.
+        run: |
+          gitleaks git . \
+            --redact \
+            --no-banner \
+            --verbose \
+            --report-format sarif \
+            --report-path gitleaks.sarif
+      - name: Upload SARIF report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-results.sarif
+          path: gitleaks.sarif
