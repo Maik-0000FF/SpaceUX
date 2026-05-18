@@ -21,8 +21,9 @@ import { dedupPreserveOrder } from '../shared/util.js';
  * fallback is logged so the user knows why their (broken) config did
  * not take effect.
  *
- * Hot-reload is deliberately out of scope for v0 — the renderer
- * receives the menu over IPC after startup. Phase 2 adds fs.watch.
+ * Hot-reload lives next door in menu-watcher.ts: it watches the
+ * config directories and re-runs this loader on every edit, pushing
+ * the result to the renderer over IPC.
  */
 
 const MENU_CONFIG_FILENAME = 'menu.json';

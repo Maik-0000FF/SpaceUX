@@ -11,7 +11,8 @@ import type { DaemonEvent } from '../shared/protocol.js';
 
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
-import { loadMenuConfig } from './menu-loader.js';
+import { loadMenuConfig, menuConfigSearchPaths } from './menu-loader.js';
+import { watchMenuConfig } from './menu-watcher.js';
 import {
   indexActions,
   loadPlugins,
@@ -31,6 +32,7 @@ let mainWindow: BrowserWindow | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
 let menuConfig: MenuConfig | null = null;
+let stopMenuWatcher: (() => void) | null = null;
 // True between MENU_OPEN and MENU_COMMIT — drives the click-to-toggle
 // trigger lifecycle so a second press commits instead of re-opening.
 let menuShown = false;
@@ -223,12 +225,28 @@ app.whenReady().then(async () => {
   // which the indexer reports through its normal duplicate path.
   actionIndex = indexActions([BUILTIN_PLUGIN, ...plugins]);
 
-  const menuResult = await loadMenuConfig();
+  const searchPaths = menuConfigSearchPaths();
+  const menuResult = await loadMenuConfig(searchPaths);
   if (menuResult.fallbackReason) {
     // eslint-disable-next-line no-console
     console.warn(`[menu-config] using defaults: ${menuResult.fallbackReason}`);
   }
   menuConfig = menuResult.config;
+
+  // Hot-reload: re-read on every menu.json edit and push the new
+  // config to the renderer. Renderer treats the push as authoritative
+  // so the live pie reflects the file without an app restart.
+  stopMenuWatcher = watchMenuConfig(searchPaths, (result) => {
+    if (result.fallbackReason) {
+      // eslint-disable-next-line no-console
+      console.warn(`[menu-config] reload fell back to defaults: ${result.fallbackReason}`);
+    } else if (result.source) {
+      // eslint-disable-next-line no-console
+      console.info(`[menu-config] reloaded from ${result.source}`);
+    }
+    menuConfig = result.config;
+    mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, result.config);
+  });
 
   wireActionDispatch();
   wireDaemonEvents();
@@ -239,6 +257,8 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   daemon.stop();
+  stopMenuWatcher?.();
+  stopMenuWatcher = null;
   if (process.platform !== 'darwin') app.quit();
 });
 
