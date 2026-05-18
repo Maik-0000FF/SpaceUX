@@ -28,6 +28,13 @@ const __dirname = path.dirname(__filename);
 // templates use so future tooling Just Works.
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 
+// Overlay mode is the production look: transparent, frameless,
+// click-through, hidden until the trigger button fires. True for
+// packaged installs by default; setting SPACEUX_OVERLAY_MODE=1
+// forces the same look in an unpackaged dev run so the Kando-style
+// surface can be tested without electron-builder packaging.
+const OVERLAY_MODE = app.isPackaged || Boolean(process.env.SPACEUX_OVERLAY_MODE);
+
 let mainWindow: BrowserWindow | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
@@ -44,9 +51,11 @@ async function createWindow(): Promise<void> {
   // Dev mode uses a normal opaque framed window so KDE Plasma
   // Wayland actually renders the surface (transparent + frameless
   // overlays often paint nothing visible until the compositor sees
-  // an opaque region). Production drops the frame and goes
-  // transparent + click-through as designed.
-  const devMode = !app.isPackaged;
+  // an opaque region). Overlay mode drops the frame and goes
+  // transparent + click-through as designed. OVERLAY_MODE is true
+  // for packaged installs and when SPACEUX_OVERLAY_MODE=1 is set
+  // from a dev run.
+  const devMode = !OVERLAY_MODE;
 
   mainWindow = new BrowserWindow({
     width: devMode ? Math.min(900, width) : width,
@@ -127,10 +136,10 @@ function handleTriggerButton(bnum: number, pressed: boolean): void {
   // the open pie without holding the button down.
   if (!pressed) return;
 
-  // show()/hide() drives the production transparent-overlay lifecycle.
-  // In dev mode the window stays permanently visible so the debug
-  // panel keeps showing axes between menu interactions.
-  const togglesVisibility = app.isPackaged;
+  // show()/hide() drives the overlay-mode lifecycle. In dev mode the
+  // window stays permanently visible so the debug panel keeps
+  // showing axes between menu interactions.
+  const togglesVisibility = OVERLAY_MODE;
 
   if (menuShown) {
     mainWindow.webContents.send(IpcChannel.MENU_COMMIT);
@@ -216,6 +225,12 @@ function wireActionDispatch(): void {
 }
 
 app.whenReady().then(async () => {
+  if (OVERLAY_MODE && !app.isPackaged) {
+    // eslint-disable-next-line no-console
+    console.info(
+      '[overlay] SPACEUX_OVERLAY_MODE=1 — window stays hidden until the trigger button fires',
+    );
+  }
   const repoRoot = path.resolve(__dirname, '..', '..');
   const { plugins, errors } = await loadPlugins(pluginSearchPaths(repoRoot));
   for (const err of errors) {
