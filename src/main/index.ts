@@ -100,9 +100,11 @@ async function createWindow(): Promise<void> {
 }
 
 /**
- * Trigger-button handler. Today the trigger is hard-wired to
- * DEFAULT_TRIGGER_BUTTON (Button 1 on the puck); Phase 2 of the
- * roadmap moves this into the user-editable menu config.
+ * Trigger-button handler. The active button comes from the live
+ * menu config (`triggerButton`) and falls back to
+ * :data:`DEFAULT_TRIGGER_BUTTON` when the user hasn't pinned one —
+ * so a hot-reload of menu.json swaps the trigger live without an
+ * app restart.
  *
  * Lifecycle:
  *   press   → capture cursor, show the overlay, send MENU_OPEN(x, y)
@@ -118,7 +120,8 @@ async function createWindow(): Promise<void> {
  */
 function handleTriggerButton(bnum: number, pressed: boolean): void {
   if (!mainWindow) return;
-  if (bnum !== DEFAULT_TRIGGER_BUTTON) return;
+  const activeTrigger = menuConfig?.triggerButton ?? DEFAULT_TRIGGER_BUTTON;
+  if (bnum !== activeTrigger) return;
   // Click-to-toggle UX: press 1 opens, press 2 commits + closes.
   // Release events are intentionally ignored so the user can navigate
   // the open pie without holding the button down.

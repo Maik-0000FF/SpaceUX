@@ -7,6 +7,7 @@ import {
   BUILTIN_ACTION,
   BUILTIN_PLUGIN_ID,
   DEFAULT_MENU_CONFIG,
+  DEFAULT_TRIGGER_BUTTON,
   MENU_CONFIG_VERSION,
   builtinAction,
   validateMenuConfig,
@@ -87,6 +88,47 @@ describe('validateMenuConfig', () => {
       sectors: [{ label: 'x', icon: 42 }],
     });
     expect(r.ok).toBe(false);
+  });
+
+  it('accepts a config without triggerButton (field is optional)', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.triggerButton).toBeUndefined();
+  });
+
+  it('accepts a non-negative integer triggerButton', () => {
+    for (const v of [0, 1, 7]) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        triggerButton: v,
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `triggerButton=${v}`).toBe(true);
+      if (r.ok) expect(r.config.triggerButton).toBe(v);
+    }
+  });
+
+  it('rejects negative, fractional, or non-number triggerButton', () => {
+    for (const bad of [-1, 1.5, '0', null, true]) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        triggerButton: bad,
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `triggerButton=${JSON.stringify(bad)}`).toBe(false);
+    }
+  });
+});
+
+describe('DEFAULT_MENU_CONFIG', () => {
+  it('pins triggerButton to DEFAULT_TRIGGER_BUTTON', () => {
+    // The shipped default exposes the trigger explicitly so users
+    // copying the config as a starting point see the field instead
+    // of relying on the loader's implicit fallback.
+    expect(DEFAULT_MENU_CONFIG.triggerButton).toBe(DEFAULT_TRIGGER_BUTTON);
   });
 });
 

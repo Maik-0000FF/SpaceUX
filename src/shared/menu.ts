@@ -84,6 +84,11 @@ export type MenuConfig = {
    *  :data:`MENU_CONFIG_VERSION` at load time; mismatches go through
    *  the migrator (or fall back to the default config). */
   version: number;
+  /** Zero-based puck button that opens the pie. Omitting falls back
+   *  to :data:`DEFAULT_TRIGGER_BUTTON`. Users with non-default
+   *  button mappings (or wanting a non-primary button to trigger)
+   *  set this. */
+  triggerButton?: number;
   /** Optional per-axis sign overrides. Omitting either falls back
    *  to the project default (`{ x: false, y: true }`) which matches
    *  the SpaceNavigator's "+ty = push forward" convention. */
@@ -111,6 +116,7 @@ export function builtinAction(name: (typeof BUILTIN_ACTION)[keyof typeof BUILTIN
 
 export const DEFAULT_MENU_CONFIG: MenuConfig = {
   version: MENU_CONFIG_VERSION,
+  triggerButton: DEFAULT_TRIGGER_BUTTON,
   // Neutral start — every SpaceMouse model wires TX/TY signs slightly
   // differently and every desktop has its own idea of "up on screen".
   // Both axes go in untouched; users (and the in-app editor later)
@@ -211,6 +217,19 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
   }
 
   const result: MenuConfig = { version: MENU_CONFIG_VERSION, sectors };
+  if (obj.triggerButton !== undefined) {
+    if (
+      typeof obj.triggerButton !== 'number' ||
+      !Number.isInteger(obj.triggerButton) ||
+      obj.triggerButton < 0
+    ) {
+      return {
+        ok: false,
+        reason: 'menu config field "triggerButton" must be a non-negative integer when present',
+      };
+    }
+    result.triggerButton = obj.triggerButton;
+  }
   if (obj.axisInvert !== undefined) {
     if (
       typeof obj.axisInvert !== 'object' ||
