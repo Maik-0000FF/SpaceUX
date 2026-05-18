@@ -3,7 +3,7 @@
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
-import { IpcChannel, type DaemonStatusPayload } from '@/shared/ipc';
+import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '@/shared/ipc';
 
 /**
  * Renderer-visible API.
@@ -22,6 +22,10 @@ export type SpaceUxBridge = {
   onAxes(handler: (values: AxesValues) => void): () => void;
   onButton(handler: (payload: { bnum: number; pressed: boolean }) => void): () => void;
   onDaemonStatus(handler: (payload: DaemonStatusPayload) => void): () => void;
+  /** Pie menu opened at the given anchor (renderer-window coords). */
+  onMenuOpen(handler: (payload: MenuOpenPayload) => void): () => void;
+  /** Pie menu commit / dismiss request from main (no payload). */
+  onMenuCommit(handler: () => void): () => void;
   invokeAction(key: string, config: Record<string, unknown>): Promise<void>;
 };
 
@@ -35,6 +39,14 @@ const bridge: SpaceUxBridge = {
   onAxes: (handler) => subscribe<AxesValues>(IpcChannel.AXES, handler),
   onButton: (handler) => subscribe<{ bnum: number; pressed: boolean }>(IpcChannel.BUTTON, handler),
   onDaemonStatus: (handler) => subscribe<DaemonStatusPayload>(IpcChannel.DAEMON_STATUS, handler),
+  onMenuOpen: (handler) => subscribe<MenuOpenPayload>(IpcChannel.MENU_OPEN, handler),
+  // MENU_COMMIT has no payload — wrap the subscribe helper so the
+  // handler signature stays () => void instead of (_: void) => void.
+  onMenuCommit: (handler) => {
+    const listener = () => handler();
+    ipcRenderer.on(IpcChannel.MENU_COMMIT, listener);
+    return () => ipcRenderer.off(IpcChannel.MENU_COMMIT, listener);
+  },
   invokeAction: (key, config) => ipcRenderer.invoke(IpcChannel.INVOKE_ACTION, key, config),
 };
 

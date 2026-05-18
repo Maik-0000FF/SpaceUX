@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 
 import {
   DEFAULT_PIE_GEOMETRY,
@@ -14,6 +14,10 @@ const TAU = Math.PI * 2;
 
 export type PieMenuProps = {
   axes: { tx: number; ty: number };
+  /** Anchor point in renderer-window coords. The pie centre sits at
+   *  this point so the menu opens "at the cursor" wherever the user
+   *  triggered it. Omit to fall back to viewport-centre. */
+  position?: { x: number; y: number };
   /** Override the default geometry (sector count, deadzone, invert). */
   geometry?: Partial<PieGeometryConfig>;
   /** Outer radius in CSS pixels. */
@@ -32,7 +36,7 @@ export type PieMenuProps = {
  * label. Plugin-bound actions land in here once the editor / config
  * pipeline is in place.
  */
-export function PieMenu({ axes, geometry, radius = 240 }: PieMenuProps) {
+export function PieMenu({ axes, position, geometry, radius = 240 }: PieMenuProps) {
   const config = useMemo<PieGeometryConfig>(
     () => ({ ...DEFAULT_PIE_GEOMETRY, ...geometry }),
     [geometry],
@@ -42,8 +46,23 @@ export function PieMenu({ axes, geometry, radius = 240 }: PieMenuProps) {
   const sectors = Math.max(2, Math.floor(config.sectorCount));
   const size = radius * 2;
 
+  // Absolute positioning so the pie sits at the supplied window-
+  // coords. Translating by -50% centres the SVG on (position.x,
+  // position.y) regardless of size. Falls back to centre-of-viewport
+  // when position is omitted (useful for screenshots and tests).
+  const style: CSSProperties = position
+    ? {
+        position: 'absolute',
+        left: position.x,
+        top: position.y,
+        width: size,
+        height: size,
+        transform: 'translate(-50%, -50%)',
+      }
+    : { width: size, height: size };
+
   return (
-    <div className="pie-menu" style={{ width: size, height: size }}>
+    <div className="pie-menu" style={style}>
       <svg viewBox={`-${radius} -${radius} ${size} ${size}`} width={size} height={size}>
         {Array.from({ length: sectors }, (_, i) => (
           <SectorWedge

@@ -5,7 +5,8 @@ import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { IpcChannel, type DaemonStatusPayload } from '@/shared/ipc';
+import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '@/shared/ipc';
+import { DEFAULT_TRIGGER_BUTTON } from '@/shared/menu';
 import type { DaemonEvent } from '@/shared/protocol';
 
 import { DaemonClient } from './daemon-client';
@@ -52,9 +53,50 @@ async function createWindow(): Promise<void> {
     await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
+  // Click-through by default. Phase 1 controls the pie purely with
+  // the SpaceMouse — mouse interaction lands here later if we add
+  // a "pick-with-cursor" mode.
+  mainWindow.setIgnoreMouseEvents(true);
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+}
+
+/**
+ * Trigger-button handler. Today the trigger is hard-wired to
+ * DEFAULT_TRIGGER_BUTTON (Button 1 on the puck); Phase 2 of the
+ * roadmap moves this into the user-editable menu config.
+ *
+ * Lifecycle:
+ *   press   → capture cursor, show the overlay, send MENU_OPEN(x, y)
+ *             so the renderer positions the pie at the cursor.
+ *   release → send MENU_COMMIT (renderer picks the highlighted sector
+ *             or dismisses if none) and hide the overlay.
+ *
+ * Multi-monitor caveat: the overlay window currently only covers the
+ * primary display (see createWindow). If the cursor is on a secondary
+ * display when the trigger fires, the pie still renders but lands
+ * outside the visible window. Phase 3 of the roadmap resizes the
+ * overlay to the display containing the cursor before show().
+ */
+function handleTriggerButton(bnum: number, pressed: boolean): void {
+  if (!mainWindow) return;
+  if (bnum !== DEFAULT_TRIGGER_BUTTON) return;
+
+  if (pressed) {
+    const cursor = screen.getCursorScreenPoint();
+    const bounds = mainWindow.getBounds();
+    const payload: MenuOpenPayload = {
+      x: cursor.x - bounds.x,
+      y: cursor.y - bounds.y,
+    };
+    mainWindow.show();
+    mainWindow.webContents.send(IpcChannel.MENU_OPEN, payload);
+  } else {
+    mainWindow.webContents.send(IpcChannel.MENU_COMMIT);
+    mainWindow.hide();
+  }
 }
 
 function wireDaemonEvents(): void {
@@ -70,6 +112,7 @@ function wireDaemonEvents(): void {
         break;
       case 'button':
         mainWindow.webContents.send(IpcChannel.BUTTON, { bnum: ev.bnum, pressed: ev.pressed });
+        handleTriggerButton(ev.bnum, ev.pressed);
         break;
       case 'hello': {
         const payload: DaemonStatusPayload = {
