@@ -17,6 +17,7 @@ path = [
   "package.json",
   "tsconfig.json",
   "tsconfig.electron.json",
+  ".prettierrc.json",
   "plugins/**/manifest.json",
 ]
 precedence = "aggregate"

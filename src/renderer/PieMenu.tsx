@@ -81,7 +81,15 @@ function SectorWedge({
   return <path className={`pie-wedge${active ? ' is-active' : ''}`} d={d} />;
 }
 
-function SectorLabel({ index, sectorCount, radius }: { index: number; sectorCount: number; radius: number }) {
+function SectorLabel({
+  index,
+  sectorCount,
+  radius,
+}: {
+  index: number;
+  sectorCount: number;
+  radius: number;
+}) {
   const angle = sectorCenterAngle(index, sectorCount);
   // The geometry convention places angle 0 at "12 o'clock"; SVG uses
   // the standard mathematical orientation with 0 along +X. Convert.

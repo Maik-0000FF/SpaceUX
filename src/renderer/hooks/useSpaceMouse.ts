@@ -23,7 +23,14 @@ declare global {
   }
 }
 
-export type SpaceMouseAxes = { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number };
+export type SpaceMouseAxes = {
+  tx: number;
+  ty: number;
+  tz: number;
+  rx: number;
+  ry: number;
+  rz: number;
+};
 
 export type SpaceMouseButtonEvent = { bnum: number; pressed: boolean };
 

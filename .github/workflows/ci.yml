@@ -66,6 +66,36 @@ jobs:
       - name: Build
         run: cmake --build build/daemon
 
+  # ─── Formatting ─────────────────────────────────────────────────────
+  # Two formatters, one per language family. Both run in --check mode
+  # so the CI fails on drift but never silently rewrites the tree —
+  # contributors fix locally with `npm run format` / `clang-format -i`.
+
+  format-js:
+    name: prettier (check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run format:check
+
+  format-c:
+    name: clang-format (check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-format
+      - name: Check formatting
+        # --dry-run + --Werror promotes "would reformat" warnings into
+        # a non-zero exit so the job fails on any drift.
+        run: clang-format --dry-run --Werror src/daemon/*.c src/daemon/*.h
+
   # ─── REUSE compliance ──────────────────────────────────────────────
   # Verifies every file has an SPDX header (or a sidecar .license file)
   # so the per-file licensing claim in REUSE.toml stays honest.

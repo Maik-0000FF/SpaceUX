@@ -70,7 +70,10 @@ export type ActionContext = {
 
 /** Signature every action implementation must match. Plugins
  *  export a default object keyed by action name. */
-export type ActionHandler = (config: Record<string, unknown>, ctx: ActionContext) => Promise<void> | void;
+export type ActionHandler = (
+  config: Record<string, unknown>,
+  ctx: ActionContext,
+) => Promise<void> | void;
 
 /** Shape of `module.exports` (or `export default`) from a plugin's index.js. */
 export type PluginModule = {

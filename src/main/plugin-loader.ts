@@ -122,7 +122,9 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   const indexPath = path.join(dir, 'index.js');
   let mod: PluginModule;
   try {
-    const imported = (await import(pathToFileURL(indexPath).href)) as PluginModule | { default: PluginModule };
+    const imported = (await import(pathToFileURL(indexPath).href)) as
+      | PluginModule
+      | { default: PluginModule };
     mod = 'actions' in imported ? imported : (imported as { default: PluginModule }).default;
   } catch (err) {
     return { reason: `cannot import index.js: ${describeError(err)}` };
@@ -136,7 +138,9 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   for (const action of manifest.actions) {
     const fn = mod.actions[action.name];
     if (typeof fn !== 'function') {
-      return { reason: `manifest declares action "${action.name}" but index.js has no matching handler` };
+      return {
+        reason: `manifest declares action "${action.name}" but index.js has no matching handler`,
+      };
     }
     handlers[action.name] = fn;
   }
@@ -158,8 +162,10 @@ function validateManifest(value: unknown): string | null {
   for (const action of m.actions as unknown[]) {
     if (typeof action !== 'object' || action === null) return 'every action must be an object';
     const a = action as Record<string, unknown>;
-    if (typeof a.name !== 'string' || a.name.trim() === '') return 'action.name must be a non-empty string';
-    if (typeof a.label !== 'string' || a.label.trim() === '') return 'action.label must be a non-empty string';
+    if (typeof a.name !== 'string' || a.name.trim() === '')
+      return 'action.name must be a non-empty string';
+    if (typeof a.label !== 'string' || a.label.trim() === '')
+      return 'action.label must be a non-empty string';
   }
   return null;
 }
@@ -185,7 +191,9 @@ export function makeActionContext(pluginId: string): ActionContext {
  *  map keyed by "<pluginId>/<actionName>". The renderer addresses
  *  actions by this composite key so two plugins can both expose
  *  e.g. "launch" without clashing. */
-export function indexActions(plugins: LoadedPlugin[]): Record<string, { plugin: LoadedPlugin; descriptor: ActionDescriptor }> {
+export function indexActions(
+  plugins: LoadedPlugin[],
+): Record<string, { plugin: LoadedPlugin; descriptor: ActionDescriptor }> {
   const idx: Record<string, { plugin: LoadedPlugin; descriptor: ActionDescriptor }> = {};
   for (const plugin of plugins) {
     for (const descriptor of plugin.manifest.actions) {

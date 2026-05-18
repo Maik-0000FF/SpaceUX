@@ -72,7 +72,11 @@ function wireDaemonEvents(): void {
         mainWindow.webContents.send(IpcChannel.BUTTON, { bnum: ev.bnum, pressed: ev.pressed });
         break;
       case 'hello': {
-        const payload: DaemonStatusPayload = { state: 'connected', axes: ev.axes, buttons: ev.buttons };
+        const payload: DaemonStatusPayload = {
+          state: 'connected',
+          axes: ev.axes,
+          buttons: ev.buttons,
+        };
         mainWindow.webContents.send(IpcChannel.DAEMON_STATUS, payload);
         break;
       }
@@ -94,17 +98,22 @@ function wireDaemonEvents(): void {
 }
 
 function wireActionDispatch(): void {
-  ipcMain.handle(IpcChannel.INVOKE_ACTION, async (_evt, key: string, config: Record<string, unknown>) => {
-    const entry = actionIndex[key];
-    if (!entry) {
-      throw new Error(`unknown action: ${key}`);
-    }
-    const handler = entry.plugin.handlers[entry.descriptor.name];
-    if (!handler) {
-      throw new Error(`plugin "${entry.plugin.manifest.id}" has no handler for "${entry.descriptor.name}"`);
-    }
-    await handler(config, makeActionContext(entry.plugin.manifest.id));
-  });
+  ipcMain.handle(
+    IpcChannel.INVOKE_ACTION,
+    async (_evt, key: string, config: Record<string, unknown>) => {
+      const entry = actionIndex[key];
+      if (!entry) {
+        throw new Error(`unknown action: ${key}`);
+      }
+      const handler = entry.plugin.handlers[entry.descriptor.name];
+      if (!handler) {
+        throw new Error(
+          `plugin "${entry.plugin.manifest.id}" has no handler for "${entry.descriptor.name}"`,
+        );
+      }
+      await handler(config, makeActionContext(entry.plugin.manifest.id));
+    },
+  );
 }
 
 app.whenReady().then(async () => {

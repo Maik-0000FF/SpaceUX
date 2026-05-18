@@ -36,7 +36,11 @@ export function App() {
   );
 }
 
-function DaemonStatusIndicator({ status }: { status: 'connecting' | 'connected' | 'disconnected' }) {
+function DaemonStatusIndicator({
+  status,
+}: {
+  status: 'connecting' | 'connected' | 'disconnected';
+}) {
   if (status === 'connected') return null;
   return (
     <div className="status-indicator" data-status={status}>

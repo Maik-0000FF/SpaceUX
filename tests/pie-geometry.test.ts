@@ -19,21 +19,21 @@ describe('axesToSector', () => {
     expect(axesToSector({ tx: 10, ty: 10 }, eight)).toBeNull();
   });
 
-  it('maps strong up deflection to sector 0 (12 o\'clock)', () => {
+  it("maps strong up deflection to sector 0 (12 o'clock)", () => {
     // invertY=true → ty > 0 on the puck means "forward push" which we
     // display as "up" on screen, i.e. sector 0.
     expect(axesToSector({ tx: 0, ty: 200 }, eight)).toBe(0);
   });
 
-  it('maps strong right deflection to sector 2 (3 o\'clock) in an 8-sector pie', () => {
+  it("maps strong right deflection to sector 2 (3 o'clock) in an 8-sector pie", () => {
     expect(axesToSector({ tx: 200, ty: 0 }, eight)).toBe(2);
   });
 
-  it('maps strong down deflection to sector 4 (6 o\'clock)', () => {
+  it("maps strong down deflection to sector 4 (6 o'clock)", () => {
     expect(axesToSector({ tx: 0, ty: -200 }, eight)).toBe(4);
   });
 
-  it('maps strong left deflection to sector 6 (9 o\'clock)', () => {
+  it("maps strong left deflection to sector 6 (9 o'clock)", () => {
     expect(axesToSector({ tx: -200, ty: 0 }, eight)).toBe(6);
   });
 
@@ -66,7 +66,7 @@ describe('axesToSector', () => {
 });
 
 describe('sectorCenterAngle', () => {
-  it('places sector 0 at 0 radians (12 o\'clock)', () => {
+  it("places sector 0 at 0 radians (12 o'clock)", () => {
     expect(sectorCenterAngle(0, 8)).toBe(0);
   });
 

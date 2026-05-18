@@ -113,14 +113,12 @@ int main(void)
 
 		/* Kernel input. POLLHUP or read errors trigger a close-
 		 * and-retry — the device may have been unplugged. */
-		if (input_idx >= 0 &&
-		    fds[input_idx].revents & (POLLIN | POLLHUP | POLLERR)) {
+		if (input_idx >= 0 && fds[input_idx].revents & (POLLIN | POLLHUP | POLLERR)) {
 			struct puck_event ev;
 			int r;
 			while ((r = input_poll(input_fd, &ev)) > 0) {
 				if (ev.kind == PE_AXES)
-					sock_broadcast_axes(&sock, ev.values,
-							    SPACEUX_AXIS_COUNT);
+					sock_broadcast_axes(&sock, ev.values, SPACEUX_AXIS_COUNT);
 				else if (ev.kind == PE_BUTTON)
 					sock_broadcast_button(&sock, ev.bnum, ev.pressed);
 			}

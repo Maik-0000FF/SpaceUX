@@ -45,8 +45,8 @@ enum puck_event_kind {
 struct puck_event {
 	enum puck_event_kind kind;
 	int values[SPACEUX_AXIS_COUNT]; /* signed values, valid for PE_AXES */
-	int bnum;		       /* 0..SPACEUX_MAX_BUTTONS-1, valid for PE_BUTTON */
-	int pressed;		       /* 0/1, valid for PE_BUTTON */
+	int bnum;			/* 0..SPACEUX_MAX_BUTTONS-1, valid for PE_BUTTON */
+	int pressed;			/* 0/1, valid for PE_BUTTON */
 };
 
 /* Search the host for a 3Dconnexion puck and open it read-only.

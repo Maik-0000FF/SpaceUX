@@ -27,9 +27,14 @@
   padding: 0;
 }
 
-html, body {
+html,
+body {
   background: transparent;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
   overflow: hidden;
   user-select: none;
 }
@@ -54,7 +59,9 @@ html, body {
   fill: var(--pie-bg);
   stroke: var(--pie-border);
   stroke-width: 1.5;
-  transition: fill var(--transition-fast), stroke var(--transition-fast);
+  transition:
+    fill var(--transition-fast),
+    stroke var(--transition-fast);
 }
 
 .pie-wedge.is-active {
