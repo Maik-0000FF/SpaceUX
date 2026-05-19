@@ -57,8 +57,8 @@ static int build_pollfds(struct pollfd *fds, int input_fd, const struct sock_sta
 		*input_idx = n;
 		n++;
 	}
-	if (sock->listen_fd >= 0) {
-		fds[n].fd = sock->listen_fd;
+	if (sock->listener.fd >= 0) {
+		fds[n].fd = sock->listener.fd;
 		fds[n].events = POLLIN;
 		*listen_idx = n;
 		n++;
@@ -89,7 +89,7 @@ int main(void)
 		fprintf(stderr, "spaceux-daemon: socket init failed\n");
 		return 1;
 	}
-	fprintf(stderr, "spaceux-daemon: listening on %s\n", sock.path);
+	fprintf(stderr, "spaceux-daemon: listening on %s\n", sock.listener.path);
 
 	int input_fd = input_open();
 	long long last_input_retry = time_ms();
