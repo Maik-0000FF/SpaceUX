@@ -54,7 +54,13 @@ export type ActionRef = {
   config?: Record<string, unknown>;
 };
 
-/** One sector in the pie. */
+/** One sector in the pie. A sector is either a *leaf* (no children,
+ *  optional binding fires on commit) or a *branch* (carries a
+ *  non-empty `children` array which becomes the next-level submenu
+ *  when the user commits on this sector). The two are mutually
+ *  exclusive — the validator rejects sectors that declare both
+ *  `binding` and `children` so the renderer doesn't have to guess
+ *  which one wins on commit. */
 export type MenuSector = {
   /** Short display string for the sector. The renderer puts this
    *  inside the wedge — keep it 1-2 words so the label fits. */
@@ -63,8 +69,15 @@ export type MenuSector = {
    *  ignores this — labels are enough to demo the dispatch path. */
   icon?: string;
   /** Action invoked when this sector wins on MENU_COMMIT. Omitted
-   *  bindings render a label but commit silently. */
+   *  bindings render a label but commit silently — useful for
+   *  visual-only sectors or as the placeholder state on a sector
+   *  being authored. Mutually exclusive with `children`. */
   binding?: ActionRef;
+  /** Nested sectors that become the next-level submenu when the
+   *  user commits on this sector. The schema is recursive: a child
+   *  can itself carry further children for arbitrary depth.
+   *  Mutually exclusive with `binding`. */
+  children?: MenuSector[];
 };
 
 /** Per-axis sign overrides for the pie geometry. The default
@@ -212,26 +225,9 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
 
   const sectors: MenuSector[] = [];
   for (let i = 0; i < obj.sectors.length; i++) {
-    const raw = obj.sectors[i];
-    if (typeof raw !== 'object' || raw === null) {
-      return { ok: false, reason: `sector ${i} is not an object` };
-    }
-    const s = raw as Record<string, unknown>;
-    if (typeof s.label !== 'string' || s.label.trim() === '') {
-      return { ok: false, reason: `sector ${i} field "label" must be a non-empty string` };
-    }
-    const sector: MenuSector = { label: s.label };
-    if (s.icon !== undefined) {
-      if (typeof s.icon !== 'string')
-        return { ok: false, reason: `sector ${i} field "icon" must be a string when present` };
-      sector.icon = s.icon;
-    }
-    if (s.binding !== undefined) {
-      const bindingResult = validateActionRef(s.binding, `sector ${i} binding`);
-      if (!bindingResult.ok) return { ok: false, reason: bindingResult.reason };
-      sector.binding = bindingResult.value;
-    }
-    sectors.push(sector);
+    const result = validateSector(obj.sectors[i], `sector ${i}`);
+    if (!result.ok) return { ok: false, reason: result.reason };
+    sectors.push(result.value);
   }
 
   const result: MenuConfig = { version: MENU_CONFIG_VERSION, sectors };
@@ -272,6 +268,62 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     result.axisInvert = axisInvert;
   }
   return { ok: true, config: result };
+}
+
+type SectorValidation = { ok: true; value: MenuSector } | { ok: false; reason: string };
+
+/** Strict structural validator for one sector. Recursive: a sector
+ *  with `children` validates each child through the same path, so
+ *  arbitrarily nested submenus are checked uniformly. `where` is the
+ *  human-readable path prefix the caller has built up so error
+ *  reasons stay traceable across depths (e.g.
+ *  `sector 2 child 1 child 0 field "label" must be ...`). */
+function validateSector(raw: unknown, where: string): SectorValidation {
+  if (typeof raw !== 'object' || raw === null) {
+    return { ok: false, reason: `${where} is not an object` };
+  }
+  const s = raw as Record<string, unknown>;
+  if (typeof s.label !== 'string' || s.label.trim() === '') {
+    return { ok: false, reason: `${where} field "label" must be a non-empty string` };
+  }
+  const sector: MenuSector = { label: s.label };
+  if (s.icon !== undefined) {
+    if (typeof s.icon !== 'string')
+      return { ok: false, reason: `${where} field "icon" must be a string when present` };
+    sector.icon = s.icon;
+  }
+  // Branch (children) and leaf (binding) are mutually exclusive so
+  // the renderer doesn't have to disambiguate which one wins on
+  // commit. Rejecting up front means a misconfigured menu fails to
+  // load with a clear reason rather than silently behaving as one or
+  // the other depending on the renderer's resolution order.
+  if (s.binding !== undefined && s.children !== undefined) {
+    return {
+      ok: false,
+      reason: `${where} must declare either "binding" or "children", not both`,
+    };
+  }
+  if (s.binding !== undefined) {
+    const r = validateActionRef(s.binding, `${where} binding`);
+    if (!r.ok) return { ok: false, reason: r.reason };
+    sector.binding = r.value;
+  }
+  if (s.children !== undefined) {
+    if (!Array.isArray(s.children) || s.children.length === 0) {
+      return {
+        ok: false,
+        reason: `${where} field "children" must be a non-empty array when present`,
+      };
+    }
+    const children: MenuSector[] = [];
+    for (let i = 0; i < s.children.length; i++) {
+      const r = validateSector(s.children[i], `${where} child ${i}`);
+      if (!r.ok) return { ok: false, reason: r.reason };
+      children.push(r.value);
+    }
+    sector.children = children;
+  }
+  return { ok: true, value: sector };
 }
 
 type ActionRefValidation = { ok: true; value: ActionRef } | { ok: false; reason: string };
