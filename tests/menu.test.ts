@@ -254,6 +254,56 @@ describe('validateMenuConfig — nested submenus', () => {
     }
   });
 
+  it('accepts an opt-in tiltDrill config and round-trips its fields', () => {
+    // Same shape as magnitudeDrill; the validator threads the
+    // field name through so error messages stay specific. Pinning
+    // both fields side-by-side guards a future "merge them into
+    // one autoDrill" refactor from silently dropping one path.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      tiltDrill: { enabled: true, threshold: 200 },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.tiltDrill).toEqual({ enabled: true, threshold: 200 });
+  });
+
+  it('rejects malformed tiltDrill shapes with field-specific messages', () => {
+    // Mirror of the magnitudeDrill table — same invariants, but
+    // the error reason should name `tiltDrill` so a config author
+    // sees which field is wrong when both are present.
+    const cases: Array<[unknown, RegExp]> = [
+      ['not-an-object', /"tiltDrill".*must be an object/],
+      [{ enabled: 'yes', threshold: 200 }, /"tiltDrill\.enabled".*must be a boolean/],
+      [{ enabled: true, threshold: -1 }, /"tiltDrill\.threshold".*positive finite number/],
+    ];
+    for (const [bad, pattern] of cases) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        tiltDrill: bad,
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `tiltDrill=${JSON.stringify(bad)}`).toBe(false);
+      if (!r.ok) expect(r.reason, `tiltDrill=${JSON.stringify(bad)}`).toMatch(pattern);
+    }
+  });
+
+  it('accepts both auto-drill fields concurrently', () => {
+    // Lateral and tilt can both be enabled — either gesture
+    // triggers drill. Pin so a future "exclusive" tweak fails here.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      magnitudeDrill: { enabled: true, threshold: 250 },
+      tiltDrill: { enabled: true, threshold: 200 },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.magnitudeDrill).toEqual({ enabled: true, threshold: 250 });
+      expect(r.config.tiltDrill).toEqual({ enabled: true, threshold: 200 });
+    }
+  });
+
   it('accepts arbitrarily nested branches (depth 3 here)', () => {
     // The schema is intentionally recursive — pinning a 3-deep config
     // makes the "yes, more than two levels really works" promise

@@ -91,22 +91,25 @@ export type MenuAxisInvert = {
   y?: boolean;
 };
 
-/** Optional opt-in: drill into a branch sector when the puck's
- *  lateral magnitude crosses `threshold` from below — no trigger
- *  press needed. Off by default so the trigger remains the only
- *  commit path for new users; users who prefer a single-gesture
- *  flow enable it explicitly.
+/** Optional opt-in: drill into a branch sector automatically when
+ *  a puck gesture crosses `threshold` from below — no trigger press
+ *  needed. The same shape is reused for two distinct gestures (see
+ *  the `magnitudeDrill` / `tiltDrill` fields on `MenuConfig`), each
+ *  configurable independently. Off by default so the trigger
+ *  remains the only commit path for new users.
  *
- *  The threshold should sit comfortably above the lateral deadzone
- *  (defaults to 50 in `DEFAULT_PIE_GEOMETRY`) so light deflections
- *  still hover. A practical starting point is 200–300, depending
- *  on the puck's typical maximum deflection (~350 on a SpaceNavigator).
+ *  The threshold should sit comfortably above the relevant deadzone
+ *  so light deflections still hover. For lateral magnitude
+ *  (TX/TY): the lateral deadzone defaults to 50, a practical
+ *  starting threshold is 200–300 on a SpaceNavigator (max ~350).
+ *  For tilt magnitude (RX/RY): same shape, threshold also typically
+ *  in the low-hundreds depending on the puck.
  *
  *  Detection is edge-triggered (rising-only): a sustained push past
  *  the threshold drills once, then has to dip back below it before
  *  the next gesture can fire — keeping the user from burning
  *  through nested levels on a single sustained deflection. */
-export type MenuMagnitudeDrill = {
+export type MenuAutoDrill = {
   enabled: boolean;
   threshold: number;
 };
@@ -148,12 +151,20 @@ export type MenuConfig = {
   /** Optional per-axis sign overrides. Omitting the field (or one
    *  side of it) falls back to :data:`DEFAULT_AXIS_INVERT`. */
   axisInvert?: MenuAxisInvert;
-  /** Optional puck-magnitude drill-in. When the embedded `enabled`
-   *  flag is true the renderer auto-drills into a hovered branch
-   *  once the lateral puck magnitude crosses `threshold` from
-   *  below. See `MenuMagnitudeDrill` for the rationale and
-   *  threshold-picking guidance. */
-  magnitudeDrill?: MenuMagnitudeDrill;
+  /** Optional puck-magnitude drill-in driven by *lateral*
+   *  translation (TX/TY). When `enabled` is true the renderer
+   *  auto-drills into a hovered branch once `Math.hypot(tx, ty)`
+   *  crosses `threshold` from below. See :type:`MenuAutoDrill` for
+   *  the rationale and threshold guidance. */
+  magnitudeDrill?: MenuAutoDrill;
+  /** Optional tilt drill-in driven by *rotation* (RX/RY). Same
+   *  shape and rising-edge semantics as :data:`magnitudeDrill` but
+   *  driven by tipping the puck rather than sliding it. Both
+   *  fields can be active concurrently — either gesture
+   *  crossing its threshold drills in. Tilt feels closer to
+   *  "diving into" a branch since the puck literally tips over
+   *  what the user is hovering. */
+  tiltDrill?: MenuAutoDrill;
   /** Sectors in clockwise order starting at 12 o'clock. The pie's
    *  sector count = sectors.length — there is no separate "count"
    *  knob and there cannot be one. */
@@ -293,33 +304,48 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     }
     result.axisInvert = axisInvert;
   }
-  if (obj.magnitudeDrill !== undefined) {
-    if (
-      typeof obj.magnitudeDrill !== 'object' ||
-      obj.magnitudeDrill === null ||
-      Array.isArray(obj.magnitudeDrill)
-    ) {
-      return {
-        ok: false,
-        reason: 'menu config field "magnitudeDrill" must be an object when present',
-      };
-    }
-    const md = obj.magnitudeDrill as Record<string, unknown>;
-    if (typeof md.enabled !== 'boolean') {
-      return {
-        ok: false,
-        reason: 'menu config field "magnitudeDrill.enabled" must be a boolean',
-      };
-    }
-    if (typeof md.threshold !== 'number' || !Number.isFinite(md.threshold) || md.threshold <= 0) {
-      return {
-        ok: false,
-        reason: 'menu config field "magnitudeDrill.threshold" must be a positive finite number',
-      };
-    }
-    result.magnitudeDrill = { enabled: md.enabled, threshold: md.threshold };
-  }
+  const magnitudeResult = validateAutoDrill(obj.magnitudeDrill, 'magnitudeDrill');
+  if (!magnitudeResult.ok) return { ok: false, reason: magnitudeResult.reason };
+  if (magnitudeResult.value !== undefined) result.magnitudeDrill = magnitudeResult.value;
+
+  const tiltResult = validateAutoDrill(obj.tiltDrill, 'tiltDrill');
+  if (!tiltResult.ok) return { ok: false, reason: tiltResult.reason };
+  if (tiltResult.value !== undefined) result.tiltDrill = tiltResult.value;
+
   return { ok: true, config: result };
+}
+
+type AutoDrillValidation =
+  | { ok: true; value: MenuAutoDrill | undefined }
+  | { ok: false; reason: string };
+
+/** Validate one of the auto-drill fields (`magnitudeDrill` or
+ *  `tiltDrill`). Both share the same `{ enabled, threshold }`
+ *  shape, so the per-field error messages thread the field name
+ *  through and the rest of the validation is identical. Returns
+ *  `value: undefined` when the field is omitted (optional). */
+function validateAutoDrill(raw: unknown, fieldName: string): AutoDrillValidation {
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return {
+      ok: false,
+      reason: `menu config field "${fieldName}" must be an object when present`,
+    };
+  }
+  const md = raw as Record<string, unknown>;
+  if (typeof md.enabled !== 'boolean') {
+    return {
+      ok: false,
+      reason: `menu config field "${fieldName}.enabled" must be a boolean`,
+    };
+  }
+  if (typeof md.threshold !== 'number' || !Number.isFinite(md.threshold) || md.threshold <= 0) {
+    return {
+      ok: false,
+      reason: `menu config field "${fieldName}.threshold" must be a positive finite number`,
+    };
+  }
+  return { ok: true, value: { enabled: md.enabled, threshold: md.threshold } };
 }
 
 type SectorValidation = { ok: true; value: MenuSector } | { ok: false; reason: string };
