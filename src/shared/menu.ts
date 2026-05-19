@@ -91,6 +91,26 @@ export type MenuAxisInvert = {
   y?: boolean;
 };
 
+/** Optional opt-in: drill into a branch sector when the puck's
+ *  lateral magnitude crosses `threshold` from below — no trigger
+ *  press needed. Off by default so the trigger remains the only
+ *  commit path for new users; users who prefer a single-gesture
+ *  flow enable it explicitly.
+ *
+ *  The threshold should sit comfortably above the lateral deadzone
+ *  (defaults to 50 in `DEFAULT_PIE_GEOMETRY`) so light deflections
+ *  still hover. A practical starting point is 200–300, depending
+ *  on the puck's typical maximum deflection (~350 on a SpaceNavigator).
+ *
+ *  Detection is edge-triggered (rising-only): a sustained push past
+ *  the threshold drills once, then has to dip back below it before
+ *  the next gesture can fire — keeping the user from burning
+ *  through nested levels on a single sustained deflection. */
+export type MenuMagnitudeDrill = {
+  enabled: boolean;
+  threshold: number;
+};
+
 /** Shipped default for :type:`MenuAxisInvert` — both axes raw
  *  (correct for the SpaceNavigator we tested on). Used as the
  *  explicit setting in :data:`DEFAULT_MENU_CONFIG` *and* as the
@@ -128,6 +148,12 @@ export type MenuConfig = {
   /** Optional per-axis sign overrides. Omitting the field (or one
    *  side of it) falls back to :data:`DEFAULT_AXIS_INVERT`. */
   axisInvert?: MenuAxisInvert;
+  /** Optional puck-magnitude drill-in. When the embedded `enabled`
+   *  flag is true the renderer auto-drills into a hovered branch
+   *  once the lateral puck magnitude crosses `threshold` from
+   *  below. See `MenuMagnitudeDrill` for the rationale and
+   *  threshold-picking guidance. */
+  magnitudeDrill?: MenuMagnitudeDrill;
   /** Sectors in clockwise order starting at 12 o'clock. The pie's
    *  sector count = sectors.length — there is no separate "count"
    *  knob and there cannot be one. */
@@ -266,6 +292,32 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
       }
     }
     result.axisInvert = axisInvert;
+  }
+  if (obj.magnitudeDrill !== undefined) {
+    if (
+      typeof obj.magnitudeDrill !== 'object' ||
+      obj.magnitudeDrill === null ||
+      Array.isArray(obj.magnitudeDrill)
+    ) {
+      return {
+        ok: false,
+        reason: 'menu config field "magnitudeDrill" must be an object when present',
+      };
+    }
+    const md = obj.magnitudeDrill as Record<string, unknown>;
+    if (typeof md.enabled !== 'boolean') {
+      return {
+        ok: false,
+        reason: 'menu config field "magnitudeDrill.enabled" must be a boolean',
+      };
+    }
+    if (typeof md.threshold !== 'number' || !Number.isFinite(md.threshold) || md.threshold <= 0) {
+      return {
+        ok: false,
+        reason: 'menu config field "magnitudeDrill.threshold" must be a positive finite number',
+      };
+    }
+    result.magnitudeDrill = { enabled: md.enabled, threshold: md.threshold };
   }
   return { ok: true, config: result };
 }

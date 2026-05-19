@@ -9,7 +9,13 @@ import {
   drillReducer,
   type DrillState,
 } from '@/core/menu-nav';
-import { axesToSector, DEFAULT_PIE_GEOMETRY, shouldCancelOnZ } from '@/core/pie-geometry';
+import {
+  axesMagnitude,
+  axesToSector,
+  DEFAULT_PIE_GEOMETRY,
+  sectorCenterAngle,
+  shouldCancelOnZ,
+} from '@/core/pie-geometry';
 import { resolveAxisInvert, type MenuConfig } from '@/shared/menu';
 
 import { PieMenu } from './PieMenu';
@@ -58,6 +64,13 @@ export function App() {
   // single pop on the rising edge when the user is drilled in,
   // without popping every frame while the puck is held.
   const wasCancelingRef = useRef<boolean>(false);
+  // Mirror of the cancel-ref for the optional magnitude-drill
+  // feature: tracks whether the *previous* frame already had the
+  // puck deflected past `magnitudeDrill.threshold`, so a sustained
+  // push only fires a single drill rather than cascading through
+  // every nested level. Stays at `false` for users who haven't
+  // enabled the feature, so the cost is one boolean read per frame.
+  const wasMagnitudeOverRef = useRef<boolean>(false);
 
   // Update sticky selection (and possibly pop the navigation stack)
   // as the puck moves. Only fires reducer dispatches when something
@@ -92,10 +105,29 @@ export function App() {
       return;
     }
 
-    const current = currentSectors(menuConfig, drillStateRef.current.navigation);
+    const navigation = drillStateRef.current.navigation;
+    const current = currentSectors(menuConfig, navigation);
     const invert = resolveAxisInvert(menuConfig);
-    const sec = axesToSector(
-      { tx: axes.tx, ty: axes.ty },
+
+    // Outer ring rotates so its first sector aligns with the
+    // parent sector the user drilled in from (see PieMenu). The
+    // puck-to-sector mapping has to follow that rotation — rotate
+    // the lateral axes by -offset before resolving, so a "push
+    // toward the parent" still resolves to the same visual sector
+    // it points at.
+    let ringRotation = 0;
+    if (navigation.length > 0) {
+      const parentRing = currentSectors(menuConfig, navigation.slice(0, -1));
+      const drilledIntoIndex = navigation[navigation.length - 1]!;
+      ringRotation = sectorCenterAngle(drilledIntoIndex, parentRing.length);
+    }
+    const cosR = Math.cos(-ringRotation);
+    const sinR = Math.sin(-ringRotation);
+    const rotatedTx = axes.tx * cosR - axes.ty * sinR;
+    const rotatedTy = axes.tx * sinR + axes.ty * cosR;
+
+    const rawSec = axesToSector(
+      { tx: rotatedTx, ty: rotatedTy },
       {
         ...DEFAULT_PIE_GEOMETRY,
         sectorCount: current.length,
@@ -103,6 +135,41 @@ export function App() {
         invertY: invert.y,
       },
     );
+    // axesToSector clamps sectorCount to a minimum of 2 internally
+    // (the math falls apart below that), so a 1-child ring can
+    // return index 1 — which no wedge owns. Clamp on the way out
+    // so the sticky always lands on an existing sector.
+    const sec = rawSec === null ? null : rawSec % current.length;
+
+    // Optional puck-magnitude drill: when configured and enabled,
+    // crossing the threshold from below while hovering a branch
+    // sector auto-drills into it. The check sits *between* the
+    // hover dispatch and the rest of the frame so a drilled-in
+    // frame already has the correct sticky set on the new ring.
+    //
+    // Rising-edge only: the puck has to dip back below the
+    // threshold before another magnitude-drill can fire. Without
+    // this, a sustained push past the threshold would cascade
+    // through every nested branch in a single gesture.
+    const drillConfig = menuConfig.magnitudeDrill;
+    const magnitudeOver =
+      drillConfig?.enabled === true &&
+      axesMagnitude({ tx: axes.tx, ty: axes.ty }) >= drillConfig.threshold;
+    const magnitudeRising = magnitudeOver && !wasMagnitudeOverRef.current;
+    wasMagnitudeOverRef.current = magnitudeOver;
+
+    if (magnitudeRising && sec !== null) {
+      const hovered = current[sec];
+      if (hovered?.children) {
+        // child[0] aligns with the parent sector's angle thanks to
+        // the outer-ring rotation, so landing sticky on 0 matches
+        // the user's puck direction without the brief wrong-child
+        // flash that `Math.min(sec, ...)` would produce.
+        dispatch({ type: 'drill', index: sec, nextSticky: 0 });
+        return;
+      }
+    }
+
     if (sec !== null) dispatch({ type: 'hover', index: sec });
     // `drillState.navigation` is read via `drillStateRef`, not from
     // the dep array. axes ticks frequently enough that the next
@@ -131,6 +198,7 @@ export function App() {
       // carry over.
       dispatch({ type: 'reset' });
       wasCancelingRef.current = false;
+      wasMagnitudeOverRef.current = false;
       setMenuAnchor({ x, y });
     });
     const offCommit = window.spaceux.onMenuCommit(() => {
@@ -153,12 +221,13 @@ export function App() {
         // just update local state. The next axes frame will start
         // picking sectors from the new (deeper) ring.
         //
-        // Carry the puck's hover position into the new ring (clamped
-        // to the children's range) so a drill-in done with the puck
-        // already returned to the deadzone shows a sensible default
-        // highlight instead of the red cancel target.
-        const nextSticky = Math.min(stickyChildIndex, sector.children.length - 1);
-        dispatch({ type: 'drill', index: stickyChildIndex, nextSticky });
+        // Land sticky on child[0]: with the outer-ring rotation
+        // alignment, sector 0 of the new ring sits at the parent
+        // sector's angle — i.e. exactly where the user's puck was
+        // pointing. Using the parent's index here would put the
+        // sticky on the opposite side of the new ring, producing a
+        // visible flash before the next axes frame corrects it.
+        dispatch({ type: 'drill', index: stickyChildIndex, nextSticky: 0 });
         return;
       }
       // Leaf (or label-only sector with no binding): close the menu

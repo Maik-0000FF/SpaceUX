@@ -219,6 +219,41 @@ describe('validateMenuConfig — nested submenus', () => {
     }
   });
 
+  it('accepts an opt-in magnitudeDrill config and round-trips its fields', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      magnitudeDrill: { enabled: true, threshold: 250 },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.magnitudeDrill).toEqual({ enabled: true, threshold: 250 });
+  });
+
+  it('rejects malformed magnitudeDrill shapes', () => {
+    // Each variant breaks a different invariant — enabled must be
+    // a real boolean, threshold a positive finite number. Pinned
+    // as a table so a future "loosen one of these" refactor has to
+    // remove a test rather than tweak it silently.
+    const cases: Array<[unknown, RegExp]> = [
+      ['not-an-object', /must be an object/],
+      [{ threshold: 200 }, /enabled.*must be a boolean/],
+      [{ enabled: 'yes', threshold: 200 }, /enabled.*must be a boolean/],
+      [{ enabled: true, threshold: '200' }, /threshold.*positive finite number/],
+      [{ enabled: true, threshold: 0 }, /threshold.*positive finite number/],
+      [{ enabled: true, threshold: -1 }, /threshold.*positive finite number/],
+      [{ enabled: true, threshold: Infinity }, /threshold.*positive finite number/],
+    ];
+    for (const [bad, pattern] of cases) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        magnitudeDrill: bad,
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `magnitudeDrill=${JSON.stringify(bad)}`).toBe(false);
+      if (!r.ok) expect(r.reason, `magnitudeDrill=${JSON.stringify(bad)}`).toMatch(pattern);
+    }
+  });
+
   it('accepts arbitrarily nested branches (depth 3 here)', () => {
     // The schema is intentionally recursive — pinning a 3-deep config
     // makes the "yes, more than two levels really works" promise
