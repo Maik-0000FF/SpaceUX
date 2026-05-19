@@ -25,7 +25,14 @@ async function launch(config, ctx) {
   }
   const tokens = command.split(/\s+/);
   const [bin, ...args] = tokens;
-  if (!bin) return;
+  if (!bin) {
+    // See src/main/builtins/exec.ts for the rationale — the earlier
+    // `!command` guard makes this branch unreachable with the current
+    // whitespace split, but logging defends against a future parser
+    // tweak that could yield an empty first token.
+    ctx.log(`command "${command}" parsed to no binary — refusing to spawn`);
+    return;
+  }
   try {
     const child = spawn(bin, args, {
       detached: true,
