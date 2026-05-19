@@ -100,6 +100,15 @@ describe('validateManifest — structural fields', () => {
     expect(validateManifest(manifestBase({ actions: [{ name: 'x' }] }))).toMatch(/action\.label/);
   });
 
+  it('keeps MIN_SUPPORTED_PLUGIN_API_VERSION at or below PLUGIN_API_VERSION', () => {
+    // Cheap invariant: if a future bump accidentally raises the
+    // floor above the ceiling, every plugin would fail to load
+    // with confusing range errors. The bumping policy is documented
+    // in src/shared/plugin-types.ts but humans skip docs; this
+    // assertion catches the slip in CI before users do.
+    expect(MIN_SUPPORTED_PLUGIN_API_VERSION).toBeLessThanOrEqual(PLUGIN_API_VERSION);
+  });
+
   it('rejects a blank id / name / version / license', () => {
     for (const key of ['id', 'name', 'version', 'license'] as const) {
       const reason = validateManifest(manifestBase({ [key]: '   ' }));
