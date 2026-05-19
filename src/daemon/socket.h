@@ -2,17 +2,23 @@
  * SPDX-FileCopyrightText: Maik-0000FF
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * socket - UNIX domain socket server for the daemon.
+ * socket - daemon-side client multiplexer.
  *
  * The daemon multiplexes multiple clients (Electron UI, debug CLI,
  * future helpers) on one listener. Each client carries its own
  * subscription bitmask; broadcast_axes / broadcast_button walk the
  * client array and skip everyone who hasn't subscribed.
+ *
+ * Transport (UNIX socket today, named pipe on Windows tomorrow) is
+ * fully hidden behind ipc.h. This file only deals with what each
+ * client *is* — slot state, subscription mask, GRAB lifecycle —
+ * never with how bytes reach it.
  */
 #ifndef SPACEUX_SOCKET_H
 #define SPACEUX_SOCKET_H
 
 #include "config.h"
+#include "ipc.h"
 
 struct sock_client {
 	int fd; /* -1 if slot is empty */
@@ -22,13 +28,8 @@ struct sock_client {
 	int cmd_len;
 };
 
-/* sun_path on Linux is 108 bytes; sizing this to match keeps the
- * compiler quiet about format-truncation in sock_init. */
-#define SPACEUX_SOCK_PATH_MAX 108
-
 struct sock_state {
-	int listen_fd;
-	char path[SPACEUX_SOCK_PATH_MAX];
+	struct ipc_listener listener;
 	struct sock_client clients[SPACEUX_MAX_CLIENTS];
 };
 

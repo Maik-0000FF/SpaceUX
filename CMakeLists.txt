@@ -45,6 +45,13 @@ set(DAEMON_SOURCES
     src/daemon/socket.c
 )
 
+# IPC transport. UNIX sockets cover Linux and macOS — both reuse
+# ipc_unix.c with internal #ifdef splits for accept4 vs accept+fcntl.
+# Windows will get its own ipc_namedpipe.c when the port lands.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    list(APPEND DAEMON_SOURCES src/daemon/ipc_unix.c)
+endif()
+
 # Per-host backend sources. Each list intentionally fails the
 # configure step if the host has no implementation yet — better than
 # silently producing a daemon that builds but does nothing.
@@ -56,17 +63,20 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     message(FATAL_ERROR
         "macOS backend not yet implemented. "
-        "Expected: src/daemon/input_macos.c + src/daemon/platform_macos.c"
+        "Expected: src/daemon/input_macos.c + src/daemon/platform_macos.c. "
+        "The IPC layer (ipc_unix.c) is already wired up for Darwin."
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     message(FATAL_ERROR
         "Windows backend not yet implemented. "
-        "Expected: src/daemon/input_windows.c + src/daemon/platform_windows.c"
+        "Expected: src/daemon/input_windows.c + src/daemon/platform_windows.c "
+        "+ src/daemon/ipc_namedpipe.c."
     )
 else()
     message(FATAL_ERROR
         "Unsupported host '${CMAKE_SYSTEM_NAME}'. "
         "Add a src/daemon/input_<os>.c + src/daemon/platform_<os>.c pair "
+        "(and an ipc_<transport>.c if UNIX sockets are not a fit) "
         "and extend the dispatch in CMakeLists.txt."
     )
 endif()
