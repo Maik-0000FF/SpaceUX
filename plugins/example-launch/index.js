@@ -31,8 +31,22 @@ async function launch(config, ctx) {
       detached: true,
       stdio: 'ignore',
     });
+    // spawn() returns a ChildProcess synchronously even when the
+    // binary cannot be found; it then emits either 'spawn' on success
+    // (pid is set) or 'error' on failure (e.g. ENOENT). Logging
+    // "spawned" off the synchronous return would print a misleading
+    // success line before the error event arrived. The 'error'
+    // listener is also load-bearing: without it the failure becomes
+    // an uncaught exception in the host process and the user sees a
+    // crash dialog. Third-party plugin authors that spawn subprocesses
+    // should always attach an 'error' handler the same way.
+    child.on('spawn', () => {
+      ctx.log(`spawned ${bin} (pid ${child.pid ?? 'unknown'})`);
+    });
+    child.on('error', (err) => {
+      ctx.log(`${bin} failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
     child.unref();
-    ctx.log(`spawned ${bin} (pid ${child.pid ?? 'unknown'})`);
   } catch (err) {
     ctx.log(`spawn failed: ${err instanceof Error ? err.message : String(err)}`);
   }
