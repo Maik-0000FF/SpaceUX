@@ -7,6 +7,7 @@ import {
   INITIAL_DRILL_STATE,
   currentSectors,
   drillReducer,
+  previewChildren,
   type DrillState,
 } from '../src/core/menu-nav';
 import { MENU_CONFIG_VERSION, builtinAction, type MenuConfig } from '../src/shared/menu';
@@ -69,27 +70,55 @@ describe('drillReducer', () => {
     expect(result).toBe(state);
   });
 
-  it('drill pushes the index onto navigation and resets selection', () => {
+  it('drill pushes the index onto navigation and sets sticky from action', () => {
+    // `nextSticky: null` is the explicit "start the new ring with
+    // no selection" path; PR-C's carry-over behaviour uses a number
+    // here when the caller wants the parent's hover to follow into
+    // the deeper ring.
     const state: DrillState = { navigation: [], stickyChildIndex: 0 };
-    const result = drillReducer(state, { type: 'drill', index: 0 });
+    const result = drillReducer(state, { type: 'drill', index: 0, nextSticky: null });
     expect(result.navigation).toEqual([0]);
     expect(result.stickyChildIndex).toBeNull();
+  });
+
+  it('drill carries a clamped sticky index into the new ring', () => {
+    // The App.tsx commit handler clamps the parent's sticky to the
+    // children's range; the reducer just applies whatever the action
+    // says. Pin both branches: out-of-range never reaches here, but
+    // an explicit positive carry should land unchanged.
+    const state: DrillState = { navigation: [], stickyChildIndex: 2 };
+    const result = drillReducer(state, { type: 'drill', index: 2, nextSticky: 1 });
+    expect(result.stickyChildIndex).toBe(1);
   });
 
   it('drill stacks for multi-level navigation', () => {
     let state = INITIAL_DRILL_STATE;
-    state = drillReducer(state, { type: 'drill', index: 0 });
-    state = drillReducer(state, { type: 'drill', index: 1 });
-    state = drillReducer(state, { type: 'drill', index: 2 });
+    state = drillReducer(state, { type: 'drill', index: 0, nextSticky: null });
+    state = drillReducer(state, { type: 'drill', index: 1, nextSticky: null });
+    state = drillReducer(state, { type: 'drill', index: 2, nextSticky: null });
     expect(state.navigation).toEqual([0, 1, 2]);
     expect(state.stickyChildIndex).toBeNull();
   });
 
-  it('pop removes the deepest level and resets selection', () => {
+  it('pop lands sticky on the index we popped from (parent breadcrumb cue)', () => {
+    // Coming back out of a submenu, the user expects to see the
+    // sector they drilled into highlighted in the parent ring —
+    // not the red cancel target. Without this carry the TZ-back
+    // gesture feels like "exit" rather than "step back".
     const state: DrillState = { navigation: [0, 1], stickyChildIndex: 3 };
     const result = drillReducer(state, { type: 'pop' });
     expect(result.navigation).toEqual([0]);
-    expect(result.stickyChildIndex).toBeNull();
+    expect(result.stickyChildIndex).toBe(1);
+  });
+
+  it('pop from depth 1 lands sticky on the top-level entry index', () => {
+    // Same contract one level shallower: from [2] back to [] the
+    // sticky becomes 2 so the top-level parent sector is the one
+    // highlighted on exit.
+    const state: DrillState = { navigation: [2], stickyChildIndex: 0 };
+    const result = drillReducer(state, { type: 'pop' });
+    expect(result.navigation).toEqual([]);
+    expect(result.stickyChildIndex).toBe(2);
   });
 
   it('pop at depth 0 is a no-op (identity short-circuit)', () => {
@@ -126,7 +155,7 @@ describe('currentSectors', () => {
     expect(currentSectors(NESTED_CONFIG, [99])).toBe(NESTED_CONFIG.sectors);
   });
 
-  it('resolves a three-level deep navigation', () => {
+  it('resolves a three-level deep navigation at runtime', () => {
     const deep: MenuConfig = {
       version: MENU_CONFIG_VERSION,
       sectors: [
@@ -149,5 +178,54 @@ describe('currentSectors', () => {
     const result = currentSectors(deep, [0, 0]);
     expect(result).toHaveLength(1);
     expect(result[0]?.label).toBe('L2');
+  });
+});
+
+describe('previewChildren', () => {
+  it('returns undefined when no sector is sticky', () => {
+    expect(previewChildren(NESTED_CONFIG, INITIAL_DRILL_STATE)).toBeUndefined();
+    expect(
+      previewChildren(NESTED_CONFIG, { navigation: [0], stickyChildIndex: null }),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined when the hovered sector is a leaf', () => {
+    // Top-level "Terminal" sector — leaf, has binding, no children.
+    expect(previewChildren(NESTED_CONFIG, { navigation: [], stickyChildIndex: 1 })).toBeUndefined();
+  });
+
+  it('returns the children when the hovered sector is a branch', () => {
+    // Top-level "FreeCAD" — branch with two leaves underneath.
+    const result = previewChildren(NESTED_CONFIG, { navigation: [], stickyChildIndex: 0 });
+    expect(result).toHaveLength(2);
+    expect(result?.[0]?.label).toBe('New');
+    expect(result?.[1]?.label).toBe('Open');
+  });
+
+  it('returns the grandchildren when drilled in and hovering a branch', () => {
+    // Build a 3-level config so we can drill once and still hover a
+    // branch. The previewChildren contract must compose with depth.
+    const deep: MenuConfig = {
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'L0',
+          children: [
+            {
+              label: 'L1-branch',
+              children: [
+                {
+                  label: 'leaf',
+                  binding: { action: builtinAction('exec'), config: { command: '' } },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const result = previewChildren(deep, { navigation: [0], stickyChildIndex: 0 });
+    expect(result).toHaveLength(1);
+    expect(result?.[0]?.label).toBe('leaf');
   });
 });

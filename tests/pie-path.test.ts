@@ -52,6 +52,22 @@ describe('describeWedgePath — coordinate output', () => {
     );
   });
 
+  it('emits a donut path when sweep is a full 2π (single-sector ring)', () => {
+    // The regular wedge path's start and end coincide at sweep = 2π
+    // and the rendered shape collapses to a radial line. A donut
+    // (two concentric circles, inner one punched out via
+    // fill-rule: evenodd) is what users actually see for a 1-child
+    // outer ring. Pin both subpaths so a future "simplify the
+    // dispatch" refactor can't accidentally lose one.
+    const path = describeWedgePath(100, 50, -Math.PI, Math.PI);
+    // Two M…Z subpaths, one for each circle.
+    expect(path.match(/M /g)).toHaveLength(2);
+    expect(path.match(/Z/g)).toHaveLength(2);
+    // Outer-circle anchor at +rOuter on x-axis, inner at +rInner.
+    expect(path).toContain('M 100 0');
+    expect(path).toContain('M 50 0');
+  });
+
   it('emits a valid path when inner radius is zero (degenerate pizza slice)', () => {
     // Useful as a defensive pin if anyone later passes rInner=0 to
     // collapse the donut hole. The inner arc degenerates to a

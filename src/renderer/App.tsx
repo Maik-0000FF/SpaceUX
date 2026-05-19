@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 
 import {
   INITIAL_DRILL_STATE,
@@ -77,12 +77,18 @@ export function App() {
     wasCancelingRef.current = canceling;
 
     if (canceling) {
-      dispatch({ type: 'hover', index: null });
-      // Edge-trigger: only pop once per fresh TZ deflection so the
-      // user can't burn through the stack in a single sustained
-      // push. The reducer is a no-op at depth 0 so this dispatch
-      // is safe even when there's nothing to pop.
-      if (tzRising) dispatch({ type: 'pop' });
+      // Edge-trigger only: a sustained TZ should not keep
+      // re-firing or re-clearing state. The rising edge picks the
+      // right transition based on depth — pop one level when
+      // drilled, clear sticky at top level so the cancel target
+      // lights up and a commit becomes a silent dismiss.
+      if (tzRising) {
+        if (drillStateRef.current.navigation.length > 0) {
+          dispatch({ type: 'pop' });
+        } else {
+          dispatch({ type: 'hover', index: null });
+        }
+      }
       return;
     }
 
@@ -132,17 +138,27 @@ export function App() {
       const { navigation, stickyChildIndex } = drillStateRef.current;
       if (!cfg || stickyChildIndex === null) {
         // No selection (puck never left deadzone or TZ-cancelled) →
-        // silent dismiss, close the whole menu.
+        // silent dismiss. Tell main to actually hide the window;
+        // local state resets so the next open starts clean.
         setMenuAnchor(null);
         dispatch({ type: 'reset' });
+        void window.spaceux.closeMenu();
         return;
       }
       const current = currentSectors(cfg, navigation);
       const sector = current[stickyChildIndex];
       if (sector?.children) {
-        // Branch → drill in. Menu stays open; the next axes frame
-        // will start picking sectors from the new (deeper) ring.
-        dispatch({ type: 'drill', index: stickyChildIndex });
+        // Branch → drill in. Menu stays visible; main wasn't going
+        // to hide it (commit no longer auto-hides post-PR-C), so we
+        // just update local state. The next axes frame will start
+        // picking sectors from the new (deeper) ring.
+        //
+        // Carry the puck's hover position into the new ring (clamped
+        // to the children's range) so a drill-in done with the puck
+        // already returned to the deadzone shows a sensible default
+        // highlight instead of the red cancel target.
+        const nextSticky = Math.min(stickyChildIndex, sector.children.length - 1);
+        dispatch({ type: 'drill', index: stickyChildIndex, nextSticky });
         return;
       }
       // Leaf (or label-only sector with no binding): close the menu
@@ -150,6 +166,7 @@ export function App() {
       // fire the action if there is one.
       setMenuAnchor(null);
       dispatch({ type: 'reset' });
+      void window.spaceux.closeMenu();
       if (!sector?.binding) return;
       const { action, config: actionConfig } = sector.binding;
       window.spaceux.invokeAction(action, actionConfig ?? {}).catch((err: unknown) => {
@@ -168,30 +185,14 @@ export function App() {
     };
   }, []);
 
-  // PieMenu still renders a single ring (PR C lands the visual
-  // outer ring + breadcrumb). We feed it the current ring's
-  // sectors by synthesising a shallow config that preserves
-  // axisInvert and trigger settings but swaps the sectors array.
-  //
-  // Memoised on (menuConfig, navigation) because PieMenu's own
-  // geometry useMemo treats `config` as a dep — a fresh pieConfig
-  // every render would bust that downstream memo on every parent
-  // re-render while drilled in.
-  const pieConfig = useMemo(
-    () =>
-      menuConfig && drillState.navigation.length > 0
-        ? { ...menuConfig, sectors: currentSectors(menuConfig, drillState.navigation) }
-        : menuConfig,
-    [menuConfig, drillState.navigation],
-  );
-
   return (
     <div className="root">
-      {menuAnchor && pieConfig && (
+      {menuAnchor && menuConfig && (
         <PieMenu
           axes={axes}
           position={menuAnchor}
-          config={pieConfig}
+          config={menuConfig}
+          navigation={drillState.navigation}
           activeSector={drillState.stickyChildIndex}
         />
       )}

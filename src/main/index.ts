@@ -206,11 +206,20 @@ async function openMenuAtCursor(window: BrowserWindow): Promise<void> {
   menuShown = true;
 }
 
-/** Commit the currently-highlighted sector (or dismiss when none)
- *  and hide the overlay. In dev mode the window stays visible so
- *  the debug panel keeps showing axes between menu interactions. */
-function closeMenu(window: BrowserWindow): void {
+/** Send the commit event to the renderer without hiding the window.
+ *  The renderer decides whether the commit drills into a submenu
+ *  (menu stays open) or actually closes — in the latter case it
+ *  calls back via `IpcChannel.CLOSE_MENU` which triggers
+ *  `hideMenuWindow` below. */
+function commitMenu(window: BrowserWindow): void {
   window.webContents.send(IpcChannel.MENU_COMMIT);
+}
+
+/** Actually tear down the menu UI: drop the LED, hide the overlay
+ *  window (dev mode keeps the framed window visible so the debug
+ *  panel stays alive between interactions), and flip `menuShown`
+ *  so the next trigger press opens a fresh menu. */
+function hideMenuWindow(window: BrowserWindow): void {
   daemon.setLed(false);
   if (OVERLAY_MODE) window.hide();
   menuShown = false;
@@ -223,16 +232,20 @@ function closeMenu(window: BrowserWindow): void {
  * so a hot-reload of menu.json swaps the trigger live without an
  * app restart.
  *
- * Click-to-toggle UX: press 1 opens, press 2 commits + closes.
- * Release events are intentionally ignored so the user can navigate
- * the open pie without holding the button down.
+ * Click-to-toggle UX: press 1 opens; subsequent presses commit the
+ * currently-highlighted sector. A commit on a branch drills into
+ * its submenu and the menu stays open — pressing the trigger again
+ * commits within the deeper ring. A commit on a leaf (or with no
+ * selection) closes the menu via the renderer-initiated
+ * CLOSE_MENU IPC. Release events are intentionally ignored so the
+ * user can navigate the open pie without holding the button down.
  */
 function handleTriggerButton(bnum: number, pressed: boolean): void {
   if (!mainWindow) return;
   const activeTrigger = menuConfig?.triggerButton ?? DEFAULT_TRIGGER_BUTTON;
   if (bnum !== activeTrigger || !pressed) return;
   if (menuShown) {
-    closeMenu(mainWindow);
+    commitMenu(mainWindow);
   } else {
     void openMenuAtCursor(mainWindow).catch((err: unknown) => {
       // eslint-disable-next-line no-console
@@ -311,6 +324,15 @@ function wireActionDispatch(): void {
   // the current value at mount-time without racing the push-based
   // channel that handles hot-reloads later.
   ipcMain.handle(IpcChannel.GET_MENU_CONFIG, () => menuConfig);
+
+  // Renderer requests a real close (leaf-commit or silent dismiss).
+  // The trigger button only sends MENU_COMMIT now; it's the
+  // renderer's job to decide whether the commit drills into a
+  // submenu (no callback needed) or actually closes the menu
+  // (this callback hides the window).
+  ipcMain.handle(IpcChannel.CLOSE_MENU, () => {
+    if (mainWindow) hideMenuWindow(mainWindow);
+  });
 }
 
 app.whenReady().then(async () => {

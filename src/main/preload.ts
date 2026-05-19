@@ -37,6 +37,7 @@ const bridge: SpaceUxBridge = {
     return () => ipcRenderer.off(IpcChannel.MENU_COMMIT, listener);
   },
   invokeAction: (key, config) => ipcRenderer.invoke(IpcChannel.INVOKE_ACTION, key, config),
+  closeMenu: () => ipcRenderer.invoke(IpcChannel.CLOSE_MENU) as Promise<void>,
 };
 
 contextBridge.exposeInMainWorld('spaceux', bridge);

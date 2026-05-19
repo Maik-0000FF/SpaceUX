@@ -30,6 +30,26 @@
  */
 export function describeWedgePath(rOuter: number, rInner: number, a: number, b: number): string {
   const sweep = b - a;
+  // Full-circle "wedge" (sectorCount=1, e.g. an outer ring whose
+  // hovered branch has a single child): the regular path's start
+  // and end points coincide, the SVG arc collapses to a no-op, and
+  // the rendered shape degenerates to a radial line. Emit a donut
+  // (two concentric circles, inner one punched out via
+  // fill-rule: evenodd) so a 1-sector ring renders as a ring rather
+  // than a stripe. Threshold is "almost 2π" so floating-point
+  // accumulation doesn't accidentally miss it.
+  if (sweep >= 2 * Math.PI - 1e-9) {
+    return (
+      `M ${rOuter} 0 ` +
+      `A ${rOuter} ${rOuter} 0 1 1 ${-rOuter} 0 ` +
+      `A ${rOuter} ${rOuter} 0 1 1 ${rOuter} 0 ` +
+      `Z ` +
+      `M ${rInner} 0 ` +
+      `A ${rInner} ${rInner} 0 1 1 ${-rInner} 0 ` +
+      `A ${rInner} ${rInner} 0 1 1 ${rInner} 0 ` +
+      `Z`
+    );
+  }
   const largeArc = sweep > Math.PI ? 1 : 0;
   const sinA = Math.sin(a);
   const cosA = Math.cos(a);

@@ -77,6 +77,10 @@ body {
   fill: var(--pie-bg);
   stroke: var(--pie-border);
   stroke-width: 1.5;
+  /* Required for the donut path emitted on full-circle wedges
+   * (sectorCount=1). For multi-sector wedges the path is simply
+   * connected, so fill-rule is a no-op there. */
+  fill-rule: evenodd;
   transition:
     fill var(--transition-fast),
     stroke var(--transition-fast);
@@ -87,11 +91,51 @@ body {
   stroke: var(--pie-border-active);
 }
 
+/* Preview wedges (outer ring around a hovered branch). Dimmed so the
+ * user reads them as "there's a submenu here" rather than "this is
+ * selectable right now" — selection stays in the inner pie until
+ * the user trigger-commits the branch. */
+.pie-wedge.is-preview {
+  opacity: 0.55;
+}
+
+/* Breadcrumb wedges (the *inner* pie after the user drilled in). The
+ * roles swap: the outer ring becomes the active selection target,
+ * the inner pie demotes to a "you came from here" context. Heavily
+ * dimmed so it doesn't compete visually with the active outer ring. */
+.pie-wedge.is-breadcrumb {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* The single inner-pie wedge the user actually drilled *into*. A
+ * touch brighter than the rest of the breadcrumb so it acts as a
+ * visual anchor — "you came from this sector". */
+.pie-wedge.is-breadcrumb.is-drilled-into {
+  opacity: 0.7;
+  fill: var(--pie-bg-active);
+  stroke: var(--pie-border-active);
+}
+
 .pie-label {
   fill: var(--pie-label);
   font-size: 18px;
   font-weight: 600;
   pointer-events: none;
+}
+
+/* Matches .pie-wedge.is-preview — preview labels share the wedge's
+ * dimming so the whole outer ring reads as one visual group. */
+.pie-label.is-preview {
+  opacity: 0.65;
+  font-size: 15px;
+}
+
+/* Matches .pie-wedge.is-breadcrumb — heavily dimmed labels in the
+ * inner pie once the user has drilled in. */
+.pie-label.is-breadcrumb {
+  opacity: 0.45;
+  font-size: 14px;
 }
 
 /* Central cancel target — highlighted whenever the selection clears

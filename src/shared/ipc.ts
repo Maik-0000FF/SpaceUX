@@ -38,6 +38,13 @@ export const IpcChannel = {
   /** Renderer pushes user-action invocations toward main (which dispatches
    *  to the matching plugin handler). */
   INVOKE_ACTION: 'spaceux:invoke-action',
+  /** Renderer asks main to actually hide the menu window. The
+   *  trigger-button handler in main no longer hides on commit —
+   *  it only sends MENU_COMMIT and lets the renderer decide whether
+   *  to drill into a submenu (menu stays open) or actually close
+   *  (leaf-commit, silent-dismiss). This channel is the renderer's
+   *  callback for the "actually close" path. */
+  CLOSE_MENU: 'spaceux:close-menu',
 } as const;
 
 export type DaemonStatusPayload =
