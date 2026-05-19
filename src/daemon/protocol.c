@@ -16,14 +16,15 @@
  * command verb is the capability token (32 hex chars); the
  * remainder is the key-code list as before. Returns
  * PROTO_CMD_INJECT_CHORD on success or PROTO_CMD_UNKNOWN if the
- * line is malformed (missing token, no codes, a non-numeric code,
- * a code <= 0, too many modifiers).
+ * line is malformed (missing token, wrong-length token, non-hex
+ * token byte, no codes, a non-numeric code, a code <= 0, too many
+ * modifiers). A missing or malformed token is rejected outright at
+ * the parser level — the caller never sees a PROTO_CMD_INJECT_CHORD
+ * with an empty `chord->auth_token`.
  *
- * The token is copied verbatim — validation against the slot's
- * stored token is the caller's job (the parser doesn't know which
- * slot the line came from). An empty/missing token still parses
- * the rest cleanly but leaves `chord->auth_token` empty, which
- * the caller will reject. */
+ * The token is copied verbatim — semantic validation against the
+ * slot's stored token is the caller's job (the parser doesn't know
+ * which slot the line came from). */
 static enum protocol_cmd parse_inject_chord(const char *args, struct protocol_chord *chord)
 {
 	if (!chord)
@@ -185,6 +186,11 @@ int protocol_format_button(char *buf, int buf_size, int bnum, int pressed)
 	return n;
 }
 
+/* Precondition: `token` is hex-only (output of `generate_token` in
+ * socket.c, which builds it from the OS CSPRNG and a fixed hex
+ * alphabet). The JSON serialisation embeds the token unescaped on
+ * that basis — never widen this without first re-introducing proper
+ * JSON-string escaping for backslash, quote, and control bytes. */
 int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons,
 			  int inject_available, int led_available, const char *token)
 {

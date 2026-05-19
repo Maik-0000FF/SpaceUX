@@ -70,9 +70,12 @@ export type HelloEvent = {
    * different same-UID process that connects directly to the socket
    * gets its own token and can't replay ours.
    *
-   * Older daemons that predate the token won't include the field;
-   * the renderer treats missing as "no auth required" and falls
-   * back to the pre-#9-PR-B wire format on INJECT_CHORD.
+   * Older daemons that predate the token won't include the field.
+   * The renderer fails closed in that case: `injectChord()` no-ops
+   * until a token has been latched. There is no unauthenticated
+   * fallback wire format — an old daemon would happily inject
+   * without auth, which is the exact attack PR B is closing.
+   * Upgrading the daemon is the path forward.
    */
   token?: string;
 };
