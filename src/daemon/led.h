@@ -19,10 +19,13 @@
  * project Maik-0000FF/SpaceMouse_3dconnexion uses in its GUI for the
  * same reason (gui/spacemouse_config/helpers.py).
  *
- * Permission story: the same install-time udev rule that grants
- * uaccess to /dev/input/event* for the puck also covers /dev/hidraw*
- * for the matching VID/PID. No extra user setup is required beyond
- * what the daemon already needs to read the puck.
+ * Permission story: opening /dev/hidraw* needs the same uaccess /
+ * input-group membership the daemon already uses for the evdev side.
+ * The hidraw udev rule is part of the feat/installer work tracked
+ * by issue #10 and is not yet shipped — users who hand-install
+ * SpaceUX today may need to add it manually (or run the daemon as a
+ * member of the `input` group on a system whose default rules grant
+ * that group hidraw access).
  *
  * Failure semantics: led_open returns -1 when no SpaceMouse hidraw
  * node is present or hidraw permissions deny access. The daemon
