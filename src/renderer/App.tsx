@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 
 import {
   INITIAL_DRILL_STATE,
@@ -98,6 +98,11 @@ export function App() {
       },
     );
     if (sec !== null) dispatch({ type: 'hover', index: sec });
+    // `drillState.navigation` is read via `drillStateRef`, not from
+    // the dep array. axes ticks frequently enough that the next
+    // frame always picks up a fresh post-drill navigation; adding
+    // `drillState` here would re-run the effect on every reducer
+    // dispatch, defeating the identity short-circuits inside it.
   }, [axes, menuAnchor, menuConfig]);
 
   useEffect(() => {
@@ -118,7 +123,7 @@ export function App() {
       // Every menu open starts with a clean slate so a previous
       // session's leftover (selection AND drilled-in depth) doesn't
       // carry over.
-      dispatch({ type: 'open' });
+      dispatch({ type: 'reset' });
       wasCancelingRef.current = false;
       setMenuAnchor({ x, y });
     });
@@ -129,7 +134,7 @@ export function App() {
         // No selection (puck never left deadzone or TZ-cancelled) →
         // silent dismiss, close the whole menu.
         setMenuAnchor(null);
-        dispatch({ type: 'open' });
+        dispatch({ type: 'reset' });
         return;
       }
       const current = currentSectors(cfg, navigation);
@@ -144,7 +149,7 @@ export function App() {
       // first so the user can't accidentally commit twice, then
       // fire the action if there is one.
       setMenuAnchor(null);
-      dispatch({ type: 'open' });
+      dispatch({ type: 'reset' });
       if (!sector?.binding) return;
       const { action, config: actionConfig } = sector.binding;
       window.spaceux.invokeAction(action, actionConfig ?? {}).catch((err: unknown) => {
@@ -167,10 +172,18 @@ export function App() {
   // outer ring + breadcrumb). We feed it the current ring's
   // sectors by synthesising a shallow config that preserves
   // axisInvert and trigger settings but swaps the sectors array.
-  const pieConfig =
-    menuConfig && drillState.navigation.length > 0
-      ? { ...menuConfig, sectors: currentSectors(menuConfig, drillState.navigation) }
-      : menuConfig;
+  //
+  // Memoised on (menuConfig, navigation) because PieMenu's own
+  // geometry useMemo treats `config` as a dep — a fresh pieConfig
+  // every render would bust that downstream memo on every parent
+  // re-render while drilled in.
+  const pieConfig = useMemo(
+    () =>
+      menuConfig && drillState.navigation.length > 0
+        ? { ...menuConfig, sectors: currentSectors(menuConfig, drillState.navigation) }
+        : menuConfig,
+    [menuConfig, drillState.navigation],
+  );
 
   return (
     <div className="root">
