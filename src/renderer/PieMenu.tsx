@@ -13,6 +13,12 @@ import { resolveAxisInvert, type MenuConfig, type MenuSector } from '@/shared/me
 
 const TAU = Math.PI * 2;
 
+/** Fraction of the outer radius taken up by the central cancel area.
+ *  Used as the inner cut-out of every sector wedge so the wedges
+ *  butt directly against the cancel circle instead of sitting on top
+ *  of it. Single source of truth — bump in one place. */
+const CANCEL_RADIUS_RATIO = 0.18;
+
 export type PieMenuProps = {
   axes: { tx: number; ty: number };
   /** Anchor point in renderer-window coords. The pie centre sits at
@@ -94,6 +100,13 @@ export function PieMenu({
       }
     : { width: size, height: size };
 
+  // Center-cancel target. Active whenever no sector is selected
+  // (puck in deadzone): a commit in that state is a silent dismiss,
+  // so highlighting the centre tells the user "release now and the
+  // pie goes away with no action". The radius is a visual cue, not
+  // a hit-test — the underlying selection logic is in App.tsx.
+  const cancelActive = activeSector === null;
+
   return (
     <div className="pie-menu" style={style}>
       <svg viewBox={`-${radius} -${radius} ${size} ${size}`} width={size} height={size}>
@@ -102,10 +115,26 @@ export function PieMenu({
             key={i}
             index={i}
             sectorCount={sectorCount}
-            radius={radius}
+            outerRadius={radius}
+            innerRadius={radius * CANCEL_RADIUS_RATIO}
             active={activeSector === i}
           />
         ))}
+        <circle
+          className={`pie-cancel-center${cancelActive ? ' is-active' : ''}`}
+          cx={0}
+          cy={0}
+          r={radius * CANCEL_RADIUS_RATIO}
+        />
+        <text
+          className={`pie-cancel-label${cancelActive ? ' is-active' : ''}`}
+          x={0}
+          y={0}
+          textAnchor="middle"
+          dominantBaseline="central"
+        >
+          ✕
+        </text>
         {config.sectors.map((sector, i) => (
           <SectorLabel
             key={i}
@@ -123,19 +152,21 @@ export function PieMenu({
 function SectorWedge({
   index,
   sectorCount,
-  radius,
+  outerRadius,
+  innerRadius,
   active,
 }: {
   index: number;
   sectorCount: number;
-  radius: number;
+  outerRadius: number;
+  innerRadius: number;
   active: boolean;
 }) {
   const sectorWidth = TAU / sectorCount;
   // Half a sector either side of the centre so wedges meet edge-to-edge.
   const startAngle = sectorCenterAngle(index, sectorCount) - sectorWidth / 2;
   const endAngle = startAngle + sectorWidth;
-  const d = describeWedgePath(radius, startAngle, endAngle);
+  const d = describeWedgePath(outerRadius, innerRadius, startAngle, endAngle);
   return <path className={`pie-wedge${active ? ' is-active' : ''}`} d={d} />;
 }
 
@@ -163,18 +194,35 @@ function SectorLabel({
 }
 
 /**
- * Build the SVG path for one wedge from angle a to angle b (radians,
- * 12 o'clock = 0, clockwise positive). Uses the standard SVG arc
- * trick: move to centre, line out to the start point, arc along the
- * outer circumference, line back to centre, close. The largeArc flag
- * is set when the sweep exceeds π so half-pies render correctly.
+ * Build the SVG path for one annular (donut-slice) wedge from angle a
+ * to angle b (radians, 12 o'clock = 0, clockwise positive). The path
+ * traces the inner edge, lines out to the outer arc, sweeps the outer
+ * arc, lines back to the inner edge, and sweeps the inner arc in
+ * reverse — leaving a hole in the middle for the central cancel
+ * target to nest into. The largeArc flag is set when the sweep
+ * exceeds π so half-pies still render correctly.
  */
-function describeWedgePath(r: number, a: number, b: number): string {
+function describeWedgePath(rOuter: number, rInner: number, a: number, b: number): string {
   const sweep = b - a;
   const largeArc = sweep > Math.PI ? 1 : 0;
-  const ax = Math.sin(a) * r;
-  const ay = -Math.cos(a) * r;
-  const bx = Math.sin(b) * r;
-  const by = -Math.cos(b) * r;
-  return `M 0 0 L ${ax.toFixed(3)} ${ay.toFixed(3)} A ${r} ${r} 0 ${largeArc} 1 ${bx.toFixed(3)} ${by.toFixed(3)} Z`;
+  const sinA = Math.sin(a);
+  const cosA = Math.cos(a);
+  const sinB = Math.sin(b);
+  const cosB = Math.cos(b);
+  const oax = (sinA * rOuter).toFixed(3);
+  const oay = (-cosA * rOuter).toFixed(3);
+  const obx = (sinB * rOuter).toFixed(3);
+  const oby = (-cosB * rOuter).toFixed(3);
+  const iax = (sinA * rInner).toFixed(3);
+  const iay = (-cosA * rInner).toFixed(3);
+  const ibx = (sinB * rInner).toFixed(3);
+  const iby = (-cosB * rInner).toFixed(3);
+  return (
+    `M ${iax} ${iay} ` +
+    `L ${oax} ${oay} ` +
+    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${obx} ${oby} ` +
+    `L ${ibx} ${iby} ` +
+    `A ${rInner} ${rInner} 0 ${largeArc} 0 ${iax} ${iay} ` +
+    `Z`
+  );
 }
