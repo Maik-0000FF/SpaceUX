@@ -5,16 +5,22 @@
  * led_linux - hidraw backend for led.h.
  *
  * Walks /sys/class/hidraw/, reads each device's uevent file, and
- * opens the first one whose HID_ID string carries a 3Dconnexion VID
- * (Logitech-relabelled 046d or 3Dconnexion's own 256f). The match is
- * VID-wide rather than per-PID: the LED report shape (ID 0x04, one
- * boolean byte) is consistent across the SpaceNavigator product line,
- * and a tighter PID allowlist would just force this file to track
- * the udev rules in lockstep.
+ * opens the first one whose HID_ID string matches a known SpaceMouse.
  *
- * If we ever hit a model that ignores the report or interprets it
- * differently, switch to an explicit allowlist here. For now the
- * permissive match keeps the code small and the install simple.
+ * The match is split by VID for accuracy reasons. 0x046D is
+ * Logitech's generic VID, shared with every mouse and keyboard the
+ * company ships — a vendor-only allowlist would let our LED writes
+ * land on whatever Logitech HID happens to be plugged in (smoke
+ * testing caught an MX Master 3S being matched and silently ignoring
+ * the report). For 0x046D we therefore allowlist the specific PIDs
+ * that 3Dconnexion ever licensed under Logitech relabelling, mirror
+ * of the udev-rule PID list. 0x256F is 3Dconnexion's own VID and
+ * exclusive to SpaceMouse-family pucks, so a vendor-wide match there
+ * is safe and saves enumerating every PID.
+ *
+ * If a future model rejects the (ID 0x04, one boolean byte) report
+ * shape, swap that PID over to a per-model branch — but every product
+ * shipped to date accepts it.
  */
 #define _GNU_SOURCE
 #include "led.h"
