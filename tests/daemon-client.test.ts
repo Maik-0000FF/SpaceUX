@@ -52,6 +52,7 @@ import { DaemonClient } from '../src/main/daemon-client';
 
 const HELLO = (token: string): string =>
   `{"event":"hello","axes":6,"buttons":32,"inject":true,"led":true,"token":"${token}"}\n`;
+const HELLO_NO_TOKEN_FIELD = '{"event":"hello","axes":6,"buttons":32,"inject":true,"led":true}\n';
 
 describe('DaemonClient capability-token fail-closed behaviour', () => {
   let client: DaemonClient;
@@ -70,13 +71,46 @@ describe('DaemonClient capability-token fail-closed behaviour', () => {
 
   it('drops injectChord before any hello arrives (no auth token yet)', () => {
     // Connection is up but the daemon hasn't yet sent its hello.
-    // The renderer fails closed: a chord call in this window must
-    // not write to the wire, because the daemon (post-#9-PR-B)
-    // would reject an unauthenticated INJECT_CHORD anyway and a
-    // pre-#9-PR-B daemon would inject unauthenticated — the exact
-    // behaviour this PR closes off.
+    // The renderer must fail closed: a chord call in this window
+    // must not write anything to the wire — independent of which
+    // daemon is on the other side. The threat this guards against
+    // is a pre-#9-PR-B daemon that would happily inject without
+    // auth; a post-#9-PR-B daemon would reject the line, but the
+    // renderer is the one responsible for not producing it.
     const sock = mockSockets[0]!;
     sock.emit('connect');
+    client.injectChord([29], 31);
+    expect(sock.writes).toEqual([]);
+  });
+
+  it('drops injectChord when the hello carries no token field', () => {
+    // Older daemons (pre-#9-PR-B) that predate the token will emit
+    // a hello without the `token` key at all. `handleLine` falls
+    // back to authToken = '' in that case (daemon-client.ts:193),
+    // and `injectChord` keeps no-op'ing — there is no implicit
+    // unauthenticated wire format. A future refactor that flipped
+    // the fallback to something truthy (e.g. the literal string
+    // 'undefined' from a sloppy String() coercion) would regress
+    // here.
+    const sock = mockSockets[0]!;
+    sock.emit('connect');
+    sock.emit('data', Buffer.from(HELLO_NO_TOKEN_FIELD));
+
+    client.injectChord([29], 31);
+    expect(sock.writes).toEqual([]);
+  });
+
+  it('drops injectChord when the hello carries an empty token', () => {
+    // A daemon that ships the field but with an empty string is
+    // the same fail-closed case as "no field" — the guard at
+    // daemon-client.ts:100 is `if (!this.authToken) return`,
+    // which treats both identically. Pinning that the empty
+    // string is intentional and not just incidentally lumped in
+    // with the missing-key case.
+    const sock = mockSockets[0]!;
+    sock.emit('connect');
+    sock.emit('data', Buffer.from(HELLO('')));
+
     client.injectChord([29], 31);
     expect(sock.writes).toEqual([]);
   });
@@ -118,7 +152,39 @@ describe('DaemonClient capability-token fail-closed behaviour', () => {
     // also destroyed by now, but the token-clear is the *primary*
     // guard: even if a reconnect happened right away on a fresh
     // socket, injectChord would still be silent until a new hello.
+    // The next spec exercises that reconnect path directly.
     client.injectChord([29], 31);
     expect(sock.writes.length).toBe(1);
+  });
+
+  it('keeps a fresh post-reconnect socket silent until the next hello', () => {
+    // Reconnect-via-auto-timer scenario. The close handler arms a
+    // reconnectTimer that opens a brand-new socket on the same
+    // client. The previous session's token must not survive into
+    // the new connection's pre-hello window — only a hello on the
+    // *new* socket can re-arm injection. Pins what the comment on
+    // the previous spec already claims: the token-clear, not just
+    // the socket-destroy, is what fails the next chord closed.
+    vi.useFakeTimers();
+    try {
+      const sock1 = mockSockets[0]!;
+      sock1.emit('connect');
+      sock1.emit('data', Buffer.from(HELLO('cccccccccccccccccccccccccccccccc')));
+      sock1.emit('close');
+
+      // Flush the reconnectTimer (default reconnectDelayMs = 1000).
+      vi.advanceTimersByTime(1000);
+
+      const sock2 = mockSockets[1];
+      expect(sock2).toBeDefined();
+      sock2!.emit('connect');
+
+      // No hello on sock2 yet — the previous session's token must
+      // not leak into a write on the new wire.
+      client.injectChord([29], 31);
+      expect(sock2!.writes).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
