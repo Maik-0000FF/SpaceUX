@@ -125,7 +125,8 @@ int sock_accept(struct sock_state *s)
 	}
 	uid_t my_uid = getuid();
 	if (peer.uid != (int)my_uid) {
-		fprintf(stderr, "[sock] reject: cross-UID connect (peer uid=%d pid=%d, daemon uid=%u)\n",
+		fprintf(stderr,
+			"[sock] reject: cross-UID connect (peer uid=%d pid=%d, daemon uid=%u)\n",
 			peer.uid, peer.pid, (unsigned int)my_uid);
 		ipc_close(fd);
 		return -1;
@@ -156,11 +157,10 @@ int sock_accept(struct sock_state *s)
 	 * /proc/<pid>/exe is readable). */
 	char exe[256] = {0};
 	if (peer_exe_path(peer.pid, exe, sizeof(exe)))
-		fprintf(stderr, "[sock] accept slot=%d pid=%d uid=%d exe=%s\n",
-			slot, peer.pid, peer.uid, exe);
+		fprintf(stderr, "[sock] accept slot=%d pid=%d uid=%d exe=%s\n", slot, peer.pid,
+			peer.uid, exe);
 	else
-		fprintf(stderr, "[sock] accept slot=%d pid=%d uid=%d\n",
-			slot, peer.pid, peer.uid);
+		fprintf(stderr, "[sock] accept slot=%d pid=%d uid=%d\n", slot, peer.pid, peer.uid);
 
 	char hello[SPACEUX_EVENT_BUF_SIZE];
 	int hlen = protocol_format_hello(hello, sizeof(hello), SPACEUX_AXIS_COUNT,
@@ -252,13 +252,13 @@ static int apply_cmd(struct sock_state *s, int slot, struct sock_client *c, enum
 			 * "nothing happens" rather than a kicked-off
 			 * connection; the audit line names them. */
 			fprintf(stderr,
-				"[inject] drop (rate-limit) slot=%d pid=%d mods=%s key=%d\n",
-				slot, c->peer_pid, modbuf, chord->key);
+				"[inject] drop (rate-limit) slot=%d pid=%d mods=%s key=%d\n", slot,
+				c->peer_pid, modbuf, chord->key);
 			return 0;
 		}
 		c->chord_tokens -= 1.0;
-		fprintf(stderr, "[inject] slot=%d pid=%d mods=%s key=%d\n",
-			slot, c->peer_pid, modbuf, chord->key);
+		fprintf(stderr, "[inject] slot=%d pid=%d mods=%s key=%d\n", slot, c->peer_pid,
+			modbuf, chord->key);
 		inject_chord(s->inject_fd, chord->mods, chord->n_mods, chord->key);
 		return 0;
 	}
