@@ -75,7 +75,17 @@ export type ActionRef = {
  *  which one wins on commit. */
 export type MenuSector = {
   /** Short display string for the sector. The renderer puts this
-   *  inside the wedge — keep it 1-2 words so the label fits. */
+   *  inside the wedge — keep it 1–2 words so the label fits.
+   *
+   *  Any non-empty Unicode string is accepted: ASCII, Latin-1
+   *  accented characters, CJK, RTL scripts, and Emojis (including
+   *  Variation-Selector-modified glyphs and ZWJ composites) all
+   *  pass the validator and render through the same SVG `<text>`
+   *  element. Visual width depends on the sector count + radius;
+   *  at the default 8-sector / 240 px geometry, ~10 characters
+   *  is a safe upper bound before glyphs overflow the wedge.
+   *  Composite Emojis depend on the system Emoji font — on Linux
+   *  that's typically Noto Color Emoji. */
   label: string;
   /** Optional icon name resolved by the renderer's theme. v0
    *  ignores this — labels are enough to demo the dispatch path. */
