@@ -75,9 +75,16 @@ enum protocol_cmd {
 	PROTO_CMD_RELEASE,
 	PROTO_CMD_PING,
 	PROTO_CMD_INJECT_CHORD,
+	PROTO_CMD_SET_LED,
 };
 
-enum protocol_cmd protocol_parse_command(const char *line, struct protocol_chord *chord);
+/* Parses a single inbound command line. Returns the command kind;
+ * fills `*chord` only when the result is PROTO_CMD_INJECT_CHORD, and
+ * fills `*led_on` (0 or 1) only when the result is PROTO_CMD_SET_LED.
+ * For every other command the out-params are unspecified — callers
+ * must check the returned `cmd` before reading them. */
+enum protocol_cmd protocol_parse_command(const char *line, struct protocol_chord *chord,
+					 int *led_on);
 
 /* Format an axes snapshot into *buf. Returns bytes written
  * (excluding the trailing NUL), or -1 if the buffer is too small.
@@ -87,11 +94,18 @@ int protocol_format_axes(char *buf, int buf_size, const int *values, int n_value
 /* Format a single button transition into *buf. Same return contract. */
 int protocol_format_button(char *buf, int buf_size, int bnum, int pressed);
 
-/* Format the welcome hello message sent on connect. `inject_available`
- * is a 0/1 flag that surfaces whether the daemon successfully opened
- * /dev/uinput at startup — clients use it to log "key injection
- * unavailable" instead of silently no-op'ing on later INJECT_CHORD. */
+/* Format the welcome hello message sent on connect.
+ *
+ * `inject_available` is a 0/1 flag that surfaces whether the daemon
+ * successfully opened /dev/uinput at startup — clients use it to log
+ * "key injection unavailable" instead of silently no-op'ing on later
+ * INJECT_CHORD.
+ *
+ * `led_available` is the same idea for LED control: 0/1 depending on
+ * whether the daemon found a SpaceMouse hidraw node it can write to.
+ * Clients use it to gate the pie-open/close LED toggle so they don't
+ * waste round-trips sending SET_LED to a daemon that can't honour it. */
 int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons,
-			  int inject_available);
+			  int inject_available, int led_available);
 
 #endif /* SPACEUX_PROTOCOL_H */

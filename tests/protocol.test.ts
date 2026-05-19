@@ -43,6 +43,16 @@ describe('encodeCommand', () => {
     );
   });
 
+  it('emits SET_LED with 0 or 1 (never true/false strings)', () => {
+    // The daemon parser is strict about the payload — only the
+    // literals 0 and 1 are accepted, anything else (including
+    // "true"/"false") is rejected as PROTO_CMD_UNKNOWN. Pin both
+    // sides so a stray boolean leak into the encoder fails this
+    // test instead of falling through to a silent daemon drop.
+    expect(encodeCommand({ kind: 'set-led', on: true })).toBe('SET_LED 1\n');
+    expect(encodeCommand({ kind: 'set-led', on: false })).toBe('SET_LED 0\n');
+  });
+
   it('always terminates with a single newline', () => {
     const cmds = [
       { kind: 'grab' as const },
@@ -72,6 +82,18 @@ describe('isDaemonEvent', () => {
     // hello-shape change can't break this without flipping a spec.
     expect(isDaemonEvent({ event: 'hello', axes: 6, buttons: 32, inject: true })).toBe(true);
     expect(isDaemonEvent({ event: 'hello', axes: 6, buttons: 32, inject: false })).toBe(true);
+  });
+
+  it('accepts hello with the LED capability flag', () => {
+    // Symmetric to the inject flag — added when the daemon learned
+    // to drive the SpaceMouse LED. Both signs pinned for the same
+    // future-proofing reason.
+    expect(isDaemonEvent({ event: 'hello', axes: 6, buttons: 32, inject: true, led: true })).toBe(
+      true,
+    );
+    expect(isDaemonEvent({ event: 'hello', axes: 6, buttons: 32, inject: true, led: false })).toBe(
+      true,
+    );
   });
 
   it('rejects malformed inputs', () => {

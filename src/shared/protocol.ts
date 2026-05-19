@@ -53,6 +53,16 @@ export type HelloEvent = {
    * treat missing as `false` (conservative — assumes no injection).
    */
   inject?: boolean;
+  /**
+   * True if the daemon found a SpaceMouse hidraw node it can write
+   * to (controls the puck's status LED). False means SET_LED
+   * commands silently no-op — the renderer should suppress the
+   * pie-open/close round-trip entirely to keep the wire quiet.
+   *
+   * Older daemons that predate this flag won't include the field;
+   * treat missing as `false`.
+   */
+  led?: boolean;
 };
 
 export type DaemonEvent = AxesEvent | ButtonEvent | HelloEvent;
@@ -90,7 +100,15 @@ export type DaemonCommand =
    * keyboard chord uses more than ~4 modifiers, so the cap is
    * theoretical, but a future expansion (Hyper, Compose, AltGr in
    * unusual combos) would need a bump on both sides. */
-  | { kind: 'inject-chord'; modifiers: number[]; key: number };
+  | { kind: 'inject-chord'; modifiers: number[]; key: number }
+  /**
+   * Drive the SpaceMouse status LED. `on: true` lights it up,
+   * `on: false` turns it dark. Used by the main process to mirror
+   * the pie-open/close lifecycle. Callers should check
+   * `daemon.isLedAvailable()` first — sending SET_LED to a daemon
+   * that reported `led: false` in its hello does nothing useful and
+   * just costs a socket round-trip. */
+  | { kind: 'set-led'; on: boolean };
 
 export function encodeCommand(cmd: DaemonCommand): string {
   switch (cmd.kind) {
@@ -110,5 +128,10 @@ export function encodeCommand(cmd: DaemonCommand): string {
       // last code is the key and everything before it is held as
       // modifiers. Empty modifiers means "tap key alone".
       return `INJECT_CHORD ${[...cmd.modifiers, cmd.key].join(' ')}\n`;
+    case 'set-led':
+      // Wire form is "SET_LED 0" or "SET_LED 1" — the daemon parser
+      // refuses anything else, so the boolean→01 narrowing here is
+      // load-bearing.
+      return `SET_LED ${cmd.on ? 1 : 0}\n`;
   }
 }

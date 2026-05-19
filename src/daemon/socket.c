@@ -10,6 +10,7 @@
 #include "socket.h"
 #include "inject.h"
 #include "ipc.h"
+#include "led.h"
 #include "protocol.h"
 
 #include <errno.h>
@@ -39,12 +40,18 @@ int sock_init(struct sock_state *s)
 	for (int i = 0; i < SPACEUX_MAX_CLIENTS; i++)
 		s->clients[i].fd = -1;
 	s->inject_fd = -1;
+	s->led_fd = -1;
 	return ipc_listener_open(&s->listener);
 }
 
 void sock_set_inject_fd(struct sock_state *s, int fd)
 {
 	s->inject_fd = fd;
+}
+
+void sock_set_led_fd(struct sock_state *s, int fd)
+{
+	s->led_fd = fd;
 }
 
 void sock_close(struct sock_state *s)
@@ -71,7 +78,7 @@ int sock_accept(struct sock_state *s)
 	c->cmd_len = 0;
 	char hello[SPACEUX_EVENT_BUF_SIZE];
 	int hlen = protocol_format_hello(hello, sizeof(hello), SPACEUX_AXIS_COUNT,
-					 SPACEUX_MAX_BUTTONS, s->inject_fd >= 0);
+					 SPACEUX_MAX_BUTTONS, s->inject_fd >= 0, s->led_fd >= 0);
 	if (hlen > 0)
 		(void)ipc_write(fd, hello, hlen);
 	return slot;
@@ -82,7 +89,7 @@ int sock_accept(struct sock_state *s)
  * keys via the daemon-owned inject fd); the side effect is
  * co-located with the state change for readability. */
 static int apply_cmd(struct sock_state *s, struct sock_client *c, enum protocol_cmd cmd,
-		     const struct protocol_chord *chord)
+		     const struct protocol_chord *chord, int led_on)
 {
 	switch (cmd) {
 	case PROTO_CMD_SUBSCRIBE_AXES:
@@ -112,6 +119,12 @@ static int apply_cmd(struct sock_state *s, struct sock_client *c, enum protocol_
 		 * client side learns about the capability from the hello
 		 * event's "inject" flag. */
 		inject_chord(s->inject_fd, chord->mods, chord->n_mods, chord->key);
+		return 0;
+	case PROTO_CMD_SET_LED:
+		/* Symmetric to INJECT_CHORD: no-ops when led_fd is -1,
+		 * client side has the hello "led" flag to suppress the
+		 * round-trip entirely on capability-less daemons. */
+		led_set(s->led_fd, led_on);
 		return 0;
 	case PROTO_CMD_UNKNOWN:
 	default:
@@ -147,8 +160,10 @@ int sock_handle_client(struct sock_state *s, int slot)
 				break;
 			*nl = '\0';
 			struct protocol_chord chord;
-			enum protocol_cmd parsed = protocol_parse_command(c->cmd_buf, &chord);
-			if (apply_cmd(s, c, parsed, &chord) < 0) {
+			int led_on = 0;
+			enum protocol_cmd parsed =
+				protocol_parse_command(c->cmd_buf, &chord, &led_on);
+			if (apply_cmd(s, c, parsed, &chord, led_on) < 0) {
 				slot_clear(c);
 				return -1;
 			}

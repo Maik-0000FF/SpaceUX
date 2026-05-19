@@ -190,6 +190,12 @@ async function openMenuAtCursor(window: BrowserWindow): Promise<void> {
   };
   if (OVERLAY_MODE) window.show();
   window.webContents.send(IpcChannel.MENU_OPEN, payload);
+  // Light the SpaceMouse LED to mirror the pie's open state — calm
+  // dark indicator at rest, bright while the user is making a
+  // selection. daemon.setLed() short-circuits when the daemon
+  // reported no LED capability, so the call is cheap on hosts
+  // where the feature isn't available.
+  daemon.setLed(true);
   menuShown = true;
 }
 
@@ -198,6 +204,7 @@ async function openMenuAtCursor(window: BrowserWindow): Promise<void> {
  *  the debug panel keeps showing axes between menu interactions. */
 function closeMenu(window: BrowserWindow): void {
   window.webContents.send(IpcChannel.MENU_COMMIT);
+  daemon.setLed(false);
   if (OVERLAY_MODE) window.hide();
   menuShown = false;
 }
@@ -252,6 +259,8 @@ function wireDaemonEvents(): void {
           // is treated as "no injection" (matching the conservative
           // default in the type docs).
           inject: ev.inject === true,
+          // Same `=== true` narrowing for the LED capability flag.
+          led: ev.led === true,
         };
         mainWindow.webContents.send(IpcChannel.DAEMON_STATUS, payload);
         break;

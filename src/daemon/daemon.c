@@ -25,6 +25,7 @@
 #include "config.h"
 #include "inject.h"
 #include "input.h"
+#include "led.h"
 #include "socket.h"
 
 static volatile sig_atomic_t g_running = 1;
@@ -101,6 +102,17 @@ int main(void)
 	if (inject_fd >= 0)
 		fprintf(stderr, "spaceux-daemon: key injection ready\n");
 
+	/* LED control is also best-effort. led_open scans /sys/class/hidraw
+	 * for a SpaceMouse node; if nothing matches (no puck plugged in,
+	 * or no hidraw udev rule yet) the daemon just leaves the LED in
+	 * its hardware-default state and SET_LED no-ops. The hello event
+	 * advertises capability so clients can stop sending. Make sure
+	 * the LED starts dark so the open-overlay state is consistent
+	 * regardless of what the hardware did at power-on. */
+	int led_fd = led_open();
+	sock_set_led_fd(&sock, led_fd);
+	led_set(led_fd, 0);
+
 	int input_fd = input_open();
 	long long last_input_retry = time_ms();
 	if (input_fd < 0)
@@ -170,6 +182,11 @@ int main(void)
 	fprintf(stderr, "spaceux-daemon: shutting down\n");
 	if (input_fd >= 0)
 		input_close(input_fd);
+	/* Turn the LED off on the way out so the dark state survives the
+	 * daemon exit — otherwise we'd leave the user staring at a glowing
+	 * puck even though SpaceUX is no longer running. */
+	led_set(led_fd, 0);
+	led_close(led_fd);
 	inject_close(inject_fd);
 	sock_close(&sock);
 	return 0;
