@@ -558,6 +558,29 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
     );
   });
 
+  it('warns for an unknown field inside a binding with the binding path', () => {
+    // The validateActionRef warn-site uses `${where} binding` —
+    // a slightly different path shape from the sector/config
+    // levels. Pin it directly so a future refactor that drops the
+    // "binding" suffix (or changes the join character) fails here.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'x',
+          binding: {
+            action: builtinAction('exec'),
+            cofig: { command: 'x' }, // typo of "config"
+          },
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[menu-loader] unknown field "cofig" at sector 0 binding'),
+    );
+  });
+
   it('threads the path through a deeply-nested unknown field', () => {
     // Unknown inside a grandchild surfaces with the full breadcrumb
     // — same path scheme the structural-error reasons use, so a
@@ -580,11 +603,13 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
     );
   });
 
-  it('does not warn when only known fields are present', () => {
-    // Negative-space pin: every known top-level field set, no
-    // warnings. If a future refactor accidentally drops a name
-    // from KNOWN_MENU_CONFIG_FIELDS, this test catches the
-    // resulting false-positive warn.
+  it('does not warn when only known fields are present (every level)', () => {
+    // Negative-space pin: every known field at every level is set
+    // exactly once. If a future refactor accidentally drops a name
+    // from any KNOWN_*_FIELDS list, this test catches the resulting
+    // false-positive warn from that level. Two sectors cover both
+    // sector shapes — a leaf with icon + binding, and a branch
+    // with children (the XOR with binding is enforced upstream).
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       triggerButton: 0,
@@ -594,8 +619,18 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
       tiltDrill: { enabled: false, threshold: 200 },
       sectors: [
         {
-          label: 'sec',
+          label: 'leaf',
+          icon: 'app-icon',
           binding: { action: builtinAction('exec'), config: { command: 'x' } },
+        },
+        {
+          label: 'branch',
+          children: [
+            {
+              label: 'child',
+              binding: { action: builtinAction('exec'), config: { command: 'y' } },
+            },
+          ],
         },
       ],
     });
