@@ -60,8 +60,9 @@ describe('validateMenuConfig', () => {
       '🇩🇪', // regional-indicator pair (flag)
       '設定', // CJK
       'إعدادات', // Arabic / RTL
-      'café', // Latin-1 with combining-ish accent
-      'naïve', // diaeresis
+      'café', // Latin-1 precomposed accented (U+00E9)
+      'café', // NFD-decomposed equivalent: "cafe" + COMBINING ACUTE ACCENT
+      'naïve', // diaeresis (precomposed)
     ];
     for (const label of labels) {
       const r = validateMenuConfig({
