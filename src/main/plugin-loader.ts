@@ -7,12 +7,14 @@ import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 
 import { describeError } from '../shared/errors.js';
-import type {
-  ActionContext,
-  ActionDescriptor,
-  ActionHandler,
-  PluginManifest,
-  PluginModule,
+import {
+  MIN_SUPPORTED_PLUGIN_API_VERSION,
+  PLUGIN_API_VERSION,
+  type ActionContext,
+  type ActionDescriptor,
+  type ActionHandler,
+  type PluginManifest,
+  type PluginModule,
 } from '../shared/plugin-types.js';
 import { dedupPreserveOrder } from '../shared/util.js';
 
@@ -142,9 +144,29 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   return { manifest, dir, handlers };
 }
 
-function validateManifest(value: unknown): string | null {
+/**
+ * Strict structural validator for a parsed `manifest.json`. Returns
+ * `null` on success or a single human-readable reason on failure.
+ * Exported so tests can pin the validation contract without going
+ * through filesystem fixtures.
+ */
+export function validateManifest(value: unknown): string | null {
   if (typeof value !== 'object' || value === null) return 'manifest is not a JSON object';
   const m = value as Record<string, unknown>;
+
+  // apiVersion is checked first so a plugin written for a different
+  // host generation fails with a clear message instead of dribbling
+  // out per-field complaints from a contract that doesn't apply.
+  if (typeof m.apiVersion !== 'number' || !Number.isInteger(m.apiVersion) || m.apiVersion < 1) {
+    return 'manifest field "apiVersion" must be a positive integer';
+  }
+  if (m.apiVersion < MIN_SUPPORTED_PLUGIN_API_VERSION) {
+    return `manifest apiVersion ${m.apiVersion} is older than the supported range (${MIN_SUPPORTED_PLUGIN_API_VERSION}..${PLUGIN_API_VERSION}); update the plugin to a newer release`;
+  }
+  if (m.apiVersion > PLUGIN_API_VERSION) {
+    return `manifest apiVersion ${m.apiVersion} is newer than this host supports (max ${PLUGIN_API_VERSION}); update SpaceUX`;
+  }
+
   for (const key of ['id', 'name', 'version', 'license'] as const) {
     if (typeof m[key] !== 'string' || (m[key] as string).trim() === '') {
       return `manifest field "${key}" must be a non-empty string`;

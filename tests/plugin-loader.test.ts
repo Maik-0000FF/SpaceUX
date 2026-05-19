@@ -1,0 +1,90 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import { describe, expect, it } from 'vitest';
+
+import { validateManifest } from '../src/main/plugin-loader';
+import { MIN_SUPPORTED_PLUGIN_API_VERSION, PLUGIN_API_VERSION } from '../src/shared/plugin-types';
+
+/** Build a minimal manifest object that passes every field other than
+ *  the one a given test wants to mutate. Keeps the per-test fixture
+ *  tiny and the intent obvious. */
+function manifestBase(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    apiVersion: PLUGIN_API_VERSION,
+    id: 'org.example.test',
+    name: 'Test Plugin',
+    version: '0.0.1',
+    license: 'GPL-3.0-or-later',
+    actions: [{ name: 'do', label: 'Do something' }],
+    ...overrides,
+  };
+}
+
+describe('validateManifest — apiVersion', () => {
+  it('accepts the current PLUGIN_API_VERSION', () => {
+    expect(validateManifest(manifestBase({ apiVersion: PLUGIN_API_VERSION }))).toBeNull();
+  });
+
+  it('rejects a missing apiVersion field', () => {
+    const m = manifestBase();
+    delete m.apiVersion;
+    const reason = validateManifest(m);
+    expect(reason).toMatch(/apiVersion/);
+  });
+
+  it('rejects non-integer or non-positive apiVersion', () => {
+    for (const bad of [0, -1, 1.5, '1', null, true]) {
+      const reason = validateManifest(manifestBase({ apiVersion: bad }));
+      expect(reason, `apiVersion=${JSON.stringify(bad)}`).toMatch(/apiVersion/);
+    }
+  });
+
+  it('rejects apiVersion newer than the host supports', () => {
+    const reason = validateManifest(manifestBase({ apiVersion: PLUGIN_API_VERSION + 1 }));
+    expect(reason).toMatch(/newer than this host supports/);
+  });
+
+  it('rejects apiVersion older than the supported floor', () => {
+    if (MIN_SUPPORTED_PLUGIN_API_VERSION <= 1) {
+      // Cannot construct an "older than 1" case while MIN is still 1;
+      // the contract is exercised once MIN advances. Pin the floor
+      // here so a future bump doesn't silently lose the test.
+      expect(MIN_SUPPORTED_PLUGIN_API_VERSION).toBe(1);
+      return;
+    }
+    const reason = validateManifest(
+      manifestBase({ apiVersion: MIN_SUPPORTED_PLUGIN_API_VERSION - 1 }),
+    );
+    expect(reason).toMatch(/older than the supported range/);
+  });
+});
+
+describe('validateManifest — structural fields', () => {
+  it('accepts a minimal valid manifest', () => {
+    expect(validateManifest(manifestBase())).toBeNull();
+  });
+
+  it('rejects non-object input', () => {
+    for (const bad of [null, undefined, 42, 'hello', []]) {
+      expect(validateManifest(bad)).not.toBeNull();
+    }
+  });
+
+  it('rejects an empty or non-array actions field', () => {
+    expect(validateManifest(manifestBase({ actions: [] }))).toMatch(/actions/);
+    expect(validateManifest(manifestBase({ actions: 'not-array' }))).toMatch(/actions/);
+  });
+
+  it('rejects an action without a name or label', () => {
+    expect(validateManifest(manifestBase({ actions: [{ label: 'x' }] }))).toMatch(/action\.name/);
+    expect(validateManifest(manifestBase({ actions: [{ name: 'x' }] }))).toMatch(/action\.label/);
+  });
+
+  it('rejects a blank id / name / version / license', () => {
+    for (const key of ['id', 'name', 'version', 'license'] as const) {
+      const reason = validateManifest(manifestBase({ [key]: '   ' }));
+      expect(reason, `field=${key}`).toMatch(new RegExp(`"${key}"`));
+    }
+  });
+});

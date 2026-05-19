@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { BUILTIN_ACTION, BUILTIN_PLUGIN_ID } from '../../shared/menu.js';
+import { PLUGIN_API_VERSION } from '../../shared/plugin-types.js';
 
 import type { LoadedPlugin } from '../plugin-loader.js';
 import { execAction } from './exec.js';
@@ -21,6 +22,7 @@ import { keyCombo } from './key-combo.js';
  */
 export const BUILTIN_PLUGIN: LoadedPlugin = {
   manifest: {
+    apiVersion: PLUGIN_API_VERSION,
     id: BUILTIN_PLUGIN_ID,
     name: 'Built-in Actions',
     version: '0.0.1',

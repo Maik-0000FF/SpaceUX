@@ -1,4 +1,5 @@
 {
+  "apiVersion": 1,
   "id": "org.spaceux.example-launch",
   "name": "Example Launcher",
   "version": "0.1.0",
