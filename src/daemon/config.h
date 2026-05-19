@@ -66,7 +66,15 @@
  * subsequent chords dropped (with an audit log line per drop).
  *
  * Bump the rate if a real workflow ever needs more — the cost of
- * being more permissive is bounded by what /dev/uinput can sustain. */
+ * being more permissive is bounded by what /dev/uinput can sustain.
+ *
+ * Scope: the bucket is *per-connection*, not per-UID. A same-UID
+ * attacker can hold up to `SPACEUX_MAX_CLIENTS` concurrent
+ * connections and aggregate up to `SPACEUX_MAX_CLIENTS *
+ * SPACEUX_CHORD_RATE_PER_SEC` injects/sec. The threat model treats
+ * a single hostile process as the realistic case; a per-UID bucket
+ * would be tighter but requires shared state across slots and is
+ * deferred to #9's capability-token work or later. */
 #define SPACEUX_CHORD_RATE_PER_SEC 20
 #define SPACEUX_CHORD_BURST 5
 
