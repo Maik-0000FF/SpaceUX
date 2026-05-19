@@ -10,6 +10,7 @@ import {
   sectorCenterAngle,
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
+import { describeWedgePath } from '@/core/pie-path';
 import { resolveAxisInvert, type MenuConfig, type MenuSector } from '@/shared/menu';
 
 const TAU = Math.PI * 2;
@@ -215,39 +216,5 @@ function SectorLabel({
     <text className="pie-label" x={x} y={y} textAnchor="middle" dominantBaseline="middle">
       {sector.label}
     </text>
-  );
-}
-
-/**
- * Build the SVG path for one annular (donut-slice) wedge from angle a
- * to angle b (radians, 12 o'clock = 0, clockwise positive). The path
- * traces the inner edge, lines out to the outer arc, sweeps the outer
- * arc, lines back to the inner edge, and sweeps the inner arc in
- * reverse — leaving a hole in the middle for the central cancel
- * target to nest into. The largeArc flag is set when the sweep
- * exceeds π so half-pies still render correctly.
- */
-function describeWedgePath(rOuter: number, rInner: number, a: number, b: number): string {
-  const sweep = b - a;
-  const largeArc = sweep > Math.PI ? 1 : 0;
-  const sinA = Math.sin(a);
-  const cosA = Math.cos(a);
-  const sinB = Math.sin(b);
-  const cosB = Math.cos(b);
-  const oax = (sinA * rOuter).toFixed(3);
-  const oay = (-cosA * rOuter).toFixed(3);
-  const obx = (sinB * rOuter).toFixed(3);
-  const oby = (-cosB * rOuter).toFixed(3);
-  const iax = (sinA * rInner).toFixed(3);
-  const iay = (-cosA * rInner).toFixed(3);
-  const ibx = (sinB * rInner).toFixed(3);
-  const iby = (-cosB * rInner).toFixed(3);
-  return (
-    `M ${iax} ${iay} ` +
-    `L ${oax} ${oay} ` +
-    `A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${obx} ${oby} ` +
-    `L ${ibx} ${iby} ` +
-    `A ${rInner} ${rInner} 0 ${largeArc} 0 ${iax} ${iay} ` +
-    `Z`
   );
 }
