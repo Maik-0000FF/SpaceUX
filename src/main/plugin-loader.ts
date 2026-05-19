@@ -147,8 +147,11 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
 /**
  * Strict structural validator for a parsed `manifest.json`. Returns
  * `null` on success or a single human-readable reason on failure.
- * Exported so tests can pin the validation contract without going
- * through filesystem fixtures.
+ *
+ * Primarily exported so tests can pin the validation contract with
+ * in-memory fixtures; production callers should go through
+ * `loadPlugins`, which calls this internally before importing the
+ * plugin's `index.js`.
  */
 export function validateManifest(value: unknown): string | null {
   if (typeof value !== 'object' || value === null) return 'manifest is not a JSON object';
@@ -157,6 +160,14 @@ export function validateManifest(value: unknown): string | null {
   // apiVersion is checked first so a plugin written for a different
   // host generation fails with a clear message instead of dribbling
   // out per-field complaints from a contract that doesn't apply.
+  //
+  // The "< 1" branch and the "< MIN_SUPPORTED" branch look like they
+  // overlap (MIN is always >= 1), but they're deliberately split:
+  // "< 1" means the manifest is malformed (a plugin would never
+  // legitimately declare apiVersion 0 or negative), so the message
+  // is a type complaint. "< MIN_SUPPORTED" means the manifest is
+  // well-formed but too old, so the message points the user at
+  // updating the plugin. Folding them would lose that distinction.
   if (typeof m.apiVersion !== 'number' || !Number.isInteger(m.apiVersion) || m.apiVersion < 1) {
     return 'manifest field "apiVersion" must be a positive integer';
   }
