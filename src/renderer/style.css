@@ -9,15 +9,33 @@
  */
 
 :root {
+  /* Pie wedges */
   --pie-bg: rgba(20, 22, 28, 0.6);
   --pie-bg-active: rgba(80, 110, 180, 0.85);
   --pie-border: rgba(255, 255, 255, 0.18);
   --pie-border-active: rgba(255, 255, 255, 0.55);
   --pie-label: rgba(240, 240, 240, 0.9);
   --pie-label-active: rgba(255, 255, 255, 1);
+
+  /* Central cancel target. Active fill is intentionally red-orange
+   * so it visually distinguishes "no action" from the blue sector
+   * active state — at a glance the user can tell which target the
+   * pie commit would fire. */
+  --pie-cancel-bg-active: rgba(180, 80, 80, 0.85);
+  --pie-cancel-label: rgba(240, 240, 240, 0.55);
+
+  /* Connection-status banner */
   --status-bg: rgba(20, 22, 28, 0.85);
   --status-fg: rgba(255, 180, 100, 1);
   --status-fg-error: rgba(255, 90, 90, 1);
+
+  /* Dev-only debug panel. Slightly more opaque than the pie so it
+   * stays legible against the click-through transparent overlay. */
+  --debug-bg: rgba(20, 22, 28, 0.92);
+  --debug-fg: rgba(240, 240, 240, 0.95);
+  --debug-border: rgba(120, 160, 240, 0.4);
+  --debug-mono-fg: rgba(200, 220, 255, 0.85);
+
   --transition-fast: 80ms ease-out;
 }
 
@@ -88,12 +106,12 @@ body {
 }
 
 .pie-cancel-center.is-active {
-  fill: rgba(180, 80, 80, 0.85);
+  fill: var(--pie-cancel-bg-active);
   stroke: var(--pie-border-active);
 }
 
 .pie-cancel-label {
-  fill: rgba(240, 240, 240, 0.55);
+  fill: var(--pie-cancel-label);
   font-size: 28px;
   font-weight: bold;
   pointer-events: none;
@@ -129,9 +147,9 @@ body {
   top: 16px;
   right: 16px;
   padding: 10px 14px;
-  background: rgba(20, 22, 28, 0.92);
-  color: rgba(240, 240, 240, 0.95);
-  border: 1px solid rgba(120, 160, 240, 0.4);
+  background: var(--debug-bg);
+  color: var(--debug-fg);
+  border: 1px solid var(--debug-border);
   border-radius: 6px;
   font-size: 12px;
   line-height: 1.5;
@@ -150,5 +168,5 @@ body {
 .debug-row.mono {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 11px;
-  color: rgba(200, 220, 255, 0.85);
+  color: var(--debug-mono-fg);
 }
