@@ -188,6 +188,12 @@ export function validateManifest(value: unknown): string | null {
   if (!Array.isArray(m.actions) || m.actions.length === 0) {
     return 'manifest field "actions" must be a non-empty array';
   }
+  // Duplicates inside one manifest would silently overwrite each
+  // other in the per-plugin handler map at registration time (the
+  // second wins, the first disappears with no error). Reject up
+  // front so the failure surfaces against the manifest rather than
+  // as "this action does nothing" at runtime.
+  const seenNames = new Set<string>();
   for (const action of m.actions as unknown[]) {
     if (typeof action !== 'object' || action === null) return 'every action must be an object';
     const a = action as Record<string, unknown>;
@@ -195,6 +201,8 @@ export function validateManifest(value: unknown): string | null {
       return 'action.name must be a non-empty string';
     if (typeof a.label !== 'string' || a.label.trim() === '')
       return 'action.label must be a non-empty string';
+    if (seenNames.has(a.name)) return `action.name "${a.name}" appears more than once`;
+    seenNames.add(a.name);
   }
   return null;
 }

@@ -106,6 +106,34 @@ describe('validateManifest — structural fields', () => {
       expect(reason, `field=${key}`).toMatch(new RegExp(`"${key}"`));
     }
   });
+
+  it('rejects duplicate action names within a single manifest', () => {
+    // Two entries with the same name would silently collapse at
+    // handler-registration time. The validator must surface this
+    // before loadOne ever sees the manifest.
+    const reason = validateManifest(
+      manifestBase({
+        actions: [
+          { name: 'launch', label: 'Launch A' },
+          { name: 'launch', label: 'Launch B' },
+        ],
+      }),
+    );
+    expect(reason).toMatch(/action\.name "launch" appears more than once/);
+  });
+
+  it('accepts multiple actions with distinct names', () => {
+    expect(
+      validateManifest(
+        manifestBase({
+          actions: [
+            { name: 'launch', label: 'Launch' },
+            { name: 'close', label: 'Close' },
+          ],
+        }),
+      ),
+    ).toBeNull();
+  });
 });
 
 describe('plugin API version invariants', () => {
