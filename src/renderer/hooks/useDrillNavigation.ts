@@ -37,6 +37,7 @@ import {
   axesMagnitude,
   axesToSector,
   DEFAULT_PIE_GEOMETRY,
+  resolveTzDeadzone,
   rotateAxes,
   shouldCancelOnZ,
 } from '@/core/pie-geometry';
@@ -121,7 +122,16 @@ export function useDrillNavigation(opts: {
     // for "drill harder". Inlined (rather than going through
     // `detectRisingEdge`) so both the gate and the rising-edge use
     // the same strict-greater comparison from `shouldCancelOnZ`.
-    const canceling = shouldCancelOnZ(axes.tz, DEFAULT_PIE_GEOMETRY.deadzone);
+    //
+    // The threshold goes through `resolveTzDeadzone` so the user's
+    // optional `MenuConfig.tzDeadzone` override is honoured —
+    // raising the TZ cutoff filters out lateral-push cross-talk
+    // without making lateral selection any less sensitive.
+    const tzDeadzone = resolveTzDeadzone({
+      ...DEFAULT_PIE_GEOMETRY,
+      tzDeadzone: menuConfig.tzDeadzone,
+    });
+    const canceling = shouldCancelOnZ(axes.tz, tzDeadzone);
     const tzRising = canceling && !wasCancelingRef.current;
     wasCancelingRef.current = canceling;
     if (canceling) {

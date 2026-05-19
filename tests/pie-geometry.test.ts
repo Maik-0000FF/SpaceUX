@@ -8,6 +8,7 @@ import {
   axesMagnitude,
   axesToSector,
   clampPieAnchor,
+  resolveTzDeadzone,
   rotateAxes,
   sectorCenterAngle,
   shouldCancelOnZ,
@@ -122,6 +123,48 @@ describe('axesMagnitude', () => {
   it('matches Euclidean distance', () => {
     expect(axesMagnitude({ tx: 3, ty: 4 })).toBe(5);
     expect(axesMagnitude({ tx: -3, ty: -4 })).toBe(5);
+  });
+});
+
+describe('resolveTzDeadzone', () => {
+  it('returns the lateral deadzone when tzDeadzone is omitted', () => {
+    // Default fallback path: behaviour identical to "no separate TZ
+    // threshold exists" before the field was introduced.
+    const cfg: PieGeometryConfig = {
+      sectorCount: 4,
+      deadzone: 50,
+      invertX: false,
+      invertY: true,
+    };
+    expect(resolveTzDeadzone(cfg)).toBe(50);
+  });
+
+  it('returns tzDeadzone when set (and ignores the lateral value)', () => {
+    // Raising the TZ threshold to filter cross-talk shouldn't drag
+    // the lateral selection's sensitivity along with it.
+    const cfg: PieGeometryConfig = {
+      sectorCount: 4,
+      deadzone: 50,
+      tzDeadzone: 120,
+      invertX: false,
+      invertY: true,
+    };
+    expect(resolveTzDeadzone(cfg)).toBe(120);
+  });
+
+  it('honours an explicit tzDeadzone of 0 as "no TZ threshold"', () => {
+    // `?? deadzone` only fills the gap on `undefined` — a literal 0
+    // means "fire on any TZ deflection". Edge-case but worth a pin
+    // so a future "tzDeadzone || deadzone" refactor (which would
+    // collapse 0 to the lateral fallback) fails here.
+    const cfg: PieGeometryConfig = {
+      sectorCount: 4,
+      deadzone: 50,
+      tzDeadzone: 0,
+      invertX: false,
+      invertY: true,
+    };
+    expect(resolveTzDeadzone(cfg)).toBe(0);
   });
 });
 

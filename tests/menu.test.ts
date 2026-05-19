@@ -114,6 +114,42 @@ describe('validateMenuConfig', () => {
     }
   });
 
+  it('accepts an opt-in tzDeadzone and round-trips its value', () => {
+    // Optional positive-number knob that lets the user raise the
+    // TZ-cancel threshold separately from the lateral deadzone.
+    // Round-trip pin so a refactor that drops the field from the
+    // resolved config (e.g. accidentally narrowing the result type)
+    // fails here.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      tzDeadzone: 120,
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.tzDeadzone).toBe(120);
+  });
+
+  it('rejects malformed tzDeadzone shapes', () => {
+    // Same shape contract as the threshold field on
+    // magnitudeDrill/tiltDrill — positive finite number. Pinned as
+    // a table so a future "let 0 through" tweak (which would mean
+    // "fire on any TZ deflection") has to remove a test rather
+    // than tweak it silently.
+    const cases: unknown[] = ['100', null, true, 0, -1, Infinity, NaN];
+    for (const bad of cases) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        tzDeadzone: bad,
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `tzDeadzone=${JSON.stringify(bad)}`).toBe(false);
+      if (!r.ok)
+        expect(r.reason, `tzDeadzone=${JSON.stringify(bad)}`).toMatch(
+          /"tzDeadzone".*positive finite number/,
+        );
+    }
+  });
+
   it('rejects negative, fractional, or non-number triggerButton', () => {
     for (const bad of [-1, 1.5, '0', null, true]) {
       const r = validateMenuConfig({
