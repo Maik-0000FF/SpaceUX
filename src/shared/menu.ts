@@ -304,22 +304,28 @@ function validateSector(raw: unknown, where: string): SectorValidation {
     };
   }
   if (s.binding !== undefined) {
-    const r = validateActionRef(s.binding, `${where} binding`);
-    if (!r.ok) return { ok: false, reason: r.reason };
-    sector.binding = r.value;
+    const result = validateActionRef(s.binding, `${where} binding`);
+    if (!result.ok) return { ok: false, reason: result.reason };
+    sector.binding = result.value;
   }
   if (s.children !== undefined) {
-    if (!Array.isArray(s.children) || s.children.length === 0) {
+    if (!Array.isArray(s.children)) {
       return {
         ok: false,
-        reason: `${where} field "children" must be a non-empty array when present`,
+        reason: `${where} field "children" must be an array when present`,
+      };
+    }
+    if (s.children.length === 0) {
+      return {
+        ok: false,
+        reason: `${where} field "children" must not be empty`,
       };
     }
     const children: MenuSector[] = [];
     for (let i = 0; i < s.children.length; i++) {
-      const r = validateSector(s.children[i], `${where} child ${i}`);
-      if (!r.ok) return { ok: false, reason: r.reason };
-      children.push(r.value);
+      const result = validateSector(s.children[i], `${where} child ${i}`);
+      if (!result.ok) return { ok: false, reason: result.reason };
+      children.push(result.value);
     }
     sector.children = children;
   }
