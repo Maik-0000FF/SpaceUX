@@ -14,6 +14,7 @@
 #include "protocol.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -21,6 +22,7 @@
 
 #if defined(__linux__)
 #include <limits.h>
+#include <sys/random.h>
 #endif
 
 /* Monotonic time in microseconds. Used as the rate-limit clock so
@@ -47,6 +49,38 @@ static void slot_clear(struct sock_client *c)
 	c->chord_refill_us = 0;
 	c->chord_drop_count = 0;
 	c->chord_drop_log_us = 0;
+	c->auth_token[0] = '\0';
+}
+
+/* Fill `out` (must be SPACEUX_TOKEN_HEX_LEN bytes) with a freshly
+ * generated capability token: 16 random bytes from the OS CSPRNG,
+ * hex-encoded, NUL-terminated. Linux uses getrandom(2); macOS/BSD
+ * fall back to /dev/urandom. Returns 0 on success, -1 if the
+ * CSPRNG was unavailable — the caller treats this as a hard fail
+ * and refuses the connection rather than emitting an empty token. */
+static int generate_token(char *out)
+{
+	unsigned char raw[SPACEUX_TOKEN_BYTES];
+#if defined(__linux__)
+	ssize_t n = getrandom(raw, sizeof(raw), 0);
+	if (n != (ssize_t)sizeof(raw))
+		return -1;
+#else
+	int fd = open("/dev/urandom", O_RDONLY);
+	if (fd < 0)
+		return -1;
+	ssize_t n = read(fd, raw, sizeof(raw));
+	close(fd);
+	if (n != (ssize_t)sizeof(raw))
+		return -1;
+#endif
+	static const char hex[] = "0123456789abcdef";
+	for (size_t i = 0; i < SPACEUX_TOKEN_BYTES; i++) {
+		out[i * 2] = hex[(raw[i] >> 4) & 0xf];
+		out[i * 2 + 1] = hex[raw[i] & 0xf];
+	}
+	out[SPACEUX_TOKEN_BYTES * 2] = '\0';
+	return 0;
 }
 
 static int slot_alloc(struct sock_state *s)
@@ -172,6 +206,15 @@ int sock_accept(struct sock_state *s)
 	 * client has actually pumped chords. */
 	c->chord_tokens = (double)SPACEUX_CHORD_BURST;
 	c->chord_refill_us = monotonic_us();
+	/* Mint a fresh per-connection capability token. If the CSPRNG
+	 * fails (extremely rare, but possible on a hostile host),
+	 * refuse the connection rather than fall back to an empty
+	 * token a peer could trivially forge. */
+	if (generate_token(c->auth_token) < 0) {
+		fprintf(stderr, "[sock] reject: CSPRNG unavailable (peer pid=%d)\n", peer.pid);
+		slot_clear(c);
+		return -1;
+	}
 
 	/* Forensic log: pid + peer binary path so a misbehaving
 	 * client can be traced back to its executable. The exe
@@ -185,8 +228,9 @@ int sock_accept(struct sock_state *s)
 		fprintf(stderr, "[sock] accept slot=%d pid=%d uid=%d\n", slot, peer.pid, peer.uid);
 
 	char hello[SPACEUX_EVENT_BUF_SIZE];
-	int hlen = protocol_format_hello(hello, sizeof(hello), SPACEUX_AXIS_COUNT,
-					 SPACEUX_MAX_BUTTONS, s->inject_fd >= 0, s->led_fd >= 0);
+	int hlen =
+		protocol_format_hello(hello, sizeof(hello), SPACEUX_AXIS_COUNT, SPACEUX_MAX_BUTTONS,
+				      s->inject_fd >= 0, s->led_fd >= 0, c->auth_token);
 	if (hlen > 0)
 		(void)ipc_write(fd, hello, hlen);
 	return slot;
@@ -278,6 +322,20 @@ static int apply_cmd(struct sock_state *s, int slot, struct sock_client *c, enum
 		 * where /dev/uinput was unavailable at startup. The
 		 * client side learns about the capability from the hello
 		 * event's "inject" flag. */
+		/* Capability check first — a wrong-token line never
+		 * counts against the rate-limit bucket and gets its own
+		 * audit line so a forensic reader can distinguish
+		 * "hostile peer guessing tokens" from "legitimate client
+		 * over-pumping". The compare uses a length-bound memcmp
+		 * (auth_token is NUL-terminated and the same length on
+		 * both sides) — no constant-time compare because the
+		 * token is short, fresh per connection, and the attacker
+		 * has many easier signals on a local socket. */
+		if (strncmp(chord->auth_token, c->auth_token, SPACEUX_TOKEN_HEX_LEN) != 0) {
+			fprintf(stderr, "[inject] drop (bad-token) slot=%d pid=%d key=%d\n", slot,
+				c->peer_pid, chord->key);
+			return 0;
+		}
 		chord_bucket_refill(c);
 		char modbuf[64];
 		format_mods(chord->mods, chord->n_mods, modbuf, sizeof(modbuf));

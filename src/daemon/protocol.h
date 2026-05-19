@@ -55,6 +55,13 @@ struct protocol_chord {
 	int mods[SPACEUX_MAX_CHORD_MODS];
 	int n_mods;
 	int key;
+	/* Capability token echoed by the client. The wire form is
+	 * "INJECT_CHORD <token> <c1> ... <cN>"; the parser writes the
+	 * first whitespace-delimited word here for the caller to
+	 * compare against `sock_client.auth_token`. Empty string when
+	 * the wire line didn't include a token at all (older client).
+	 * Length cap matches SPACEUX_TOKEN_HEX_LEN. */
+	char auth_token[SPACEUX_TOKEN_HEX_LEN];
 };
 
 /* Parse one command line (without trailing newline). Returns the
@@ -106,6 +113,6 @@ int protocol_format_button(char *buf, int buf_size, int bnum, int pressed);
  * Clients use it to gate the pie-open/close LED toggle so they don't
  * waste round-trips sending SET_LED to a daemon that can't honour it. */
 int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons,
-			  int inject_available, int led_available);
+			  int inject_available, int led_available, const char *token);
 
 #endif /* SPACEUX_PROTOCOL_H */

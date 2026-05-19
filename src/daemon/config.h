@@ -57,6 +57,26 @@
 
 /* ── Per-client INJECT_CHORD rate limit ─────────────────────────────── */
 
+/* ── Capability token ───────────────────────────────────────────────── */
+
+/* INJECT_CHORD is the daemon's one privileged operation — it injects
+ * keystrokes into whatever window has focus. Every accept() generates
+ * a fresh per-slot token (16 random bytes, hex-encoded) which the
+ * daemon emits in the hello event. INJECT_CHORD commands have to
+ * echo the token back, or the daemon drops the chord with an audit
+ * log line. This raises the bar for the abuse case where a hostile
+ * same-UID process connects to the socket and starts pumping
+ * injects — it now has to first read the hello event, capture the
+ * token, and only then can it inject. Cheap to bypass for a real
+ * attacker (same-UID can ptrace the renderer or read its memory)
+ * but blocks the trivial fuzz-the-socket case.
+ *
+ * 16 bytes / 128 bits is well past any plausible online-guess
+ * budget on a local socket, with 32 hex chars on the wire still
+ * fitting comfortably in the command-line buffer. */
+#define SPACEUX_TOKEN_BYTES 16
+#define SPACEUX_TOKEN_HEX_LEN 33 /* 32 hex chars + NUL */
+
 /* Leaky-bucket parameters for INJECT_CHORD. The puck fires chords at
  * human pace (a few per second at most) so the steady-state rate is
  * a generous cap on what a *legitimate* client needs; the burst
