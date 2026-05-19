@@ -36,16 +36,16 @@ describe('drillReducer', () => {
     expect(INITIAL_DRILL_STATE).toEqual({ navigation: [], stickyChildIndex: null });
   });
 
-  it('open resets to the initial state', () => {
+  it('reset returns the initial state', () => {
     const dirty: DrillState = { navigation: [0, 1], stickyChildIndex: 3 };
-    expect(drillReducer(dirty, { type: 'open' })).toEqual(INITIAL_DRILL_STATE);
+    expect(drillReducer(dirty, { type: 'reset' })).toEqual(INITIAL_DRILL_STATE);
   });
 
-  it('open is a no-op when already at initial state (identity short-circuit)', () => {
+  it('reset is a no-op when already at initial state (identity short-circuit)', () => {
     // The reducer returns the same reference so React can skip the
     // re-render. Without this, every MENU_OPEN at idle would still
     // cause a render cascade.
-    const result = drillReducer(INITIAL_DRILL_STATE, { type: 'open' });
+    const result = drillReducer(INITIAL_DRILL_STATE, { type: 'reset' });
     expect(result).toBe(INITIAL_DRILL_STATE);
   });
 

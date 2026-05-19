@@ -38,9 +38,13 @@ export const INITIAL_DRILL_STATE: DrillState = {
 };
 
 export type DrillAction =
-  /** MENU_OPEN: reset to a clean slate so a previous session's
-   *  leftover doesn't carry over. */
-  | { type: 'open' }
+  /** Reset to initial. Dispatched both on MENU_OPEN (start clean
+   *  so a previous session's leftover can't fire) and on
+   *  menu-close paths (silent-dismiss, leaf-commit). The name says
+   *  what the transition *is* — every call site is a "clear all
+   *  drill state and selection back to scratch", regardless of
+   *  whether that's because we're opening or tearing down. */
+  | { type: 'reset' }
   /** Puck-to-sector resolution. `index = null` means the puck is in
    *  the deadzone or TZ-cancelled — no sector is sticky. */
   | { type: 'hover'; index: number | null }
@@ -58,9 +62,9 @@ export type DrillAction =
  */
 export function drillReducer(state: DrillState, action: DrillAction): DrillState {
   switch (action.type) {
-    case 'open':
-      // Fast path: avoid producing a fresh object on every menu open
-      // when the previous close already cleared the state.
+    case 'reset':
+      // Fast path: avoid producing a fresh object on every reset
+      // when the state is already clean.
       if (state.navigation.length === 0 && state.stickyChildIndex === null) return state;
       return INITIAL_DRILL_STATE;
     case 'hover':
@@ -93,6 +97,12 @@ export function currentSectors(config: MenuConfig, navigation: number[]): MenuSe
   let level: MenuSector[] = config.sectors;
   for (const i of navigation) {
     const next = level[i]?.children;
+    // The `!next` branch fires on real-world stale paths (hot-reload
+    // turned a branch into a leaf). The `length === 0` branch is
+    // belt-and-braces: the on-disk validator already rejects empty
+    // `children` arrays, but in-memory MenuConfig literals (e.g. in
+    // tests) can bypass that gate, and a 0-length ring would render
+    // as a hole with no way out.
     if (!next || next.length === 0) return config.sectors;
     level = next;
   }
