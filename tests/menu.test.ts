@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
 import {
   BUILTIN_ACTION,
@@ -514,5 +514,92 @@ describe('builtinAction key composition', () => {
         action,
       );
     }
+  });
+});
+
+describe('validateMenuConfig — unknown-field diagnostics', () => {
+  // Vitest's spy survives across `it` blocks unless we clear it, so
+  // each test starts with a fresh capture and restores at the end.
+  // Reaching for console.warn is the simplest way to assert the
+  // "soft warning" contract without inventing a parallel logger
+  // interface just for tests.
+  let warnSpy: MockInstance<(...args: unknown[]) => void>;
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it('warns for an unknown top-level field but still validates', () => {
+    // The unknown field doesn't fail validation — backwards-compat
+    // for users on a future schema bump that renames a field while
+    // the old name still appears in their menu.json. The warning is
+    // how they find out.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      unknwon: 'oops', // typo of "unknown" — any non-recognised key
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[menu-loader] unknown field "unknwon" at menu config'),
+    );
+  });
+
+  it('warns for an unknown field inside a sector with the sector path', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [{ label: 'x', bindings: { action: 'x' } }],
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[menu-loader] unknown field "bindings" at sector 0'),
+    );
+  });
+
+  it('threads the path through a deeply-nested unknown field', () => {
+    // Unknown inside a grandchild surfaces with the full breadcrumb
+    // — same path scheme the structural-error reasons use, so a
+    // config author sees the same coordinate twice if their menu
+    // has both a typo and a structural problem in the same node.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'top',
+          children: [
+            { label: 'mid', fakefield: 1 }, // unknown at sector 0 child 0
+          ],
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[menu-loader] unknown field "fakefield" at sector 0 child 0'),
+    );
+  });
+
+  it('does not warn when only known fields are present', () => {
+    // Negative-space pin: every known top-level field set, no
+    // warnings. If a future refactor accidentally drops a name
+    // from KNOWN_MENU_CONFIG_FIELDS, this test catches the
+    // resulting false-positive warn.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      triggerButton: 0,
+      axisInvert: { x: false, y: false },
+      tzDeadzone: 100,
+      magnitudeDrill: { enabled: false, threshold: 250 },
+      tiltDrill: { enabled: false, threshold: 200 },
+      sectors: [
+        {
+          label: 'sec',
+          binding: { action: builtinAction('exec'), config: { command: 'x' } },
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 });
