@@ -24,22 +24,25 @@ describe('encodeCommand', () => {
     expect(encodeCommand({ kind: 'unsubscribe' })).toBe('UNSUBSCRIBE\n');
   });
 
-  it('emits INJECT_CHORD with modifiers prefix and key suffix', () => {
+  it('emits INJECT_CHORD with token, modifiers prefix and key suffix', () => {
+    const tok = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     // Alt+Tab — KEY_LEFTALT=56, KEY_TAB=15
-    expect(encodeCommand({ kind: 'inject-chord', modifiers: [56], key: 15 })).toBe(
-      'INJECT_CHORD 56 15\n',
+    expect(encodeCommand({ kind: 'inject-chord', modifiers: [56], key: 15, token: tok })).toBe(
+      `INJECT_CHORD ${tok} 56 15\n`,
     );
     // Ctrl+Shift+S — KEY_LEFTCTRL=29, KEY_LEFTSHIFT=42, KEY_S=31
-    expect(encodeCommand({ kind: 'inject-chord', modifiers: [29, 42], key: 31 })).toBe(
-      'INJECT_CHORD 29 42 31\n',
+    expect(encodeCommand({ kind: 'inject-chord', modifiers: [29, 42], key: 31, token: tok })).toBe(
+      `INJECT_CHORD ${tok} 29 42 31\n`,
     );
   });
 
-  it('emits a bare key chord with no modifiers', () => {
+  it('emits a bare key chord with no modifiers (token still leads)', () => {
+    const tok = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     // KEY_ENTER=28, no modifiers — the wire form must still have
-    // the key code so the daemon parser sees at least one token.
-    expect(encodeCommand({ kind: 'inject-chord', modifiers: [], key: 28 })).toBe(
-      'INJECT_CHORD 28\n',
+    // the token and the key code so the daemon parser sees at least
+    // one token-after-the-token.
+    expect(encodeCommand({ kind: 'inject-chord', modifiers: [], key: 28, token: tok })).toBe(
+      `INJECT_CHORD ${tok} 28\n`,
     );
   });
 

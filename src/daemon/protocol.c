@@ -11,18 +11,54 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Parse "INJECT_CHORD <c1> <c2> ... <cN>" into the caller's chord
- * struct. Returns PROTO_CMD_INJECT_CHORD on success or
- * PROTO_CMD_UNKNOWN if the line is malformed (no codes, a token
- * that isn't a number, a code <= 0, too many modifiers). */
+/* Parse "INJECT_CHORD <token> <c1> <c2> ... <cN>" into the caller's
+ * chord struct. The first whitespace-delimited word after the
+ * command verb is the capability token (32 hex chars); the
+ * remainder is the key-code list as before. Returns
+ * PROTO_CMD_INJECT_CHORD on success or PROTO_CMD_UNKNOWN if the
+ * line is malformed (missing token, no codes, a non-numeric code,
+ * a code <= 0, too many modifiers).
+ *
+ * The token is copied verbatim — validation against the slot's
+ * stored token is the caller's job (the parser doesn't know which
+ * slot the line came from). An empty/missing token still parses
+ * the rest cleanly but leaves `chord->auth_token` empty, which
+ * the caller will reject. */
 static enum protocol_cmd parse_inject_chord(const char *args, struct protocol_chord *chord)
 {
 	if (!chord)
 		return PROTO_CMD_UNKNOWN;
 
+	chord->auth_token[0] = '\0';
+
+	const char *p = args;
+	while (*p == ' ' || *p == '\t')
+		p++;
+	if (!*p)
+		return PROTO_CMD_UNKNOWN;
+
+	/* Token must be exactly SPACEUX_TOKEN_HEX_LEN - 1 hex chars to
+	 * match what the daemon emitted. Any deviation (shorter,
+	 * longer, non-hex) is a malformed line and the caller can
+	 * treat it identically to "missing token". */
+	const char *tok_start = p;
+	while (*p && *p != ' ' && *p != '\t')
+		p++;
+	size_t tok_len = (size_t)(p - tok_start);
+	if (tok_len != (size_t)(SPACEUX_TOKEN_HEX_LEN - 1))
+		return PROTO_CMD_UNKNOWN;
+	for (size_t i = 0; i < tok_len; i++) {
+		char ch = tok_start[i];
+		int is_hex = (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f') ||
+			     (ch >= 'A' && ch <= 'F');
+		if (!is_hex)
+			return PROTO_CMD_UNKNOWN;
+	}
+	memcpy(chord->auth_token, tok_start, tok_len);
+	chord->auth_token[tok_len] = '\0';
+
 	int codes[SPACEUX_MAX_CHORD_MODS + 1];
 	int n = 0;
-	const char *p = args;
 	while (*p && n < (int)(sizeof(codes) / sizeof(codes[0]))) {
 		while (*p == ' ' || *p == '\t')
 			p++;
@@ -150,15 +186,15 @@ int protocol_format_button(char *buf, int buf_size, int bnum, int pressed)
 }
 
 int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons,
-			  int inject_available, int led_available)
+			  int inject_available, int led_available, const char *token)
 {
 	if (!buf || buf_size <= 0)
 		return -1;
-	int n = snprintf(
-		buf, buf_size,
-		"{\"event\":\"hello\",\"axes\":%d,\"buttons\":%d,\"inject\":%s,\"led\":%s}\n",
-		axes_count, max_buttons, inject_available ? "true" : "false",
-		led_available ? "true" : "false");
+	int n = snprintf(buf, buf_size,
+			 "{\"event\":\"hello\",\"axes\":%d,\"buttons\":%d,\"inject\":%s,\"led\":%s,"
+			 "\"token\":\"%s\"}\n",
+			 axes_count, max_buttons, inject_available ? "true" : "false",
+			 led_available ? "true" : "false", token ? token : "");
 	if (n < 0 || n >= buf_size)
 		return -1;
 	return n;

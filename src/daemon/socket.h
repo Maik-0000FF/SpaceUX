@@ -50,6 +50,12 @@ struct sock_client {
 	 * previous one so no information is lost. */
 	int chord_drop_count;
 	long long chord_drop_log_us;
+	/* Capability token for INJECT_CHORD. Generated freshly on each
+	 * accept (16 random bytes, hex-encoded), emitted to the client
+	 * in the hello event, and required on every INJECT_CHORD line.
+	 * A line whose echoed token doesn't match is logged + dropped.
+	 * NUL-terminated. */
+	char auth_token[SPACEUX_TOKEN_HEX_LEN];
 	char cmd_buf[SPACEUX_CMD_BUF_SIZE];
 	int cmd_len;
 };

@@ -39,6 +39,12 @@ export class DaemonClient extends EventEmitter {
   private injectAvailableFlag = false;
   /** Same latching pattern for the LED capability flag. */
   private ledAvailableFlag = false;
+  /** Per-connection capability token from the daemon's hello. The
+   *  empty string means we haven't seen a hello yet (or the daemon
+   *  is older than #9-PR-B and didn't send one). INJECT_CHORD calls
+   *  before a token is latched are dropped — failing closed matches
+   *  the daemon's reject-on-bad-token behaviour. */
+  private authToken = '';
 
   constructor(
     private readonly socketPath: string = defaultSocketPath(),
@@ -84,11 +90,15 @@ export class DaemonClient extends EventEmitter {
 
   /** Inject a modifier+key chord through the daemon's uinput device.
    *  No-op when the socket is not yet connected — same fail-soft
-   *  behaviour as `send()`. The daemon further no-ops the command if
-   *  /dev/uinput was unavailable at startup, so the caller never
-   *  has to guard the two failure modes separately. */
+   *  behaviour as `send()`. Also no-op when the daemon's hello
+   *  hasn't been seen yet (no auth token), since post-#9-PR-B
+   *  daemons reject tokenless INJECT_CHORD lines. The daemon
+   *  further no-ops the command if /dev/uinput was unavailable at
+   *  startup, so the caller never has to guard the failure modes
+   *  separately. */
   injectChord(modifiers: number[], key: number): void {
-    this.send({ kind: 'inject-chord', modifiers, key });
+    if (!this.authToken) return;
+    this.send({ kind: 'inject-chord', modifiers, key, token: this.authToken });
   }
 
   /** Last value the daemon reported in its hello event. Plugins use
@@ -136,6 +146,7 @@ export class DaemonClient extends EventEmitter {
       this.socket = null;
       this.injectAvailableFlag = false;
       this.ledAvailableFlag = false;
+      this.authToken = '';
       this.emit('disconnected');
       if (!this.explicitlyClosed) {
         this.reconnectTimer = setTimeout(() => {
@@ -179,6 +190,7 @@ export class DaemonClient extends EventEmitter {
     if (evt.event === 'hello') {
       this.injectAvailableFlag = evt.inject === true;
       this.ledAvailableFlag = evt.led === true;
+      this.authToken = typeof evt.token === 'string' ? evt.token : '';
     }
     this.emit('event', evt);
   }

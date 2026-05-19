@@ -63,6 +63,18 @@ export type HelloEvent = {
    * treat missing as `false`.
    */
   led?: boolean;
+  /**
+   * Per-connection capability token (32-hex-char string) that the
+   * daemon expects echoed back on every INJECT_CHORD line. Lets the
+   * renderer authenticate as the holder of *this* hello — a
+   * different same-UID process that connects directly to the socket
+   * gets its own token and can't replay ours.
+   *
+   * Older daemons that predate the token won't include the field;
+   * the renderer treats missing as "no auth required" and falls
+   * back to the pre-#9-PR-B wire format on INJECT_CHORD.
+   */
+  token?: string;
 };
 
 export type DaemonEvent = AxesEvent | ButtonEvent | HelloEvent;
@@ -100,7 +112,7 @@ export type DaemonCommand =
    * keyboard chord uses more than ~4 modifiers, so the cap is
    * theoretical, but a future expansion (Hyper, Compose, AltGr in
    * unusual combos) would need a bump on both sides. */
-  | { kind: 'inject-chord'; modifiers: number[]; key: number }
+  | { kind: 'inject-chord'; modifiers: number[]; key: number; token: string }
   /**
    * Drive the SpaceMouse status LED. `on: true` lights it up,
    * `on: false` turns it dark. Used by the main process to mirror
@@ -124,10 +136,14 @@ export function encodeCommand(cmd: DaemonCommand): string {
     case 'ping':
       return 'PING\n';
     case 'inject-chord':
-      // Wire form is "INJECT_CHORD <c1> <c2> ... <cN>" where the
-      // last code is the key and everything before it is held as
-      // modifiers. Empty modifiers means "tap key alone".
-      return `INJECT_CHORD ${[...cmd.modifiers, cmd.key].join(' ')}\n`;
+      // Wire form is "INJECT_CHORD <token> <c1> <c2> ... <cN>"
+      // where <token> is the per-connection capability the daemon
+      // emitted in its hello event. The last code is the key and
+      // everything before it is held as modifiers; empty modifiers
+      // means "tap key alone". The daemon validates the token
+      // first and rejects unauthenticated lines without consuming
+      // the rate-limit bucket.
+      return `INJECT_CHORD ${cmd.token} ${[...cmd.modifiers, cmd.key].join(' ')}\n`;
     case 'set-led':
       // Wire form is "SET_LED 0" or "SET_LED 1" — the daemon parser
       // refuses anything else, so the boolean→01 narrowing here is
