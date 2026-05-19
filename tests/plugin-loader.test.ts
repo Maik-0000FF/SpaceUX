@@ -58,6 +58,25 @@ describe('validateManifest — apiVersion', () => {
     );
     expect(reason).toMatch(/older than the supported range/);
   });
+
+  it('reports apiVersion failures before any structural field failure', () => {
+    // A manifest that's wrong on both apiVersion AND a structural
+    // field must surface the apiVersion message — that's the one
+    // that tells the user "the plugin contract doesn't apply to
+    // this host", which makes every other complaint downstream
+    // either redundant or actively misleading. This spec guards the
+    // ordering so a future reshuffle of validateManifest's branches
+    // doesn't quietly change which message the user sees.
+    const reason = validateManifest({
+      apiVersion: PLUGIN_API_VERSION + 1,
+      id: '',
+      name: '',
+      version: '',
+      license: '',
+      actions: [],
+    });
+    expect(reason).toMatch(/apiVersion/);
+  });
 });
 
 describe('validateManifest — structural fields', () => {
