@@ -9,13 +9,45 @@
  * to an async (or sync) function that receives the per-instance config
  * the user filled in via the editor.
  *
- * The command is split with the same lazy whitespace heuristic the
- * Stream-Deck-style daemons use; richer parsing (shlex-style quoting)
- * is intentionally left to a follow-up plugin so this example stays
- * the smallest thing that demonstrates the contract.
+ * Tokenisation mirrors the shlex-style parser used by the built-in
+ * exec action (src/main/builtins/tokenize.ts). Plugins can't import
+ * host internals, so the tokenize() function below is duplicated
+ * here — keep the two implementations in sync if either side
+ * grows new escape rules.
  */
 
 import { spawn } from 'node:child_process';
+
+function tokenize(command) {
+  const tokens = [];
+  let current = '';
+  let inToken = false;
+  let quote = null;
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    if (quote !== null) {
+      if (c === quote) {
+        quote = null;
+      } else {
+        current += c;
+      }
+    } else if (c === '"' || c === "'") {
+      quote = c;
+      inToken = true;
+    } else if (c === ' ' || c === '\t' || c === '\n' || c === '\r') {
+      if (inToken) {
+        tokens.push(current);
+        current = '';
+        inToken = false;
+      }
+    } else {
+      current += c;
+      inToken = true;
+    }
+  }
+  if (inToken) tokens.push(current);
+  return tokens;
+}
 
 async function launch(config, ctx) {
   const command = typeof config.command === 'string' ? config.command.trim() : '';
@@ -23,7 +55,7 @@ async function launch(config, ctx) {
     ctx.log('no command configured');
     return;
   }
-  const tokens = command.split(/\s+/);
+  const tokens = tokenize(command);
   const [bin, ...args] = tokens;
   if (!bin) {
     // See src/main/builtins/exec.ts for the rationale — the earlier
