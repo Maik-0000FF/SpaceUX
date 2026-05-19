@@ -80,9 +80,19 @@ export function PieMenu({
   // the user lets the puck snap back to neutral; we still compute
   // the live sector here for the rare callers that don't pass an
   // override (e.g. screenshots / future tests).
+  //
+  // The fall-through uses `=== undefined` rather than `??` on purpose:
+  // `??` treats null the same as undefined and would fall back to
+  // live axes when App.tsx explicitly passes `null` to signal cancel
+  // mode (e.g. after a TZ deflection clears the sticky selection).
+  // That would let the renderer light up a wedge while the commit
+  // path silently dismisses — a UX/state divergence. With `=== undefined`,
+  // a missing prop means "no override, use live axes" and an explicit
+  // `null` means "no sector is active right now" (cancel target lights up).
   const computedSector = axesToSector(axes, geometry);
-  const activeSector = overrideSector ?? computedSector;
+  const activeSector = overrideSector === undefined ? computedSector : overrideSector;
   const sectorCount = geometry.sectorCount;
+  const innerRadius = radius * CANCEL_RADIUS_RATIO;
   const size = radius * 2;
 
   // Absolute positioning so the pie sits at the supplied window-
@@ -116,7 +126,7 @@ export function PieMenu({
             index={i}
             sectorCount={sectorCount}
             outerRadius={radius}
-            innerRadius={radius * CANCEL_RADIUS_RATIO}
+            innerRadius={innerRadius}
             active={activeSector === i}
           />
         ))}
@@ -124,7 +134,7 @@ export function PieMenu({
           className={`pie-cancel-center${cancelActive ? ' is-active' : ''}`}
           cx={0}
           cy={0}
-          r={radius * CANCEL_RADIUS_RATIO}
+          r={innerRadius}
         />
         <text
           className={`pie-cancel-label${cancelActive ? ' is-active' : ''}`}
