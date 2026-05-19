@@ -18,6 +18,18 @@
 /** Bumped on every backwards-incompatible schema change. */
 export const MENU_CONFIG_VERSION = 1;
 
+/** Hard cap on how deeply menus can nest. Each level inside a
+ *  branch's `children` array counts as +1; the top-level pie is
+ *  depth 0. The validator refuses configs that go past this and
+ *  surfaces a clear reason rather than crashing the loader with a
+ *  recursion-stack overflow on pathological inputs.
+ *
+ *  16 is chosen as well beyond any plausible user-authored menu
+ *  shape (Kando-style menus rarely exceed 3–4 deep) while still
+ *  catching obvious authoring mistakes — e.g. a hand-edited config
+ *  that accidentally self-references a fragment via copy/paste. */
+export const MAX_MENU_DEPTH = 16;
+
 /** Reverse-DNS-style namespace under which built-in actions live in
  *  the action registry. Identical in shape to a 3rd-party plugin id
  *  so the dispatch path (invokeAction("<plugin>/<action>", config))
@@ -356,7 +368,17 @@ type SectorValidation = { ok: true; value: MenuSector } | { ok: false; reason: s
  *  human-readable path prefix the caller has built up so error
  *  reasons stay traceable across depths (e.g.
  *  `sector 2 child 1 child 0 field "label" must be ...`). */
-function validateSector(raw: unknown, where: string): SectorValidation {
+function validateSector(raw: unknown, where: string, depth = 0): SectorValidation {
+  // Reject pathologically nested configs before the recursion
+  // walks far enough to overflow the call stack. The cap leaves
+  // plenty of headroom over realistic menus and surfaces as a
+  // normal validator error instead of a crash on load.
+  if (depth > MAX_MENU_DEPTH) {
+    return {
+      ok: false,
+      reason: `${where} exceeds maximum nesting depth ${MAX_MENU_DEPTH}`,
+    };
+  }
   if (typeof raw !== 'object' || raw === null) {
     return { ok: false, reason: `${where} is not an object` };
   }
@@ -401,7 +423,7 @@ function validateSector(raw: unknown, where: string): SectorValidation {
     }
     const children: MenuSector[] = [];
     for (let i = 0; i < s.children.length; i++) {
-      const result = validateSector(s.children[i], `${where} child ${i}`);
+      const result = validateSector(s.children[i], `${where} child ${i}`, depth + 1);
       if (!result.ok) return { ok: false, reason: result.reason };
       children.push(result.value);
     }
