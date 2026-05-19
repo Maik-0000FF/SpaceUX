@@ -163,6 +163,13 @@ export type MenuConfig = {
   /** Optional per-axis sign overrides. Omitting the field (or one
    *  side of it) falls back to :data:`DEFAULT_AXIS_INVERT`. */
   axisInvert?: MenuAxisInvert;
+  /** Optional separate threshold for the TZ-cancel gesture. When
+   *  unset the renderer falls back to the lateral deadzone (50 by
+   *  default) — same behaviour as before this field existed. Raise
+   *  this on pucks where strong lateral pushes induce a parasitic
+   *  TZ deflection that triggers the cancel/back gesture by
+   *  accident. */
+  tzDeadzone?: number;
   /** Optional puck-magnitude drill-in driven by *lateral*
    *  translation (TX/TY). When `enabled` is true the renderer
    *  auto-drills into a hovered branch once `Math.hypot(tx, ty)`
@@ -316,6 +323,20 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     }
     result.axisInvert = axisInvert;
   }
+  if (obj.tzDeadzone !== undefined) {
+    if (
+      typeof obj.tzDeadzone !== 'number' ||
+      !Number.isFinite(obj.tzDeadzone) ||
+      obj.tzDeadzone <= 0
+    ) {
+      return {
+        ok: false,
+        reason: 'menu config field "tzDeadzone" must be a positive finite number when present',
+      };
+    }
+    result.tzDeadzone = obj.tzDeadzone;
+  }
+
   const magnitudeResult = validateAutoDrill(obj.magnitudeDrill, 'magnitudeDrill');
   if (!magnitudeResult.ok) return { ok: false, reason: magnitudeResult.reason };
   if (magnitudeResult.value !== undefined) result.magnitudeDrill = magnitudeResult.value;

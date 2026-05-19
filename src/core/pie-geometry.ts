@@ -31,6 +31,16 @@ export type PieGeometryConfig = {
   /** Magnitude below which no selection is made. Same unit as the raw
    *  axis values fed in. */
   deadzone: number;
+  /** Optional separate threshold for the TZ-cancel gesture
+   *  (puck pushed forward / pulled back). When unset it defaults
+   *  to `deadzone` — same behaviour as before this field existed.
+   *  Splitting it out lets the user raise the TZ cutoff to filter
+   *  out lateral-push cross-talk on pucks where TZ shares a sense
+   *  with TX/TY, without making the lateral selection more
+   *  jittery. Use :func:`resolveTzDeadzone` rather than reading
+   *  this field directly so a missing override never silently
+   *  produces a 0 threshold. */
+  tzDeadzone?: number;
   /** Flip the X axis. Useful when the puck's TX sign points opposite
    *  to what the user expects from the screen layout. */
   invertX: boolean;
@@ -133,14 +143,27 @@ export function rotateAxes(axes: PieAxes, angle: number): PieAxes {
  * up the cancel target. Direction-agnostic on purpose — push OR pull
  * both register, so users don't have to learn their puck's TZ polarity.
  *
- * Today this reuses the lateral TX/TY deadzone as the threshold; if
- * users report false fires we can split it out into its own
- * `tzDeadzone` field on `PieGeometryConfig`. Lives in this module as
- * a pure function so the rule is testable in isolation rather than
- * buried in the React effect that consumes it.
+ * Lives in this module as a pure function so the rule is testable in
+ * isolation rather than buried in the React effect that consumes it.
+ * Pair with :func:`resolveTzDeadzone` at the call site so the
+ * caller's optional `tzDeadzone` override on `PieGeometryConfig`
+ * applies — passing `config.deadzone` directly here ignores any
+ * separately-configured TZ threshold.
  */
 export function shouldCancelOnZ(tz: number, deadzone: number): boolean {
   return Math.abs(tz) > deadzone;
+}
+
+/**
+ * Pick the right TZ-cancel threshold from a geometry config: the
+ * dedicated `tzDeadzone` if the user has set one, the lateral
+ * `deadzone` otherwise. Centralising the fallback in one helper
+ * means every TZ-related call site (cancel/pop, future TZ-cancel
+ * UI hints) lands on the same value — the renderer and any
+ * tests can't drift apart on the default.
+ */
+export function resolveTzDeadzone(config: PieGeometryConfig): number {
+  return config.tzDeadzone ?? config.deadzone;
 }
 
 /**
