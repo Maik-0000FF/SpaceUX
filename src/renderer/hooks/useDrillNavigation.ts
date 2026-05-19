@@ -127,10 +127,7 @@ export function useDrillNavigation(opts: {
     // optional `MenuConfig.tzDeadzone` override is honoured —
     // raising the TZ cutoff filters out lateral-push cross-talk
     // without making lateral selection any less sensitive.
-    const tzDeadzone = resolveTzDeadzone({
-      ...DEFAULT_PIE_GEOMETRY,
-      tzDeadzone: menuConfig.tzDeadzone,
-    });
+    const tzDeadzone = resolveTzDeadzone(menuConfig.tzDeadzone, DEFAULT_PIE_GEOMETRY.deadzone);
     const canceling = shouldCancelOnZ(axes.tz, tzDeadzone);
     const tzRising = canceling && !wasCancelingRef.current;
     wasCancelingRef.current = canceling;
