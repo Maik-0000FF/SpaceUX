@@ -170,15 +170,26 @@ describe('validateMenuConfig — nested submenus', () => {
       sectors: [{ label: 'Empty branch', children: [] }],
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toMatch(/"children" must be a non-empty array/);
+    if (!r.ok) expect(r.reason).toMatch(/"children" must not be empty/);
   });
 
-  it('rejects a non-array children field', () => {
-    const r = validateMenuConfig({
-      version: MENU_CONFIG_VERSION,
-      sectors: [{ label: 'x', children: 'not-an-array' }],
-    });
-    expect(r.ok).toBe(false);
+  it('rejects a non-array children field with a distinct message', () => {
+    // The "not an array" and "empty array" cases produce different
+    // reasons so a user staring at the error knows whether to add
+    // brackets or to add an entry — pinning both messages here keeps
+    // a future "consolidate for brevity" refactor from re-merging
+    // them and losing that signal.
+    for (const bad of ['not-an-array', 42, null, {}]) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        sectors: [{ label: 'x', children: bad }],
+      });
+      expect(r.ok, `children=${JSON.stringify(bad)}`).toBe(false);
+      if (!r.ok)
+        expect(r.reason, `children=${JSON.stringify(bad)}`).toMatch(
+          /"children" must be an array when present/,
+        );
+    }
   });
 
   it('reports the path when a deep grandchild is malformed', () => {
