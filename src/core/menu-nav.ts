@@ -25,6 +25,7 @@
 // (which has the `@/shared/*` path alias) and the main-process
 // tsconfig.electron.json (which doesn't). Sticking to relative keeps
 // this module buildable under both without duplicating the alias.
+import { sectorCenterAngle } from './pie-geometry';
 import type { MenuConfig, MenuSector } from '../shared/menu';
 
 export type DrillState = {
@@ -120,6 +121,26 @@ export function currentSectors(config: MenuConfig, navigation: readonly number[]
     level = next;
   }
   return level;
+}
+
+/**
+ * Rotation (radians) the outer ring uses so its sector 0 lines up
+ * with the parent sector the user drilled in from. Returns 0 for
+ * the top-level case (no parent) — the inner pie is the active
+ * selection target there and uses no rotation.
+ *
+ * Shared by the renderer (rotates the visible wedges + labels) and
+ * the puck-to-sector mapper in App.tsx (rotates the axes by
+ * `-offset` so the gesture flows continuously from the parent into
+ * the drilled-in ring). Centralising the formula here is the only
+ * way to keep those two sites from silently disagreeing about which
+ * sector the user is pointing at after a drill.
+ */
+export function navigationRingRotation(config: MenuConfig, navigation: readonly number[]): number {
+  if (navigation.length === 0) return 0;
+  const parentRing = currentSectors(config, navigation.slice(0, -1));
+  const drilledIntoIndex = navigation[navigation.length - 1]!;
+  return sectorCenterAngle(drilledIntoIndex, parentRing.length);
 }
 
 /**

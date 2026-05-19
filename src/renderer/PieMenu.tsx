@@ -3,7 +3,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 
-import { currentSectors } from '@/core/menu-nav';
+import { currentSectors, navigationRingRotation } from '@/core/menu-nav';
 import {
   DEFAULT_PIE_GEOMETRY,
   axesToSector,
@@ -208,10 +208,16 @@ export function PieMenu({
   // user's hover at the top of the new ring, visually disconnected
   // from the parent. With the offset the user's gesture flows
   // continuously from parent to child.
+  //
+  // Drilled case goes through `navigationRingRotation` (shared with
+  // App.tsx's axes-rotation) so the renderer and the puck-mapper
+  // can't disagree about where sector 0 is. Top-level preview is
+  // a different shape (the "parent" is the currently-hovered branch
+  // in the active ring, not a navigation entry) and stays inlined.
   let outerRingRotation = 0;
-  if (isDrilled && parentRing && drilledIntoIndex !== null) {
-    outerRingRotation = sectorCenterAngle(drilledIntoIndex, parentRing.length);
-  } else if (!isDrilled && activeSector !== null && activeSector !== undefined && previewSectors) {
+  if (isDrilled) {
+    outerRingRotation = navigationRingRotation(config, navigation);
+  } else if (activeSector !== null && activeSector !== undefined && previewSectors) {
     outerRingRotation = sectorCenterAngle(activeSector, activeRing.length);
   }
 

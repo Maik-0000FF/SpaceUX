@@ -7,6 +7,7 @@ import {
   INITIAL_DRILL_STATE,
   currentSectors,
   drillReducer,
+  navigationRingRotation,
   previewChildren,
   type DrillState,
 } from '../src/core/menu-nav';
@@ -90,6 +91,16 @@ describe('drillReducer', () => {
     const state: DrillState = { navigation: [], stickyChildIndex: 2 };
     const result = drillReducer(state, { type: 'drill', index: 2, nextSticky: 1 });
     expect(result.stickyChildIndex).toBe(1);
+  });
+
+  it('drill with nextSticky=0 lands sticky on 0 (no falsy collapse)', () => {
+    // Belt-and-braces against a future "if (action.nextSticky)" or
+    // "action.nextSticky || null" refactor — 0 is falsy in JS, and a
+    // mistaken truthy check would turn the post-rotation "land on
+    // child[0]" behaviour into the cancel target. Pin it explicitly.
+    const state: DrillState = { navigation: [], stickyChildIndex: 3 };
+    const result = drillReducer(state, { type: 'drill', index: 3, nextSticky: 0 });
+    expect(result.stickyChildIndex).toBe(0);
   });
 
   it('drill stacks for multi-level navigation', () => {
@@ -179,6 +190,43 @@ describe('currentSectors', () => {
     const result = currentSectors(deep, [0, 0]);
     expect(result).toHaveLength(1);
     expect(result[0]?.label).toBe('L2');
+  });
+});
+
+describe('navigationRingRotation', () => {
+  it('returns 0 at top level (no parent to align against)', () => {
+    expect(navigationRingRotation(NESTED_CONFIG, [])).toBe(0);
+  });
+
+  it('rotates by the parent sector centre angle once drilled', () => {
+    // FreeCAD is sector 0 in NESTED_CONFIG's two-sector top level.
+    // sectorCenterAngle(0, 2) = 0 — i.e. 12 o'clock — so the
+    // drilled-in ring's sector 0 stays at the top. Verified by
+    // construction, but pinning it locks the convention.
+    expect(navigationRingRotation(NESTED_CONFIG, [0])).toBe(0);
+  });
+
+  it('rotates by π for a 2-sector parent ring drilled at index 1', () => {
+    // Terminal (sector 1) is at angle π in a 2-sector top — were
+    // it a branch (it isn't in this config), drilling would spin
+    // the new ring 180° so child[0] lands at 6 o'clock. Test with
+    // a synthetic config so the math is unambiguous.
+    const cfg: MenuConfig = {
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'first',
+          binding: { action: builtinAction('exec'), config: { command: 'a' } },
+        },
+        {
+          label: 'second',
+          children: [
+            { label: 'sub', binding: { action: builtinAction('exec'), config: { command: 'b' } } },
+          ],
+        },
+      ],
+    };
+    expect(navigationRingRotation(cfg, [1])).toBeCloseTo(Math.PI);
   });
 });
 
