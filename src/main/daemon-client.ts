@@ -32,6 +32,11 @@ export class DaemonClient extends EventEmitter {
   private buffer = '';
   private reconnectTimer: NodeJS.Timeout | null = null;
   private explicitlyClosed = false;
+  /** Latched from the daemon's hello event. False before any hello
+   *  arrives, true when the daemon reported /dev/uinput was reachable,
+   *  false again after the socket closes — so callers that race the
+   *  startup are treated the same as "no injection". */
+  private injectAvailableFlag = false;
 
   constructor(
     private readonly socketPath: string = defaultSocketPath(),
@@ -84,6 +89,13 @@ export class DaemonClient extends EventEmitter {
     this.send({ kind: 'inject-chord', modifiers, key });
   }
 
+  /** Last value the daemon reported in its hello event. Plugins use
+   *  this to decide whether to log a "key injection unavailable"
+   *  hint instead of dropping a chord silently. */
+  isInjectAvailable(): boolean {
+    return this.injectAvailableFlag;
+  }
+
   // ── Internal ────────────────────────────────────────────────────────
 
   private openSocket(): void {
@@ -106,6 +118,7 @@ export class DaemonClient extends EventEmitter {
 
     sock.on('close', () => {
       this.socket = null;
+      this.injectAvailableFlag = false;
       this.emit('disconnected');
       if (!this.explicitlyClosed) {
         this.reconnectTimer = setTimeout(() => {
@@ -143,7 +156,13 @@ export class DaemonClient extends EventEmitter {
       return;
     }
     if (!isDaemonEvent(parsed)) return;
-    this.emit('event', parsed as DaemonEvent);
+    const evt = parsed as DaemonEvent;
+    // Latch hello fields the rest of the app might read off the
+    // client object instead of subscribing to every event.
+    if (evt.event === 'hello') {
+      this.injectAvailableFlag = evt.inject === true;
+    }
+    this.emit('event', evt);
   }
 }
 

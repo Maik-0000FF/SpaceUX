@@ -37,5 +37,14 @@ export const keyCombo: ActionHandler = (config, ctx) => {
     ctx.log(`key-combo: unrecognised chord "${keys}" — see src/main/builtins/keycodes.ts`);
     return;
   }
+  if (!ctx.injectAvailable()) {
+    // The chord would silently no-op in the daemon. Surface a single
+    // actionable line instead — better debugging than a key binding
+    // that appears to work and produces nothing.
+    ctx.log(
+      `key-combo: injection unavailable (daemon has no /dev/uinput access); chord "${keys}" dropped`,
+    );
+    return;
+  }
   ctx.injectChord(parsed.modifiers, parsed.key);
 };

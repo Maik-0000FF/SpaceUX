@@ -43,6 +43,16 @@ export type HelloEvent = {
   event: 'hello';
   axes: number;
   buttons: number;
+  /**
+   * True if the daemon successfully opened /dev/uinput at startup.
+   * False means INJECT_CHORD commands will silently no-op — the
+   * renderer should surface a status hint instead of letting
+   * key-combo bindings appear to work and produce no key events.
+   *
+   * Older daemons that predate this flag won't include the field;
+   * treat missing as `false` (conservative — assumes no injection).
+   */
+  inject?: boolean;
 };
 
 export type DaemonEvent = AxesEvent | ButtonEvent | HelloEvent;
@@ -71,7 +81,15 @@ export type DaemonCommand =
    * `modifiers` are Linux keycodes held during the tap (e.g. 56 for
    * KEY_LEFTALT); `key` is the keycode tapped (e.g. 15 for KEY_TAB).
    * The renderer's parseChord() already produces these codes — no
-   * translation table needed in flight. */
+   * translation table needed in flight.
+   *
+   * Daemon-side limit: `modifiers.length` must be <= 8
+   * (SPACEUX_MAX_CHORD_MODS in `src/daemon/protocol.h`). The wire
+   * line "INJECT_CHORD <m1> ... <mN> <key>" must fit 9 tokens; the
+   * daemon parser silently drops any line that exceeds that. No real
+   * keyboard chord uses more than ~4 modifiers, so the cap is
+   * theoretical, but a future expansion (Hyper, Compose, AltGr in
+   * unusual combos) would need a bump on both sides. */
   | { kind: 'inject-chord'; modifiers: number[]; key: number };
 
 export function encodeCommand(cmd: DaemonCommand): string {
