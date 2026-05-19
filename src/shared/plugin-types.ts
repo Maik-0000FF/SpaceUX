@@ -16,6 +16,30 @@
  * trigger.
  */
 
+/**
+ * Current plugin API version emitted by the host. A plugin's
+ * `manifest.json` must declare an `apiVersion` field; the loader
+ * compares it against the supported range below and refuses to load
+ * anything outside it.
+ *
+ * Bumping this is a deliberate breaking change to the plugin
+ * contract (e.g. a new required field on PluginModule, a renamed
+ * type the loader needs, a security-relevant default change). When
+ * we bump:
+ *   - if the change is additive and old plugins continue to run,
+ *     keep MIN_SUPPORTED_PLUGIN_API_VERSION at the previous value
+ *     so existing plugins load unchanged.
+ *   - if the change really breaks old plugins, raise both constants
+ *     and document the break.
+ */
+export const PLUGIN_API_VERSION = 1;
+
+/**
+ * Lowest plugin apiVersion the host will still load. Equal to
+ * PLUGIN_API_VERSION until we ship a backwards-compatible bump.
+ */
+export const MIN_SUPPORTED_PLUGIN_API_VERSION = 1;
+
 /** Schema describing one user-configurable input on an action. */
 export type ActionConfigField =
   | { kind: 'string'; label: string; placeholder?: string; default?: string }
@@ -43,6 +67,13 @@ export type ActionDescriptor = {
 
 /** manifest.json shape. */
 export type PluginManifest = {
+  /** Plugin API contract version this plugin was written against.
+   *  The loader compares against PLUGIN_API_VERSION /
+   *  MIN_SUPPORTED_PLUGIN_API_VERSION and refuses to load plugins
+   *  outside the supported range — that way a plugin written for a
+   *  later host fails fast with an actionable message instead of
+   *  crashing at first trigger when it touches a missing API. */
+  apiVersion: number;
   /** Reverse-DNS-style id, e.g. "org.spaceux.example-launch". */
   id: string;
   /** Human-readable plugin name. */
