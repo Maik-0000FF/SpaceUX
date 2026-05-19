@@ -106,7 +106,7 @@ export function drillReducer(state: DrillState, action: DrillAction): DrillState
  *
  * Pure: no React, no DOM, no I/O. Tested in isolation.
  */
-export function currentSectors(config: MenuConfig, navigation: number[]): MenuSector[] {
+export function currentSectors(config: MenuConfig, navigation: readonly number[]): MenuSector[] {
   let level: MenuSector[] = config.sectors;
   for (const i of navigation) {
     const next = level[i]?.children;

@@ -329,8 +329,11 @@ function wireActionDispatch(): void {
   // The trigger button only sends MENU_COMMIT now; it's the
   // renderer's job to decide whether the commit drills into a
   // submenu (no callback needed) or actually closes the menu
-  // (this callback hides the window).
-  ipcMain.handle(IpcChannel.CLOSE_MENU, () => {
+  // (this fire-and-forget callback hides the window). Uses
+  // `ipcMain.on` rather than `handle` because there's no return
+  // value the renderer would await — and a meaningless promise
+  // round-trip would invite confused error-handling on the caller.
+  ipcMain.on(IpcChannel.CLOSE_MENU, () => {
     if (mainWindow) hideMenuWindow(mainWindow);
   });
 }
