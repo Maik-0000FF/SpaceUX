@@ -62,6 +62,12 @@ static int generate_token(char *out)
 {
 	unsigned char raw[SPACEUX_TOKEN_BYTES];
 #if defined(__linux__)
+	/* flags=0 means "use the urandom source, block until the kernel
+	 * entropy pool has been initialised". For a daemon launched at
+	 * user-session start this is effectively instant. The blocking
+	 * is a deliberate choice over GRND_INSECURE — accepting a
+	 * connection with weak randomness would defeat the whole point
+	 * of the capability token. */
 	ssize_t n = getrandom(raw, sizeof(raw), 0);
 	if (n != (ssize_t)sizeof(raw))
 		return -1;
