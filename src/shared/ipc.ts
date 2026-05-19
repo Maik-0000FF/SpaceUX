@@ -41,7 +41,15 @@ export const IpcChannel = {
 } as const;
 
 export type DaemonStatusPayload =
-  | { state: 'connected'; axes: number; buttons: number }
+  | {
+      state: 'connected';
+      axes: number;
+      buttons: number;
+      /** True if the daemon can inject keyboard chords (i.e. /dev/uinput
+       *  was reachable at startup). Falsey means key-combo bindings
+       *  will silently no-op — the UI should surface that. */
+      inject: boolean;
+    }
   | { state: 'disconnected'; reason: string };
 
 /** Anchor point for the pie menu, in renderer-window pixel coords.

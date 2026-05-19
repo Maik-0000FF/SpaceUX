@@ -71,7 +71,7 @@ int sock_accept(struct sock_state *s)
 	c->cmd_len = 0;
 	char hello[SPACEUX_EVENT_BUF_SIZE];
 	int hlen = protocol_format_hello(hello, sizeof(hello), SPACEUX_AXIS_COUNT,
-					 SPACEUX_MAX_BUTTONS);
+					 SPACEUX_MAX_BUTTONS, s->inject_fd >= 0);
 	if (hlen > 0)
 		(void)ipc_write(fd, hello, hlen);
 	return slot;

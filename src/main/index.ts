@@ -247,6 +247,11 @@ function wireDaemonEvents(): void {
           state: 'connected',
           axes: ev.axes,
           buttons: ev.buttons,
+          // Older daemons (pre-#6) omit the field — coerce to false
+          // so the renderer never sees `undefined` and the absence
+          // is treated as "no injection" (matching the conservative
+          // default in the type docs).
+          inject: ev.inject === true,
         };
         mainWindow.webContents.send(IpcChannel.DAEMON_STATUS, payload);
         break;

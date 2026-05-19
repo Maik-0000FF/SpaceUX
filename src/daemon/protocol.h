@@ -87,7 +87,11 @@ int protocol_format_axes(char *buf, int buf_size, const int *values, int n_value
 /* Format a single button transition into *buf. Same return contract. */
 int protocol_format_button(char *buf, int buf_size, int bnum, int pressed);
 
-/* Format the welcome hello message sent on connect. */
-int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons);
+/* Format the welcome hello message sent on connect. `inject_available`
+ * is a 0/1 flag that surfaces whether the daemon successfully opened
+ * /dev/uinput at startup — clients use it to log "key injection
+ * unavailable" instead of silently no-op'ing on later INJECT_CHORD. */
+int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons,
+			  int inject_available);
 
 #endif /* SPACEUX_PROTOCOL_H */

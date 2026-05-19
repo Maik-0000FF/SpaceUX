@@ -121,12 +121,14 @@ int protocol_format_button(char *buf, int buf_size, int bnum, int pressed)
 	return n;
 }
 
-int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons)
+int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons,
+			  int inject_available)
 {
 	if (!buf || buf_size <= 0)
 		return -1;
-	int n = snprintf(buf, buf_size, "{\"event\":\"hello\",\"axes\":%d,\"buttons\":%d}\n",
-			 axes_count, max_buttons);
+	int n = snprintf(buf, buf_size,
+			 "{\"event\":\"hello\",\"axes\":%d,\"buttons\":%d,\"inject\":%s}\n",
+			 axes_count, max_buttons, inject_available ? "true" : "false");
 	if (n < 0 || n >= buf_size)
 		return -1;
 	return n;

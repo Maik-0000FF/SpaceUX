@@ -65,6 +65,15 @@ describe('isDaemonEvent', () => {
     expect(isDaemonEvent({ event: 'hello', axes: 6, buttons: 32 })).toBe(true);
   });
 
+  it('accepts hello with the injection capability flag', () => {
+    // New daemons (post-#6) include "inject" in hello so the renderer
+    // can show "injection unavailable" instead of silently dropping
+    // chords. Pinning both true and false explicitly so a future
+    // hello-shape change can't break this without flipping a spec.
+    expect(isDaemonEvent({ event: 'hello', axes: 6, buttons: 32, inject: true })).toBe(true);
+    expect(isDaemonEvent({ event: 'hello', axes: 6, buttons: 32, inject: false })).toBe(true);
+  });
+
   it('rejects malformed inputs', () => {
     expect(isDaemonEvent(null)).toBe(false);
     expect(isDaemonEvent(undefined)).toBe(false);

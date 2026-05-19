@@ -212,6 +212,7 @@ export function makeActionContext(pluginId: string, daemon: DaemonClient): Actio
       console.log(`[plugin ${pluginId}] ${message}`);
     },
     injectChord: (modifiers, key) => daemon.injectChord(modifiers, key),
+    injectAvailable: () => daemon.isInjectAvailable(),
   };
 }
 

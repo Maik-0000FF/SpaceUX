@@ -103,6 +103,14 @@ export type ActionContext = {
    *  for the symbolic-name map. Fire-and-forget — the daemon silently
    *  no-ops if `/dev/uinput` was unavailable at startup. */
   injectChord: (modifiers: number[], key: number) => void;
+  /** True when the connected daemon advertised key injection in its
+   *  hello event (i.e. /dev/uinput was reachable at startup). Plugins
+   *  that depend on `injectChord` should check this and log a
+   *  user-actionable message when false — otherwise the chord is
+   *  dropped silently. Falsey before the daemon hello arrives, so a
+   *  plugin firing during the startup race is treated the same as a
+   *  daemon without injection capability. */
+  injectAvailable: () => boolean;
 };
 
 /** Signature every action implementation must match. Plugins
