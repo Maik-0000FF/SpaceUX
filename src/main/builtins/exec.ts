@@ -33,11 +33,13 @@ export const execAction: ActionHandler = async (config, ctx) => {
   const bin = tokens[0];
   const args = tokens.slice(1);
   if (!bin) {
-    // Defensive: the earlier `!command` guard makes this branch
-    // unreachable today (a non-empty trimmed string can't split to
-    // an empty first token), but a future shlex-style parser might
-    // change that. Logging beats silent no-op when it does.
-    ctx.log(`exec: command "${command}" parsed to no binary — refusing to spawn`);
+    // Reachable when the tokenizer yields an empty first token,
+    // typically an empty quoted segment at the start (e.g. `""` or
+    // `"" foo`). Rare in real menu.json configs but a typo can
+    // produce it; log instead of silently no-op'ing so the user
+    // sees their command get rejected. JSON.stringify keeps the
+    // log readable when the command itself contains quotes.
+    ctx.log(`exec: command ${JSON.stringify(command)} parsed to no binary — refusing to spawn`);
     return;
   }
   try {

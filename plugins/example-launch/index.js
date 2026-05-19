@@ -18,7 +18,11 @@
 
 import { spawn } from 'node:child_process';
 
-function tokenize(command) {
+/* Exported for the drift-guard test in tests/tokenize.test.ts — the
+ * plugin loader only inspects the `actions` export, so this extra
+ * named export is invisible at runtime but lets vitest run the same
+ * spec table against both copies of the function. */
+export function tokenize(command) {
   const tokens = [];
   let current = '';
   let inToken = false;
@@ -58,11 +62,12 @@ async function launch(config, ctx) {
   const tokens = tokenize(command);
   const [bin, ...args] = tokens;
   if (!bin) {
-    // See src/main/builtins/exec.ts for the rationale — the earlier
-    // `!command` guard makes this branch unreachable with the current
-    // whitespace split, but logging defends against a future parser
-    // tweak that could yield an empty first token.
-    ctx.log(`command "${command}" parsed to no binary — refusing to spawn`);
+    // Reachable when the tokenizer yields an empty first token
+    // (typically an empty quoted segment at the start of the
+    // command). See src/main/builtins/exec.ts for the canonical
+    // rationale. JSON.stringify keeps the log readable when the
+    // command itself contains quotes.
+    ctx.log(`command ${JSON.stringify(command)} parsed to no binary — refusing to spawn`);
     return;
   }
   try {
