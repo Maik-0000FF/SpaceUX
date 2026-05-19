@@ -114,7 +114,7 @@ export class DaemonClient extends EventEmitter {
    * and resume on the next chunk.
    */
   private drainLines(): void {
-    let idx;
+    let idx: number;
     while ((idx = this.buffer.indexOf('\n')) >= 0) {
       const line = this.buffer.slice(0, idx).trim();
       this.buffer = this.buffer.slice(idx + 1);
@@ -138,9 +138,16 @@ export class DaemonClient extends EventEmitter {
   }
 }
 
-/** Default UNIX socket path: /run/user/<uid>/spaceux.sock. Mirrors the
- *  daemon's `SPACEUX_SOCK_BASENAME` constant. */
+/** Default UNIX socket path. Mirrors `platform_socket_path()` in
+ *  `src/daemon/platform_linux.c`: prefer `$XDG_RUNTIME_DIR` when set
+ *  (containerised / unusual sessions override the systemd default),
+ *  fall back to `/run/user/<uid>/`. Drift between the two would mean
+ *  the daemon writes to one path while the client polls another. */
 export function defaultSocketPath(): string {
+  const runtimeDir = process.env.XDG_RUNTIME_DIR?.trim();
+  if (runtimeDir && runtimeDir.startsWith('/')) {
+    return path.join(runtimeDir, 'spaceux.sock');
+  }
   // On Linux os.userInfo().uid matches getuid(). On systems where this
   // is unavailable (e.g. a hypothetical Windows port) we fall back to
   // a path under the user's home directory.

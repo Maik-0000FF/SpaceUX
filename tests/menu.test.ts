@@ -11,6 +11,7 @@ import {
   DEFAULT_TRIGGER_BUTTON,
   MENU_CONFIG_VERSION,
   builtinAction,
+  resolveAxisInvert,
   validateMenuConfig,
 } from '../src/shared/menu';
 
@@ -139,6 +140,33 @@ describe('DEFAULT_MENU_CONFIG', () => {
     // would silently differ from one that copy-pastes the
     // shipped value.
     expect(DEFAULT_MENU_CONFIG.axisInvert).toEqual(DEFAULT_AXIS_INVERT);
+  });
+});
+
+describe('resolveAxisInvert', () => {
+  it('returns DEFAULT_AXIS_INVERT when axisInvert is omitted', () => {
+    expect(resolveAxisInvert({})).toEqual(DEFAULT_AXIS_INVERT);
+  });
+
+  it('fills the missing side of a partial override from DEFAULT_AXIS_INVERT', () => {
+    // The regression that motivated this resolver: PieMenu used to
+    // fall back to DEFAULT_PIE_GEOMETRY.invertY (true) for a missing
+    // y, while App.tsx fell back to DEFAULT_AXIS_INVERT.y (false).
+    // Both paths now go through resolveAxisInvert, so pinning the
+    // contract here keeps a future consumer from picking a different
+    // fallback constant.
+    expect(resolveAxisInvert({ axisInvert: { x: true } })).toEqual({
+      x: true,
+      y: DEFAULT_AXIS_INVERT.y,
+    });
+    expect(resolveAxisInvert({ axisInvert: { y: true } })).toEqual({
+      x: DEFAULT_AXIS_INVERT.x,
+      y: true,
+    });
+  });
+
+  it('passes through a fully specified override unchanged', () => {
+    expect(resolveAxisInvert({ axisInvert: { x: true, y: true } })).toEqual({ x: true, y: true });
   });
 });
 

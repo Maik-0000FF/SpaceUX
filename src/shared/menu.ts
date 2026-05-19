@@ -86,6 +86,21 @@ export type MenuAxisInvert = {
  *  the "leave field blank" path doesn't silently flip an axis. */
 export const DEFAULT_AXIS_INVERT: Required<MenuAxisInvert> = { x: false, y: false };
 
+/** Resolve the per-axis invert flags for a config that may have
+ *  `axisInvert` missing, partial, or fully specified. Every
+ *  consumer (App.tsx live sector calc, PieMenu render) MUST use
+ *  this resolver so a partial `{ x: true }` falls back to the same
+ *  Y default everywhere — past regressions had App and PieMenu
+ *  reach for two different default constants. */
+export function resolveAxisInvert(
+  config: Pick<MenuConfig, 'axisInvert'>,
+): Required<MenuAxisInvert> {
+  return {
+    x: config.axisInvert?.x ?? DEFAULT_AXIS_INVERT.x,
+    y: config.axisInvert?.y ?? DEFAULT_AXIS_INVERT.y,
+  };
+}
+
 /** Top-level menu config. */
 export type MenuConfig = {
   /** Schema version this config was written against. Compared against

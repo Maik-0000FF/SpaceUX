@@ -9,7 +9,7 @@ import {
   sectorCenterAngle,
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
-import type { MenuConfig, MenuSector } from '@/shared/menu';
+import { resolveAxisInvert, type MenuConfig, type MenuSector } from '@/shared/menu';
 
 const TAU = Math.PI * 2;
 
@@ -55,19 +55,20 @@ export function PieMenu({
   geometryOverrides,
   radius = 240,
 }: PieMenuProps) {
-  const geometry = useMemo<PieGeometryConfig>(
-    () => ({
+  const geometry = useMemo<PieGeometryConfig>(() => {
+    // Per-axis sign comes from the menu config so the user can flip
+    // whichever feels wrong without touching code. The resolver lives
+    // in @/shared/menu so App.tsx (live selection) and this component
+    // (rendering) cannot drift apart on the fallback default.
+    const invert = resolveAxisInvert(config);
+    return {
       ...DEFAULT_PIE_GEOMETRY,
       ...geometryOverrides,
       sectorCount: config.sectors.length,
-      // Per-axis sign comes from the menu config so the user can flip
-      // whichever feels wrong without touching code. Fall back to the
-      // built-in default when the config doesn't specify either knob.
-      invertX: config.axisInvert?.x ?? DEFAULT_PIE_GEOMETRY.invertX,
-      invertY: config.axisInvert?.y ?? DEFAULT_PIE_GEOMETRY.invertY,
-    }),
-    [geometryOverrides, config.sectors.length, config.axisInvert?.x, config.axisInvert?.y],
-  );
+      invertX: invert.x,
+      invertY: invert.y,
+    };
+  }, [geometryOverrides, config]);
 
   // App owns the sticky-sector state so the highlight persists when
   // the user lets the puck snap back to neutral; we still compute

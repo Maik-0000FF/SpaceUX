@@ -35,19 +35,43 @@ static int slot_alloc(struct sock_state *s)
 	return -1;
 }
 
+/* Write the full payload to a non-blocking socket.
+ *
+ * Return contract:
+ *   len  — every byte landed in the kernel buffer
+ *    0   — nothing was written because the socket would block on
+ *          the first byte; the caller may safely drop this single
+ *          event and keep the client connected
+ *   -1   — fatal: a partial write hit EAGAIN (the client would now
+ *          see a half-line followed by the next event, which the
+ *          JSON-Lines parser cannot recover from), or any other
+ *          write error / EOF. The caller must close the slot.
+ *
+ * Treating "first-byte EAGAIN" as recoverable lets a briefly stalled
+ * renderer (post-suspend, garbage-collection pause, ...) survive a
+ * single skipped axes frame instead of being disconnected and
+ * reconnected — full backpressure would need a per-client outbound
+ * queue, which is a Phase 3 follow-up. */
 static int write_full(int fd, const char *buf, int len)
 {
 	int off = 0;
 	while (off < len) {
 		ssize_t n = write(fd, buf + off, len - off);
-		if (n <= 0) {
-			if (n < 0 && (errno == EINTR))
+		if (n < 0) {
+			if (errno == EINTR)
 				continue;
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
+				if (off == 0)
+					return 0;
+				return -1;
+			}
 			return -1;
 		}
+		if (n == 0)
+			return -1;
 		off += n;
 	}
-	return 0;
+	return len;
 }
 
 int sock_init(struct sock_state *s)
