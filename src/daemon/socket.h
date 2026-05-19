@@ -27,7 +27,10 @@ struct sock_client {
 	/* Peer identity captured at sock_accept-time. `peer_pid` is -1
 	 * on platforms whose IPC transport doesn't carry the connecting
 	 * pid (macOS getpeereid); it's still used as an audit-log hint
-	 * so a forensic reader can correlate UID activity. */
+	 * so a forensic reader can correlate UID activity. Forensic-
+	 * only — the kernel may have reused the pid by the time the
+	 * audit log is read, so never trust `peer_pid` as the
+	 * authoritative identity of the *current* connection holder. */
 	int peer_pid;
 	int peer_uid;
 	/* INJECT_CHORD leaky-bucket state. `chord_tokens` is the
@@ -38,6 +41,15 @@ struct sock_client {
 	 * client can fire a burst before steady-state kicks in. */
 	double chord_tokens;
 	long long chord_refill_us;
+	/* Drop-log throttle: a hostile client pumping INJECT_CHORD at
+	 * IPC speed would otherwise flood stderr/journal with one log
+	 * line per dropped chord — the rate limit silences the
+	 * injection but not the audit, defeating the "connection
+	 * survives" intent. Cap at one drop-log per slot per second;
+	 * each emitted line names the count of drops since the
+	 * previous one so no information is lost. */
+	int chord_drop_count;
+	long long chord_drop_log_us;
 	char cmd_buf[SPACEUX_CMD_BUF_SIZE];
 	int cmd_len;
 };

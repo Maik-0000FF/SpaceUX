@@ -45,6 +45,8 @@ static void slot_clear(struct sock_client *c)
 	c->peer_uid = -1;
 	c->chord_tokens = 0.0;
 	c->chord_refill_us = 0;
+	c->chord_drop_count = 0;
+	c->chord_drop_log_us = 0;
 }
 
 static int slot_alloc(struct sock_state *s)
@@ -85,7 +87,14 @@ void sock_close(struct sock_state *s)
 /* Resolve the peer binary path via /proc/<pid>/exe on Linux. Best-
  * effort: returns 1 on success with `out` populated, 0 otherwise.
  * macOS/BSD don't have /proc, so the path stays unfilled there and
- * the log line falls back to pid alone. */
+ * the log line falls back to pid alone.
+ *
+ * `cap` of 256 covers any realistic peer path. Linux PATH_MAX is
+ * 4096 but real binaries live under /usr, /home, etc. and almost
+ * never reach 256 bytes; truncating an absurdly-long path to a
+ * forensic hint is acceptable. The result is sanitised before
+ * return so a peer with a newline in its binary's path can't
+ * forge a fake `[sock] accept ...` line via the audit log. */
 static int peer_exe_path(int pid, char *out, size_t cap)
 {
 #if defined(__linux__)
@@ -97,6 +106,14 @@ static int peer_exe_path(int pid, char *out, size_t cap)
 	if (n < 0)
 		return 0;
 	out[n] = '\0';
+	/* Sanitise non-printable bytes (anything below space or the
+	 * DEL byte) to '?' so a peer can't embed control chars in
+	 * their binary's path and split the audit-log line. */
+	for (ssize_t i = 0; i < n; i++) {
+		unsigned char ch = (unsigned char)out[i];
+		if (ch < 0x20 || ch == 0x7f)
+			out[i] = '?';
+	}
 	return 1;
 #else
 	(void)pid;
@@ -123,7 +140,12 @@ int sock_accept(struct sock_state *s)
 		ipc_close(fd);
 		return -1;
 	}
-	uid_t my_uid = getuid();
+	/* Use effective UID — that's what SO_PEERCRED reports on the
+	 * peer side, so comparing same-to-same keeps the semantics
+	 * tight. Identical to getuid() for the non-setuid daemon we
+	 * actually ship, but the geteuid path is what the comparison
+	 * is conceptually about. */
+	uid_t my_uid = geteuid();
 	if (peer.uid != (int)my_uid) {
 		fprintf(stderr,
 			"[sock] reject: cross-UID connect (peer uid=%d pid=%d, daemon uid=%u)\n",
@@ -192,18 +214,32 @@ static void chord_bucket_refill(struct sock_client *c)
  * audit logs. e.g. mods=[29,42] becomes "ctrl+shift" in the renderer's
  * key map, but here we keep it as raw evdev codes so the log stays
  * fast (no codename table lookup) and lossless (any future code is
- * still legible). */
+ * still legible). On buffer pressure the function truncates cleanly
+ * — snprintf returns the *would-have-been-written* length, so we
+ * clamp explicitly to avoid `off` overshooting `cap` on a partial
+ * write of the final mod. */
 static void format_mods(const int *mods, int n_mods, char *out, size_t cap)
 {
+	if (cap == 0)
+		return;
 	if (n_mods <= 0) {
 		snprintf(out, cap, "-");
 		return;
 	}
 	size_t off = 0;
-	for (int i = 0; i < n_mods && off + 8 < cap; i++) {
-		int w = snprintf(out + off, cap - off, "%s%d", i == 0 ? "" : ",", mods[i]);
-		if (w <= 0)
+	for (int i = 0; i < n_mods; i++) {
+		if (off + 1 >= cap)
 			break;
+		int w = snprintf(out + off, cap - off, "%s%d", i == 0 ? "" : ",", mods[i]);
+		if (w < 0)
+			break;
+		if ((size_t)w >= cap - off) {
+			/* Would have written more than the remaining
+			 * buffer holds — snprintf already null-terminated
+			 * what it managed to write. Stop here rather than
+			 * advancing `off` past `cap`. */
+			break;
+		}
 		off += (size_t)w;
 	}
 }
@@ -215,7 +251,6 @@ static void format_mods(const int *mods, int n_mods, char *out, size_t cap)
 static int apply_cmd(struct sock_state *s, int slot, struct sock_client *c, enum protocol_cmd cmd,
 		     const struct protocol_chord *chord, int led_on)
 {
-	(void)slot;
 	switch (cmd) {
 	case PROTO_CMD_SUBSCRIBE_AXES:
 		c->subscriptions |= PROTO_SUB_AXES;
@@ -247,13 +282,28 @@ static int apply_cmd(struct sock_state *s, int slot, struct sock_client *c, enum
 		char modbuf[64];
 		format_mods(chord->mods, chord->n_mods, modbuf, sizeof(modbuf));
 		if (c->chord_tokens < 1.0) {
-			/* Rate-limit drop: log + skip the injection, leave
-			 * the slot intact. A misbehaving client gets
-			 * "nothing happens" rather than a kicked-off
-			 * connection; the audit line names them. */
-			fprintf(stderr,
-				"[inject] drop (rate-limit) slot=%d pid=%d mods=%s key=%d\n", slot,
-				c->peer_pid, modbuf, chord->key);
+			/* Rate-limit drop: skip the injection, leave the
+			 * slot intact. A misbehaving client gets "nothing
+			 * happens" rather than a kicked socket.
+			 *
+			 * Audit logging is throttled to at most one line
+			 * per slot per second — a hostile peer pumping at
+			 * IPC speed would otherwise emit thousands of
+			 * lines/sec and partially defeat the survivability
+			 * goal by flooding stderr/journal. The emitted
+			 * line carries the cumulative drop count since the
+			 * previous log so no drop is silently lost from
+			 * the audit trail. */
+			long long now = monotonic_us();
+			c->chord_drop_count++;
+			if (now - c->chord_drop_log_us >= 1000000LL) {
+				fprintf(stderr,
+					"[inject] drop (rate-limit) slot=%d pid=%d count=%d "
+					"mods=%s key=%d\n",
+					slot, c->peer_pid, c->chord_drop_count, modbuf, chord->key);
+				c->chord_drop_count = 0;
+				c->chord_drop_log_us = now;
+			}
 			return 0;
 		}
 		c->chord_tokens -= 1.0;
