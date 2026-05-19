@@ -102,3 +102,18 @@ export function sectorCenterAngle(sectorIndex: number, sectorCount: number): num
 export function axesMagnitude(axes: PieAxes): number {
   return Math.hypot(axes.tx, axes.ty);
 }
+
+/**
+ * Whether a TZ deflection should clear the sticky selection and light
+ * up the cancel target. Direction-agnostic on purpose — push OR pull
+ * both register, so users don't have to learn their puck's TZ polarity.
+ *
+ * Today this reuses the lateral TX/TY deadzone as the threshold; if
+ * users report false fires we can split it out into its own
+ * `tzDeadzone` field on `PieGeometryConfig`. Lives in this module as
+ * a pure function so the rule is testable in isolation rather than
+ * buried in the React effect that consumes it.
+ */
+export function shouldCancelOnZ(tz: number, deadzone: number): boolean {
+  return Math.abs(tz) > deadzone;
+}

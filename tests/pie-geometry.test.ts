@@ -8,6 +8,7 @@ import {
   axesMagnitude,
   axesToSector,
   sectorCenterAngle,
+  shouldCancelOnZ,
   type PieGeometryConfig,
 } from '../src/core/pie-geometry';
 
@@ -95,5 +96,38 @@ describe('axesMagnitude', () => {
   it('matches Euclidean distance', () => {
     expect(axesMagnitude({ tx: 3, ty: 4 })).toBe(5);
     expect(axesMagnitude({ tx: -3, ty: -4 })).toBe(5);
+  });
+});
+
+describe('shouldCancelOnZ', () => {
+  // The deadzone parameter is the user-facing threshold; pick 50 in
+  // tests for parity with DEFAULT_PIE_GEOMETRY.deadzone.
+  const DZ = 50;
+
+  it('does not fire when tz is exactly zero', () => {
+    expect(shouldCancelOnZ(0, DZ)).toBe(false);
+  });
+
+  it('does not fire inside the deadzone (positive and negative)', () => {
+    expect(shouldCancelOnZ(40, DZ)).toBe(false);
+    expect(shouldCancelOnZ(-40, DZ)).toBe(false);
+    expect(shouldCancelOnZ(DZ, DZ)).toBe(false);
+    expect(shouldCancelOnZ(-DZ, DZ)).toBe(false);
+  });
+
+  it('fires past the deadzone in either direction (symmetry guard)', () => {
+    // The whole point of the helper is that push and pull both
+    // register — pin both signs explicitly so a future "only count
+    // negative tz" tweak fails this test instead of silently
+    // breaking users with the opposite puck polarity.
+    expect(shouldCancelOnZ(51, DZ)).toBe(true);
+    expect(shouldCancelOnZ(-51, DZ)).toBe(true);
+    expect(shouldCancelOnZ(100, DZ)).toBe(true);
+    expect(shouldCancelOnZ(-100, DZ)).toBe(true);
+  });
+
+  it('honours different deadzone values', () => {
+    expect(shouldCancelOnZ(10, 5)).toBe(true);
+    expect(shouldCancelOnZ(10, 50)).toBe(false);
   });
 });

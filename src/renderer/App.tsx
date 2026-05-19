@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { axesToSector, DEFAULT_PIE_GEOMETRY } from '@/core/pie-geometry';
+import { axesToSector, DEFAULT_PIE_GEOMETRY, shouldCancelOnZ } from '@/core/pie-geometry';
 import { resolveAxisInvert, type MenuConfig } from '@/shared/menu';
 
 import { PieMenu } from './PieMenu';
@@ -53,7 +53,7 @@ export function App() {
   // saves users from learning the polarity of their specific puck.
   useEffect(() => {
     if (!menuAnchor || !menuConfig) return;
-    if (Math.abs(axes.tz) > DEFAULT_PIE_GEOMETRY.deadzone) {
+    if (shouldCancelOnZ(axes.tz, DEFAULT_PIE_GEOMETRY.deadzone)) {
       if (stickySector !== null) setStickySector(null);
       return;
     }
