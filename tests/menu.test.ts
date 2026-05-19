@@ -44,6 +44,38 @@ describe('validateMenuConfig', () => {
     expect(r.ok).toBe(false);
   });
 
+  it('accepts non-ASCII labels (emoji, CJK, RTL, accented, combining marks)', () => {
+    // The label contract is "any non-empty Unicode string". Pin
+    // representative categories so a future "ASCII only" tightening
+    // would have to delete this test rather than silently regressing.
+    // Composite glyphs (Variation-Selector + ZWJ) depend on the host
+    // font rendering, but the validator's job is purely structural —
+    // it accepts them and trusts the renderer's <text> + system font
+    // to draw them.
+    const labels = [
+      '🔊',
+      '📁 Files',
+      '⚠️', // text + variation-selector
+      '👨‍👩‍👧', // ZWJ-joined family composite
+      '🇩🇪', // regional-indicator pair (flag)
+      '設定', // CJK
+      'إعدادات', // Arabic / RTL
+      'café', // Latin-1 with combining-ish accent
+      'naïve', // diaeresis
+    ];
+    for (const label of labels) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        sectors: [{ label }],
+      });
+      expect(r.ok, `label=${JSON.stringify(label)}`).toBe(true);
+      if (r.ok) {
+        const sector = r.config.sectors[0];
+        expect(sector?.label).toBe(label);
+      }
+    }
+  });
+
   it('rejects a sector with no label', () => {
     const r = validateMenuConfig({ version: MENU_CONFIG_VERSION, sectors: [{}] });
     expect(r.ok).toBe(false);
