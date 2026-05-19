@@ -6,15 +6,17 @@ import { spawn } from 'node:child_process';
 import { describeError } from '../../shared/errors.js';
 import type { ActionHandler } from '../../shared/plugin-types.js';
 
+import { tokenize } from './tokenize.js';
+
 /**
  * Built-in exec action.
  *
  * Spawns a command line as a detached subprocess so the spawned
  * program survives this Electron process and never blocks the
- * action dispatch path. Whitespace tokenisation is intentionally
- * the simplest possible split — quoted arguments with spaces are
- * not yet supported; that lands as part of a richer parser when
- * we wire the action-editor UI in Phase 2.
+ * action dispatch path. Tokenisation is shlex-style (see
+ * `./tokenize.ts`): whitespace splits, double / single quotes
+ * group, so paths with spaces (`xdg-open "Mein File.pdf"`) reach
+ * spawn() as a single argv entry instead of three corrupted ones.
  *
  * Config schema:
  *   command (string, required): the command line to run. The first
@@ -27,7 +29,7 @@ export const execAction: ActionHandler = async (config, ctx) => {
     ctx.log('exec invoked without "command" config — nothing to spawn');
     return;
   }
-  const tokens = command.split(/\s+/);
+  const tokens = tokenize(command);
   const bin = tokens[0];
   const args = tokens.slice(1);
   if (!bin) {
