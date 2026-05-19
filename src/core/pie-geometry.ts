@@ -54,7 +54,10 @@ const TAU = Math.PI * 2;
  * sector 0 sits at the top of the menu regardless of the chosen
  * sectorCount.
  */
-export function axesToSector(axes: PieAxes, config: PieGeometryConfig = DEFAULT_PIE_GEOMETRY): number | null {
+export function axesToSector(
+  axes: PieAxes,
+  config: PieGeometryConfig = DEFAULT_PIE_GEOMETRY,
+): number | null {
   const sectors = Math.max(2, Math.floor(config.sectorCount));
   const x = config.invertX ? -axes.tx : axes.tx;
   // invertY=true maps the puck's "push forward" (+ty) to math-up
