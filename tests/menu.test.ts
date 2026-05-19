@@ -9,6 +9,7 @@ import {
   DEFAULT_AXIS_INVERT,
   DEFAULT_MENU_CONFIG,
   DEFAULT_TRIGGER_BUTTON,
+  MAX_MENU_DEPTH,
   MENU_CONFIG_VERSION,
   builtinAction,
   resolveAxisInvert,
@@ -301,6 +302,50 @@ describe('validateMenuConfig — nested submenus', () => {
     if (r.ok) {
       expect(r.config.magnitudeDrill).toEqual({ enabled: true, threshold: 250 });
       expect(r.config.tiltDrill).toEqual({ enabled: true, threshold: 200 });
+    }
+  });
+
+  it('accepts a config nested exactly to MAX_MENU_DEPTH', () => {
+    // Boundary spec: the deepest leaf sits at depth = MAX_MENU_DEPTH.
+    // Pin so a future "off-by-one tightening" of the cap would
+    // surface here rather than silently rejecting menus that were
+    // valid yesterday.
+    const leaf = {
+      label: 'leaf',
+      binding: { action: builtinAction('exec'), config: { command: 'x' } },
+    };
+    let node: Record<string, unknown> = leaf;
+    for (let d = 0; d < MAX_MENU_DEPTH; d++) {
+      node = { label: `L${d}`, children: [node] };
+    }
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [node],
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it('rejects a config one level deeper than MAX_MENU_DEPTH', () => {
+    // Construct exactly MAX_MENU_DEPTH + 1 levels of nesting under
+    // a single top-level branch. The reason should name the
+    // offending path and the configured cap so a user can see how
+    // far they went over.
+    const leaf = {
+      label: 'leaf',
+      binding: { action: builtinAction('exec'), config: { command: 'x' } },
+    };
+    let node: Record<string, unknown> = leaf;
+    for (let d = 0; d <= MAX_MENU_DEPTH; d++) {
+      node = { label: `L${d}`, children: [node] };
+    }
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [node],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toContain('exceeds maximum nesting depth');
+      expect(r.reason).toContain(String(MAX_MENU_DEPTH));
     }
   });
 
