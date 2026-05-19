@@ -58,6 +58,7 @@ endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     list(APPEND DAEMON_SOURCES
         src/daemon/input_linux.c
+        src/daemon/inject_linux.c
         src/daemon/platform_linux.c
     )
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")

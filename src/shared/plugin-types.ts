@@ -97,6 +97,12 @@ export type ActionContext = {
   log: (message: string) => void;
   /** Plugin id, useful when an action shells out and wants to identify itself. */
   pluginId: string;
+  /** Inject a modifier+key chord through the daemon's uinput device.
+   *  `modifiers` and `key` are Linux keycodes from
+   *  `<linux/input-event-codes.h>`; see `src/main/builtins/keycodes.ts`
+   *  for the symbolic-name map. Fire-and-forget — the daemon silently
+   *  no-ops if `/dev/uinput` was unavailable at startup. */
+  injectChord: (modifiers: number[], key: number) => void;
 };
 
 /** Signature every action implementation must match. Plugins

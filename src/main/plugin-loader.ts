@@ -18,6 +18,8 @@ import {
 } from '../shared/plugin-types.js';
 import { dedupPreserveOrder } from '../shared/util.js';
 
+import type { DaemonClient } from './daemon-client.js';
+
 /**
  * Discover plugins under the standard XDG paths, validate their
  * manifest, and import their handler module.
@@ -197,15 +199,19 @@ export function validateManifest(value: unknown): string | null {
   return null;
 }
 
-/** Build a per-plugin ActionContext with a logger that prefixes every
- *  message with the plugin id. */
-export function makeActionContext(pluginId: string): ActionContext {
+/** Build a per-plugin ActionContext. The logger prefixes every
+ *  message with the plugin id; `injectChord` is a thin pass-through
+ *  to the daemon so plugins never hold a `DaemonClient` reference
+ *  themselves and the dispatch path is the same for built-ins and
+ *  third-party plugins. */
+export function makeActionContext(pluginId: string, daemon: DaemonClient): ActionContext {
   return {
     pluginId,
     log: (message: string) => {
       // eslint-disable-next-line no-console
       console.log(`[plugin ${pluginId}] ${message}`);
     },
+    injectChord: (modifiers, key) => daemon.injectChord(modifiers, key),
   };
 }
 

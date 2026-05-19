@@ -65,7 +65,14 @@ export type DaemonCommand =
   | { kind: 'unsubscribe' }
   | { kind: 'grab' }
   | { kind: 'release' }
-  | { kind: 'ping' };
+  | { kind: 'ping' }
+  /**
+   * Inject one modifier+key chord through the daemon's uinput device.
+   * `modifiers` are Linux keycodes held during the tap (e.g. 56 for
+   * KEY_LEFTALT); `key` is the keycode tapped (e.g. 15 for KEY_TAB).
+   * The renderer's parseChord() already produces these codes — no
+   * translation table needed in flight. */
+  | { kind: 'inject-chord'; modifiers: number[]; key: number };
 
 export function encodeCommand(cmd: DaemonCommand): string {
   switch (cmd.kind) {
@@ -80,5 +87,10 @@ export function encodeCommand(cmd: DaemonCommand): string {
       return 'RELEASE\n';
     case 'ping':
       return 'PING\n';
+    case 'inject-chord':
+      // Wire form is "INJECT_CHORD <c1> <c2> ... <cN>" where the
+      // last code is the key and everything before it is held as
+      // modifiers. Empty modifiers means "tap key alone".
+      return `INJECT_CHORD ${[...cmd.modifiers, cmd.key].join(' ')}\n`;
   }
 }

@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "inject.h"
 #include "input.h"
 #include "socket.h"
 
@@ -90,6 +91,15 @@ int main(void)
 		return 1;
 	}
 	fprintf(stderr, "spaceux-daemon: listening on %s\n", sock.listener.path);
+
+	/* Key-injection is best-effort: a daemon without /dev/uinput
+	 * access keeps the rest of its job (puck reading + broadcast)
+	 * and INJECT_CHORD commands silently no-op via inject_chord's
+	 * negative-fd guard. */
+	int inject_fd = inject_open();
+	sock_set_inject_fd(&sock, inject_fd);
+	if (inject_fd >= 0)
+		fprintf(stderr, "spaceux-daemon: key injection ready\n");
 
 	int input_fd = input_open();
 	long long last_input_retry = time_ms();
@@ -160,6 +170,7 @@ int main(void)
 	fprintf(stderr, "spaceux-daemon: shutting down\n");
 	if (input_fd >= 0)
 		input_close(input_fd);
+	inject_close(inject_fd);
 	sock_close(&sock);
 	return 0;
 }
