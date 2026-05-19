@@ -40,6 +40,10 @@ export type SpaceUxBridge = {
   /** Pie menu commit / dismiss request from main (no payload). */
   onMenuCommit(handler: () => void): () => void;
   invokeAction(key: string, config: Record<string, unknown>): Promise<void>;
+  /** Ask main to actually hide the pie window. Called after the
+   *  renderer's commit handler decides this is a real close (leaf
+   *  fire or silent dismiss) and not a drill-into-submenu. */
+  closeMenu(): Promise<void>;
 };
 
 declare global {

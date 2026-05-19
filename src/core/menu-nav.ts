@@ -52,8 +52,14 @@ export type DrillAction =
    *  caller doesn't have to gate the dispatch. */
   | { type: 'pop' }
   /** Commit on a branch sector: push that sector's index onto the
-   *  navigation stack and reset selection in the new ring. */
-  | { type: 'drill'; index: number };
+   *  navigation stack and set the selection in the new ring.
+   *  `nextSticky` lets the caller carry the parent's sticky position
+   *  into the deeper ring (clamped to the children's range) so a
+   *  drill-in done while the puck has already returned to the
+   *  deadzone shows a sensible default highlight instead of the
+   *  red cancel target. Pass `null` to start the new ring with no
+   *  selection. */
+  | { type: 'drill'; index: number; nextSticky: number | null };
 
 /**
  * Pure state transition. Returns a new state when something changes,
@@ -74,12 +80,19 @@ export function drillReducer(state: DrillState, action: DrillAction): DrillState
       if (state.navigation.length === 0) return state;
       return {
         navigation: state.navigation.slice(0, -1),
-        stickyChildIndex: null,
+        // Land sticky on the popped index — the sector we drilled
+        // into now appears highlighted in the parent ring, giving
+        // the user a clear "you came from here" cue instead of the
+        // red cancel target the user complained about. Falls back
+        // to `null` only when the navigation is empty (can't happen
+        // given the guard above, but the optional access satisfies
+        // strict array-index typing).
+        stickyChildIndex: state.navigation[state.navigation.length - 1] ?? null,
       };
     case 'drill':
       return {
         navigation: [...state.navigation, action.index],
-        stickyChildIndex: null,
+        stickyChildIndex: action.nextSticky,
       };
   }
 }
@@ -107,4 +120,23 @@ export function currentSectors(config: MenuConfig, navigation: number[]): MenuSe
     level = next;
   }
   return level;
+}
+
+/**
+ * Children of the currently-hovered sector in the active ring, or
+ * `undefined` if no sector is hovered or the hovered sector is a
+ * leaf. The renderer reads this to decide whether (and what) to
+ * draw as the concentric outer preview ring.
+ *
+ * Pure: no React, no DOM. Pinned in tests so the renderer-side
+ * trigger for the outer ring is decoupled from React-rendering
+ * test infrastructure.
+ */
+export function previewChildren(
+  config: MenuConfig,
+  drillState: DrillState,
+): MenuSector[] | undefined {
+  if (drillState.stickyChildIndex === null) return undefined;
+  const ring = currentSectors(config, drillState.navigation);
+  return ring[drillState.stickyChildIndex]?.children;
 }
