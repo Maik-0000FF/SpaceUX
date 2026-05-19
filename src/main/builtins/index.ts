@@ -22,6 +22,12 @@ import { keyCombo } from './key-combo.js';
  */
 export const BUILTIN_PLUGIN: LoadedPlugin = {
   manifest: {
+    // Built-in plugin is bundled with the host and intentionally
+    // tracks PLUGIN_API_VERSION — it can never be out of date because
+    // it ships in the same release. If a future refactor pipes the
+    // built-in manifest through validateManifest(), this pin keeps
+    // the check trivially satisfied; bumps stay synchronous with the
+    // host on purpose.
     apiVersion: PLUGIN_API_VERSION,
     id: BUILTIN_PLUGIN_ID,
     name: 'Built-in Actions',
