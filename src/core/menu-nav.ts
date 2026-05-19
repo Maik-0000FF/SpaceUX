@@ -21,7 +21,11 @@
  *     the reducer only mutates the navigation/selection state.
  */
 
-import type { MenuConfig, MenuSector } from '@/shared/menu';
+// Relative import: src/core/ is shared between the renderer tsconfig
+// (which has the `@/shared/*` path alias) and the main-process
+// tsconfig.electron.json (which doesn't). Sticking to relative keeps
+// this module buildable under both without duplicating the alias.
+import type { MenuConfig, MenuSector } from '../shared/menu';
 
 export type DrillState = {
   navigation: number[];
