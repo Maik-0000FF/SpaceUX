@@ -76,6 +76,34 @@ body {
   pointer-events: none;
 }
 
+/* Central cancel target — highlighted whenever the selection clears
+ * (puck back in deadzone). Commit in that state is a silent dismiss. */
+.pie-cancel-center {
+  fill: var(--pie-bg);
+  stroke: var(--pie-border);
+  stroke-width: 1.5;
+  transition:
+    fill var(--transition-fast),
+    stroke var(--transition-fast);
+}
+
+.pie-cancel-center.is-active {
+  fill: rgba(180, 80, 80, 0.85);
+  stroke: var(--pie-border-active);
+}
+
+.pie-cancel-label {
+  fill: rgba(240, 240, 240, 0.55);
+  font-size: 28px;
+  font-weight: bold;
+  pointer-events: none;
+  transition: fill var(--transition-fast);
+}
+
+.pie-cancel-label.is-active {
+  fill: var(--pie-label-active);
+}
+
 /* ── Connection status ──────────────────────────────────────────────── */
 
 .status-indicator {

@@ -43,9 +43,20 @@ export function App() {
 
   // Update sticky selection as the puck moves. Only writes when the
   // axes leave the deadzone, so a return-to-centre preserves the
-  // user's last choice.
+  // user's last choice — they can release the puck and then commit.
+  //
+  // Z-axis (push OR pull) is the explicit cancel: any TZ deflection
+  // past the deadzone in either direction clears the sticky selection,
+  // the central "cancel" target lights up, and a commit silently
+  // dismisses. Direction-agnostic on purpose — neither sign is
+  // intuitively "more cancel" than the other, and accepting both
+  // saves users from learning the polarity of their specific puck.
   useEffect(() => {
     if (!menuAnchor || !menuConfig) return;
+    if (Math.abs(axes.tz) > DEFAULT_PIE_GEOMETRY.deadzone) {
+      if (stickySector !== null) setStickySector(null);
+      return;
+    }
     const invert = resolveAxisInvert(menuConfig);
     const sec = axesToSector(
       { tx: axes.tx, ty: axes.ty },
