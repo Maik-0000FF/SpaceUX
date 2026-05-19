@@ -8,6 +8,7 @@ import {
   axesMagnitude,
   axesToSector,
   clampPieAnchor,
+  rotateAxes,
   sectorCenterAngle,
   shouldCancelOnZ,
   type PieGeometryConfig,
@@ -86,6 +87,30 @@ describe('sectorCenterAngle', () => {
   it('wraps modulo sectorCount', () => {
     expect(sectorCenterAngle(8, 8)).toBe(0);
     expect(sectorCenterAngle(9, 8)).toBeCloseTo(Math.PI / 4);
+  });
+});
+
+describe('rotateAxes', () => {
+  it('returns the input unchanged when angle is 0', () => {
+    expect(rotateAxes({ tx: 3, ty: 4 }, 0)).toEqual({ tx: 3, ty: 4 });
+  });
+
+  it('rotates (1, 0) by +π/2 to (0, 1)', () => {
+    // Pinning the rotation convention: positive angle rotates from
+    // +X toward +Y. The puck-to-sector mapper in App.tsx passes
+    // the *negative* of the ring offset, so flipping this
+    // convention would silently put the puck on the wrong sector
+    // after a drill.
+    const result = rotateAxes({ tx: 1, ty: 0 }, Math.PI / 2);
+    expect(result.tx).toBeCloseTo(0);
+    expect(result.ty).toBeCloseTo(1);
+  });
+
+  it('round-trips by +θ then −θ back to the input', () => {
+    const original = { tx: 2.5, ty: -1.3 };
+    const out = rotateAxes(rotateAxes(original, Math.PI / 3), -Math.PI / 3);
+    expect(out.tx).toBeCloseTo(original.tx);
+    expect(out.ty).toBeCloseTo(original.ty);
   });
 });
 

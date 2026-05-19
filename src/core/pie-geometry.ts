@@ -107,6 +107,28 @@ export function axesMagnitude(axes: PieAxes): number {
 }
 
 /**
+ * Rotate the lateral axes vector by `angle` radians. Used to align
+ * the puck-to-sector mapping with a visually-rotated ring: pass the
+ * negative of the ring's rotation offset to "undo" the rotation
+ * before running `axesToSector`, so the puck pointing at the
+ * parent sector's screen direction still resolves to the
+ * corresponding visual sector after a drill-in.
+ *
+ * Pure 2D rotation matrix on `tx`/`ty`. The axis-inversion flags
+ * inside `axesToSector` are applied to the *rotated* output, which
+ * is what callers want — invert is a per-user puck calibration and
+ * should still apply post-rotation.
+ */
+export function rotateAxes(axes: PieAxes, angle: number): PieAxes {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return {
+    tx: axes.tx * c - axes.ty * s,
+    ty: axes.tx * s + axes.ty * c,
+  };
+}
+
+/**
  * Whether a TZ deflection should clear the sticky selection and light
  * up the cancel target. Direction-agnostic on purpose — push OR pull
  * both register, so users don't have to learn their puck's TZ polarity.

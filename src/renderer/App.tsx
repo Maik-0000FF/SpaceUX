@@ -7,13 +7,14 @@ import {
   INITIAL_DRILL_STATE,
   currentSectors,
   drillReducer,
+  navigationRingRotation,
   type DrillState,
 } from '@/core/menu-nav';
 import {
   axesMagnitude,
   axesToSector,
   DEFAULT_PIE_GEOMETRY,
-  sectorCenterAngle,
+  rotateAxes,
   shouldCancelOnZ,
 } from '@/core/pie-geometry';
 import { resolveAxisInvert, type MenuConfig } from '@/shared/menu';
@@ -114,27 +115,18 @@ export function App() {
     // puck-to-sector mapping has to follow that rotation — rotate
     // the lateral axes by -offset before resolving, so a "push
     // toward the parent" still resolves to the same visual sector
-    // it points at.
-    let ringRotation = 0;
-    if (navigation.length > 0) {
-      const parentRing = currentSectors(menuConfig, navigation.slice(0, -1));
-      const drilledIntoIndex = navigation[navigation.length - 1]!;
-      ringRotation = sectorCenterAngle(drilledIntoIndex, parentRing.length);
-    }
-    const cosR = Math.cos(-ringRotation);
-    const sinR = Math.sin(-ringRotation);
-    const rotatedTx = axes.tx * cosR - axes.ty * sinR;
-    const rotatedTy = axes.tx * sinR + axes.ty * cosR;
+    // it points at. The rotation formula is shared with PieMenu
+    // via `navigationRingRotation` so the two sites cannot
+    // silently disagree.
+    const ringRotation = navigationRingRotation(menuConfig, navigation);
+    const rotated = rotateAxes({ tx: axes.tx, ty: axes.ty }, -ringRotation);
 
-    const rawSec = axesToSector(
-      { tx: rotatedTx, ty: rotatedTy },
-      {
-        ...DEFAULT_PIE_GEOMETRY,
-        sectorCount: current.length,
-        invertX: invert.x,
-        invertY: invert.y,
-      },
-    );
+    const rawSec = axesToSector(rotated, {
+      ...DEFAULT_PIE_GEOMETRY,
+      sectorCount: current.length,
+      invertX: invert.x,
+      invertY: invert.y,
+    });
     // axesToSector clamps sectorCount to a minimum of 2 internally
     // (the math falls apart below that), so a 1-child ring can
     // return index 1 — which no wedge owns. Clamp on the way out
