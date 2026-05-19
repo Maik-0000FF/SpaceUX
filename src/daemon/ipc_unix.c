@@ -12,6 +12,7 @@
  */
 #define _GNU_SOURCE
 #include "ipc.h"
+#include "config.h"
 #include "platform.h"
 
 #include <errno.h>
@@ -86,10 +87,12 @@ int ipc_listener_open(struct ipc_listener *l)
 		close(fd);
 		return -1;
 	}
-	/* Backlog matches the daemon's MAX_CLIENTS so a slot-storm at
-	 * startup doesn't drop connections inside the kernel before we
-	 * see them. */
-	if (listen(fd, 8) < 0) {
+	/* Backlog tracks the daemon's MAX_CLIENTS so a slot-storm at
+	 * startup doesn't drop connections inside the kernel before
+	 * the dispatch layer sees them. Coupling to SPACEUX_MAX_CLIENTS
+	 * (rather than a hardcoded literal) keeps the two values
+	 * synchronised when the slot ceiling is bumped. */
+	if (listen(fd, SPACEUX_MAX_CLIENTS) < 0) {
 		close(fd);
 		unlink(l->path);
 		return -1;
