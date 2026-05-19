@@ -55,4 +55,19 @@
  * spam syslog with "no device" while the cable is out. */
 #define SPACEUX_INPUT_RETRY_MS 1000
 
+/* ── Per-client INJECT_CHORD rate limit ─────────────────────────────── */
+
+/* Leaky-bucket parameters for INJECT_CHORD. The puck fires chords at
+ * human pace (a few per second at most) so the steady-state rate is
+ * a generous cap on what a *legitimate* client needs; the burst
+ * absorbs e.g. two chords in quick succession when the user mashes
+ * the trigger. A misbehaving or hostile same-UID process that spams
+ * INJECT_CHORD will exhaust the bucket within ~250 ms and have
+ * subsequent chords dropped (with an audit log line per drop).
+ *
+ * Bump the rate if a real workflow ever needs more — the cost of
+ * being more permissive is bounded by what /dev/uinput can sustain. */
+#define SPACEUX_CHORD_RATE_PER_SEC 20
+#define SPACEUX_CHORD_BURST 5
+
 #endif /* SPACEUX_DAEMON_CONFIG_H */

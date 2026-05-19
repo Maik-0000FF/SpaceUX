@@ -164,3 +164,35 @@ void ipc_close(int fd)
 	if (fd >= 0)
 		close(fd);
 }
+
+int ipc_peer_credentials(int fd, struct ipc_peer *out)
+{
+#if defined(__linux__)
+	struct ucred cred;
+	socklen_t len = sizeof(cred);
+	if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) < 0)
+		return -1;
+	out->uid = (int)cred.uid;
+	out->gid = (int)cred.gid;
+	out->pid = (int)cred.pid;
+	return 0;
+#elif defined(__APPLE__) || defined(__FreeBSD__)
+	/* macOS / *BSD expose getpeereid() but no pid alongside it —
+	 * forensics on those platforms gets uid/gid only, which is
+	 * still enough for the UID-match authorization check. */
+	uid_t uid;
+	gid_t gid;
+	if (getpeereid(fd, &uid, &gid) < 0)
+		return -1;
+	out->uid = (int)uid;
+	out->gid = (int)gid;
+	out->pid = -1;
+	return 0;
+#else
+	(void)fd;
+	out->uid = -1;
+	out->gid = -1;
+	out->pid = -1;
+	return -1;
+#endif
+}
