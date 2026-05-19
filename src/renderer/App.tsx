@@ -1,25 +1,13 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useReducer, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import {
-  INITIAL_DRILL_STATE,
-  currentSectors,
-  drillReducer,
-  navigationRingRotation,
-  type DrillState,
-} from '@/core/menu-nav';
-import {
-  axesMagnitude,
-  axesToSector,
-  DEFAULT_PIE_GEOMETRY,
-  rotateAxes,
-  shouldCancelOnZ,
-} from '@/core/pie-geometry';
-import { resolveAxisInvert, type MenuConfig } from '@/shared/menu';
+import { currentSectors, type DrillState } from '@/core/menu-nav';
+import { type MenuConfig } from '@/shared/menu';
 
 import { PieMenu } from './PieMenu';
+import { useDrillNavigation } from './hooks/useDrillNavigation';
 import { useSpaceMouse } from './hooks/useSpaceMouse';
 
 /**
@@ -40,135 +28,22 @@ export function App() {
   const { axes, daemonStatus } = useSpaceMouse();
   const [menuConfig, setMenuConfig] = useState<MenuConfig | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
-  // Navigation + sticky selection.
-  //
-  // The reducer carries both pieces because every commit/TZ-edge
-  // resets the selection alongside changing the navigation depth.
-  // Keeping them in one state means React batches the two updates
-  // and the renderer never sees a transient "old selection in new
-  // ring" frame.
-  //
-  // Pure helpers in @/core/menu-nav let vitest pin every transition
-  // without a renderer harness. The app code below is just the glue
-  // that maps puck/IPC events onto reducer actions.
-  const [drillState, dispatch] = useReducer(drillReducer, INITIAL_DRILL_STATE);
 
-  // Refs let the commit listener read the latest values without
-  // re-subscribing on every frame.
-  const drillStateRef = useRef<DrillState>(drillState);
-  drillStateRef.current = drillState;
+  // All puck-driven state (navigation, sticky, rising-edge refs for
+  // TZ-cancel / lateral-magnitude / tilt) lives in
+  // `useDrillNavigation`. App.tsx just owns the IPC subscription
+  // and the render — the hook hides the puck-handling effect so the
+  // top-level component stays readable as feature work continues.
+  const { drillState, dispatch, drillStateRef, resetTransientRefs } = useDrillNavigation({
+    axes,
+    menuConfig,
+    menuOpen: menuAnchor !== null,
+  });
+
+  // configRef lets the IPC commit listener read the latest config
+  // without re-subscribing on every config push from main.
   const configRef = useRef(menuConfig);
   configRef.current = menuConfig;
-
-  // TZ-cancel was edge-triggered already for "clear selection".
-  // Tracking the previous frame's deflection lets us *also* fire a
-  // single pop on the rising edge when the user is drilled in,
-  // without popping every frame while the puck is held.
-  const wasCancelingRef = useRef<boolean>(false);
-  // Mirror of the cancel-ref for the optional magnitude-drill
-  // feature: tracks whether the *previous* frame already had the
-  // puck deflected past `magnitudeDrill.threshold`, so a sustained
-  // push only fires a single drill rather than cascading through
-  // every nested level. Stays at `false` for users who haven't
-  // enabled the feature, so the cost is one boolean read per frame.
-  const wasMagnitudeOverRef = useRef<boolean>(false);
-
-  // Update sticky selection (and possibly pop the navigation stack)
-  // as the puck moves. Only fires reducer dispatches when something
-  // actually changes — the reducer short-circuits identity-matching
-  // states so React doesn't churn on every puck frame.
-  //
-  // Z-axis (push OR pull) is the explicit cancel/back. Below the
-  // deadzone the lateral axes pick the sector in the current ring;
-  // crossing the deadzone clears the selection (cancel target
-  // lights up) and, if the user has drilled in, pops one level on
-  // the rising edge. Direction-agnostic on purpose — saves users
-  // learning their puck's TZ polarity.
-  useEffect(() => {
-    if (!menuAnchor || !menuConfig) return;
-    const canceling = shouldCancelOnZ(axes.tz, DEFAULT_PIE_GEOMETRY.deadzone);
-    const tzRising = canceling && !wasCancelingRef.current;
-    wasCancelingRef.current = canceling;
-
-    if (canceling) {
-      // Edge-trigger only: a sustained TZ should not keep
-      // re-firing or re-clearing state. The rising edge picks the
-      // right transition based on depth — pop one level when
-      // drilled, clear sticky at top level so the cancel target
-      // lights up and a commit becomes a silent dismiss.
-      if (tzRising) {
-        if (drillStateRef.current.navigation.length > 0) {
-          dispatch({ type: 'pop' });
-        } else {
-          dispatch({ type: 'hover', index: null });
-        }
-      }
-      return;
-    }
-
-    const navigation = drillStateRef.current.navigation;
-    const current = currentSectors(menuConfig, navigation);
-    const invert = resolveAxisInvert(menuConfig);
-
-    // Outer ring rotates so its first sector aligns with the
-    // parent sector the user drilled in from (see PieMenu). The
-    // puck-to-sector mapping has to follow that rotation — rotate
-    // the lateral axes by -offset before resolving, so a "push
-    // toward the parent" still resolves to the same visual sector
-    // it points at. The rotation formula is shared with PieMenu
-    // via `navigationRingRotation` so the two sites cannot
-    // silently disagree.
-    const ringRotation = navigationRingRotation(menuConfig, navigation);
-    const rotated = rotateAxes({ tx: axes.tx, ty: axes.ty }, -ringRotation);
-
-    const rawSec = axesToSector(rotated, {
-      ...DEFAULT_PIE_GEOMETRY,
-      sectorCount: current.length,
-      invertX: invert.x,
-      invertY: invert.y,
-    });
-    // axesToSector clamps sectorCount to a minimum of 2 internally
-    // (the math falls apart below that), so a 1-child ring can
-    // return index 1 — which no wedge owns. Clamp on the way out
-    // so the sticky always lands on an existing sector.
-    const sec = rawSec === null ? null : rawSec % current.length;
-
-    // Optional puck-magnitude drill: when configured and enabled,
-    // crossing the threshold from below while hovering a branch
-    // sector auto-drills into it. The check sits *between* the
-    // hover dispatch and the rest of the frame so a drilled-in
-    // frame already has the correct sticky set on the new ring.
-    //
-    // Rising-edge only: the puck has to dip back below the
-    // threshold before another magnitude-drill can fire. Without
-    // this, a sustained push past the threshold would cascade
-    // through every nested branch in a single gesture.
-    const drillConfig = menuConfig.magnitudeDrill;
-    const magnitudeOver =
-      drillConfig?.enabled === true &&
-      axesMagnitude({ tx: axes.tx, ty: axes.ty }) >= drillConfig.threshold;
-    const magnitudeRising = magnitudeOver && !wasMagnitudeOverRef.current;
-    wasMagnitudeOverRef.current = magnitudeOver;
-
-    if (magnitudeRising && sec !== null) {
-      const hovered = current[sec];
-      if (hovered?.children) {
-        // child[0] aligns with the parent sector's angle thanks to
-        // the outer-ring rotation, so landing sticky on 0 matches
-        // the user's puck direction without the brief wrong-child
-        // flash that `Math.min(sec, ...)` would produce.
-        dispatch({ type: 'drill', index: sec, nextSticky: 0 });
-        return;
-      }
-    }
-
-    if (sec !== null) dispatch({ type: 'hover', index: sec });
-    // `drillState.navigation` is read via `drillStateRef`, not from
-    // the dep array. axes ticks frequently enough that the next
-    // frame always picks up a fresh post-drill navigation; adding
-    // `drillState` here would re-run the effect on every reducer
-    // dispatch, defeating the identity short-circuits inside it.
-  }, [axes, menuAnchor, menuConfig]);
 
   useEffect(() => {
     // Pull once on mount so we never miss the initial config to a
@@ -187,10 +62,11 @@ export function App() {
     const offOpen = window.spaceux.onMenuOpen(({ x, y }) => {
       // Every menu open starts with a clean slate so a previous
       // session's leftover (selection AND drilled-in depth) doesn't
-      // carry over.
+      // carry over. `resetTransientRefs` clears the rising-edge
+      // memories inside the hook too, so a still-held puck from the
+      // previous session can't fire on the first frame.
       dispatch({ type: 'reset' });
-      wasCancelingRef.current = false;
-      wasMagnitudeOverRef.current = false;
+      resetTransientRefs();
       setMenuAnchor({ x, y });
     });
     const offCommit = window.spaceux.onMenuCommit(() => {
