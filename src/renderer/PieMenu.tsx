@@ -95,13 +95,10 @@ export function PieMenu({
   // from. The actual sector arrays are derived through the shared
   // `currentSectors` walker so App.tsx and PieMenu can't disagree
   // about which ring is which.
-  const activeRing = useMemo(
-    () => currentSectors(config, navigation as number[]),
-    [config, navigation],
-  );
+  const activeRing = useMemo(() => currentSectors(config, navigation), [config, navigation]);
   const isDrilled = navigation.length > 0;
   const parentRing = useMemo(
-    () => (isDrilled ? currentSectors(config, navigation.slice(0, -1) as number[]) : null),
+    () => (isDrilled ? currentSectors(config, navigation.slice(0, -1)) : null),
     [config, navigation, isDrilled],
   );
   const drilledIntoIndex = isDrilled ? navigation[navigation.length - 1]! : null;

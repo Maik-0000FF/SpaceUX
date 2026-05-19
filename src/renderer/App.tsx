@@ -142,7 +142,7 @@ export function App() {
         // local state resets so the next open starts clean.
         setMenuAnchor(null);
         dispatch({ type: 'reset' });
-        void window.spaceux.closeMenu();
+        window.spaceux.closeMenu();
         return;
       }
       const current = currentSectors(cfg, navigation);
@@ -166,7 +166,7 @@ export function App() {
       // fire the action if there is one.
       setMenuAnchor(null);
       dispatch({ type: 'reset' });
-      void window.spaceux.closeMenu();
+      window.spaceux.closeMenu();
       if (!sector?.binding) return;
       const { action, config: actionConfig } = sector.binding;
       window.spaceux.invokeAction(action, actionConfig ?? {}).catch((err: unknown) => {

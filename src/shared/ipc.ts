@@ -43,7 +43,9 @@ export const IpcChannel = {
    *  it only sends MENU_COMMIT and lets the renderer decide whether
    *  to drill into a submenu (menu stays open) or actually close
    *  (leaf-commit, silent-dismiss). This channel is the renderer's
-   *  callback for the "actually close" path. */
+   *  callback for the "actually close" path. Fire-and-forget
+   *  (renderer→main via `ipcRenderer.send`) — no return value, no
+   *  error path, the renderer just signals intent. */
   CLOSE_MENU: 'spaceux:close-menu',
 } as const;
 

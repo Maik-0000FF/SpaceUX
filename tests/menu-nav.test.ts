@@ -81,11 +81,12 @@ describe('drillReducer', () => {
     expect(result.stickyChildIndex).toBeNull();
   });
 
-  it('drill carries a clamped sticky index into the new ring', () => {
-    // The App.tsx commit handler clamps the parent's sticky to the
-    // children's range; the reducer just applies whatever the action
-    // says. Pin both branches: out-of-range never reaches here, but
-    // an explicit positive carry should land unchanged.
+  it('drill applies the caller-provided nextSticky as-is (no reducer-side clamping)', () => {
+    // Clamping is the caller's responsibility — App.tsx's commit
+    // handler applies Math.min(parentSticky, children.length - 1)
+    // before dispatching. The reducer stays a pure mapper so this
+    // policy can change in one place without rewriting the
+    // transition.
     const state: DrillState = { navigation: [], stickyChildIndex: 2 };
     const result = drillReducer(state, { type: 'drill', index: 2, nextSticky: 1 });
     expect(result.stickyChildIndex).toBe(1);

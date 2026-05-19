@@ -42,8 +42,9 @@ export type SpaceUxBridge = {
   invokeAction(key: string, config: Record<string, unknown>): Promise<void>;
   /** Ask main to actually hide the pie window. Called after the
    *  renderer's commit handler decides this is a real close (leaf
-   *  fire or silent dismiss) and not a drill-into-submenu. */
-  closeMenu(): Promise<void>;
+   *  fire or silent dismiss) and not a drill-into-submenu.
+   *  Fire-and-forget — no acknowledgement, no error path. */
+  closeMenu(): void;
 };
 
 declare global {
