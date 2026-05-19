@@ -36,9 +36,26 @@ export const execAction: ActionHandler = async (config, ctx) => {
       detached: true,
       stdio: 'ignore',
     });
+    // node's child_process.spawn() returns the ChildProcess object
+    // synchronously even when the binary cannot be found — the actual
+    // success or failure arrives asynchronously as either a 'spawn'
+    // event (process is live, pid is set) or an 'error' event (e.g.
+    // ENOENT). Logging "spawned" off the synchronous return would
+    // print a misleading success line before the error landed. The
+    // 'error' handler is also load-bearing: without it, ENOENT
+    // propagates as an uncaught exception in the Electron main
+    // process and the user gets a crash dialog.
+    child.on('spawn', () => {
+      ctx.log(`spawned ${bin} (pid ${child.pid ?? 'unknown'})`);
+    });
+    child.on('error', (err) => {
+      ctx.log(`exec: ${bin} failed: ${describeError(err)}`);
+    });
     child.unref();
-    ctx.log(`spawned ${bin} (pid ${child.pid ?? 'unknown'})`);
   } catch (err) {
+    // Defensive catch for the synchronous failure modes (e.g. invalid
+    // arguments to spawn); ENOENT and friends flow through the 'error'
+    // handler above.
     ctx.log(`exec: spawn failed: ${describeError(err)}`);
   }
 };
