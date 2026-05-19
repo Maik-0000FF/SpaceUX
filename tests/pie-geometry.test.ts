@@ -127,44 +127,27 @@ describe('axesMagnitude', () => {
 });
 
 describe('resolveTzDeadzone', () => {
-  it('returns the lateral deadzone when tzDeadzone is omitted', () => {
+  it('returns the fallback when the override is undefined', () => {
     // Default fallback path: behaviour identical to "no separate TZ
-    // threshold exists" before the field was introduced.
-    const cfg: PieGeometryConfig = {
-      sectorCount: 4,
-      deadzone: 50,
-      invertX: false,
-      invertY: true,
-    };
-    expect(resolveTzDeadzone(cfg)).toBe(50);
+    // threshold configured" — equivalent to pre-#12 behaviour.
+    expect(resolveTzDeadzone(undefined, 50)).toBe(50);
   });
 
-  it('returns tzDeadzone when set (and ignores the lateral value)', () => {
+  it('returns the override when set (ignoring the fallback)', () => {
     // Raising the TZ threshold to filter cross-talk shouldn't drag
     // the lateral selection's sensitivity along with it.
-    const cfg: PieGeometryConfig = {
-      sectorCount: 4,
-      deadzone: 50,
-      tzDeadzone: 120,
-      invertX: false,
-      invertY: true,
-    };
-    expect(resolveTzDeadzone(cfg)).toBe(120);
+    expect(resolveTzDeadzone(120, 50)).toBe(120);
   });
 
-  it('honours an explicit tzDeadzone of 0 as "no TZ threshold"', () => {
-    // `?? deadzone` only fills the gap on `undefined` — a literal 0
+  it('honours an explicit override of 0 as "no TZ threshold"', () => {
+    // `?? fallback` only fills the gap on `undefined` — a literal 0
     // means "fire on any TZ deflection". Edge-case but worth a pin
-    // so a future "tzDeadzone || deadzone" refactor (which would
-    // collapse 0 to the lateral fallback) fails here.
-    const cfg: PieGeometryConfig = {
-      sectorCount: 4,
-      deadzone: 50,
-      tzDeadzone: 0,
-      invertX: false,
-      invertY: true,
-    };
-    expect(resolveTzDeadzone(cfg)).toBe(0);
+    // so a future "override || fallback" refactor (which would
+    // collapse 0 to the fallback) fails here. The validator
+    // currently rejects 0 from menu.json, so this branch is only
+    // reachable from direct in-code callers, but the helper's
+    // contract still has to honour it.
+    expect(resolveTzDeadzone(0, 50)).toBe(0);
   });
 });
 

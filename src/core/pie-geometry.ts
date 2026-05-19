@@ -155,15 +155,20 @@ export function shouldCancelOnZ(tz: number, deadzone: number): boolean {
 }
 
 /**
- * Pick the right TZ-cancel threshold from a geometry config: the
- * dedicated `tzDeadzone` if the user has set one, the lateral
- * `deadzone` otherwise. Centralising the fallback in one helper
- * means every TZ-related call site (cancel/pop, future TZ-cancel
- * UI hints) lands on the same value — the renderer and any
- * tests can't drift apart on the default.
+ * Pick the right TZ-cancel threshold: the caller's `override` if
+ * set, the lateral `fallback` otherwise. Centralising the
+ * `?? fallback` rule in one helper keeps every TZ-related call
+ * site (cancel/pop, future TZ-cancel UI hints, etc.) from
+ * re-implementing the coalesce and drifting on edge cases —
+ * notably the explicit `0` carry, which a future `||`
+ * "simplification" would silently coalesce to the fallback.
+ *
+ * Takes two scalars rather than a `PieGeometryConfig` so the
+ * caller (the per-frame puck-handling effect) doesn't have to
+ * synthesise a config object just to read two fields.
  */
-export function resolveTzDeadzone(config: PieGeometryConfig): number {
-  return config.tzDeadzone ?? config.deadzone;
+export function resolveTzDeadzone(override: number | undefined, fallback: number): number {
+  return override ?? fallback;
 }
 
 /**

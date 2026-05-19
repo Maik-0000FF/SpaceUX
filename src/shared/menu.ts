@@ -324,6 +324,13 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     result.axisInvert = axisInvert;
   }
   if (obj.tzDeadzone !== undefined) {
+    // 0 is rejected here because writing it in `menu.json` is
+    // almost certainly an authoring mistake (the user means
+    // "default" / "no override", not "fire on every TZ tick"). The
+    // helper `resolveTzDeadzone` still treats a literal 0 as
+    // "no threshold" for direct in-code callers — see the
+    // resolveTzDeadzone spec in tests/pie-geometry.test.ts. Keep
+    // these two contracts aligned if either is ever loosened.
     if (
       typeof obj.tzDeadzone !== 'number' ||
       !Number.isFinite(obj.tzDeadzone) ||
