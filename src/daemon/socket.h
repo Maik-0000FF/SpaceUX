@@ -38,6 +38,12 @@ struct sock_state {
 	 * fail-soft behaviour the old ydotool path had when ydotoold
 	 * wasn't running. */
 	int inject_fd;
+	/* hidraw fd owned by the daemon's LED layer. -1 if LED control
+	 * is unavailable (no SpaceMouse hidraw node, or permission
+	 * denied). SET_LED commands parse successfully but led_set
+	 * no-ops; the client side checks the hello event's "led" flag
+	 * to suppress the round-trip entirely when it's known dead. */
+	int led_fd;
 };
 
 /* Bind a UNIX socket at /run/user/<uid>/spaceux.sock and start
@@ -69,6 +75,10 @@ void sock_broadcast_button(struct sock_state *s, int bnum, int pressed);
  * once at startup after inject_open(); -1 disables INJECT_CHORD
  * handling but leaves the rest of the protocol working. */
 void sock_set_inject_fd(struct sock_state *s, int fd);
+
+/* Same idea for the LED layer: wire led_open's fd into dispatch.
+ * -1 disables SET_LED handling. */
+void sock_set_led_fd(struct sock_state *s, int fd);
 
 /* Returns 1 if any client currently holds the GRAB. */
 int sock_any_grabbed(const struct sock_state *s);

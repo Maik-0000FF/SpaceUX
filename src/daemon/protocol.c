@@ -55,7 +55,33 @@ static enum protocol_cmd parse_inject_chord(const char *args, struct protocol_ch
 	return PROTO_CMD_INJECT_CHORD;
 }
 
-enum protocol_cmd protocol_parse_command(const char *line, struct protocol_chord *chord)
+/* Parse "SET_LED 0" or "SET_LED 1". Anything else (extra tokens,
+ * non-numeric, value other than 0/1) returns PROTO_CMD_UNKNOWN so
+ * the daemon ignores it rather than guessing. */
+static enum protocol_cmd parse_set_led(const char *args, int *led_on)
+{
+	if (!led_on)
+		return PROTO_CMD_UNKNOWN;
+	while (*args == ' ' || *args == '\t')
+		args++;
+	if (!*args)
+		return PROTO_CMD_UNKNOWN;
+	char *end;
+	long v = strtol(args, &end, 10);
+	if (end == args)
+		return PROTO_CMD_UNKNOWN;
+	if (v != 0 && v != 1)
+		return PROTO_CMD_UNKNOWN;
+	while (*end == ' ' || *end == '\t')
+		end++;
+	if (*end)
+		return PROTO_CMD_UNKNOWN; /* trailing junk */
+	*led_on = (int)v;
+	return PROTO_CMD_SET_LED;
+}
+
+enum protocol_cmd protocol_parse_command(const char *line, struct protocol_chord *chord,
+					 int *led_on)
 {
 	if (!line)
 		return PROTO_CMD_UNKNOWN;
@@ -76,6 +102,8 @@ enum protocol_cmd protocol_parse_command(const char *line, struct protocol_chord
 	}
 	if (strncmp(line, "INJECT_CHORD ", 13) == 0)
 		return parse_inject_chord(line + 13, chord);
+	if (strncmp(line, "SET_LED ", 8) == 0)
+		return parse_set_led(line + 8, led_on);
 	if (strcmp(line, "UNSUBSCRIBE") == 0)
 		return PROTO_CMD_UNSUBSCRIBE;
 	if (strcmp(line, "GRAB") == 0)
@@ -122,13 +150,15 @@ int protocol_format_button(char *buf, int buf_size, int bnum, int pressed)
 }
 
 int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons,
-			  int inject_available)
+			  int inject_available, int led_available)
 {
 	if (!buf || buf_size <= 0)
 		return -1;
-	int n = snprintf(buf, buf_size,
-			 "{\"event\":\"hello\",\"axes\":%d,\"buttons\":%d,\"inject\":%s}\n",
-			 axes_count, max_buttons, inject_available ? "true" : "false");
+	int n = snprintf(
+		buf, buf_size,
+		"{\"event\":\"hello\",\"axes\":%d,\"buttons\":%d,\"inject\":%s,\"led\":%s}\n",
+		axes_count, max_buttons, inject_available ? "true" : "false",
+		led_available ? "true" : "false");
 	if (n < 0 || n >= buf_size)
 		return -1;
 	return n;

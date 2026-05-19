@@ -49,6 +49,10 @@ export type DaemonStatusPayload =
        *  was reachable at startup). Falsey means key-combo bindings
        *  will silently no-op — the UI should surface that. */
       inject: boolean;
+      /** True if the daemon can drive the SpaceMouse status LED (i.e.
+       *  it found and opened the matching hidraw node). Falsey means
+       *  SET_LED commands silently no-op. */
+      led: boolean;
     }
   | { state: 'disconnected'; reason: string };
 

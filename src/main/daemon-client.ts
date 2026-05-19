@@ -37,6 +37,8 @@ export class DaemonClient extends EventEmitter {
    *  false again after the socket closes — so callers that race the
    *  startup are treated the same as "no injection". */
   private injectAvailableFlag = false;
+  /** Same latching pattern for the LED capability flag. */
+  private ledAvailableFlag = false;
 
   constructor(
     private readonly socketPath: string = defaultSocketPath(),
@@ -96,6 +98,20 @@ export class DaemonClient extends EventEmitter {
     return this.injectAvailableFlag;
   }
 
+  /** Drive the SpaceMouse status LED. Skips the round-trip entirely
+   *  when the daemon has already reported `led: false` in its hello —
+   *  no point waking the daemon to do nothing. */
+  setLed(on: boolean): void {
+    if (!this.ledAvailableFlag) return;
+    this.send({ kind: 'set-led', on });
+  }
+
+  /** Last value the daemon reported in its hello event for LED
+   *  capability. False before any hello arrives. */
+  isLedAvailable(): boolean {
+    return this.ledAvailableFlag;
+  }
+
   // ── Internal ────────────────────────────────────────────────────────
 
   private openSocket(): void {
@@ -119,6 +135,7 @@ export class DaemonClient extends EventEmitter {
     sock.on('close', () => {
       this.socket = null;
       this.injectAvailableFlag = false;
+      this.ledAvailableFlag = false;
       this.emit('disconnected');
       if (!this.explicitlyClosed) {
         this.reconnectTimer = setTimeout(() => {
@@ -161,6 +178,7 @@ export class DaemonClient extends EventEmitter {
     // client object instead of subscribing to every event.
     if (evt.event === 'hello') {
       this.injectAvailableFlag = evt.inject === true;
+      this.ledAvailableFlag = evt.led === true;
     }
     this.emit('event', evt);
   }
