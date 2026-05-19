@@ -1,8 +1,14 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 
+import {
+  INITIAL_DRILL_STATE,
+  currentSectors,
+  drillReducer,
+  type DrillState,
+} from '@/core/menu-nav';
 import { axesToSector, DEFAULT_PIE_GEOMETRY, shouldCancelOnZ } from '@/core/pie-geometry';
 import { resolveAxisInvert, type MenuConfig } from '@/shared/menu';
 
@@ -27,50 +33,72 @@ export function App() {
   const { axes, daemonStatus } = useSpaceMouse();
   const [menuConfig, setMenuConfig] = useState<MenuConfig | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
-  // Sticky selection: latest non-deadzone sector the user pointed at.
-  // The pie highlights this sector and the commit handler fires its
-  // binding, even after the puck has snapped back to centre — so the
-  // user can release the puck and *then* press the trigger without
-  // losing the selection.
-  const [stickySector, setStickySector] = useState<number | null>(null);
+  // Navigation + sticky selection.
+  //
+  // The reducer carries both pieces because every commit/TZ-edge
+  // resets the selection alongside changing the navigation depth.
+  // Keeping them in one state means React batches the two updates
+  // and the renderer never sees a transient "old selection in new
+  // ring" frame.
+  //
+  // Pure helpers in @/core/menu-nav let vitest pin every transition
+  // without a renderer harness. The app code below is just the glue
+  // that maps puck/IPC events onto reducer actions.
+  const [drillState, dispatch] = useReducer(drillReducer, INITIAL_DRILL_STATE);
 
   // Refs let the commit listener read the latest values without
   // re-subscribing on every frame.
-  const stickySectorRef = useRef<number | null>(null);
-  stickySectorRef.current = stickySector;
+  const drillStateRef = useRef<DrillState>(drillState);
+  drillStateRef.current = drillState;
   const configRef = useRef(menuConfig);
   configRef.current = menuConfig;
 
-  // Update sticky selection as the puck moves. Only writes when the
-  // axes leave the deadzone, so a return-to-centre preserves the
-  // user's last choice — they can release the puck and then commit.
+  // TZ-cancel was edge-triggered already for "clear selection".
+  // Tracking the previous frame's deflection lets us *also* fire a
+  // single pop on the rising edge when the user is drilled in,
+  // without popping every frame while the puck is held.
+  const wasCancelingRef = useRef<boolean>(false);
+
+  // Update sticky selection (and possibly pop the navigation stack)
+  // as the puck moves. Only fires reducer dispatches when something
+  // actually changes — the reducer short-circuits identity-matching
+  // states so React doesn't churn on every puck frame.
   //
-  // Z-axis (push OR pull) is the explicit cancel: any TZ deflection
-  // past the deadzone in either direction clears the sticky selection,
-  // the central "cancel" target lights up, and a commit silently
-  // dismisses. Direction-agnostic on purpose — neither sign is
-  // intuitively "more cancel" than the other, and accepting both
-  // saves users from learning the polarity of their specific puck.
+  // Z-axis (push OR pull) is the explicit cancel/back. Below the
+  // deadzone the lateral axes pick the sector in the current ring;
+  // crossing the deadzone clears the selection (cancel target
+  // lights up) and, if the user has drilled in, pops one level on
+  // the rising edge. Direction-agnostic on purpose — saves users
+  // learning their puck's TZ polarity.
   useEffect(() => {
     if (!menuAnchor || !menuConfig) return;
-    if (shouldCancelOnZ(axes.tz, DEFAULT_PIE_GEOMETRY.deadzone)) {
-      if (stickySector !== null) setStickySector(null);
+    const canceling = shouldCancelOnZ(axes.tz, DEFAULT_PIE_GEOMETRY.deadzone);
+    const tzRising = canceling && !wasCancelingRef.current;
+    wasCancelingRef.current = canceling;
+
+    if (canceling) {
+      dispatch({ type: 'hover', index: null });
+      // Edge-trigger: only pop once per fresh TZ deflection so the
+      // user can't burn through the stack in a single sustained
+      // push. The reducer is a no-op at depth 0 so this dispatch
+      // is safe even when there's nothing to pop.
+      if (tzRising) dispatch({ type: 'pop' });
       return;
     }
+
+    const current = currentSectors(menuConfig, drillStateRef.current.navigation);
     const invert = resolveAxisInvert(menuConfig);
     const sec = axesToSector(
       { tx: axes.tx, ty: axes.ty },
       {
         ...DEFAULT_PIE_GEOMETRY,
-        sectorCount: menuConfig.sectors.length,
+        sectorCount: current.length,
         invertX: invert.x,
         invertY: invert.y,
       },
     );
-    if (sec !== null && sec !== stickySector) {
-      setStickySector(sec);
-    }
-  }, [axes, menuAnchor, menuConfig, stickySector]);
+    if (sec !== null) dispatch({ type: 'hover', index: sec });
+  }, [axes, menuAnchor, menuConfig]);
 
   useEffect(() => {
     // Pull once on mount so we never miss the initial config to a
@@ -87,19 +115,36 @@ export function App() {
       setMenuConfig(config);
     });
     const offOpen = window.spaceux.onMenuOpen(({ x, y }) => {
-      // Every menu open starts with a clean selection slate so a
-      // previous session's leftover doesn't fire when the user only
-      // wanted to open + close.
-      setStickySector(null);
+      // Every menu open starts with a clean slate so a previous
+      // session's leftover (selection AND drilled-in depth) doesn't
+      // carry over.
+      dispatch({ type: 'open' });
+      wasCancelingRef.current = false;
       setMenuAnchor({ x, y });
     });
     const offCommit = window.spaceux.onMenuCommit(() => {
       const cfg = configRef.current;
-      const sectorIndex = stickySectorRef.current;
+      const { navigation, stickyChildIndex } = drillStateRef.current;
+      if (!cfg || stickyChildIndex === null) {
+        // No selection (puck never left deadzone or TZ-cancelled) →
+        // silent dismiss, close the whole menu.
+        setMenuAnchor(null);
+        dispatch({ type: 'open' });
+        return;
+      }
+      const current = currentSectors(cfg, navigation);
+      const sector = current[stickyChildIndex];
+      if (sector?.children) {
+        // Branch → drill in. Menu stays open; the next axes frame
+        // will start picking sectors from the new (deeper) ring.
+        dispatch({ type: 'drill', index: stickyChildIndex });
+        return;
+      }
+      // Leaf (or label-only sector with no binding): close the menu
+      // first so the user can't accidentally commit twice, then
+      // fire the action if there is one.
       setMenuAnchor(null);
-      setStickySector(null);
-      if (!cfg || sectorIndex === null) return; // Never left deadzone → silent dismiss.
-      const sector = cfg.sectors[sectorIndex];
+      dispatch({ type: 'open' });
       if (!sector?.binding) return;
       const { action, config: actionConfig } = sector.binding;
       window.spaceux.invokeAction(action, actionConfig ?? {}).catch((err: unknown) => {
@@ -118,14 +163,23 @@ export function App() {
     };
   }, []);
 
+  // PieMenu still renders a single ring (PR C lands the visual
+  // outer ring + breadcrumb). We feed it the current ring's
+  // sectors by synthesising a shallow config that preserves
+  // axisInvert and trigger settings but swaps the sectors array.
+  const pieConfig =
+    menuConfig && drillState.navigation.length > 0
+      ? { ...menuConfig, sectors: currentSectors(menuConfig, drillState.navigation) }
+      : menuConfig;
+
   return (
     <div className="root">
-      {menuAnchor && menuConfig && (
+      {menuAnchor && pieConfig && (
         <PieMenu
           axes={axes}
           position={menuAnchor}
-          config={menuConfig}
-          activeSector={stickySector}
+          config={pieConfig}
+          activeSector={drillState.stickyChildIndex}
         />
       )}
       <DaemonStatusIndicator status={daemonStatus} />
@@ -134,7 +188,7 @@ export function App() {
         axes={axes}
         menuOpen={menuAnchor !== null}
         menuConfig={menuConfig}
-        stickySector={stickySector}
+        drillState={drillState}
       />
     </div>
   );
@@ -152,17 +206,23 @@ function DebugPanel({
   axes,
   menuOpen,
   menuConfig,
-  stickySector,
+  drillState,
 }: {
   daemonStatus: 'connecting' | 'connected' | 'disconnected';
   axes: { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number };
   menuOpen: boolean;
   menuConfig: import('@/shared/menu').MenuConfig | null;
-  stickySector: number | null;
+  drillState: DrillState;
 }) {
   const fmt = (n: number) => n.toString().padStart(5, ' ');
+  const ring = menuConfig ? currentSectors(menuConfig, drillState.navigation) : null;
   const selectedLabel =
-    menuConfig && stickySector !== null ? (menuConfig.sectors[stickySector]?.label ?? '?') : '—';
+    ring && drillState.stickyChildIndex !== null
+      ? (ring[drillState.stickyChildIndex]?.label ?? '?')
+      : '—';
+  // Show the navigation path so a developer can see at a glance
+  // whether the user has drilled in. Empty path renders as "top".
+  const navLabel = drillState.navigation.length === 0 ? 'top' : drillState.navigation.join(' → ');
   return (
     <div className="debug-panel" data-status={daemonStatus}>
       <div className="debug-row">
@@ -170,7 +230,10 @@ function DebugPanel({
       </div>
       <div className="debug-row">
         <strong>menu:</strong> {menuOpen ? 'OPEN' : 'closed'}{' '}
-        {menuConfig ? `(${menuConfig.sectors.length} sectors)` : '(no config)'}
+        {ring ? `(${ring.length} sectors)` : '(no config)'}
+      </div>
+      <div className="debug-row">
+        <strong>nav:</strong> {navLabel}
       </div>
       <div className="debug-row">
         <strong>selected:</strong> {selectedLabel}
