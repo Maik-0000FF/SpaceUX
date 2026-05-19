@@ -327,9 +327,10 @@ describe('validateMenuConfig — nested submenus', () => {
 
   it('rejects a config one level deeper than MAX_MENU_DEPTH', () => {
     // Construct exactly MAX_MENU_DEPTH + 1 levels of nesting under
-    // a single top-level branch. The reason should name the
-    // offending path and the configured cap so a user can see how
-    // far they went over.
+    // a single top-level branch. The reason should name both the
+    // configured cap and the actual depth that triggered the
+    // rejection so a config author can see how far over the cap
+    // they went without counting `child` tokens in the path.
     const leaf = {
       label: 'leaf',
       binding: { action: builtinAction('exec'), config: { command: 'x' } },
@@ -346,6 +347,7 @@ describe('validateMenuConfig — nested submenus', () => {
     if (!r.ok) {
       expect(r.reason).toContain('exceeds maximum nesting depth');
       expect(r.reason).toContain(String(MAX_MENU_DEPTH));
+      expect(r.reason).toContain(`(got ${MAX_MENU_DEPTH + 1})`);
     }
   });
 

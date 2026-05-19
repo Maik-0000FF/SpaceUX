@@ -364,19 +364,24 @@ type SectorValidation = { ok: true; value: MenuSector } | { ok: false; reason: s
 
 /** Strict structural validator for one sector. Recursive: a sector
  *  with `children` validates each child through the same path, so
- *  arbitrarily nested submenus are checked uniformly. `where` is the
- *  human-readable path prefix the caller has built up so error
- *  reasons stay traceable across depths (e.g.
- *  `sector 2 child 1 child 0 field "label" must be ...`). */
+ *  arbitrarily nested submenus are checked uniformly up to
+ *  :data:`MAX_MENU_DEPTH` levels deep; configs that go past the
+ *  cap are rejected with a clear reason instead of overflowing
+ *  the recursion stack. `where` is the human-readable path prefix
+ *  the caller has built up so error reasons stay traceable across
+ *  depths (e.g. `sector 2 child 1 child 0 field "label" must be ...`). */
 function validateSector(raw: unknown, where: string, depth = 0): SectorValidation {
   // Reject pathologically nested configs before the recursion
   // walks far enough to overflow the call stack. The cap leaves
   // plenty of headroom over realistic menus and surfaces as a
-  // normal validator error instead of a crash on load.
+  // normal validator error instead of a crash on load. The reason
+  // names the actual offending depth so a config author can see
+  // how far over the cap they went without counting `child` tokens
+  // in the path prefix.
   if (depth > MAX_MENU_DEPTH) {
     return {
       ok: false,
-      reason: `${where} exceeds maximum nesting depth ${MAX_MENU_DEPTH}`,
+      reason: `${where} exceeds maximum nesting depth ${MAX_MENU_DEPTH} (got ${depth})`,
     };
   }
   if (typeof raw !== 'object' || raw === null) {
