@@ -16,9 +16,11 @@
  *    gesture rather than cascading through nested levels
  *
  * App.tsx calls `useDrillNavigation` once and gets back the React
- * state plus a `resetTransientRefs` helper to invoke on MENU_OPEN
- * (so a stale "puck already past threshold" carryover from the
- * previous session can't fire on the first frame of the new one).
+ * state plus a `resetTransientRefs` helper to invoke on MENU_OPEN.
+ * Reset arms the rising-edge memories to `true` so a still-held
+ * puck at open time doesn't fire any gesture on the first frame —
+ * the user has to release past the threshold and re-engage before
+ * a drill, pop, or cancel can register.
  */
 
 import { useEffect, useReducer, useRef, type Dispatch, type RefObject } from 'react';
@@ -77,9 +79,10 @@ export type UseDrillNavigation = {
    *  listener) that read inside a long-lived closure and can't
    *  re-subscribe per frame. */
   drillStateRef: RefObject<DrillState>;
-  /** Clear the edge-trigger refs. Call on MENU_OPEN so a held
-   *  puck from the previous session doesn't immediately fire a
-   *  cancel / drill on the first frame of the new one. */
+  /** Arm the edge-trigger refs to "already over" so a still-held
+   *  puck at MENU_OPEN can't fire a cancel/drill on the first
+   *  frame. The user has to release past each threshold and
+   *  re-engage before the corresponding gesture registers. */
   resetTransientRefs: () => void;
 };
 
@@ -97,13 +100,18 @@ export function useDrillNavigation(opts: {
   const drillStateRef = useRef<DrillState>(drillState);
   drillStateRef.current = drillState;
 
-  // Three rising-edge memories, one per gesture. All start `false`
-  // so the first frame of a fresh menu can't claim "rising edge"
-  // for a still-held puck — `resetTransientRefs` restores this on
-  // MENU_OPEN.
-  const wasCancelingRef = useRef<boolean>(false);
-  const wasMagnitudeOverRef = useRef<boolean>(false);
-  const wasTiltOverRef = useRef<boolean>(false);
+  // Three rising-edge memories, one per gesture. All start `true`
+  // so the first frame after MENU_OPEN is never treated as a rising
+  // edge: if the puck is already past the threshold at open time
+  // (the user was mid-gesture when they triggered the menu), the
+  // gesture has to physically dip back under the threshold and
+  // re-engage before it fires. Without this, opening the menu with
+  // a held puck would surprise the user with an immediate drill or
+  // pop. `resetTransientRefs` re-asserts this on every MENU_OPEN
+  // so a previous session's tail state can't carry over.
+  const wasCancelingRef = useRef<boolean>(true);
+  const wasMagnitudeOverRef = useRef<boolean>(true);
+  const wasTiltOverRef = useRef<boolean>(true);
 
   useEffect(() => {
     if (!menuOpen || !menuConfig) return;
@@ -190,9 +198,12 @@ export function useDrillNavigation(opts: {
     dispatch,
     drillStateRef,
     resetTransientRefs: () => {
-      wasCancelingRef.current = false;
-      wasMagnitudeOverRef.current = false;
-      wasTiltOverRef.current = false;
+      // Reset to `true` (not `false`) so a still-deflected puck at
+      // MENU_OPEN doesn't claim a phantom rising edge on frame 1.
+      // See the useRef initialisation above for the full rationale.
+      wasCancelingRef.current = true;
+      wasMagnitudeOverRef.current = true;
+      wasTiltOverRef.current = true;
     },
   };
 }
