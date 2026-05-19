@@ -125,6 +125,116 @@ describe('validateMenuConfig', () => {
   });
 });
 
+describe('validateMenuConfig — nested submenus', () => {
+  it('accepts a sector whose only role is to host children (branch)', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'FreeCAD',
+          children: [
+            { label: 'New', binding: { action: builtinAction('exec'), config: { command: 'x' } } },
+            { label: 'Open', binding: { action: builtinAction('exec'), config: { command: 'y' } } },
+          ],
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const branch = r.config.sectors[0];
+      expect(branch?.children).toHaveLength(2);
+      expect(branch?.binding).toBeUndefined();
+    }
+  });
+
+  it('rejects a sector that declares both binding and children', () => {
+    // Branch vs leaf must be unambiguous so the renderer doesn't
+    // have to decide which one wins on commit.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'Ambiguous',
+          binding: { action: builtinAction('exec'), config: { command: 'x' } },
+          children: [{ label: 'Child' }],
+        },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/either "binding" or "children", not both/);
+  });
+
+  it('rejects an empty children array (would render as a hole with no escape)', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [{ label: 'Empty branch', children: [] }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/"children" must be a non-empty array/);
+  });
+
+  it('rejects a non-array children field', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [{ label: 'x', children: 'not-an-array' }],
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('reports the path when a deep grandchild is malformed', () => {
+    // The "where" prefix has to follow the recursion so a misconfig
+    // five levels in is still traceable. This pin guards the path
+    // assembly — a future "flatten the message for brevity" refactor
+    // would silently lose the depth context users need to find the
+    // bad node in their menu.json.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'top',
+          children: [
+            {
+              label: 'mid',
+              children: [{ label: '' }], // blank label at depth 2
+            },
+          ],
+        },
+      ],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toContain('sector 0 child 0 child 0');
+      expect(r.reason).toContain('"label"');
+    }
+  });
+
+  it('accepts arbitrarily nested branches (depth 3 here)', () => {
+    // The schema is intentionally recursive — pinning a 3-deep config
+    // makes the "yes, more than two levels really works" promise
+    // load-bearing rather than implicit.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'L0',
+          children: [
+            {
+              label: 'L1',
+              children: [
+                {
+                  label: 'L2',
+                  binding: { action: builtinAction('exec'), config: { command: 'deep' } },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+  });
+});
+
 describe('DEFAULT_MENU_CONFIG', () => {
   it('pins triggerButton to DEFAULT_TRIGGER_BUTTON', () => {
     // The shipped default exposes the trigger explicitly so users
