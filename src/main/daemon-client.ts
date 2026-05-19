@@ -75,6 +75,15 @@ export class DaemonClient extends EventEmitter {
     this.send({ kind: 'subscribe', events: ['axes', 'buttons'] });
   }
 
+  /** Inject a modifier+key chord through the daemon's uinput device.
+   *  No-op when the socket is not yet connected — same fail-soft
+   *  behaviour as `send()`. The daemon further no-ops the command if
+   *  /dev/uinput was unavailable at startup, so the caller never
+   *  has to guard the two failure modes separately. */
+  injectChord(modifiers: number[], key: number): void {
+    this.send({ kind: 'inject-chord', modifiers, key });
+  }
+
   // ── Internal ────────────────────────────────────────────────────────
 
   private openSocket(): void {

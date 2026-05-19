@@ -39,10 +39,32 @@ enum protocol_subscribe_flags {
 	PROTO_SUB_BUTTONS = 1 << 1,
 };
 
+/* Upper bound on modifiers per chord. Four real modifier keys exist
+ * on a typical keyboard (Ctrl, Alt, Shift, Super); 8 leaves room for
+ * exotic combos (e.g. AltGr, Hyper) without forcing the daemon to
+ * heap-allocate. */
+#define SPACEUX_MAX_CHORD_MODS 8
+
+/* Parsed payload for PROTO_CMD_INJECT_CHORD. The wire form is
+ * "INJECT_CHORD <c1> <c2> ... <cN>": codes 1..N-1 are modifiers held
+ * during the chord, code N is the key tapped. With N=1 the chord is
+ * a bare key tap with no modifiers. The numeric codes are Linux
+ * keycodes from <linux/input-event-codes.h>; the renderer's
+ * parseChord() already produces them, so no translation in flight. */
+struct protocol_chord {
+	int mods[SPACEUX_MAX_CHORD_MODS];
+	int n_mods;
+	int key;
+};
+
 /* Parse one command line (without trailing newline). Returns the
  * action taken; the caller is responsible for state updates and
  * for emitting any reply. Unknown commands return PROTO_CMD_UNKNOWN
- * so the caller can log + ignore rather than crash. */
+ * so the caller can log + ignore rather than crash.
+ *
+ * The `chord` out-param is filled in only when the returned command
+ * is PROTO_CMD_INJECT_CHORD; for every other command its contents
+ * are unspecified and the caller must not read them. */
 enum protocol_cmd {
 	PROTO_CMD_UNKNOWN = 0,
 	PROTO_CMD_SUBSCRIBE_AXES,
@@ -52,9 +74,10 @@ enum protocol_cmd {
 	PROTO_CMD_GRAB,
 	PROTO_CMD_RELEASE,
 	PROTO_CMD_PING,
+	PROTO_CMD_INJECT_CHORD,
 };
 
-enum protocol_cmd protocol_parse_command(const char *line);
+enum protocol_cmd protocol_parse_command(const char *line, struct protocol_chord *chord);
 
 /* Format an axes snapshot into *buf. Returns bytes written
  * (excluding the trailing NUL), or -1 if the buffer is too small.

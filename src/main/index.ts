@@ -282,7 +282,7 @@ function wireActionDispatch(): void {
           `plugin "${entry.plugin.manifest.id}" has no handler for "${entry.descriptor.name}"`,
         );
       }
-      await handler(config, makeActionContext(entry.plugin.manifest.id));
+      await handler(config, makeActionContext(entry.plugin.manifest.id, daemon));
     },
   );
 

@@ -8,6 +8,7 @@
  * (UNIX socket today) can be swapped without touching this file.
  */
 #include "socket.h"
+#include "inject.h"
 #include "ipc.h"
 #include "protocol.h"
 
@@ -37,7 +38,13 @@ int sock_init(struct sock_state *s)
 	memset(s, 0, sizeof(*s));
 	for (int i = 0; i < SPACEUX_MAX_CLIENTS; i++)
 		s->clients[i].fd = -1;
+	s->inject_fd = -1;
 	return ipc_listener_open(&s->listener);
+}
+
+void sock_set_inject_fd(struct sock_state *s, int fd)
+{
+	s->inject_fd = fd;
 }
 
 void sock_close(struct sock_state *s)
@@ -71,9 +78,11 @@ int sock_accept(struct sock_state *s)
 }
 
 /* Apply a parsed command to one client's state. Some commands
- * have side effects (PING replies with PONG); the side effect
- * is co-located with the state change for readability. */
-static int apply_cmd(struct sock_client *c, enum protocol_cmd cmd)
+ * have side effects (PING replies with PONG, INJECT_CHORD emits
+ * keys via the daemon-owned inject fd); the side effect is
+ * co-located with the state change for readability. */
+static int apply_cmd(struct sock_state *s, struct sock_client *c, enum protocol_cmd cmd,
+		     const struct protocol_chord *chord)
 {
 	switch (cmd) {
 	case PROTO_CMD_SUBSCRIBE_AXES:
@@ -96,6 +105,14 @@ static int apply_cmd(struct sock_client *c, enum protocol_cmd cmd)
 		return 0;
 	case PROTO_CMD_PING:
 		return ipc_write(c->fd, "PONG\n", 5) < 0 ? -1 : 0;
+	case PROTO_CMD_INJECT_CHORD:
+		/* inject_chord is a no-op when inject_fd is -1, so the
+		 * command parses + dispatches successfully even on hosts
+		 * where /dev/uinput was unavailable at startup. The
+		 * client side learns about the capability from the hello
+		 * event's "inject" flag. */
+		inject_chord(s->inject_fd, chord->mods, chord->n_mods, chord->key);
+		return 0;
 	case PROTO_CMD_UNKNOWN:
 	default:
 		return 0;
@@ -129,8 +146,9 @@ int sock_handle_client(struct sock_state *s, int slot)
 			if (!nl)
 				break;
 			*nl = '\0';
-			enum protocol_cmd parsed = protocol_parse_command(c->cmd_buf);
-			if (apply_cmd(c, parsed) < 0) {
+			struct protocol_chord chord;
+			enum protocol_cmd parsed = protocol_parse_command(c->cmd_buf, &chord);
+			if (apply_cmd(s, c, parsed, &chord) < 0) {
 				slot_clear(c);
 				return -1;
 			}

@@ -31,6 +31,13 @@ struct sock_client {
 struct sock_state {
 	struct ipc_listener listener;
 	struct sock_client clients[SPACEUX_MAX_CLIENTS];
+	/* uinput fd owned by the daemon's inject layer. -1 if injection
+	 * is unavailable (open of /dev/uinput failed at startup); a
+	 * client that sends INJECT_CHORD then sees the command parse
+	 * successfully but inject_chord no-ops, which is the same
+	 * fail-soft behaviour the old ydotool path had when ydotoold
+	 * wasn't running. */
+	int inject_fd;
 };
 
 /* Bind a UNIX socket at /run/user/<uid>/spaceux.sock and start
@@ -57,6 +64,11 @@ void sock_broadcast_axes(struct sock_state *s, const int *values, int n_values);
 
 /* Push a single button transition to every subscribed client. */
 void sock_broadcast_button(struct sock_state *s, int bnum, int pressed);
+
+/* Wire the daemon's inject layer fd into the dispatch state. Called
+ * once at startup after inject_open(); -1 disables INJECT_CHORD
+ * handling but leaves the rest of the protocol working. */
+void sock_set_inject_fd(struct sock_state *s, int fd);
 
 /* Returns 1 if any client currently holds the GRAB. */
 int sock_any_grabbed(const struct sock_state *s);

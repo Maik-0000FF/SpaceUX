@@ -8,9 +8,54 @@
 #include "protocol.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-enum protocol_cmd protocol_parse_command(const char *line)
+/* Parse "INJECT_CHORD <c1> <c2> ... <cN>" into the caller's chord
+ * struct. Returns PROTO_CMD_INJECT_CHORD on success or
+ * PROTO_CMD_UNKNOWN if the line is malformed (no codes, a token
+ * that isn't a number, a code <= 0, too many modifiers). */
+static enum protocol_cmd parse_inject_chord(const char *args, struct protocol_chord *chord)
+{
+	if (!chord)
+		return PROTO_CMD_UNKNOWN;
+
+	int codes[SPACEUX_MAX_CHORD_MODS + 1];
+	int n = 0;
+	const char *p = args;
+	while (*p && n < (int)(sizeof(codes) / sizeof(codes[0]))) {
+		while (*p == ' ' || *p == '\t')
+			p++;
+		if (!*p)
+			break;
+		char *end;
+		long v = strtol(p, &end, 10);
+		if (end == p)
+			return PROTO_CMD_UNKNOWN; /* not a number */
+		if (v <= 0 || v > 0x7fff)
+			return PROTO_CMD_UNKNOWN; /* sanity bounds — wider than KEY_MAX */
+		codes[n++] = (int)v;
+		p = end;
+	}
+	/* Whatever's left after the loop must be whitespace; a trailing
+	 * non-number token means the line was malformed. */
+	while (*p == ' ' || *p == '\t')
+		p++;
+	if (*p)
+		return PROTO_CMD_UNKNOWN;
+	if (n == 0)
+		return PROTO_CMD_UNKNOWN;
+
+	/* Last code is the key; everything before is modifiers held
+	 * during the tap. n == 1 means "bare key, no mods". */
+	chord->key = codes[n - 1];
+	chord->n_mods = n - 1;
+	for (int i = 0; i < chord->n_mods; i++)
+		chord->mods[i] = codes[i];
+	return PROTO_CMD_INJECT_CHORD;
+}
+
+enum protocol_cmd protocol_parse_command(const char *line, struct protocol_chord *chord)
 {
 	if (!line)
 		return PROTO_CMD_UNKNOWN;
@@ -29,6 +74,8 @@ enum protocol_cmd protocol_parse_command(const char *line)
 			return PROTO_CMD_SUBSCRIBE_BUTTONS;
 		return PROTO_CMD_UNKNOWN;
 	}
+	if (strncmp(line, "INJECT_CHORD ", 13) == 0)
+		return parse_inject_chord(line + 13, chord);
 	if (strcmp(line, "UNSUBSCRIBE") == 0)
 		return PROTO_CMD_UNSUBSCRIBE;
 	if (strcmp(line, "GRAB") == 0)
