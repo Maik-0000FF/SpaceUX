@@ -176,9 +176,16 @@ async function openMenuAtCursor(window: BrowserWindow): Promise<void> {
   let originY: number;
   if (OVERLAY_MODE) {
     const targetDisplay = screen.getDisplayNearestPoint(cursor);
-    window.setBounds(targetDisplay.bounds);
-    originX = targetDisplay.bounds.x;
-    originY = targetDisplay.bounds.y;
+    // Use workArea, not bounds: workArea excludes the desktop's
+    // reserved zones (Plasma panels, taskbars, autohide-docks). Using
+    // bounds places the overlay across the full display and lets the
+    // pie sit under the panel, where the user can't see or click it.
+    // workArea also makes the renderer-side clampPieAnchor consistent
+    // across monitors with and without panels: window.innerWidth/Height
+    // matches the visible area in both cases.
+    window.setBounds(targetDisplay.workArea);
+    originX = targetDisplay.workArea.x;
+    originY = targetDisplay.workArea.y;
   } else {
     const bounds = window.getBounds();
     originX = bounds.x;
