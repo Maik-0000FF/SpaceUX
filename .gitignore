@@ -56,10 +56,17 @@ coverage/
 *.profdata
 gmon.out
 
-# Core dumps
+# Core dumps. The plain `core` pattern is unanchored and matches any
+# file or directory named "core" anywhere in the tree — including
+# our own src/core/ source directory where the pure-logic helpers
+# live. The negation rules below re-include that path so `git add`
+# of a new file under src/core/ doesn't fail with "ignored by
+# .gitignore" and force a `-f` workaround.
 core
 core.*
 vgcore.*
+!src/core/
+!src/core/**
 
 # Distributable packages produced by electron-builder / packagers.
 # The release/ directory is the conventional electron-builder output;
