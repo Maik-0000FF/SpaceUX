@@ -197,4 +197,13 @@ describe('clampPieAnchor', () => {
     const tall = { width: 200, height: 1080 };
     expect(clampPieAnchor({ x: 999, y: 0 }, RADIUS, tall)).toEqual({ x: 100, y: RADIUS });
   });
+
+  it('mirrors the tall-thin case for short-fat viewports', () => {
+    // Symmetric counterpart to the test above: y can't fit 2*RADIUS,
+    // x can. Pinned so a future "fix" that decouples the axes
+    // asymmetrically fails here instead of silently regressing one
+    // orientation.
+    const shortFat = { width: 1080, height: 200 };
+    expect(clampPieAnchor({ x: 0, y: 999 }, RADIUS, shortFat)).toEqual({ x: RADIUS, y: 100 });
+  });
 });
