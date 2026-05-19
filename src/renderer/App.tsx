@@ -62,9 +62,11 @@ export function App() {
     const offOpen = window.spaceux.onMenuOpen(({ x, y }) => {
       // Every menu open starts with a clean slate so a previous
       // session's leftover (selection AND drilled-in depth) doesn't
-      // carry over. `resetTransientRefs` clears the rising-edge
-      // memories inside the hook too, so a still-held puck from the
-      // previous session can't fire on the first frame.
+      // carry over. `resetTransientRefs` arms the rising-edge
+      // memories inside the hook to "already over", so a held puck
+      // at trigger time can't fire a drill/pop/cancel on the first
+      // frame — the user has to dip the gesture back under its
+      // threshold and re-engage to commit.
       dispatch({ type: 'reset' });
       resetTransientRefs();
       setMenuAnchor({ x, y });
