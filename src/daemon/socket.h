@@ -24,6 +24,20 @@ struct sock_client {
 	int fd; /* -1 if slot is empty */
 	int subscriptions;
 	int grabbed; /* this client holds the exclusive grab */
+	/* Peer identity captured at sock_accept-time. `peer_pid` is -1
+	 * on platforms whose IPC transport doesn't carry the connecting
+	 * pid (macOS getpeereid); it's still used as an audit-log hint
+	 * so a forensic reader can correlate UID activity. */
+	int peer_pid;
+	int peer_uid;
+	/* INJECT_CHORD leaky-bucket state. `chord_tokens` is the
+	 * current fill (0..BURST) as a double for fractional refills;
+	 * `chord_refill_us` is the monotonic-clock timestamp of the
+	 * last refill so the delta gives us the tokens to add. The
+	 * bucket starts full (BURST tokens) so a freshly-connected
+	 * client can fire a burst before steady-state kicks in. */
+	double chord_tokens;
+	long long chord_refill_us;
 	char cmd_buf[SPACEUX_CMD_BUF_SIZE];
 	int cmd_len;
 };

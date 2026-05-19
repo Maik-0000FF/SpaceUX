@@ -88,6 +88,25 @@ void ipc_listener_close(struct ipc_listener *l);
  * (errno set). The caller adds the returned fd to its poll() set. */
 int ipc_accept(struct ipc_listener *l);
 
+/* Peer-side credentials captured at accept-time. `uid` and `gid`
+ * are always populated on success; `pid` is set on platforms whose
+ * IPC transport exposes the connecting process id (Linux's
+ * SO_PEERCRED does; macOS's getpeereid does not — `pid` stays -1
+ * there). The daemon uses uid for an authorization check and pid
+ * for forensic logging when available. */
+struct ipc_peer {
+	int uid;
+	int gid;
+	int pid;
+};
+
+/* Resolve the peer credentials for a client fd freshly returned by
+ * `ipc_accept`. Returns 0 on success, -1 on failure (e.g. platform
+ * doesn't support peer-id queries on its IPC transport). On failure
+ * the daemon should still reject the connection — refusing to
+ * authenticate a peer is safer than allowing it through. */
+int ipc_peer_credentials(int fd, struct ipc_peer *out);
+
 /* Read up to `max` bytes into `buf`. Returns:
  *    > 0   bytes actually read
  *      0   peer closed cleanly (EOF) — caller must close the slot
