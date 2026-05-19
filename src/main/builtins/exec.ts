@@ -30,7 +30,14 @@ export const execAction: ActionHandler = async (config, ctx) => {
   const tokens = command.split(/\s+/);
   const bin = tokens[0];
   const args = tokens.slice(1);
-  if (!bin) return;
+  if (!bin) {
+    // Defensive: the earlier `!command` guard makes this branch
+    // unreachable today (a non-empty trimmed string can't split to
+    // an empty first token), but a future shlex-style parser might
+    // change that. Logging beats silent no-op when it does.
+    ctx.log(`exec: command "${command}" parsed to no binary — refusing to spawn`);
+    return;
+  }
   try {
     const child = spawn(bin, args, {
       detached: true,
