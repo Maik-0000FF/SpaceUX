@@ -260,6 +260,50 @@ export const DEFAULT_MENU_CONFIG: MenuConfig = {
 
 // ── Validation ──────────────────────────────────────────────────────
 
+/** Known fields per level. Anything outside these lists is treated
+ *  as a likely typo when the validator encounters it — the structural
+ *  validation still passes (we want existing configs to keep loading)
+ *  but `warnUnknownFields` logs a diagnostic so the user can find the
+ *  typo. The action-editor in a future milestone can flip these into
+ *  hard rejections via an opt-in `strict` mode. */
+const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
+  'version',
+  'triggerButton',
+  'axisInvert',
+  'tzDeadzone',
+  'magnitudeDrill',
+  'tiltDrill',
+  'sectors',
+];
+const KNOWN_MENU_SECTOR_FIELDS: readonly string[] = ['label', 'icon', 'binding', 'children'];
+const KNOWN_ACTION_REF_FIELDS: readonly string[] = ['action', 'config'];
+const KNOWN_AUTO_DRILL_FIELDS: readonly string[] = ['enabled', 'threshold'];
+const KNOWN_AXIS_INVERT_FIELDS: readonly string[] = ['x', 'y'];
+
+/** Walk an object's keys and warn (without failing validation) for
+ *  any field not in the known list. The validator stays permissive
+ *  by design — a future schema bump could rename `magnitudeDrill`
+ *  and we don't want old configs to refuse to load — but a typo'd
+ *  `Children` or `binings` should at least surface in the log so
+ *  the user can fix it instead of silently registering as a no-op.
+ *
+ *  The `[menu-loader]` prefix matches the existing diagnostic
+ *  channel main uses when reporting load problems; both contexts
+ *  (renderer dev tools and `journalctl --user` for the packaged
+ *  app) pick the warning up the same way. */
+function warnUnknownFields(
+  obj: Record<string, unknown>,
+  known: readonly string[],
+  where: string,
+): void {
+  for (const key of Object.keys(obj)) {
+    if (!known.includes(key)) {
+      // eslint-disable-next-line no-console
+      console.warn(`[menu-loader] unknown field "${key}" at ${where} — typo?`);
+    }
+  }
+}
+
 /** Result of validating an unknown JSON value against MenuConfig.
  *  Success carries the typed config; failure carries a single
  *  human-readable reason. The renderer doesn't need granular error
@@ -331,6 +375,7 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
         axisInvert[k] = inv[k] as boolean;
       }
     }
+    warnUnknownFields(inv, KNOWN_AXIS_INVERT_FIELDS, 'axisInvert');
     result.axisInvert = axisInvert;
   }
   if (obj.tzDeadzone !== undefined) {
@@ -362,6 +407,7 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
   if (!tiltResult.ok) return { ok: false, reason: tiltResult.reason };
   if (tiltResult.value !== undefined) result.tiltDrill = tiltResult.value;
 
+  warnUnknownFields(obj, KNOWN_MENU_CONFIG_FIELDS, 'menu config');
   return { ok: true, config: result };
 }
 
@@ -395,6 +441,7 @@ function validateAutoDrill(raw: unknown, fieldName: string): AutoDrillValidation
       reason: `menu config field "${fieldName}.threshold" must be a positive finite number`,
     };
   }
+  warnUnknownFields(md, KNOWN_AUTO_DRILL_FIELDS, fieldName);
   return { ok: true, value: { enabled: md.enabled, threshold: md.threshold } };
 }
 
@@ -472,6 +519,7 @@ function validateSector(raw: unknown, where: string, depth = 0): SectorValidatio
     }
     sector.children = children;
   }
+  warnUnknownFields(s, KNOWN_MENU_SECTOR_FIELDS, where);
   return { ok: true, value: sector };
 }
 
@@ -492,5 +540,6 @@ function validateActionRef(raw: unknown, where: string): ActionRefValidation {
     }
     out.config = obj.config as Record<string, unknown>;
   }
+  warnUnknownFields(obj, KNOWN_ACTION_REF_FIELDS, where);
   return { ok: true, value: out };
 }
