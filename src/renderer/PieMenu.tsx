@@ -201,6 +201,20 @@ export function PieMenu({
   const outerLabelRadius = ((OUTER_RING_INNER_RATIO + OUTER_RING_OUTER_RATIO) / 2) * radius;
   const innerLabelRadius = radius * 0.62;
 
+  // Rotational alignment for the outer ring: spin it so its first
+  // sector centres on whichever parent sector spawned it. Without
+  // this the outer ring's "12 o'clock" is unrelated to where the
+  // user is pushing — e.g. drilling from 6 o'clock landed the
+  // user's hover at the top of the new ring, visually disconnected
+  // from the parent. With the offset the user's gesture flows
+  // continuously from parent to child.
+  let outerRingRotation = 0;
+  if (isDrilled && parentRing && drilledIntoIndex !== null) {
+    outerRingRotation = sectorCenterAngle(drilledIntoIndex, parentRing.length);
+  } else if (!isDrilled && activeSector !== null && activeSector !== undefined && previewSectors) {
+    outerRingRotation = sectorCenterAngle(activeSector, activeRing.length);
+  }
+
   return (
     <div className="pie-menu" style={style}>
       <svg
@@ -263,6 +277,7 @@ export function PieMenu({
                 innerRadius={outerRingInnerRadius}
                 active={isDrilled && activeSector === i}
                 preview={!isDrilled}
+                rotation={outerRingRotation}
               />
             ))}
             {outerSectors.map((sector, i) => (
@@ -273,6 +288,7 @@ export function PieMenu({
                 radius={outerLabelRadius}
                 sector={sector}
                 preview={!isDrilled}
+                rotation={outerRingRotation}
               />
             ))}
           </g>
@@ -291,6 +307,7 @@ function SectorWedge({
   preview = false,
   breadcrumb = false,
   drilledInto = false,
+  rotation = 0,
 }: {
   index: number;
   sectorCount: number;
@@ -308,10 +325,14 @@ function SectorWedge({
    *  the user drilled *into* — a "you came from here" marker.
    *  Only meaningful in combination with `breadcrumb`. */
   drilledInto?: boolean;
+  /** Rotation offset (radians) applied to every wedge's centre
+   *  angle. Used to spin the outer ring so its sector 0 lines up
+   *  with the parent sector that spawned it. */
+  rotation?: number;
 }) {
   const sectorWidth = TAU / sectorCount;
   // Half a sector either side of the centre so wedges meet edge-to-edge.
-  const startAngle = sectorCenterAngle(index, sectorCount) - sectorWidth / 2;
+  const startAngle = sectorCenterAngle(index, sectorCount) + rotation - sectorWidth / 2;
   const endAngle = startAngle + sectorWidth;
   const d = describeWedgePath(outerRadius, innerRadius, startAngle, endAngle);
   const className = [
@@ -333,6 +354,7 @@ function SectorLabel({
   sector,
   preview = false,
   breadcrumb = false,
+  rotation = 0,
 }: {
   index: number;
   sectorCount: number;
@@ -342,8 +364,10 @@ function SectorLabel({
   preview?: boolean;
   /** Match the wedge it belongs to. */
   breadcrumb?: boolean;
+  /** Match the wedge it belongs to. */
+  rotation?: number;
 }) {
-  const angle = sectorCenterAngle(index, sectorCount);
+  const angle = sectorCenterAngle(index, sectorCount) + rotation;
   // The geometry convention places angle 0 at "12 o'clock"; SVG uses
   // the standard mathematical orientation with 0 along +X. Convert.
   const x = Math.sin(angle) * radius;
