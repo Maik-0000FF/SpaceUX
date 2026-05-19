@@ -120,3 +120,41 @@ export function axesMagnitude(axes: PieAxes): number {
 export function shouldCancelOnZ(tz: number, deadzone: number): boolean {
   return Math.abs(tz) > deadzone;
 }
+
+/**
+ * Push a pie anchor inward from any viewport edge so the full circle
+ * of `radius` stays visible. Called by the renderer before placing
+ * the SVG: without it, opening the menu near the top-left of the
+ * screen (e.g. cursor at (10, 10) with a 240 px radius) lets the SVG
+ * bleed into negative viewport coordinates and the browser clips off
+ * the sectors on that edge.
+ *
+ * Behaviour:
+ *   - Well inside the viewport: returned unchanged.
+ *   - Past an edge: pinned to `radius` away from that edge so the
+ *     pie touches but does not overflow.
+ *   - Viewport smaller than the pie diameter on either axis: falls
+ *     back to the viewport centre on that axis. The pie still
+ *     doesn't fit (the viewport just isn't big enough), but the
+ *     fallback is symmetric and predictable — better than emitting
+ *     `Math.max(radius, …)` greater than `Math.min(…)`, which would
+ *     land somewhere meaningless and asymmetric.
+ *
+ * Pure function with no DOM dependency, so vitest can pin every
+ * corner case without a renderer harness.
+ */
+export function clampPieAnchor(
+  point: { x: number; y: number },
+  radius: number,
+  viewport: { width: number; height: number },
+): { x: number; y: number } {
+  const x =
+    viewport.width >= 2 * radius
+      ? Math.max(radius, Math.min(viewport.width - radius, point.x))
+      : viewport.width / 2;
+  const y =
+    viewport.height >= 2 * radius
+      ? Math.max(radius, Math.min(viewport.height - radius, point.y))
+      : viewport.height / 2;
+  return { x, y };
+}

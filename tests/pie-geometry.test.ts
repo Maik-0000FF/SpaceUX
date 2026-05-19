@@ -7,6 +7,7 @@ import {
   DEFAULT_PIE_GEOMETRY,
   axesMagnitude,
   axesToSector,
+  clampPieAnchor,
   sectorCenterAngle,
   shouldCancelOnZ,
   type PieGeometryConfig,
@@ -129,5 +130,71 @@ describe('shouldCancelOnZ', () => {
   it('honours different deadzone values', () => {
     expect(shouldCancelOnZ(10, 5)).toBe(true);
     expect(shouldCancelOnZ(10, 50)).toBe(false);
+  });
+});
+
+describe('clampPieAnchor', () => {
+  // A typical viewport on a desktop monitor + the default pie radius.
+  // Centring keeps the anchor unchanged everywhere except near the
+  // edges, so most tests below feed values inside the safe rectangle
+  // and assert pass-through.
+  const VIEWPORT = { width: 1920, height: 1080 };
+  const RADIUS = 240;
+
+  it('returns the point unchanged when well inside the viewport', () => {
+    expect(clampPieAnchor({ x: 960, y: 540 }, RADIUS, VIEWPORT)).toEqual({ x: 960, y: 540 });
+    expect(clampPieAnchor({ x: 500, y: 800 }, RADIUS, VIEWPORT)).toEqual({ x: 500, y: 800 });
+  });
+
+  it('pulls the anchor away from each edge by exactly radius', () => {
+    // Top-left corner: clamps both axes to RADIUS so the pie touches
+    // the edges but the full circle stays inside.
+    expect(clampPieAnchor({ x: 0, y: 0 }, RADIUS, VIEWPORT)).toEqual({ x: RADIUS, y: RADIUS });
+    // Bottom-right corner: mirror image.
+    expect(clampPieAnchor({ x: 1920, y: 1080 }, RADIUS, VIEWPORT)).toEqual({
+      x: 1920 - RADIUS,
+      y: 1080 - RADIUS,
+    });
+  });
+
+  it('clamps only the axis that crosses the edge', () => {
+    // A cursor at the left edge mid-screen pulls only x; y is well
+    // inside and passes through untouched.
+    expect(clampPieAnchor({ x: 10, y: 540 }, RADIUS, VIEWPORT)).toEqual({ x: RADIUS, y: 540 });
+    // Top edge mid-screen: pulls only y.
+    expect(clampPieAnchor({ x: 960, y: 10 }, RADIUS, VIEWPORT)).toEqual({ x: 960, y: RADIUS });
+    // Right edge: clamps x to the symmetric position.
+    expect(clampPieAnchor({ x: 1910, y: 540 }, RADIUS, VIEWPORT)).toEqual({
+      x: 1920 - RADIUS,
+      y: 540,
+    });
+  });
+
+  it('handles negative input coordinates symmetrically', () => {
+    // Multi-monitor setups can briefly produce negative cursor coords
+    // before the main process reassigns the overlay to the correct
+    // display. The clamp must still produce a sane result.
+    expect(clampPieAnchor({ x: -50, y: -50 }, RADIUS, VIEWPORT)).toEqual({
+      x: RADIUS,
+      y: RADIUS,
+    });
+  });
+
+  it('falls back to the viewport centre when the pie is too big for the viewport', () => {
+    // Tiny viewport that can't fit a 240-px pie: the clamp interval
+    // collapses (Math.max(240, ...) would land above Math.min), so
+    // the function emits the viewport centre on whichever axis is
+    // too small. Predictable and symmetric beats meaningless.
+    const tiny = { width: 100, height: 100 };
+    expect(clampPieAnchor({ x: 50, y: 50 }, RADIUS, tiny)).toEqual({ x: 50, y: 50 });
+    expect(clampPieAnchor({ x: 999, y: -999 }, RADIUS, tiny)).toEqual({ x: 50, y: 50 });
+  });
+
+  it('falls back to centre only on the axis that is too small', () => {
+    // Tall thin viewport (e.g. portrait-rotated monitor with small
+    // overlay): x can't fit 2*RADIUS, y can — clamp behaves
+    // independently per axis.
+    const tall = { width: 200, height: 1080 };
+    expect(clampPieAnchor({ x: 999, y: 0 }, RADIUS, tall)).toEqual({ x: 100, y: RADIUS });
   });
 });

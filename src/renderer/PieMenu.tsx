@@ -6,6 +6,7 @@ import { useMemo, type CSSProperties } from 'react';
 import {
   DEFAULT_PIE_GEOMETRY,
   axesToSector,
+  clampPieAnchor,
   sectorCenterAngle,
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
@@ -96,14 +97,28 @@ export function PieMenu({
   const size = radius * 2;
 
   // Absolute positioning so the pie sits at the supplied window-
-  // coords. Translating by -50% centres the SVG on (position.x,
-  // position.y) regardless of size. Falls back to centre-of-viewport
-  // when position is omitted (useful for screenshots and tests).
-  const style: CSSProperties = position
+  // coords. Translating by -50% centres the SVG on the anchor point
+  // regardless of size. Falls back to centre-of-viewport when
+  // position is omitted (useful for screenshots and tests).
+  //
+  // The cursor coords get clamped through clampPieAnchor so the
+  // full circle stays inside the visible viewport even when the
+  // user triggers the menu right at a screen edge. Without the
+  // clamp, opening with the cursor at (10, 10) with the default
+  // 240-px radius would place the SVG's top-left at (-230, -230)
+  // and the browser would clip the entire upper-left of the pie.
+  const anchor =
+    position !== undefined
+      ? clampPieAnchor(position, radius, {
+          width: window.innerWidth,
+          height: window.innerHeight,
+        })
+      : null;
+  const style: CSSProperties = anchor
     ? {
         position: 'absolute',
-        left: position.x,
-        top: position.y,
+        left: anchor.x,
+        top: anchor.y,
         width: size,
         height: size,
         transform: 'translate(-50%, -50%)',
