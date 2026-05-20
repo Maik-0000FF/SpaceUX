@@ -6,6 +6,7 @@ import { describeWedgePath } from '@/core/pie-path';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
+import { sectorKey } from '../state/sector-keys';
 import { ringSectors } from '../state/selectors';
 
 import styles from './MenuPreview.module.scss';
@@ -50,7 +51,7 @@ export function MenuPreview() {
           // tabIndex + onKeyDown keep the wedges keyboard-operable; the
           // focus ring itself is suppressed in CSS (.wedgeGroup).
           <g
-            key={i}
+            key={sectorKey(sector)}
             className={styles.wedgeGroup}
             onClick={() => selectSector(i)}
             onKeyDown={(e) => {
