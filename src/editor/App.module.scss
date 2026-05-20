@@ -83,9 +83,8 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  // The pie grows with menu depth; centre it via the child's margin:auto
-  // (so it stays scrollable when larger than the panel) and scroll here.
-  overflow: auto;
+  align-items: center;
+  justify-content: center;
 }
 
 .banner {
