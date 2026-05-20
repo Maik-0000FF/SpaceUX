@@ -8,13 +8,38 @@
   padding: 12px;
 }
 
+.headingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
 .heading {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--editor-fg-dim);
-  margin-bottom: 10px;
+}
+
+.headingAdd {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: 1px dashed var(--editor-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--editor-fg-dim);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--editor-hover);
+    color: var(--editor-fg);
+  }
 }
 
 .list {
@@ -29,6 +54,8 @@
   align-items: center;
   gap: 2px;
   position: relative;
+  // Dragging a row shouldn't select the label text like a browser would.
+  user-select: none;
 }
 
 // Drop-line shown during drag: a 2px accent bar in the gap where the
@@ -74,16 +101,18 @@
   }
 }
 
-.drill {
+// Expand/collapse toggle on a branch row. The spacer keeps leaf rows'
+// labels aligned with branch labels (same width as the chevron).
+.chevron {
   flex: none;
-  width: 26px;
+  width: 18px;
   padding: 7px 0;
   border: none;
   border-radius: 5px;
   background: transparent;
   color: var(--editor-fg-dim);
   font: inherit;
-  font-size: 18px;
+  font-size: 11px;
   line-height: 1;
   cursor: pointer;
 
@@ -91,6 +120,11 @@
     background: var(--editor-hover);
     color: var(--editor-fg);
   }
+}
+
+.chevronSpacer {
+  flex: none;
+  width: 18px;
 }
 
 .itemSelected {
@@ -105,21 +139,59 @@
   opacity: 0.4;
 }
 
-.addButton {
-  width: 100%;
-  margin-top: 8px;
-  padding: 7px 10px;
-  border: 1px dashed var(--editor-border);
-  border-radius: 5px;
+// Per-row action icons (add / rename / delete). Hidden until the row is
+// hovered or selected so the tree stays uncluttered.
+.actions {
+  flex: none;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 80ms ease-out;
+
+  .row:hover &,
+  .rowSelected & {
+    opacity: 1;
+  }
+}
+
+.actionBtn {
+  width: 22px;
+  padding: 5px 0;
+  border: none;
+  border-radius: 4px;
   background: transparent;
   color: var(--editor-fg-dim);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1;
   cursor: pointer;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: var(--editor-hover);
     color: var(--editor-fg);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+}
+
+// Inline rename input, sized like the item label it replaces.
+.rename {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--editor-accent);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 14px;
+  user-select: text; // re-enable selection for the rename field
+
+  &:focus {
+    outline: none;
   }
 }
 

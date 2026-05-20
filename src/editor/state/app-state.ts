@@ -22,6 +22,10 @@ type AppState = {
   selectedIndex: number | null;
   /** Select the sector at `index` within the current ring. */
   selectSector: (index: number) => void;
+  /** Select the sector at a full index path: its parent ring becomes the
+   *  view and the last segment the in-ring selection. Lets the tree jump
+   *  to any depth in one click. Empty path clears the selection. */
+  selectPath: (path: readonly number[]) => void;
   /** Clear the selection (keeps the current ring in view). */
   clearSelection: () => void;
   /** Descend into the submenu at `index` of the current ring. Clears the
@@ -39,6 +43,11 @@ export const useAppState = create<AppState>()(
     selectSector: (index) =>
       set((state) => {
         state.selectedIndex = index;
+      }),
+    selectPath: (path) =>
+      set((state) => {
+        state.viewPath = path.slice(0, -1);
+        state.selectedIndex = path.length > 0 ? path[path.length - 1]! : null;
       }),
     clearSelection: () =>
       set((state) => {

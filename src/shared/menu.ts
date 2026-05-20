@@ -100,6 +100,14 @@ export type MenuSector = {
    *  can itself carry further children for arbitrary depth.
    *  Mutually exclusive with `binding`. */
   children?: MenuSector[];
+  /** Editor-only stable identity. Assigned by the editor when a config
+   *  is adopted (and to newly-added sectors); used for React keys and
+   *  the tree's expand state. Because it lives on the object, immer
+   *  copies it across edits/reorders, so identity survives where an
+   *  object-identity WeakMap would not. **Never persisted** — the
+   *  validator reconstructs sectors from the structural fields and
+   *  drops it, so it never reaches `menu.json`. */
+  id?: string;
 };
 
 /** Per-axis sign overrides for the pie geometry. The default
@@ -275,7 +283,11 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'tiltDrill',
   'sectors',
 ];
-const KNOWN_MENU_SECTOR_FIELDS: readonly string[] = ['label', 'icon', 'binding', 'children'];
+// 'id' is the editor-only stable identity (see MenuSector.id). The
+// validator never copies it into its reconstructed output, so it's
+// stripped on write; listing it here just keeps warnUnknownFields quiet
+// when the editor sends an id-bearing config back to main to save.
+const KNOWN_MENU_SECTOR_FIELDS: readonly string[] = ['label', 'icon', 'binding', 'children', 'id'];
 const KNOWN_ACTION_REF_FIELDS: readonly string[] = ['action', 'config'];
 const KNOWN_AUTO_DRILL_FIELDS: readonly string[] = ['enabled', 'threshold'];
 const KNOWN_AXIS_INVERT_FIELDS: readonly string[] = ['x', 'y'];

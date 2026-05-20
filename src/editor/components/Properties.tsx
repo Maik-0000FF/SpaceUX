@@ -6,6 +6,7 @@ import { BUILTIN_ACTION, builtinAction } from '@/shared/menu';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
+import { nextSectorId } from '../state/sector-keys';
 
 import { ConfigEditor } from './ConfigEditor';
 import { MenuSettings } from './MenuSettings';
@@ -106,7 +107,7 @@ export function Properties() {
                 updateSectorAt(path, (s) => {
                   if (e.target.value === 'submenu') {
                     if (s.children === undefined) {
-                      s.children = [{ label: 'New item' }];
+                      s.children = [{ label: 'New item', id: nextSectorId() }];
                       delete s.binding;
                     }
                   } else {
