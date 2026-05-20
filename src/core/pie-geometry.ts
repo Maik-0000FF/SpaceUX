@@ -109,6 +109,27 @@ export function sectorCenterAngle(sectorIndex: number, sectorCount: number): num
   return ((sectorIndex % sectors) * TAU) / sectors;
 }
 
+/**
+ * Inverse of sectorCenterAngle's placement: the sector nearest to a point
+ * `(x, y)` measured from the pie centre. The renderer lays sector centres
+ * out at `x = sin(θ)·r, y = -cos(θ)·r` (12 o'clock = 0, clockwise), so the
+ * point's angle is `atan2(x, -y)`; rounding to the nearest sector step
+ * gives the index. Used by the editor's drag-to-reorder in the preview to
+ * turn a pointer position into a target slot. The radius is irrelevant —
+ * only the angle matters — so a point at the exact centre is harmless
+ * (resolves to sector 0).
+ */
+export function sectorAtPoint(x: number, y: number, sectorCount: number): number {
+  const sectors = Math.max(2, Math.floor(sectorCount));
+  // The origin has no defined angle (and atan2(0, -0) would spuriously
+  // give π); pin it to sector 0. Unreachable in practice — the centre
+  // hole carries no wedge to grab.
+  if (x === 0 && y === 0) return 0;
+  let theta = Math.atan2(x, -y);
+  if (theta < 0) theta += TAU;
+  return Math.round(theta / (TAU / sectors)) % sectors;
+}
+
 /** Compute the magnitude of the axes vector. Lets the renderer scale
  *  the visual indicator radially (e.g. arrow extends further with
  *  stronger deflection). */
