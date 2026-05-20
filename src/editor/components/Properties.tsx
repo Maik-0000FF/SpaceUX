@@ -1,14 +1,15 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useState } from 'react';
-
-import { BUILTIN_ACTION, builtinAction, DEFAULT_TRIGGER_BUTTON } from '@/shared/menu';
+import { BUILTIN_ACTION, builtinAction } from '@/shared/menu';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
 
+import { ConfigEditor } from './ConfigEditor';
+import { MenuSettings } from './MenuSettings';
+import { Row } from './Row';
 import styles from './Properties.module.scss';
 
 /**
@@ -24,75 +25,6 @@ function quoteCommandPath(p: string): string {
   return `"${p}"`;
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className={styles.row}>
-      <span className={styles.label}>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-/**
- * JSON editor for a leaf sector's action config. Keeps local text state
- * so a half-typed (invalid) value stays in the field without being
- * pushed into the store; only a parse to a plain object commits. Clearing
- * the field removes the config. Remounted per selection (keyed on the
- * path + remoteRev) so switching sectors / adopting a remote change
- * reloads the field cleanly.
- */
-function ConfigEditor({
-  path,
-  value,
-}: {
-  path: readonly number[];
-  value: Record<string, unknown> | undefined;
-}) {
-  const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
-  const [text, setText] = useState(value !== undefined ? JSON.stringify(value, null, 2) : '');
-  const [error, setError] = useState<string | null>(null);
-
-  const onChange = (next: string): void => {
-    setText(next);
-    if (next.trim() === '') {
-      setError(null);
-      updateSectorAt(path, (s) => {
-        if (s.binding) delete s.binding.config;
-      });
-      return;
-    }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(next);
-    } catch {
-      setError('invalid JSON');
-      return;
-    }
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      setError('config must be a JSON object');
-      return;
-    }
-    setError(null);
-    updateSectorAt(path, (s) => {
-      if (s.binding) s.binding.config = parsed as Record<string, unknown>;
-    });
-  };
-
-  return (
-    <div className={styles.configBlock}>
-      <span className={styles.label}>Config</span>
-      <textarea
-        className={styles.textarea}
-        value={text}
-        spellCheck={false}
-        rows={5}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {error !== null && <span className={styles.fieldError}>{error}</span>}
-    </div>
-  );
-}
-
 /**
  * Right sidebar: editable properties of the selected sector (at any
  * depth — the selection is the current ring's index, combined with the
@@ -104,7 +36,6 @@ export function Properties() {
   const config = useMenuSettings((s) => s.config);
   const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
   const deleteSector = useMenuSettings((s) => s.deleteSector);
-  const setTriggerButton = useMenuSettings((s) => s.setTriggerButton);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
@@ -147,20 +78,7 @@ export function Properties() {
       {!sector || !path ? (
         <div className={styles.fields}>
           <p className={styles.empty}>Select a sector to edit it.</p>
-          {config && (
-            <Row label="Trigger button">
-              <input
-                className={styles.input}
-                type="number"
-                min={0}
-                value={config.triggerButton ?? DEFAULT_TRIGGER_BUTTON}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  if (Number.isInteger(n) && n >= 0) setTriggerButton(n);
-                }}
-              />
-            </Row>
-          )}
+          {config && <MenuSettings />}
         </div>
       ) : (
         <div className={styles.fields}>
