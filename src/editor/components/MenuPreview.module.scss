@@ -8,6 +8,15 @@
 
 .wedgeGroup {
   cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
+
+    .wedge {
+      stroke: rgba(255, 255, 255, 0.7);
+      stroke-width: 2;
+    }
+  }
 }
 
 .wedge {
@@ -38,4 +47,9 @@
   font-size: 13px;
   font-weight: 600;
   pointer-events: none;
+}
+
+.empty {
+  color: var(--editor-fg-dim);
+  font-size: 13px;
 }

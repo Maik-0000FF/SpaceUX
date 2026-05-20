@@ -6,6 +6,7 @@ import { describeWedgePath } from '@/core/pie-path';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
+import { isSelected } from '../state/selectors';
 
 import styles from './MenuPreview.module.scss';
 
@@ -41,17 +42,29 @@ export function MenuPreview() {
       {sectors.map((sector, i) => {
         const center = sectorCenterAngle(i, count);
         const d = describeWedgePath(OUTER_RADIUS, INNER_RADIUS, center - half, center + half);
-        const selected = selectedPath.length === 1 && selectedPath[0] === i;
+        const selected = isSelected(selectedPath, i);
         // 12 o'clock = 0, clockwise positive (same convention as the
         // path helper): x = sin·r, y = -cos·r.
         const lx = Math.sin(center) * LABEL_RADIUS;
         const ly = -Math.cos(center) * LABEL_RADIUS;
         return (
+          // tabIndex + onKeyDown make wedges keyboard-operable: a focused
+          // <g role="button"> does not fire onClick on Enter/Space, so the
+          // selection would otherwise be mouse-only (MenuList covers the
+          // same action for keyboard, but the preview shouldn't be a dead
+          // end).
           <g
             key={i}
             className={styles.wedgeGroup}
             onClick={() => selectSector([i])}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectSector([i]);
+              }
+            }}
             role="button"
+            tabIndex={0}
             aria-label={`Select ${sector.label}`}
             aria-pressed={selected}
           >

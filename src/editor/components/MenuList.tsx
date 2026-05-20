@@ -3,6 +3,7 @@
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
+import { isSelected } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
 
@@ -26,9 +27,9 @@ export function MenuList() {
       ) : (
         <ul className={styles.list}>
           {sectors.map((sector, i) => {
-            // Single-element selection in PR-2; see app-state for why the
-            // index is the only correct key (no stable sector id yet).
-            const selected = selectedPath.length === 1 && selectedPath[0] === i;
+            // Index key: see app-state for why the index is the only
+            // correct key today (no stable sector id yet).
+            const selected = isSelected(selectedPath, i);
             return (
               <li key={i}>
                 <button

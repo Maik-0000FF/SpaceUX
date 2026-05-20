@@ -6,7 +6,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_MENU_CONFIG, type MenuConfig } from '@/shared/menu';
 
 import { useAppState } from '../src/editor/state/app-state';
-import { sectorAtPath } from '../src/editor/state/selectors';
+import { useMenuSettings } from '../src/editor/state/menu-settings';
+import { isSelected, sectorAtPath } from '../src/editor/state/selectors';
 
 // The editor's selection store and path resolver are pure logic, so
 // they're exercised here without a DOM — the components that consume
@@ -67,5 +68,24 @@ describe('sectorAtPath', () => {
 
   it('returns null for an out-of-range index', () => {
     expect(sectorAtPath(nested, [9])).toBeNull();
+  });
+});
+
+describe('isSelected', () => {
+  it('matches a single-element path at the given index', () => {
+    expect(isSelected([2], 2)).toBe(true);
+    expect(isSelected([2], 1)).toBe(false);
+  });
+
+  it('is false for empty and multi-element paths', () => {
+    expect(isSelected([], 0)).toBe(false);
+    expect(isSelected([1, 0], 1)).toBe(false);
+  });
+});
+
+describe('menu-settings', () => {
+  it('setConfig stores the config', () => {
+    useMenuSettings.getState().setConfig(DEFAULT_MENU_CONFIG);
+    expect(useMenuSettings.getState().config).toEqual(DEFAULT_MENU_CONFIG);
   });
 });
