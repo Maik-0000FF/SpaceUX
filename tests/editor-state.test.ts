@@ -239,4 +239,18 @@ describe('menu-settings CRUD', () => {
     sector = useMenuSettings.getState().config?.sectors[0];
     expect(sector?.children).toBeUndefined();
   });
+
+  it('moveSector and deleteSector are no-ops for invalid indices', () => {
+    load([{ label: 'A' }, { label: 'B' }, { label: 'C' }]);
+    const labels = () => useMenuSettings.getState().config?.sectors.map((s) => s.label);
+
+    useMenuSettings.getState().moveSector(1, 1); // same index
+    expect(labels()).toEqual(['A', 'B', 'C']);
+    useMenuSettings.getState().moveSector(0, 9); // target out of range
+    expect(labels()).toEqual(['A', 'B', 'C']);
+    useMenuSettings.getState().moveSector(-1, 0); // source out of range
+    expect(labels()).toEqual(['A', 'B', 'C']);
+    useMenuSettings.getState().deleteSector(9); // out of range
+    expect(labels()).toEqual(['A', 'B', 'C']);
+  });
 });

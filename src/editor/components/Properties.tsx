@@ -91,6 +91,7 @@ export function Properties() {
   const deleteSector = useMenuSettings((s) => s.deleteSector);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
   const selectedPath = useAppState((s) => s.selectedPath);
+  const selectSector = useAppState((s) => s.selectSector);
   const clearSelection = useAppState((s) => s.clearSelection);
   const sector = config ? sectorAtPath(config, selectedPath) : null;
 
@@ -99,8 +100,13 @@ export function Properties() {
   const canDelete = isTopLevel && (config?.sectors.length ?? 0) > 1;
   const handleDelete = (): void => {
     if (!isTopLevel) return;
-    deleteSector(selectedPath[0]!);
-    clearSelection();
+    const index = selectedPath[0]!;
+    deleteSector(index);
+    // Keep the editing flow going: select a neighbour rather than
+    // dropping back to "nothing selected".
+    const remaining = useMenuSettings.getState().config?.sectors.length ?? 0;
+    if (remaining > 0) selectSector([Math.min(index, remaining - 1)]);
+    else clearSelection();
   };
 
   return (
@@ -125,6 +131,11 @@ export function Properties() {
             <select
               className={styles.select}
               value={sector.children !== undefined ? 'submenu' : 'action'}
+              title={
+                sector.children !== undefined
+                  ? 'Switching to Action discards this submenu and its items'
+                  : undefined
+              }
               onChange={(e) =>
                 updateSectorAt(selectedPath, (s) => {
                   if (e.target.value === 'submenu') {
