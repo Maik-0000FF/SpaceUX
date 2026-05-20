@@ -543,3 +543,45 @@ function validateActionRef(raw: unknown, where: string): ActionRefValidation {
   warnUnknownFields(obj, KNOWN_ACTION_REF_FIELDS, where);
   return { ok: true, value: out };
 }
+
+// ── Serialization ───────────────────────────────────────────────────
+
+/** Build a plain object for one action ref with a fixed key order. */
+function orderActionRef(ref: ActionRef): Record<string, unknown> {
+  const out: Record<string, unknown> = { action: ref.action };
+  if (ref.config !== undefined) out.config = ref.config;
+  return out;
+}
+
+/** Build a plain object for one sector with a fixed key order, omitting
+ *  absent optional fields. Recursive for nested children. */
+function orderSector(sector: MenuSector): Record<string, unknown> {
+  const out: Record<string, unknown> = { label: sector.label };
+  if (sector.icon !== undefined) out.icon = sector.icon;
+  if (sector.binding !== undefined) out.binding = orderActionRef(sector.binding);
+  if (sector.children !== undefined) out.children = sector.children.map(orderSector);
+  return out;
+}
+
+/**
+ * Serialize a MenuConfig to the canonical on-disk JSON string.
+ *
+ * The editor writes back through this so saves are *deterministic*:
+ * keys are emitted in a fixed order (and absent optional fields are
+ * omitted) regardless of how the in-memory object was assembled. That
+ * keeps diffs of `menu.json` minimal and stable — a label edit changes
+ * exactly one line, not the whole file from a reshuffled key order.
+ *
+ * 2-space indent + trailing newline match the hand-authored style and
+ * keep the file POSIX-friendly (newline-terminated).
+ */
+export function serializeMenuConfig(config: MenuConfig): string {
+  const out: Record<string, unknown> = { version: config.version };
+  if (config.triggerButton !== undefined) out.triggerButton = config.triggerButton;
+  if (config.axisInvert !== undefined) out.axisInvert = config.axisInvert;
+  if (config.tzDeadzone !== undefined) out.tzDeadzone = config.tzDeadzone;
+  if (config.magnitudeDrill !== undefined) out.magnitudeDrill = config.magnitudeDrill;
+  if (config.tiltDrill !== undefined) out.tiltDrill = config.tiltDrill;
+  out.sectors = config.sectors.map(orderSector);
+  return JSON.stringify(out, null, 2) + '\n';
+}

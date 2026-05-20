@@ -8,14 +8,17 @@
 
 .wedgeGroup {
   cursor: pointer;
+  // No focus styling at all: the blue selected fill is the only
+  // indicator. Chromium treats a clicked focusable <g> as
+  // :focus-visible, so any focus outline/stroke would show on a plain
+  // mouse click — a redundant frame on top of the blue selection. The
+  // wedges stay keyboard-operable (tabIndex + Enter/Space) but draw no
+  // focus ring.
+  outline: none;
 
+  &:focus,
   &:focus-visible {
     outline: none;
-
-    .wedge {
-      stroke: rgba(255, 255, 255, 0.7);
-      stroke-width: 2;
-    }
   }
 }
 
@@ -34,8 +37,10 @@
 }
 
 .wedgeSelected {
+  // Blue fill alone marks selection — no extra stroke. Keep the same
+  // subtle border as the other wedges (inherited from .wedge) so the
+  // selected segment doesn't get a redundant bright frame around it.
   fill: var(--editor-accent);
-  stroke: rgba(255, 255, 255, 0.55);
 
   .wedgeGroup:hover & {
     fill: var(--editor-accent);

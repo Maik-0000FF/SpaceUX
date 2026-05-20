@@ -27,6 +27,35 @@ import { loadMenuConfig, type MenuLoadResult } from './menu-loader.js';
 const MENU_FILENAME = 'menu.json';
 const DEBOUNCE_MS = 150;
 
+// Echo-loop suppression. When the editor writes menu.json the resulting
+// inotify event(s) would otherwise trigger a reload that pushes the
+// just-saved config straight back into the editor. Before each editor
+// write, main calls markSelfWrite(absPath); the watcher skips any
+// reload for a path still in this map. A short TTL (well above the
+// debounce + the atomic rename burst) clears the marker so a genuine
+// external edit landing afterwards still reloads.
+const SELF_WRITE_TTL_MS = 500;
+const selfWrites = new Map<string, NodeJS.Timeout>();
+
+/** Mark `absPath` as written by the editor itself, suppressing the next
+ *  watcher reload for it within {@link SELF_WRITE_TTL_MS}. Refreshes the
+ *  window if called again before it expires. */
+export function markSelfWrite(absPath: string): void {
+  const existing = selfWrites.get(absPath);
+  if (existing) clearTimeout(existing);
+  selfWrites.set(
+    absPath,
+    setTimeout(() => selfWrites.delete(absPath), SELF_WRITE_TTL_MS),
+  );
+}
+
+/** True while `absPath` is within its self-write suppression window.
+ *  Membership (not consume-once) so every event in the atomic-rename
+ *  burst is suppressed, not just the first. */
+function isSelfWrite(absPath: string): boolean {
+  return selfWrites.has(absPath);
+}
+
 export function watchMenuConfig(
   searchPaths: string[],
   onChange: (result: MenuLoadResult) => void,
@@ -51,6 +80,10 @@ export function watchMenuConfig(
       // reload anyway. When we do know the filename, only menu.json
       // is interesting.
       if (filename !== null && filename !== MENU_FILENAME) return;
+      // Only menu.json matters here (other names already returned), so
+      // the changed path is this dir's menu.json. Skip the reload when
+      // it's the editor's own write echoing back.
+      if (isSelfWrite(path.join(dir, MENU_FILENAME))) return;
       schedule();
     });
     // A watcher can emit 'error' (e.g. the directory was deleted

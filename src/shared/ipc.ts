@@ -9,6 +9,8 @@
  * silently break a channel only one side knows about.
  */
 
+import type { MenuConfig } from './menu';
+
 export const IpcChannel = {
   /** Renderer subscribes; main pushes every axes snapshot. */
   AXES: 'spaceux:axes',
@@ -53,12 +55,34 @@ export const IpcChannel = {
    *  (PR Editor-1); a later PR will have main respond on this channel
    *  by pushing the current config so the editor never races startup. */
   EDITOR_READY: 'spaceux:editor:ready',
-  /** Editor pulls the current MenuConfig on mount via
-   *  ipcRenderer.invoke — same pull-not-push rationale as
-   *  GET_MENU_CONFIG for the pie renderer. Read-only in PR Editor-1;
-   *  write-back (`editor.menu-settings.set`) arrives in PR Editor-3a. */
+  /** Editor pulls the current config snapshot ({config, mtime}) on
+   *  mount via ipcRenderer.invoke — same pull-not-push rationale as
+   *  GET_MENU_CONFIG for the pie renderer. The mtime is the editor's
+   *  conflict-detection baseline for later writes. */
   EDITOR_GET_MENU_CONFIG: 'spaceux:editor:menu-settings:get',
+  /** Editor pushes an edited config back to main via invoke; main
+   *  validates, writes atomically, and resolves with a MenuWriteResult
+   *  (ok+new mtime / validation error / conflict). */
+  EDITOR_SET_MENU_CONFIG: 'spaceux:editor:menu-settings:set',
+  /** Main pushes a fresh snapshot to the editor when the file changed
+   *  on disk from *outside* the editor (the editor's own writes are
+   *  suppressed by the watcher's self-write window). Lets the editor
+   *  resync instead of clobbering an external edit. */
+  EDITOR_MENU_CONFIG_CHANGED: 'spaceux:editor:menu-settings:changed',
 } as const;
+
+/** Config plus the on-disk mtime it was read at. The editor snapshots
+ *  the mtime and echoes it back on a write so main can detect a
+ *  file-changed-underneath conflict. mtime is null when no file backed
+ *  the config (fresh install running on DEFAULT_MENU_CONFIG). */
+export type MenuConfigSnapshot = { config: MenuConfig; mtime: number | null };
+
+/** Outcome of an editor write-back. Mirrors menu-writer's result so the
+ *  same shape crosses the IPC boundary. */
+export type MenuWriteResult =
+  | { ok: true; mtime: number }
+  | { ok: false; reason: string }
+  | { ok: 'conflict'; mtime: number | null };
 
 export type DaemonStatusPayload =
   | {

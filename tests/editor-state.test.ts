@@ -84,8 +84,53 @@ describe('isSelected', () => {
 });
 
 describe('menu-settings', () => {
-  it('setConfig stores the config', () => {
-    useMenuSettings.getState().setConfig(DEFAULT_MENU_CONFIG);
-    expect(useMenuSettings.getState().config).toEqual(DEFAULT_MENU_CONFIG);
+  it('setConfig adopts the snapshot as a clean remote change', () => {
+    useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 123 });
+    const state = useMenuSettings.getState();
+    expect(state.config).toEqual(DEFAULT_MENU_CONFIG);
+    expect(state.mtime).toBe(123);
+    // Remote origin so the write-back subscription won't echo it to disk;
+    // clean (not dirty) and no conflict after adopting.
+    expect(state.origin).toBe('remote');
+    expect(state.dirty).toBe(false);
+    expect(state.conflict).toBeNull();
+  });
+
+  it('updateSectorAt edits in place and flags the change local + dirty', () => {
+    useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
+    useMenuSettings.getState().updateSectorAt([0], (s) => {
+      s.label = 'Renamed';
+    });
+    const state = useMenuSettings.getState();
+    expect(state.config?.sectors[0]?.label).toBe('Renamed');
+    expect(state.origin).toBe('local');
+    expect(state.dirty).toBe(true);
+    // Immutable update — the shipped default constant is untouched.
+    expect(DEFAULT_MENU_CONFIG.sectors[0]?.label).not.toBe('Renamed');
+  });
+
+  it('markSaved clears dirty and updates the mtime baseline', () => {
+    useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
+    useMenuSettings.getState().updateSectorAt([0], (s) => {
+      s.label = 'X';
+    });
+    expect(useMenuSettings.getState().dirty).toBe(true);
+    useMenuSettings.getState().markSaved(999);
+    const state = useMenuSettings.getState();
+    expect(state.dirty).toBe(false);
+    expect(state.mtime).toBe(999);
+  });
+
+  it('setConflict stashes the external snapshot; clearConflict / setConfig clear it', () => {
+    const external = { config: DEFAULT_MENU_CONFIG, mtime: 555 };
+    useMenuSettings.getState().setConflict(external);
+    expect(useMenuSettings.getState().conflict).toEqual(external);
+    useMenuSettings.getState().clearConflict();
+    expect(useMenuSettings.getState().conflict).toBeNull();
+    // Adopting a snapshot also clears any conflict + dirty.
+    useMenuSettings.getState().setConflict(external);
+    useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 7 });
+    expect(useMenuSettings.getState().conflict).toBeNull();
+    expect(useMenuSettings.getState().dirty).toBe(false);
   });
 });

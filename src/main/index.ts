@@ -6,16 +6,22 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describeError } from '../shared/errors.js';
-import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '../shared/ipc.js';
-import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
+import {
+  IpcChannel,
+  type DaemonStatusPayload,
+  type MenuConfigSnapshot,
+  type MenuOpenPayload,
+} from '../shared/ipc.js';
+import { DEFAULT_MENU_CONFIG, DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
 import type { DaemonEvent } from '../shared/protocol.js';
 
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
-import { openEditorWindow, setAppQuitting } from './editor-window.js';
+import { openEditorWindow, sendToEditor, setAppQuitting } from './editor-window.js';
 import { KWinCursorService } from './kwin-cursor.js';
 import { loadMenuConfig, menuConfigSearchPaths } from './menu-loader.js';
-import { watchMenuConfig } from './menu-watcher.js';
+import { markSelfWrite, watchMenuConfig } from './menu-watcher.js';
+import { writeMenuConfig } from './menu-writer.js';
 import {
   indexActions,
   loadPlugins,
@@ -64,6 +70,14 @@ let kwinCursor: KWinCursorService | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
 let menuConfig: MenuConfig | null = null;
+// Conflict-detection + write-back state for the editor. `mtime` is the
+// on-disk mtime the live config was last read/written at; `source` is
+// the file it came from (null = running on defaults, never saved).
+// `searchPaths` is captured at startup so a write can fall back to the
+// preferred XDG path when nothing has been saved yet.
+let menuConfigMtime: number | null = null;
+let menuConfigSource: string | null = null;
+let menuSearchPaths: string[] = [];
 let stopMenuWatcher: (() => void) | null = null;
 // True between MENU_OPEN and MENU_COMMIT — drives the click-to-toggle
 // trigger lifecycle so a second press commits instead of re-opening.
@@ -342,19 +356,48 @@ function wireActionDispatch(): void {
   });
 }
 
-/** Editor-window IPC. Read-only in PR Editor-1: the editor pulls the
- *  live config on mount and signals readiness. Write-back
- *  (`editor.menu-settings.set`) and the ready→push-config response
- *  arrive in PR Editor-3a. */
+/** Editor-window IPC: the config read/write loop. */
 function wireEditorIpc(): void {
-  // Mirrors the renderer's GET_MENU_CONFIG: pull-based so the editor
-  // gets the current value at mount without racing a push.
-  ipcMain.handle(IpcChannel.EDITOR_GET_MENU_CONFIG, () => menuConfig);
+  // Pull-based, like the renderer's GET_MENU_CONFIG: the editor gets the
+  // current snapshot (config + mtime baseline) at mount without racing a
+  // push. mtime feeds the editor's conflict detection on later writes.
+  ipcMain.handle(
+    IpcChannel.EDITOR_GET_MENU_CONFIG,
+    (): MenuConfigSnapshot => ({
+      config: menuConfig ?? DEFAULT_MENU_CONFIG,
+      mtime: menuConfigMtime,
+    }),
+  );
 
-  // Editor mounted. No-op for now — the handler exists so the
-  // renderer's fire-and-forget `ready()` has a registered listener,
-  // and so PR Editor-3a can hang the "push current config" response
-  // off this exact channel without re-routing the preload.
+  // Editor write-back. Validate + atomic-write happen in menu-writer;
+  // here we pick the target path, arm the watcher's self-write guard so
+  // our own write doesn't echo back, and on success adopt the new mtime
+  // and hot-reload the live pie. Conflicts/validation errors are
+  // returned verbatim for the editor to surface.
+  ipcMain.handle(
+    IpcChannel.EDITOR_SET_MENU_CONFIG,
+    async (_evt, config: MenuConfig, expectedMtime: number | null) => {
+      const target = menuConfigSource ?? menuSearchPaths[0];
+      if (target === undefined) {
+        return { ok: false as const, reason: 'no writable config path available' };
+      }
+      // Arm before writing so the rename's inotify event is suppressed.
+      markSelfWrite(target);
+      const result = await writeMenuConfig(target, config, expectedMtime);
+      if (result.ok === true) {
+        menuConfig = config;
+        menuConfigMtime = result.mtime;
+        menuConfigSource = target;
+        // Hot-reload the live pie so an editor save takes effect at once.
+        mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, config);
+      }
+      return result;
+    },
+  );
+
+  // Editor mounted. No-op: the editor pulls via EDITOR_GET_MENU_CONFIG;
+  // the handler exists so the renderer's fire-and-forget `ready()` has a
+  // registered listener.
   ipcMain.on(IpcChannel.EDITOR_READY, () => {});
 }
 
@@ -421,16 +464,21 @@ app.whenReady().then(async () => {
   actionIndex = indexActions([BUILTIN_PLUGIN, ...plugins]);
 
   const searchPaths = menuConfigSearchPaths();
+  menuSearchPaths = searchPaths;
   const menuResult = await loadMenuConfig(searchPaths);
   if (menuResult.fallbackReason) {
     // eslint-disable-next-line no-console
     console.warn(`[menu-config] using defaults: ${menuResult.fallbackReason}`);
   }
   menuConfig = menuResult.config;
+  menuConfigMtime = menuResult.mtime;
+  menuConfigSource = menuResult.source;
 
-  // Hot-reload: re-read on every menu.json edit and push the new
-  // config to the renderer. Renderer treats the push as authoritative
-  // so the live pie reflects the file without an app restart.
+  // Hot-reload: re-read on every menu.json edit and push the new config
+  // to both renderers. The editor's own writes are suppressed by the
+  // watcher's self-write window, so a reload here always means an
+  // *external* change — push it to the editor too (EDITOR_MENU_CONFIG_
+  // CHANGED) so it resyncs instead of overwriting the external edit.
   stopMenuWatcher = watchMenuConfig(searchPaths, (result) => {
     if (result.fallbackReason) {
       // eslint-disable-next-line no-console
@@ -440,7 +488,13 @@ app.whenReady().then(async () => {
       console.info(`[menu-config] reloaded from ${result.source}`);
     }
     menuConfig = result.config;
+    menuConfigMtime = result.mtime;
+    menuConfigSource = result.source;
     mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, result.config);
+    sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
+      config: result.config,
+      mtime: result.mtime,
+    } satisfies MenuConfigSnapshot);
   });
 
   wireActionDispatch();

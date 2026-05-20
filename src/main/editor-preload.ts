@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 import type { EditorBridge } from '../shared/bridge.js';
-import { IpcChannel } from '../shared/ipc.js';
+import { IpcChannel, type MenuConfigSnapshot, type MenuWriteResult } from '../shared/ipc.js';
 import type { MenuConfig } from '../shared/menu.js';
 
 /**
@@ -18,7 +18,19 @@ import type { MenuConfig } from '../shared/menu.js';
 
 const bridge: EditorBridge = {
   ready: () => ipcRenderer.send(IpcChannel.EDITOR_READY),
-  getMenuConfig: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_MENU_CONFIG) as Promise<MenuConfig>,
+  getMenuConfig: () =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_GET_MENU_CONFIG) as Promise<MenuConfigSnapshot>,
+  setMenuConfig: (config: MenuConfig, expectedMtime: number | null) =>
+    ipcRenderer.invoke(
+      IpcChannel.EDITOR_SET_MENU_CONFIG,
+      config,
+      expectedMtime,
+    ) as Promise<MenuWriteResult>,
+  onMenuConfigChanged: (handler) => {
+    const listener = (_evt: IpcRendererEvent, snapshot: MenuConfigSnapshot) => handler(snapshot);
+    ipcRenderer.on(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, listener);
+    return () => ipcRenderer.off(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('editor', bridge);

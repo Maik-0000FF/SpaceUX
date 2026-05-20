@@ -26,6 +26,18 @@ export function setAppQuitting(): void {
 }
 
 /**
+ * Send an IPC message to the editor renderer, if the window exists and
+ * is alive. No-op otherwise (the editor may never have been opened, or
+ * is hidden — a hidden window still has live webContents, so it stays
+ * in sync and is correct the moment it's shown again).
+ */
+export function sendToEditor(channel: string, payload: unknown): void {
+  if (editorWindow && !editorWindow.isDestroyed()) {
+    editorWindow.webContents.send(channel, payload);
+  }
+}
+
+/**
  * Show the editor window, creating it on first use.
  *
  * Closing the window only *hides* it (the `close` interceptor below),

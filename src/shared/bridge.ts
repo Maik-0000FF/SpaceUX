@@ -17,7 +17,12 @@
  *   3. consume it from the renderer via window.spaceux.<method>()
  */
 
-import type { DaemonStatusPayload, MenuOpenPayload } from './ipc';
+import type {
+  DaemonStatusPayload,
+  MenuConfigSnapshot,
+  MenuOpenPayload,
+  MenuWriteResult,
+} from './ipc';
 import type { MenuConfig } from './menu';
 
 /** Six signed axis values: TX, TY, TZ, RX, RY, RZ. */
@@ -53,15 +58,20 @@ export type SpaceUxBridge = {
  * from SpaceUxBridge: the editor only reads/writes config, it never
  * subscribes to live puck axes or drives the pie. Implemented in
  * src/main/editor-preload.ts.
- *
- * PR Editor-1 is read-only (mount → fetch config → render). Mutating
- * methods (`setMenuConfig`, change subscriptions) land in PR Editor-3a.
  */
 export type EditorBridge = {
   /** Signal main that the editor renderer has mounted. Fire-and-forget. */
   ready(): void;
-  /** Pull the current menu config once on mount. */
-  getMenuConfig(): Promise<MenuConfig>;
+  /** Pull the current config snapshot ({config, mtime}) once on mount.
+   *  The mtime is the baseline for conflict detection on writes. */
+  getMenuConfig(): Promise<MenuConfigSnapshot>;
+  /** Write an edited config back to disk. `expectedMtime` is the mtime
+   *  the editor last saw; main rejects with a `conflict` result if the
+   *  file changed underneath. Resolves with the new mtime on success. */
+  setMenuConfig(config: MenuConfig, expectedMtime: number | null): Promise<MenuWriteResult>;
+  /** Subscribe to out-of-band config changes (the file was edited
+   *  outside the editor). Returns an unsubscribe fn. */
+  onMenuConfigChanged(handler: (snapshot: MenuConfigSnapshot) => void): () => void;
 };
 
 declare global {
