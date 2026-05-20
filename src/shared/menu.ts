@@ -25,7 +25,7 @@ export const MENU_CONFIG_VERSION = 1;
  *  recursion-stack overflow on pathological inputs.
  *
  *  16 is chosen as well beyond any plausible user-authored menu
- *  shape (Kando-style menus rarely exceed 3–4 deep) while still
+ *  shape (real-world radial menus rarely exceed 3–4 deep) while still
  *  catching obvious authoring mistakes — e.g. a hand-edited config
  *  that accidentally self-references a fragment via copy/paste. */
 export const MAX_MENU_DEPTH = 16;

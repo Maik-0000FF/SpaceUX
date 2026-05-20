@@ -12,7 +12,7 @@ import { describeError } from '../shared/errors.js';
 
 /**
  * KDE Wayland helper that fetches the global cursor position via a
- * KWin script over DBus. Same technique Kando uses on KDE — Electron's
+ * KWin script over DBus. This is the approach needed on KDE because Electron's
  * screen.getCursorScreenPoint() returns a stale value on Wayland
  * (clients are not allowed to query the global cursor), so we round-
  * trip through KWin's scripting engine which has compositor-level

@@ -136,8 +136,8 @@ jobs:
         # --redact masks any finding in the report (safe to read on a public log).
         # --report-format sarif uploads as a code-scanning artefact below.
         # No custom config: CI uses the upstream default ruleset, which is
-        # explicitly NOT the AI-attribution-strict variant some contributors
-        # may run locally. See project README for the rationale.
+        # explicitly NOT the stricter local-only variant some contributors
+        # may run. See project README for the rationale.
         run: |
           gitleaks git . \
             --redact \
