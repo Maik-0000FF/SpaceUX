@@ -30,6 +30,10 @@ export const MENU_CONFIG_VERSION = 1;
  *  that accidentally self-references a fragment via copy/paste. */
 export const MAX_MENU_DEPTH = 16;
 
+/** Bounds for the pie size multiplier (MenuConfig.scale). */
+export const MIN_PIE_SCALE = 0.5;
+export const MAX_PIE_SCALE = 2;
+
 /** Reverse-DNS-style namespace under which built-in actions live in
  *  the action registry. Identical in shape to a 3rd-party plugin id
  *  so the dispatch path (invokeAction("<plugin>/<action>", config))
@@ -202,6 +206,12 @@ export type MenuConfig = {
    *  "diving into" a branch since the puck literally tips over
    *  what the user is hovering. */
   tiltDrill?: MenuAutoDrill;
+  /** Overall pie size multiplier. 1 = the default size; the renderer
+   *  multiplies the base radius by this (and divides by the window's
+   *  devicePixelRatio so the on-screen size is consistent across monitor
+   *  scalings). Clamped to [:data:`MIN_PIE_SCALE`, :data:`MAX_PIE_SCALE`].
+   *  Omitting falls back to 1. */
+  scale?: number;
   /** Sectors in clockwise order starting at 12 o'clock. The pie's
    *  sector count = sectors.length — there is no separate "count"
    *  knob and there cannot be one. */
@@ -281,6 +291,7 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'tzDeadzone',
   'magnitudeDrill',
   'tiltDrill',
+  'scale',
   'sectors',
 ];
 // 'id' is the editor-only stable identity (see MenuSector.id). The
@@ -365,6 +376,17 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
       };
     }
     result.triggerButton = obj.triggerButton;
+  }
+  if (obj.scale !== undefined) {
+    if (typeof obj.scale !== 'number' || !Number.isFinite(obj.scale)) {
+      return {
+        ok: false,
+        reason: 'menu config field "scale" must be a finite number when present',
+      };
+    }
+    // Clamp rather than reject: an out-of-range value is harmless, and
+    // clamping keeps a hand-edited extreme from breaking the load.
+    result.scale = Math.min(MAX_PIE_SCALE, Math.max(MIN_PIE_SCALE, obj.scale));
   }
   if (obj.axisInvert !== undefined) {
     if (

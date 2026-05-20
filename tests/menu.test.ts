@@ -147,6 +147,25 @@ describe('validateMenuConfig', () => {
     }
   });
 
+  it('accepts and clamps the pie size scale; rejects a non-number', () => {
+    const at = (scale: unknown) =>
+      validateMenuConfig({ version: MENU_CONFIG_VERSION, scale, sectors: [{ label: 'x' }] });
+    // In range: kept as-is.
+    const ok = at(1.5);
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.config.scale).toBe(1.5);
+    // Out of range: clamped to [MIN_PIE_SCALE, MAX_PIE_SCALE] (0.5..2).
+    const lo = at(0.1);
+    if (lo.ok) expect(lo.config.scale).toBe(0.5);
+    const hi = at(99);
+    if (hi.ok) expect(hi.config.scale).toBe(2);
+    // Wrong type: rejected.
+    expect(at('big').ok).toBe(false);
+    // Absent: undefined (falls back to 1 at render).
+    const none = validateMenuConfig({ version: MENU_CONFIG_VERSION, sectors: [{ label: 'x' }] });
+    if (none.ok) expect(none.config.scale).toBeUndefined();
+  });
+
   it('accepts an opt-in tzDeadzone and round-trips its value', () => {
     // Optional positive-number knob that lets the user raise the
     // TZ-cancel threshold separately from the lateral deadzone.

@@ -144,6 +144,19 @@ export function PieMenu({
   const outerRingInnerRadius = radius * OUTER_RING_INNER_RATIO;
   const viewportSize = outerRingOuterRadius * 2;
 
+  // User size multiplier. The `/ devicePixelRatio` is a compositor-specific
+  // correction, NOT standard behaviour: under plain Chromium a fixed CSS
+  // size already renders at a consistent physical size across DPRs. But on
+  // this KDE Wayland setup with fractional scaling the overlay renders
+  // *larger* at higher OS scaling, so we divide it back out to keep the
+  // on-screen size steady (same fractional-scaling family as #71). Read at
+  // render, not reactive — fine here since the overlay is recreated per
+  // invocation. The viewBox stays `viewportSize`; only the rendered px size
+  // and the clamp margin scale by this factor.
+  const sizeFactor = (config.scale ?? 1) / (window.devicePixelRatio || 1);
+  const displaySize = viewportSize * sizeFactor;
+  const clampRadius = outerRingOuterRadius * sizeFactor;
+
   // Absolute positioning so the pie sits at the supplied window-
   // coords. Translating by -50% centres the SVG on the anchor point
   // regardless of size. Falls back to centre-of-viewport when
@@ -157,7 +170,7 @@ export function PieMenu({
   // preview ring won't ever land off-screen.
   const anchor =
     position !== undefined
-      ? clampPieAnchor(position, outerRingOuterRadius, {
+      ? clampPieAnchor(position, clampRadius, {
           width: window.innerWidth,
           height: window.innerHeight,
         })
@@ -167,11 +180,11 @@ export function PieMenu({
         position: 'absolute',
         left: anchor.x,
         top: anchor.y,
-        width: viewportSize,
-        height: viewportSize,
+        width: displaySize,
+        height: displaySize,
         transform: 'translate(-50%, -50%)',
       }
-    : { width: viewportSize, height: viewportSize };
+    : { width: displaySize, height: displaySize };
 
   // Center-cancel target. Active whenever no sector is selected
   // (puck in deadzone): a commit in that state is a silent dismiss,
@@ -210,8 +223,8 @@ export function PieMenu({
     <div className="pie-menu" style={style}>
       <svg
         viewBox={`-${outerRingOuterRadius} -${outerRingOuterRadius} ${viewportSize} ${viewportSize}`}
-        width={viewportSize}
-        height={viewportSize}
+        width={displaySize}
+        height={displaySize}
       >
         {/* Inner ring: active selection target at top level, dimmed
          *  breadcrumb once drilled in (with the drilled-into sector

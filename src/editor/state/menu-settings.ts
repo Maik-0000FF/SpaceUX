@@ -8,7 +8,13 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 
 import type { MenuConfigSnapshot } from '@/shared/ipc';
-import { MAX_MENU_DEPTH, type MenuConfig, type MenuSector } from '@/shared/menu';
+import {
+  MAX_MENU_DEPTH,
+  MAX_PIE_SCALE,
+  MIN_PIE_SCALE,
+  type MenuConfig,
+  type MenuSector,
+} from '@/shared/menu';
 
 import { eqPath, isPrefix, sectorHeight } from './move-targets';
 import { nextSectorId } from './sector-keys';
@@ -74,6 +80,8 @@ type MenuSettingsState = {
   moveSectorBetween: (fromPath: readonly number[], toRingPath: readonly number[]) => void;
   /** Set the puck button (zero-based) that opens the pie. */
   setTriggerButton: (button: number) => void;
+  /** Set the pie size multiplier (clamped to [MIN_PIE_SCALE, MAX_PIE_SCALE]). */
+  setScale: (scale: number) => void;
 };
 
 /** Return a copy of `config` with an editor-only stable id (see
@@ -235,6 +243,13 @@ export const useMenuSettings = create<MenuSettingsState>()(
         set((state) => {
           if (!state.config) return;
           state.config.triggerButton = button;
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setScale: (scale) =>
+        set((state) => {
+          if (!state.config) return;
+          state.config.scale = Math.min(MAX_PIE_SCALE, Math.max(MIN_PIE_SCALE, scale));
           state.origin = 'local';
           state.dirty = true;
         }),
