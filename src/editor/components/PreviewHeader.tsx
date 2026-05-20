@@ -17,13 +17,15 @@ export function PreviewHeader() {
   const viewPath = useAppState((s) => s.viewPath);
   const drillTo = useAppState((s) => s.drillTo);
 
-  if (viewPath.length === 0) return null;
-
+  // Always render (no early null) so the breadcrumb's height is reserved
+  // even at the top level — the pie below mustn't jump when it appears.
+  // At the root the "Menu" crumb is the only (current, non-clickable) item.
   const labels = config ? breadcrumbLabels(config, viewPath) : [];
+  const atRoot = labels.length === 0;
 
   return (
     <nav className={styles.breadcrumb} aria-label="Menu path">
-      <button type="button" className={styles.crumb} onClick={() => drillTo(0)}>
+      <button type="button" className={styles.crumb} onClick={() => drillTo(0)} disabled={atRoot}>
         Menu
       </button>
       {labels.map((label, i) => (

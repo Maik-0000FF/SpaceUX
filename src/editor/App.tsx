@@ -103,7 +103,9 @@ export function App() {
       <div className={styles.shell}>
         <MenuList />
         <main className={styles.center}>
-          <PreviewHeader />
+          <div className={styles.breadcrumbSlot}>
+            <PreviewHeader />
+          </div>
           <div className={styles.previewArea}>
             <MenuPreview />
           </div>

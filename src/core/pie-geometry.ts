@@ -56,6 +56,22 @@ export const DEFAULT_PIE_GEOMETRY: PieGeometryConfig = {
   invertY: true,
 };
 
+// ── Radial layout ratios ────────────────────────────────────────────
+// Multiples of the inner pie's outer radius, shared by the live pie
+// (PieMenu) and the editor's faithful preview (MenuPreview) so the two
+// can't drift apart on proportions.
+
+/** Central cancel hole / inner cut-out of every wedge, as a fraction of
+ *  the inner pie's outer radius. */
+export const CANCEL_RADIUS_RATIO = 0.18;
+
+/** Inner edge of the outer (preview / child) ring. A small `>1` leaves a
+ *  visible gap between the inner pie and the outer ring. */
+export const OUTER_RING_INNER_RATIO = 1.04;
+
+/** Outer edge of the outer ring — the overall pie footprint. */
+export const OUTER_RING_OUTER_RATIO = 1.5;
+
 const TAU = Math.PI * 2;
 
 /**

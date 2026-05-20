@@ -5,7 +5,10 @@ import { useMemo, type CSSProperties } from 'react';
 
 import { currentSectors, navigationRingRotation } from '@/core/menu-nav';
 import {
+  CANCEL_RADIUS_RATIO,
   DEFAULT_PIE_GEOMETRY,
+  OUTER_RING_INNER_RATIO,
+  OUTER_RING_OUTER_RATIO,
   axesToSector,
   clampPieAnchor,
   sectorCenterAngle,
@@ -15,25 +18,6 @@ import { describeWedgePath } from '@/core/pie-path';
 import { resolveAxisInvert, type MenuConfig, type MenuSector } from '@/shared/menu';
 
 const TAU = Math.PI * 2;
-
-/** Fraction of the outer radius taken up by the central cancel area.
- *  Used as the inner cut-out of every sector wedge so the wedges
- *  butt directly against the cancel circle instead of sitting on top
- *  of it. Single source of truth — bump in one place. */
-const CANCEL_RADIUS_RATIO = 0.18;
-
-/** Inner edge of the outer preview ring, expressed as a multiple of
- *  the inner pie's outer radius. A small `>1` value leaves a visible
- *  gap between the two rings so the user sees them as distinct
- *  layers instead of one continuous band. */
-const OUTER_RING_INNER_RATIO = 1.04;
-
-/** Outer edge of the outer preview ring, also a multiple of the
- *  inner pie's outer radius. Sets the overall pie footprint: the
- *  SVG viewport always reserves this much space whether the outer
- *  ring is currently visible or not, so the menu's clamp position
- *  doesn't jump when the user moves onto/off a branch sector. */
-const OUTER_RING_OUTER_RATIO = 1.5;
 
 export type PieMenuProps = {
   axes: { tx: number; ty: number };

@@ -4,7 +4,9 @@
 .sidebar {
   background: var(--editor-panel-bg);
   border-right: 1px solid var(--editor-border);
-  overflow-y: auto;
+  // Scroll both ways: deep rows can grow past the panel width, and we want
+  // the full label reachable rather than truncated by the indent.
+  overflow: auto;
   padding: 12px;
 }
 
@@ -47,6 +49,9 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  // Grow to the widest row so deep/long rows can extend (sidebar scrolls)
+  // instead of squeezing the label; rows still stretch to fill the width.
+  min-width: max-content;
 }
 
 .row {
@@ -81,8 +86,10 @@
 }
 
 .item {
-  flex: 1;
-  min-width: 0;
+  // Don't flex-shrink: the indent must not eat the label. Show the full
+  // name and only truncate past a generous character count.
+  flex: none;
+  max-width: 40ch;
   text-align: left;
   padding: 7px 10px;
   border: none;
