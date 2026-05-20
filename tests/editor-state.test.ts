@@ -185,3 +185,58 @@ describe('menu-settings undo/redo (zundo temporal)', () => {
     expect(useMenuSettings.temporal.getState().pastStates.length).toBe(before);
   });
 });
+
+describe('menu-settings CRUD', () => {
+  const load = (sectors: { label: string; binding?: { action: string } }[]) =>
+    useMenuSettings.getState().setConfig({
+      config: { version: DEFAULT_MENU_CONFIG.version, sectors },
+      mtime: 1,
+    });
+
+  it('addSector appends a default leaf and flags local/dirty', () => {
+    load([{ label: 'A' }]);
+    useMenuSettings.getState().addSector();
+    const state = useMenuSettings.getState();
+    expect(state.config?.sectors.map((s) => s.label)).toEqual(['A', 'New item']);
+    expect(state.origin).toBe('local');
+    expect(state.dirty).toBe(true);
+  });
+
+  it('deleteSector removes a sector but refuses to empty the menu', () => {
+    load([{ label: 'A' }, { label: 'B' }]);
+    useMenuSettings.getState().deleteSector(0);
+    expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual(['B']);
+    // The last remaining sector can't be deleted (validator needs ≥1).
+    useMenuSettings.getState().deleteSector(0);
+    expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual(['B']);
+  });
+
+  it('moveSector reorders so the item ends at the target index', () => {
+    load([{ label: 'A' }, { label: 'B' }, { label: 'C' }, { label: 'D' }]);
+    useMenuSettings.getState().moveSector(0, 2);
+    expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual([
+      'B',
+      'C',
+      'A',
+      'D',
+    ]);
+  });
+
+  it('leaf↔branch conversion drops the mutually-exclusive field', () => {
+    load([{ label: 'X', binding: { action: 'p/a' } }]);
+    // action → submenu: seed a child, drop the binding.
+    useMenuSettings.getState().updateSectorAt([0], (s) => {
+      s.children = [{ label: 'New item' }];
+      delete s.binding;
+    });
+    let sector = useMenuSettings.getState().config?.sectors[0];
+    expect(sector?.binding).toBeUndefined();
+    expect(sector?.children?.length).toBe(1);
+    // submenu → action: drop the children.
+    useMenuSettings.getState().updateSectorAt([0], (s) => {
+      delete s.children;
+    });
+    sector = useMenuSettings.getState().config?.sectors[0];
+    expect(sector?.children).toBeUndefined();
+  });
+});

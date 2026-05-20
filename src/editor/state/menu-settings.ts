@@ -53,6 +53,14 @@ type MenuSettingsState = {
   /** Mutate the sector at `path` in place (immer). Tags the change
    *  `local` and dirty so it is written back. No-op on a stale path. */
   updateSectorAt: (path: readonly number[], updater: (sector: Draft<MenuSector>) => void) => void;
+  /** Append a new default leaf sector to the top level. */
+  addSector: () => void;
+  /** Remove the top-level sector at `index`. No-op if it would empty the
+   *  menu (the validator requires at least one sector) or `index` is out
+   *  of range. */
+  deleteSector: (index: number) => void;
+  /** Reorder the top-level sectors so the one at `from` ends up at `to`. */
+  moveSector: (from: number, to: number) => void;
 };
 
 export const useMenuSettings = create<MenuSettingsState>()(
@@ -105,6 +113,33 @@ export const useMenuSettings = create<MenuSettingsState>()(
           const target = ring[path[path.length - 1]!];
           if (!target) return;
           updater(target);
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      addSector: () =>
+        set((state) => {
+          if (!state.config) return;
+          state.config.sectors.push({ label: 'New item' });
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      deleteSector: (index) =>
+        set((state) => {
+          if (!state.config) return;
+          if (state.config.sectors.length <= 1) return; // keep the menu non-empty
+          if (index < 0 || index >= state.config.sectors.length) return;
+          state.config.sectors.splice(index, 1);
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      moveSector: (from, to) =>
+        set((state) => {
+          if (!state.config) return;
+          const sectors = state.config.sectors;
+          if (from < 0 || from >= sectors.length) return;
+          if (to < 0 || to >= sectors.length || from === to) return;
+          const [moved] = sectors.splice(from, 1);
+          sectors.splice(to, 0, moved!);
           state.origin = 'local';
           state.dirty = true;
         }),

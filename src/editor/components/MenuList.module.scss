@@ -49,6 +49,28 @@
   }
 }
 
+.dragging {
+  opacity: 0.4;
+}
+
+.addButton {
+  width: 100%;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border: 1px dashed var(--editor-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--editor-fg-dim);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--editor-fg);
+  }
+}
+
 .empty {
   color: var(--editor-fg-dim);
   font-size: 13px;
