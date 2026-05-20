@@ -47,6 +47,18 @@
   }
 }
 
+// Source wedge while it's being dragged to a new slot.
+.dragging {
+  opacity: 0.5;
+}
+
+// Slot the dragged wedge would land in: an accent outline distinct from
+// the solid-fill selection so the two states don't read the same.
+.wedgeDropTarget {
+  stroke: var(--editor-accent);
+  stroke-width: 2.5;
+}
+
 .label {
   fill: var(--editor-fg);
   font-size: 13px;
