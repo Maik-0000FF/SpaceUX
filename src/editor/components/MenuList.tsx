@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 
 import type { MenuSector } from '@/shared/menu';
 
@@ -51,6 +51,9 @@ export function MenuList() {
   // Inline rename: the sectorKey of the row being renamed + its draft text.
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  // Set on Escape so the blur that fires when the input unmounts can't
+  // re-commit the cancelled edit (the onBlur→commit / Escape→cancel race).
+  const renameCancelled = useRef(false);
 
   const toggle = (key: string): void =>
     setExpanded((prev) => {
@@ -126,6 +129,10 @@ export function MenuList() {
   };
 
   const commitRename = (path: number[]): void => {
+    if (renameCancelled.current) {
+      renameCancelled.current = false;
+      return;
+    }
     const value = renameValue.trim();
     if (value)
       updateSectorAt(path, (s) => {
@@ -205,6 +212,7 @@ export function MenuList() {
                   commitRename(path);
                 } else if (e.key === 'Escape') {
                   e.preventDefault();
+                  renameCancelled.current = true;
                   setRenaming(null);
                 }
               }}
@@ -242,6 +250,7 @@ export function MenuList() {
                   title="Rename"
                   aria-label={`Rename ${sector.label}`}
                   onClick={() => {
+                    renameCancelled.current = false;
                     setRenaming(key);
                     setRenameValue(sector.label);
                   }}
