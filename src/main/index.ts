@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,6 +12,7 @@ import type { DaemonEvent } from '../shared/protocol.js';
 
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
+import { openEditorWindow, setAppQuitting } from './editor-window.js';
 import { KWinCursorService } from './kwin-cursor.js';
 import { loadMenuConfig, menuConfigSearchPaths } from './menu-loader.js';
 import { watchMenuConfig } from './menu-watcher.js';
@@ -33,8 +34,8 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 // Overlay mode is the production look: transparent, frameless,
 // click-through, hidden until the trigger button fires. True for
 // packaged installs by default; setting SPACEUX_OVERLAY_MODE=1
-// forces the same look in an unpackaged dev run so the Kando-style
-// surface can be tested without electron-builder packaging.
+// forces the same look in an unpackaged dev run so the production
+// overlay surface can be tested without electron-builder packaging.
 const OVERLAY_MODE = app.isPackaged || Boolean(process.env.SPACEUX_OVERLAY_MODE);
 
 // Caps the dev-mode framed window so it fits on a typical laptop
@@ -56,6 +57,9 @@ const IS_KDE_WAYLAND =
   (process.env.XDG_CURRENT_DESKTOP ?? '').toLowerCase().includes('kde');
 
 let mainWindow: BrowserWindow | null = null;
+// Held at module scope so V8 doesn't garbage-collect the Tray — a
+// collected tray icon silently vanishes from the system tray.
+let tray: Tray | null = null;
 let kwinCursor: KWinCursorService | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
@@ -96,8 +100,8 @@ async function createWindow(): Promise<void> {
     // is a silent no-op because Wayland leaves window placement to
     // the compositor. Specific window types (`toolbar`, `utility`,
     // `dock`) are an opt-out: the compositor treats them as panel-
-    // adjacent surfaces that may set their own geometry. Kando uses
-    // `toolbar` on KDE for the same reason (`dock` would also let
+    // adjacent surfaces that may set their own geometry. We use
+    // `toolbar` on KDE for that reason (`dock` would also let
     // setBounds() through, but it loses keyboard focus). We only set
     // it on Linux + overlay mode — the dev window stays a normal
     // toplevel so the dev WM treats it as a regular framed window.
@@ -121,9 +125,9 @@ async function createWindow(): Promise<void> {
   }
 
   if (!devMode) {
-    // Promote the overlay above regular alwaysOnTop. Kando uses
-    // this on KDE; on Plasma some compositor placement rules apply
-    // differently to screen-saver-level windows.
+    // Promote the overlay above regular alwaysOnTop — on Plasma some
+    // compositor placement rules apply differently to screen-saver-
+    // level windows.
     mainWindow.setAlwaysOnTop(true, 'screen-saver');
   }
 
@@ -338,6 +342,42 @@ function wireActionDispatch(): void {
   });
 }
 
+/** Editor-window IPC. Read-only in PR Editor-1: the editor pulls the
+ *  live config on mount and signals readiness. Write-back
+ *  (`editor.menu-settings.set`) and the ready→push-config response
+ *  arrive in PR Editor-3a. */
+function wireEditorIpc(): void {
+  // Mirrors the renderer's GET_MENU_CONFIG: pull-based so the editor
+  // gets the current value at mount without racing a push.
+  ipcMain.handle(IpcChannel.EDITOR_GET_MENU_CONFIG, () => menuConfig);
+
+  // Editor mounted. No-op for now — the handler exists so the
+  // renderer's fire-and-forget `ready()` has a registered listener,
+  // and so PR Editor-3a can hang the "push current config" response
+  // off this exact channel without re-routing the preload.
+  ipcMain.on(IpcChannel.EDITOR_READY, () => {});
+}
+
+/** Create the system-tray icon and its context menu. The tray is the
+ *  primary entry point to the editor window (the pie overlay has no
+ *  chrome of its own). Icon is resolved from the repo `assets/` dir;
+ *  nativeImage auto-selects `tray-icon@2x.png` on HiDPI displays. */
+function createTray(repoRoot: string): void {
+  const icon = nativeImage.createFromPath(path.join(repoRoot, 'assets', 'tray-icon.png'));
+  tray = new Tray(icon);
+  tray.setToolTip('SpaceUX');
+  const contextMenu = Menu.buildFromTemplate([
+    { label: 'Editor öffnen', click: () => void openEditorWindow() },
+    { type: 'separator' },
+    { label: 'Beenden', role: 'quit' },
+  ]);
+  tray.setContextMenu(contextMenu);
+  // Left-click is inconsistent across Linux tray hosts (many route
+  // everything through the context menu), but where it fires it's the
+  // expected "open the app" gesture.
+  tray.on('click', () => void openEditorWindow());
+}
+
 app.whenReady().then(async () => {
   if (OVERLAY_MODE && !app.isPackaged) {
     // eslint-disable-next-line no-console
@@ -399,10 +439,18 @@ app.whenReady().then(async () => {
   });
 
   wireActionDispatch();
+  wireEditorIpc();
   wireDaemonEvents();
   daemon.start();
 
+  createTray(repoRoot);
   await createWindow();
+});
+
+// Let the editor window close for real on quit — without this its
+// hide-on-close interceptor would veto the close and stall the exit.
+app.on('before-quit', () => {
+  setAppQuitting();
 });
 
 app.on('window-all-closed', () => {

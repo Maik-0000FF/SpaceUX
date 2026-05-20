@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: Maik-0000FF
+SPDX-License-Identifier: GPL-3.0-or-later
+-->
+
 # Contributing to SpaceUX
 
 Thanks for contributing. This document describes the development setup and the

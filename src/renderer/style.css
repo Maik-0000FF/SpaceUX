@@ -4,8 +4,8 @@
  *
  * Renderer styles. CSS variables expose the entire palette so a future
  * theme system can swap looks at runtime without rebuilding. The
- * initial palette is inspired by Kando's default theme — dark, soft
- * accents, slightly translucent so the desktop shows through.
+ * initial palette is dark with soft accents, slightly translucent so
+ * the desktop shows through.
  */
 
 :root {

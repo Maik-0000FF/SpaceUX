@@ -23,5 +23,5 @@
       "@/core/*": ["src/core/*"]
     }
   },
-  "include": ["src/renderer", "src/shared", "src/core", "tests"]
+  "include": ["src/renderer", "src/editor", "src/shared", "src/core", "tests"]
 }

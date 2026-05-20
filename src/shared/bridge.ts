@@ -47,9 +47,27 @@ export type SpaceUxBridge = {
   closeMenu(): void;
 };
 
+/**
+ * Editor-window bridge — what `window.editor` exposes to the editor
+ * React app (src/editor). A deliberately separate, smaller contract
+ * from SpaceUxBridge: the editor only reads/writes config, it never
+ * subscribes to live puck axes or drives the pie. Implemented in
+ * src/main/editor-preload.ts.
+ *
+ * PR Editor-1 is read-only (mount → fetch config → render). Mutating
+ * methods (`setMenuConfig`, change subscriptions) land in PR Editor-3a.
+ */
+export type EditorBridge = {
+  /** Signal main that the editor renderer has mounted. Fire-and-forget. */
+  ready(): void;
+  /** Pull the current menu config once on mount. */
+  getMenuConfig(): Promise<MenuConfig>;
+};
+
 declare global {
   // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
   interface Window {
     spaceux: SpaceUxBridge;
+    editor: EditorBridge;
   }
 }

@@ -47,6 +47,17 @@ export const IpcChannel = {
    *  (renderer→main via `ipcRenderer.send`) — no return value, no
    *  error path, the renderer just signals intent. */
   CLOSE_MENU: 'spaceux:close-menu',
+
+  // ── Editor window (separate renderer; window.editor bridge) ────────
+  /** Editor renderer signals it has mounted. Fire-and-forget for now
+   *  (PR Editor-1); a later PR will have main respond on this channel
+   *  by pushing the current config so the editor never races startup. */
+  EDITOR_READY: 'spaceux:editor:ready',
+  /** Editor pulls the current MenuConfig on mount via
+   *  ipcRenderer.invoke — same pull-not-push rationale as
+   *  GET_MENU_CONFIG for the pie renderer. Read-only in PR Editor-1;
+   *  write-back (`editor.menu-settings.set`) arrives in PR Editor-3a. */
+  EDITOR_GET_MENU_CONFIG: 'spaceux:editor:menu-settings:get',
 } as const;
 
 export type DaemonStatusPayload =
