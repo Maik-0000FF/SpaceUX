@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import type { Draft } from 'immer';
+import isEqual from 'lodash/isEqual';
+import { temporal } from 'zundo';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 
@@ -54,56 +56,67 @@ type MenuSettingsState = {
 };
 
 export const useMenuSettings = create<MenuSettingsState>()(
-  immer((set) => ({
-    config: null,
-    mtime: null,
-    origin: 'remote',
-    remoteRev: 0,
-    dirty: false,
-    conflict: null,
-    saveError: null,
-    setConfig: (snapshot) =>
-      set((state) => {
-        state.config = snapshot.config;
-        state.mtime = snapshot.mtime;
-        state.origin = 'remote';
-        state.remoteRev += 1;
-        state.dirty = false;
-        state.conflict = null;
-        state.saveError = null;
-      }),
-    markSaved: (mtime) =>
-      set((state) => {
-        state.mtime = mtime;
-        state.dirty = false;
-        state.saveError = null;
-      }),
-    setConflict: (external) =>
-      set((state) => {
-        state.conflict = external;
-      }),
-    clearConflict: () =>
-      set((state) => {
-        state.conflict = null;
-      }),
-    setSaveError: (saveError) =>
-      set((state) => {
-        state.saveError = saveError;
-      }),
-    updateSectorAt: (path, updater) =>
-      set((state) => {
-        if (!state.config || path.length === 0) return;
-        let ring: Draft<MenuSector>[] = state.config.sectors;
-        for (let k = 0; k < path.length - 1; k++) {
-          const children = ring[path[k]!]?.children;
-          if (!children) return; // stale path — nothing to update
-          ring = children;
-        }
-        const target = ring[path[path.length - 1]!];
-        if (!target) return;
-        updater(target);
-        state.origin = 'local';
-        state.dirty = true;
-      }),
-  })),
+  temporal(
+    immer((set) => ({
+      config: null,
+      mtime: null,
+      origin: 'remote',
+      remoteRev: 0,
+      dirty: false,
+      conflict: null,
+      saveError: null,
+      setConfig: (snapshot) =>
+        set((state) => {
+          state.config = snapshot.config;
+          state.mtime = snapshot.mtime;
+          state.origin = 'remote';
+          state.remoteRev += 1;
+          state.dirty = false;
+          state.conflict = null;
+          state.saveError = null;
+        }),
+      markSaved: (mtime) =>
+        set((state) => {
+          state.mtime = mtime;
+          state.dirty = false;
+          state.saveError = null;
+        }),
+      setConflict: (external) =>
+        set((state) => {
+          state.conflict = external;
+        }),
+      clearConflict: () =>
+        set((state) => {
+          state.conflict = null;
+        }),
+      setSaveError: (saveError) =>
+        set((state) => {
+          state.saveError = saveError;
+        }),
+      updateSectorAt: (path, updater) =>
+        set((state) => {
+          if (!state.config || path.length === 0) return;
+          let ring: Draft<MenuSector>[] = state.config.sectors;
+          for (let k = 0; k < path.length - 1; k++) {
+            const children = ring[path[k]!]?.children;
+            if (!children) return; // stale path — nothing to update
+            ring = children;
+          }
+          const target = ring[path[path.length - 1]!];
+          if (!target) return;
+          updater(target);
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+    })),
+    {
+      // Only the document (config) is undoable; the UI bookkeeping
+      // (dirty, conflict, mtime, origin, remoteRev, saveError) is not.
+      partialize: (state) => ({ config: state.config }),
+      // Deep equality so a no-op edit (same values) adds no history entry.
+      equality: (a, b) => isEqual(a, b),
+      // Cap history so a long editing session can't grow unbounded.
+      limit: 100,
+    },
+  ),
 );
