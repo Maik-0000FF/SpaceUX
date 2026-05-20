@@ -11,8 +11,9 @@
 /* Dark (default until the script applies a theme). */
 :root,
 :root[data-theme='dark'] {
-  /* Make native controls (the <select> popup, scrollbars) render dark
-     too — they're drawn by the OS and ignore our CSS variables. */
+  /* Hint OS-drawn UI (scrollbars, the focus ring) to the dark palette.
+     The <select> popup is no longer one of these — it's themed explicitly
+     via `appearance: base-select` at the bottom of this file. */
   color-scheme: dark;
   --editor-bg: #14161c;
   --editor-panel-bg: #1b1e26;
@@ -76,4 +77,57 @@ body {
 #root {
   width: 100vw;
   height: 100vh;
+}
+
+/*
+ * Customizable <select> popup (Chromium "base-select"). Opting in lets the
+ * dropdown list read the theme variables instead of being OS-drawn — the OS
+ * popup only follows `color-scheme` (dark/light), so the branded `spaceux`
+ * palette never reached it. Both the control and its ::picker must opt in
+ * for the feature to engage. Electron pins one Chromium, so no fallback
+ * branching is needed (base-select is stable since Chromium 135).
+ */
+select,
+::picker(select) {
+  appearance: base-select;
+}
+
+/* The popup surface lives in the top layer, so it can't inherit the
+   control's colors — give it the raised-panel look directly. */
+::picker(select) {
+  background: var(--editor-panel-bg);
+  border: 1px solid var(--editor-border);
+  border-radius: 6px;
+  padding: 4px;
+  /* A small gap below the control. */
+  margin-block: 4px;
+}
+
+option {
+  padding: 5px 8px;
+  border-radius: 4px;
+  color: var(--editor-fg);
+  background: transparent;
+}
+
+/* Pointer hover and keyboard-highlighted option share the hover surface. */
+option:hover {
+  background: var(--editor-hover);
+}
+
+/* Selected entry + the leading checkmark base-select renders for it. */
+option:checked {
+  color: var(--editor-accent);
+}
+option::checkmark {
+  color: var(--editor-accent);
+}
+
+/* The disclosure arrow base-select draws inside the control; flip it open. */
+select::picker-icon {
+  color: var(--editor-fg-dim);
+  transition: transform 0.15s ease;
+}
+select:open::picker-icon {
+  transform: rotate(180deg);
 }
