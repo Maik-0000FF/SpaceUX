@@ -4,6 +4,8 @@
 .pie {
   width: min(70vmin, 460px);
   height: min(70vmin, 460px);
+  // Dragging a wedge to reorder shouldn't select the label text.
+  user-select: none;
 }
 
 .wedgeGroup {

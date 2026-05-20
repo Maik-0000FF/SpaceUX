@@ -54,6 +54,8 @@
   align-items: center;
   gap: 2px;
   position: relative;
+  // Dragging a row shouldn't select the label text like a browser would.
+  user-select: none;
 }
 
 // Drop-line shown during drag: a 2px accent bar in the gap where the
@@ -186,6 +188,7 @@
   color: var(--editor-fg);
   font: inherit;
   font-size: 14px;
+  user-select: text; // re-enable selection for the rename field
 
   &:focus {
     outline: none;
