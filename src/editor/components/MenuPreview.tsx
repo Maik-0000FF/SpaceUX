@@ -1,18 +1,23 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
+  DEFAULT_PIE_GEOMETRY,
   INNER_LABEL_RATIO,
   OUTER_RING_INNER_RATIO,
   OUTER_RING_OUTER_RATIO,
+  axesToSector,
+  rotateAxes,
   sectorCenterAngle,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
+import { DEFAULT_TRIGGER_BUTTON, resolveAxisInvert } from '@/shared/menu';
 
+import { useEditorSpaceMouse } from '../hooks/useEditorSpaceMouse';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { sectorKey } from '../state/sector-keys';
@@ -53,10 +58,33 @@ export function MenuPreview() {
   const selectSector = useAppState((s) => s.selectSector);
   const selectPath = useAppState((s) => s.selectPath);
   const drillInto = useAppState((s) => s.drillInto);
+  const livePreview = useAppState((s) => s.livePreview);
+  const liveAxes = useEditorSpaceMouse(livePreview);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropTo, setDropTo] = useState<number | null>(null);
+  // Latest live-highlighted sector, read by the trigger-button handler
+  // (which is subscribed once, so it can't close over a render value).
+  const liveSectorRef = useRef<number | null>(null);
+
+  // While live, the trigger button commits the highlighted sector — drill
+  // into a branch, select a leaf — so the puck navigates the menu like the
+  // real pie (going back up is the breadcrumb).
+  useEffect(() => {
+    if (!livePreview) return;
+    return window.editor.onButton(({ bnum, pressed }) => {
+      if (!pressed) return;
+      const cfg = useMenuSettings.getState().config;
+      if (!cfg) return;
+      if (bnum !== (cfg.triggerButton ?? DEFAULT_TRIGGER_BUTTON)) return;
+      const sector = liveSectorRef.current;
+      if (sector === null) return;
+      const ring = ringSectors(cfg, useAppState.getState().viewPath);
+      if (ring[sector]?.children?.length) drillInto(sector);
+      else selectSector(sector);
+    });
+  }, [livePreview, drillInto, selectSector]);
 
   const currentRing = config ? ringSectors(config, viewPath) : [];
   if (!config || currentRing.length === 0) {
@@ -85,6 +113,22 @@ export function MenuPreview() {
   const activeOuter = isDrilled ? OUTER_OUTER_RADIUS : RADIUS;
   const activeInner = isDrilled ? OUTER_INNER_RADIUS : INNER_RADIUS;
   const activeLabel = isDrilled ? OUTER_LABEL_RADIUS : INNER_LABEL_RADIUS;
+
+  // Live preview: the sector under the puck, mapped exactly like the live
+  // pie. Axes are un-rotated by the active ring's rotation first so the
+  // highlight lines up with the rendered (rotated) outer ring. Null inside
+  // the deadzone — so a centred puck highlights nothing, like the real pie.
+  const invert = resolveAxisInvert(config);
+  const liveSector =
+    livePreview && liveAxes
+      ? axesToSector(rotateAxes({ tx: liveAxes[0], ty: liveAxes[1] }, -activeRotation), {
+          ...DEFAULT_PIE_GEOMETRY,
+          sectorCount: count,
+          invertX: invert.x,
+          invertY: invert.y,
+        })
+      : null;
+  liveSectorRef.current = liveSector;
 
   // Pointer angle → active-ring sector (undoing the ring's rotation; radius
   // irrelevant since reorder is angular).
@@ -180,7 +224,9 @@ export function MenuPreview() {
       {currentRing.map((sector, i) => {
         const c = sectorCenterAngle(i, count) + activeRotation;
         const d = describeWedgePath(activeOuter, activeInner, c - half, c + half);
-        const selected = selectedIndex === i;
+        // While live, the highlight follows the puck (liveSector); otherwise
+        // it's the click selection. The click selection still drives editing.
+        const selected = livePreview ? liveSector === i : selectedIndex === i;
         const isDropTarget = dragFrom !== null && dropTo === i && dropTo !== dragFrom;
         const lx = Math.sin(c) * activeLabel;
         const ly = -Math.cos(c) * activeLabel;

@@ -284,9 +284,13 @@ function wireDaemonEvents(): void {
     switch (ev.event) {
       case 'axes':
         mainWindow.webContents.send(IpcChannel.AXES, ev.values);
+        // Mirror the stream to the editor (no-op when it isn't open) so its
+        // preview can highlight the live sector under the puck.
+        sendToEditor(IpcChannel.EDITOR_AXES, ev.values);
         break;
       case 'button':
         mainWindow.webContents.send(IpcChannel.BUTTON, { bnum: ev.bnum, pressed: ev.pressed });
+        sendToEditor(IpcChannel.EDITOR_BUTTON, { bnum: ev.bnum, pressed: ev.pressed });
         handleTriggerButton(ev.bnum, ev.pressed);
         break;
       case 'hello': {

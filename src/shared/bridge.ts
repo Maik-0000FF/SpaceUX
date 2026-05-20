@@ -80,6 +80,13 @@ export type EditorBridge = {
   /** Open a native file-open dialog; resolves to the chosen absolute
    *  path, or null if cancelled. */
   pickFile(): Promise<string | null>;
+  /** Subscribe to live SpaceMouse axis snapshots (forwarded by main while
+   *  the editor is open) so the preview can highlight the live sector.
+   *  Returns an unsubscribe fn. */
+  onAxes(handler: (values: AxesValues) => void): () => void;
+  /** Subscribe to live button press/release (forwarded by main) so live
+   *  preview can commit/drill on the trigger button. Unsubscribe fn. */
+  onButton(handler: (payload: ButtonEventPayload) => void): () => void;
 };
 
 declare global {
