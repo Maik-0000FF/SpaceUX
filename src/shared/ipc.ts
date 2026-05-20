@@ -83,6 +83,12 @@ export const IpcChannel = {
   /** Main forwards button press/release to the editor (same stream as
    *  BUTTON) so live preview can commit/drill on the trigger button. */
   EDITOR_BUTTON: 'spaceux:editor:button',
+  /** Editor renderer reports its live-preview on/off state. Main uses it
+   *  to (a) suppress the real overlay pie while the editor is focused and
+   *  driving the preview with the puck — otherwise the same trigger press
+   *  pops the overlay pie and drills the preview — and (b) skip the axis
+   *  forwarding above when no one is listening. Fire-and-forget. */
+  EDITOR_LIVE: 'spaceux:editor:live',
 } as const;
 
 /** Editor colour theme. `system` follows the OS light/dark preference;

@@ -18,7 +18,12 @@ import type { DaemonEvent } from '../shared/protocol.js';
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
 import { wireEditorIpc } from './editor-ipc.js';
-import { sendToEditor, setAppQuitting } from './editor-window.js';
+import {
+  isEditorLive,
+  isEditorLiveFocused,
+  sendToEditor,
+  setAppQuitting,
+} from './editor-window.js';
 import { KWinCursorService } from './kwin-cursor.js';
 import { loadMenuConfig, menuConfigSearchPaths } from './menu-loader.js';
 import { watchMenuConfig } from './menu-watcher.js';
@@ -262,6 +267,10 @@ function hideMenuWindow(window: BrowserWindow): void {
  */
 function handleTriggerButton(bnum: number, pressed: boolean): void {
   if (!mainWindow) return;
+  // While the editor is focused and driving its live preview, the trigger
+  // belongs to the preview (it drills there). Suppress the overlay pie so a
+  // single press doesn't both drill the preview and pop the real pie.
+  if (isEditorLiveFocused()) return;
   const activeTrigger = menuConfig?.triggerButton ?? DEFAULT_TRIGGER_BUTTON;
   if (bnum !== activeTrigger || !pressed) return;
   if (menuShown) {
@@ -284,9 +293,11 @@ function wireDaemonEvents(): void {
     switch (ev.event) {
       case 'axes':
         mainWindow.webContents.send(IpcChannel.AXES, ev.values);
-        // Mirror the stream to the editor (no-op when it isn't open) so its
-        // preview can highlight the live sector under the puck.
-        sendToEditor(IpcChannel.EDITOR_AXES, ev.values);
+        // Mirror the stream to the editor so its preview can highlight the
+        // live sector under the puck — but only while live preview is on
+        // (the only subscriber). Avoids serializing ~60 Hz frames across
+        // the IPC boundary when the editor is open with live off.
+        if (isEditorLive()) sendToEditor(IpcChannel.EDITOR_AXES, ev.values);
         break;
       case 'button':
         mainWindow.webContents.send(IpcChannel.BUTTON, { bnum: ev.bnum, pressed: ev.pressed });

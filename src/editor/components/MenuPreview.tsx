@@ -81,8 +81,13 @@ export function MenuPreview() {
       const sector = liveSectorRef.current;
       if (sector === null) return;
       const ring = ringSectors(cfg, useAppState.getState().viewPath);
-      if (ring[sector]?.children?.length) drillInto(sector);
-      else selectSector(sector);
+      if (ring.length === 0) return;
+      // axesToSector clamps its internal sectorCount to a minimum of 2, so a
+      // 1-child ring can yield index 1 → out of bounds. Wrap into range, the
+      // same guard the live pie uses (useDrillNavigation: rawSec % length).
+      const idx = sector % ring.length;
+      if (ring[idx]?.children?.length) drillInto(idx);
+      else selectSector(idx);
     });
   }, [livePreview, drillInto, selectSector]);
 

@@ -7,6 +7,7 @@ import { IpcChannel, type MenuConfigSnapshot, type ThemeChoice } from '../shared
 import { DEFAULT_MENU_CONFIG, type MenuConfig } from '../shared/menu.js';
 
 import { loadEditorSettings, saveEditorSettings } from './editor-settings.js';
+import { setEditorLive } from './editor-window.js';
 import { markSelfWrite } from './menu-watcher.js';
 import { writeMenuConfig } from './menu-writer.js';
 
@@ -68,6 +69,12 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
   // the handler exists so the renderer's fire-and-forget `ready()` has a
   // registered listener.
   ipcMain.on(IpcChannel.EDITOR_READY, () => {});
+
+  // Live-preview on/off. Recorded in editor-window so the daemon-event path
+  // can suppress the overlay pie (when focused) and gate axis forwarding.
+  ipcMain.on(IpcChannel.EDITOR_LIVE, (_evt, on: boolean) => {
+    setEditorLive(on === true);
+  });
 
   // Theme preference, persisted in editor-settings.json (best-effort).
   ipcMain.handle(IpcChannel.EDITOR_GET_THEME, async (): Promise<ThemeChoice> => {

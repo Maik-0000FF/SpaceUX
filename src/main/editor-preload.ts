@@ -49,6 +49,7 @@ const bridge: EditorBridge = {
     ipcRenderer.on(IpcChannel.EDITOR_BUTTON, listener);
     return () => ipcRenderer.off(IpcChannel.EDITOR_BUTTON, listener);
   },
+  setLive: (on: boolean) => ipcRenderer.send(IpcChannel.EDITOR_LIVE, on),
 };
 
 contextBridge.exposeInMainWorld('editor', bridge);

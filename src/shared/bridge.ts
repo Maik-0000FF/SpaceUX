@@ -87,6 +87,10 @@ export type EditorBridge = {
   /** Subscribe to live button press/release (forwarded by main) so live
    *  preview can commit/drill on the trigger button. Unsubscribe fn. */
   onButton(handler: (payload: ButtonEventPayload) => void): () => void;
+  /** Report whether live preview is on, so main suppresses the real
+   *  overlay pie (and skips axis forwarding) while the editor drives the
+   *  preview with the puck. Fire-and-forget. */
+  setLive(on: boolean): void;
 };
 
 declare global {
