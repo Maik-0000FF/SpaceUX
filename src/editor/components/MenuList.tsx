@@ -65,12 +65,16 @@ export function MenuList() {
       ) : (
         <ul className={styles.list}>
           {sectors.map((sector, i) => {
-            const dragging = dragIndex !== null;
+            // Drop-line only where a drop would actually reorder: moveTarget
+            // is null for the dragged item's own slot and the gap right after
+            // it, so no accent bar paints on those no-op positions.
+            const dropTo =
+              dragIndex !== null && dropIndex !== null ? moveTarget(dragIndex, dropIndex) : null;
             const rowClass = [
               styles.row,
               dragIndex === i ? styles.dragging : '',
-              dragging && dropIndex === i ? styles.dropBefore : '',
-              dragging && dropIndex === sectors.length && i === sectors.length - 1
+              dropTo !== null && dropIndex === i ? styles.dropBefore : '',
+              dropTo !== null && dropIndex === sectors.length && i === sectors.length - 1
                 ? styles.dropAfter
                 : '',
             ]
