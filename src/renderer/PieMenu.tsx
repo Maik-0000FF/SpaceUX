@@ -7,6 +7,7 @@ import { currentSectors, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
   DEFAULT_PIE_GEOMETRY,
+  INNER_LABEL_RATIO,
   OUTER_RING_INNER_RATIO,
   OUTER_RING_OUTER_RATIO,
   axesToSector,
@@ -183,7 +184,7 @@ export function PieMenu({
   // labels in the visual centre of each wedge. Pre-computed because
   // both the wedge map and the label map below need it.
   const outerLabelRadius = ((OUTER_RING_INNER_RATIO + OUTER_RING_OUTER_RATIO) / 2) * radius;
-  const innerLabelRadius = radius * 0.62;
+  const innerLabelRadius = radius * INNER_LABEL_RATIO;
 
   // Rotational alignment for the outer ring: spin it so its first
   // sector centres on whichever parent sector spawned it. Without

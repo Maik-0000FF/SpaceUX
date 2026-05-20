@@ -72,6 +72,10 @@ export const OUTER_RING_INNER_RATIO = 1.04;
 /** Outer edge of the outer ring — the overall pie footprint. */
 export const OUTER_RING_OUTER_RATIO = 1.5;
 
+/** Radius at which inner-pie labels sit, as a fraction of the inner pie's
+ *  outer radius (between the cancel hole and the rim). */
+export const INNER_LABEL_RATIO = 0.62;
+
 const TAU = Math.PI * 2;
 
 /**

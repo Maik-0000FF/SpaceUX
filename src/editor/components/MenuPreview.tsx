@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import { navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
+  INNER_LABEL_RATIO,
   OUTER_RING_INNER_RATIO,
   OUTER_RING_OUTER_RATIO,
   sectorCenterAngle,
@@ -28,7 +29,7 @@ const RADIUS = 240;
 const INNER_RADIUS = RADIUS * CANCEL_RADIUS_RATIO;
 const OUTER_INNER_RADIUS = RADIUS * OUTER_RING_INNER_RATIO;
 const OUTER_OUTER_RADIUS = RADIUS * OUTER_RING_OUTER_RATIO;
-const INNER_LABEL_RADIUS = RADIUS * 0.62;
+const INNER_LABEL_RADIUS = RADIUS * INNER_LABEL_RATIO;
 const OUTER_LABEL_RADIUS = (OUTER_INNER_RADIUS + OUTER_OUTER_RADIUS) / 2;
 const VIEW = OUTER_OUTER_RADIUS; // viewBox half-extent (reserves the outer ring)
 
