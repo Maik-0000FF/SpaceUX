@@ -5,7 +5,7 @@ import { useState } from 'react';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
-import { sectorAtPath } from '../state/selectors';
+import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
 
 import styles from './Properties.module.scss';
 
@@ -23,7 +23,8 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
  * so a half-typed (invalid) value stays in the field without being
  * pushed into the store; only a parse to a plain object commits. Clearing
  * the field removes the config. Remounted per selection (keyed on the
- * path) so switching sectors reloads the field cleanly.
+ * path + remoteRev) so switching sectors / adopting a remote change
+ * reloads the field cleanly.
  */
 function ConfigEditor({
   path,
@@ -78,41 +79,42 @@ function ConfigEditor({
 }
 
 /**
- * Right sidebar: editable properties of the selected sector. Edits write
- * straight into the config store (via updateSectorAt), which the App's
- * write-back subscription debounces to disk — there is no Save button.
- * A sector is a leaf (action binding) or a branch (submenu children); the
- * two are mutually exclusive, so only one block shows. Adding/removing
- * the binding-vs-children split, and reordering, are PR Editor-4.
+ * Right sidebar: editable properties of the selected sector (at any
+ * depth — the selection is the current ring's index, combined with the
+ * view path). A sector is a leaf (action binding) or a branch (submenu);
+ * the Type dropdown converts between them. A branch offers "Open
+ * submenu" to drill in; Delete removes it from the current ring.
  */
 export function Properties() {
   const config = useMenuSettings((s) => s.config);
   const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
   const deleteSector = useMenuSettings((s) => s.deleteSector);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
-  const selectedPath = useAppState((s) => s.selectedPath);
+  const viewPath = useAppState((s) => s.viewPath);
+  const selectedIndex = useAppState((s) => s.selectedIndex);
   const selectSector = useAppState((s) => s.selectSector);
   const clearSelection = useAppState((s) => s.clearSelection);
-  const sector = config ? sectorAtPath(config, selectedPath) : null;
+  const drillInto = useAppState((s) => s.drillInto);
 
-  // PR-4 operates on the top level only (nested editing is PR-5).
-  const isTopLevel = selectedPath.length === 1;
-  const canDelete = isTopLevel && (config?.sectors.length ?? 0) > 1;
+  const path = selectedPath(viewPath, selectedIndex);
+  const sector = config && path ? sectorAtPath(config, path) : null;
+
+  const canDelete =
+    selectedIndex !== null && (config ? ringSectors(config, viewPath).length : 0) > 1;
   const handleDelete = (): void => {
-    if (!isTopLevel) return;
-    const index = selectedPath[0]!;
-    deleteSector(index);
-    // Keep the editing flow going: select a neighbour rather than
-    // dropping back to "nothing selected".
-    const remaining = useMenuSettings.getState().config?.sectors.length ?? 0;
-    if (remaining > 0) selectSector([Math.min(index, remaining - 1)]);
+    if (selectedIndex === null) return;
+    deleteSector(viewPath, selectedIndex);
+    const current = useMenuSettings.getState().config;
+    const remaining = current ? ringSectors(current, viewPath).length : 0;
+    // Keep the editing flow: select a neighbour rather than nothing.
+    if (remaining > 0) selectSector(Math.min(selectedIndex, remaining - 1));
     else clearSelection();
   };
 
   return (
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Properties</div>
-      {!sector ? (
+      {!sector || !path ? (
         <p className={styles.empty}>Select a sector to edit it.</p>
       ) : (
         <div className={styles.fields}>
@@ -121,7 +123,7 @@ export function Properties() {
               className={styles.input}
               value={sector.label}
               onChange={(e) =>
-                updateSectorAt(selectedPath, (s) => {
+                updateSectorAt(path, (s) => {
                   s.label = e.target.value;
                 })
               }
@@ -137,16 +139,13 @@ export function Properties() {
                   : undefined
               }
               onChange={(e) =>
-                updateSectorAt(selectedPath, (s) => {
+                updateSectorAt(path, (s) => {
                   if (e.target.value === 'submenu') {
-                    // Branch needs ≥1 child; branch/leaf are exclusive, so
-                    // seed a default child and drop the action binding.
                     if (s.children === undefined) {
                       s.children = [{ label: 'New item' }];
                       delete s.binding;
                     }
                   } else {
-                    // Back to a leaf: drop the children; binding starts empty.
                     delete s.children;
                   }
                 })
@@ -157,9 +156,22 @@ export function Properties() {
             </select>
           </Row>
           {sector.children !== undefined && (
-            <Row label="Submenu items">
-              <span className={styles.readonly}>{sector.children.length}</span>
-            </Row>
+            <>
+              <Row label="Submenu items">
+                <span className={styles.readonly}>{sector.children.length}</span>
+              </Row>
+              {sector.children.length > 0 && (
+                <button
+                  type="button"
+                  className={styles.openButton}
+                  onClick={() => {
+                    if (selectedIndex !== null) drillInto(selectedIndex);
+                  }}
+                >
+                  Open submenu →
+                </button>
+              )}
+            </>
           )}
           {sector.children === undefined && (
             <>
@@ -169,7 +181,7 @@ export function Properties() {
                   value={sector.binding?.action ?? ''}
                   placeholder="pluginId/actionName"
                   onChange={(e) =>
-                    updateSectorAt(selectedPath, (s) => {
+                    updateSectorAt(path, (s) => {
                       const action = e.target.value;
                       if (s.binding) s.binding.action = action;
                       else s.binding = { action };
@@ -178,13 +190,11 @@ export function Properties() {
                 />
               </Row>
               {sector.binding !== undefined && (
-                // Keyed on the selection *and* remoteRev so the editor's
-                // local JSON text remounts (re-reads from the store) when
-                // an external change is adopted, but not while the user
-                // is typing (local edits don't bump remoteRev).
+                // Keyed on the selection + remoteRev so the local JSON
+                // text remounts on an external adoption, not while typing.
                 <ConfigEditor
-                  key={`${selectedPath.join('.')}-${remoteRev}`}
-                  path={selectedPath}
+                  key={`${path.join('.')}-${remoteRev}`}
+                  path={path}
                   value={sector.binding.config}
                 />
               )}

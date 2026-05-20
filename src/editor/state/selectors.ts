@@ -5,32 +5,61 @@ import { currentSectors } from '@/core/menu-nav';
 import type { MenuConfig, MenuSector } from '@/shared/menu';
 
 /**
- * Resolve the sector a `selectedPath` points at, reusing the renderer's
- * `currentSectors` walker so the editor and the live pie agree on how
- * an index path maps to a sector — the parent ring is resolved from all
- * but the last index, then the last index picks the sector within it.
- *
- * Returns null for an empty path or when the *final* index is out of
- * range. Note the asymmetry: a stale *parent* segment (a path that
- * drilled through a branch a reload turned into a leaf) does not yield
- * null — `currentSectors` falls back to the root ring in that case, so
- * e.g. `[9, 0]` resolves to root sector 0. That's harmless for
- * PR Editor-2, which only ever produces single-element paths, but the
- * nested selection in PR Editor-5 will need an explicit stale-path
- * guard here.
+ * Resolve the sector an index path points at, or null when the path is
+ * empty or *any* segment is stale — including a stale parent (a path
+ * that drilled through a branch a reload turned into a leaf). This walks
+ * explicitly rather than via `currentSectors` (which falls back to the
+ * root ring on a broken parent), so a stale `[9, 0]` yields null instead
+ * of silently resolving to root sector 0.
  */
 export function sectorAtPath(config: MenuConfig, path: readonly number[]): MenuSector | null {
   if (path.length === 0) return null;
-  const ring = currentSectors(config, path.slice(0, -1));
+  let ring: MenuSector[] = config.sectors;
+  for (let k = 0; k < path.length - 1; k++) {
+    const next = ring[path[k]!]?.children;
+    if (!next) return null; // stale parent segment
+    ring = next;
+  }
   return ring[path[path.length - 1]!] ?? null;
 }
 
+/** Full index path to the selected sector, or null when nothing is
+ *  selected. Combines the view path with the in-ring selection. */
+export function selectedPath(
+  viewPath: readonly number[],
+  selectedIndex: number | null,
+): number[] | null {
+  return selectedIndex === null ? null : [...viewPath, selectedIndex];
+}
+
 /**
- * Whether `path` selects exactly the top-level sector `index`. Single
- * source of truth for the selection check shared by MenuList and
- * MenuPreview; when nested selection lands (PR Editor-5) the
- * deeper-path comparison changes here only.
+ * Sectors of the ring currently in view. Reuses the renderer's
+ * `currentSectors` so editor and pie agree on path semantics.
+ *
+ * Stale-path behaviour differs from `sectorAtPath` (which returns null)
+ * by design: `currentSectors` falls back to the *root* ring on a stale
+ * `viewPath`, and `breadcrumbLabels` stops early. We rely on `viewPath`
+ * never being stale rather than reconciling the three: `adopt()` resets
+ * it to root on every external reload, and a local edit can't orphan it
+ * (you can't turn the branch you're standing inside into a leaf — its
+ * row isn't in the ring you're viewing). If that invariant is ever
+ * weakened, these three consumers must be unified.
  */
-export function isSelected(path: readonly number[], index: number): boolean {
-  return path.length === 1 && path[0] === index;
+export function ringSectors(config: MenuConfig, viewPath: readonly number[]): MenuSector[] {
+  return currentSectors(config, viewPath);
+}
+
+/** Labels of the drilled-into sectors along `viewPath` (excludes the
+ *  implicit root). Drives the breadcrumb. Stops early on a stale path. */
+export function breadcrumbLabels(config: MenuConfig, viewPath: readonly number[]): string[] {
+  const labels: string[] = [];
+  let ring: MenuSector[] = config.sectors;
+  for (const i of viewPath) {
+    const sector = ring[i];
+    if (!sector) break;
+    labels.push(sector.label);
+    if (!sector.children) break;
+    ring = sector.children;
+  }
+  return labels;
 }

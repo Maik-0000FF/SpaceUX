@@ -7,34 +7,42 @@ import { DEFAULT_MENU_CONFIG, type MenuConfig } from '@/shared/menu';
 
 import { useAppState } from '../src/editor/state/app-state';
 import { useMenuSettings } from '../src/editor/state/menu-settings';
-import { isSelected, sectorAtPath } from '../src/editor/state/selectors';
+import { ringSectors, sectorAtPath, selectedPath } from '../src/editor/state/selectors';
 
 // The editor's selection store and path resolver are pure logic, so
 // they're exercised here without a DOM — the components that consume
 // them stay verified by the manual Electron smoke test.
 
-describe('app-state selection', () => {
+describe('app-state navigation', () => {
   beforeEach(() => {
+    useAppState.getState().drillTo(0); // reset viewPath + selection
+  });
+
+  it('starts at the top level with no selection', () => {
+    expect(useAppState.getState().viewPath).toEqual([]);
+    expect(useAppState.getState().selectedIndex).toBeNull();
+  });
+
+  it('selectSector sets the in-ring index; clearSelection resets it', () => {
+    useAppState.getState().selectSector(2);
+    expect(useAppState.getState().selectedIndex).toBe(2);
     useAppState.getState().clearSelection();
+    expect(useAppState.getState().selectedIndex).toBeNull();
   });
 
-  it('starts with no selection', () => {
-    expect(useAppState.getState().selectedPath).toEqual([]);
-  });
+  it('drillInto descends and clears selection; drillTo pops back', () => {
+    useAppState.getState().selectSector(1);
+    useAppState.getState().drillInto(1);
+    expect(useAppState.getState().viewPath).toEqual([1]);
+    expect(useAppState.getState().selectedIndex).toBeNull();
 
-  it('selectSector replaces the path and stores a copy', () => {
-    const input = [2];
-    useAppState.getState().selectSector(input);
-    expect(useAppState.getState().selectedPath).toEqual([2]);
-    // Mutating the caller's array must not leak into the store.
-    input.push(9);
-    expect(useAppState.getState().selectedPath).toEqual([2]);
-  });
+    useAppState.getState().drillInto(0);
+    expect(useAppState.getState().viewPath).toEqual([1, 0]);
 
-  it('clearSelection resets to empty', () => {
-    useAppState.getState().selectSector([1]);
-    useAppState.getState().clearSelection();
-    expect(useAppState.getState().selectedPath).toEqual([]);
+    useAppState.getState().drillTo(1);
+    expect(useAppState.getState().viewPath).toEqual([1]);
+    useAppState.getState().drillTo(0);
+    expect(useAppState.getState().viewPath).toEqual([]);
   });
 });
 
@@ -69,17 +77,33 @@ describe('sectorAtPath', () => {
   it('returns null for an out-of-range index', () => {
     expect(sectorAtPath(nested, [9])).toBeNull();
   });
+
+  it('returns null for a stale parent segment (no fallback to root)', () => {
+    expect(sectorAtPath(nested, [0, 0])).toBeNull(); // [0] is a leaf
+    expect(sectorAtPath(nested, [9, 0])).toBeNull(); // [9] does not exist
+  });
 });
 
-describe('isSelected', () => {
-  it('matches a single-element path at the given index', () => {
-    expect(isSelected([2], 2)).toBe(true);
-    expect(isSelected([2], 1)).toBe(false);
+describe('selectedPath', () => {
+  it('combines the view path with the selected index, or null', () => {
+    expect(selectedPath([], null)).toBeNull();
+    expect(selectedPath([], 2)).toEqual([2]);
+    expect(selectedPath([1], 0)).toEqual([1, 0]);
+  });
+});
+
+describe('ringSectors', () => {
+  const cfg: MenuConfig = {
+    version: DEFAULT_MENU_CONFIG.version,
+    sectors: [{ label: 'Leaf' }, { label: 'Branch', children: [{ label: 'C0' }, { label: 'C1' }] }],
+  };
+
+  it('returns the top-level ring for an empty view path', () => {
+    expect(ringSectors(cfg, []).map((s) => s.label)).toEqual(['Leaf', 'Branch']);
   });
 
-  it('is false for empty and multi-element paths', () => {
-    expect(isSelected([], 0)).toBe(false);
-    expect(isSelected([1, 0], 1)).toBe(false);
+  it('returns a submenu ring for a drilled-in path', () => {
+    expect(ringSectors(cfg, [1]).map((s) => s.label)).toEqual(['C0', 'C1']);
   });
 });
 
@@ -193,27 +217,42 @@ describe('menu-settings CRUD', () => {
       mtime: 1,
     });
 
-  it('addSector appends a default leaf and flags local/dirty', () => {
+  it('addSector appends a default leaf to the top-level ring', () => {
     load([{ label: 'A' }]);
-    useMenuSettings.getState().addSector();
+    useMenuSettings.getState().addSector([]);
     const state = useMenuSettings.getState();
     expect(state.config?.sectors.map((s) => s.label)).toEqual(['A', 'New item']);
     expect(state.origin).toBe('local');
     expect(state.dirty).toBe(true);
   });
 
-  it('deleteSector removes a sector but refuses to empty the menu', () => {
+  it('addSector targets a submenu ring by path', () => {
+    useMenuSettings.getState().setConfig({
+      config: {
+        version: DEFAULT_MENU_CONFIG.version,
+        sectors: [{ label: 'Branch', children: [{ label: 'C0' }] }],
+      },
+      mtime: 1,
+    });
+    useMenuSettings.getState().addSector([0]); // into Branch's children
+    expect(useMenuSettings.getState().config?.sectors[0]?.children?.map((s) => s.label)).toEqual([
+      'C0',
+      'New item',
+    ]);
+  });
+
+  it('deleteSector removes within the ring but refuses to empty it', () => {
     load([{ label: 'A' }, { label: 'B' }]);
-    useMenuSettings.getState().deleteSector(0);
+    useMenuSettings.getState().deleteSector([], 0);
     expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual(['B']);
     // The last remaining sector can't be deleted (validator needs ≥1).
-    useMenuSettings.getState().deleteSector(0);
+    useMenuSettings.getState().deleteSector([], 0);
     expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual(['B']);
   });
 
   it('moveSector reorders so the item ends at the target index', () => {
     load([{ label: 'A' }, { label: 'B' }, { label: 'C' }, { label: 'D' }]);
-    useMenuSettings.getState().moveSector(0, 2);
+    useMenuSettings.getState().moveSector([], 0, 2);
     expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual([
       'B',
       'C',
@@ -240,17 +279,20 @@ describe('menu-settings CRUD', () => {
     expect(sector?.children).toBeUndefined();
   });
 
-  it('moveSector and deleteSector are no-ops for invalid indices', () => {
+  it('CRUD are no-ops for invalid indices or a stale ring path', () => {
     load([{ label: 'A' }, { label: 'B' }, { label: 'C' }]);
     const labels = () => useMenuSettings.getState().config?.sectors.map((s) => s.label);
 
-    useMenuSettings.getState().moveSector(1, 1); // same index
+    useMenuSettings.getState().moveSector([], 1, 1); // same index
     expect(labels()).toEqual(['A', 'B', 'C']);
-    useMenuSettings.getState().moveSector(0, 9); // target out of range
+    useMenuSettings.getState().moveSector([], 0, 9); // target out of range
     expect(labels()).toEqual(['A', 'B', 'C']);
-    useMenuSettings.getState().moveSector(-1, 0); // source out of range
+    useMenuSettings.getState().moveSector([], -1, 0); // source out of range
     expect(labels()).toEqual(['A', 'B', 'C']);
-    useMenuSettings.getState().deleteSector(9); // out of range
+    useMenuSettings.getState().deleteSector([], 9); // out of range
+    expect(labels()).toEqual(['A', 'B', 'C']);
+    // Stale ring path: index 0 is a leaf, not a branch → no-op.
+    useMenuSettings.getState().addSector([0]);
     expect(labels()).toEqual(['A', 'B', 'C']);
   });
 });
