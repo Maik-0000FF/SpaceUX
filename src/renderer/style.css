@@ -2,28 +2,16 @@
  * SPDX-FileCopyrightText: Maik-0000FF
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Renderer styles. CSS variables expose the entire palette so a future
- * theme system can swap looks at runtime without rebuilding. The
- * initial palette is dark with soft accents, slightly translucent so
- * the desktop shows through.
+ * Renderer styles. The pie palette (`--pie-*`) lives in the shared
+ * pie-theme.css below — one source of truth for both the live pie and the
+ * editor preview, themeable via `data-pie-theme`. The non-pie tokens
+ * (status banner, debug panel) stay here as they're renderer-only. The
+ * palette is slightly translucent so the desktop shows through.
  */
 
+@import '../core/pie-theme.css';
+
 :root {
-  /* Pie wedges */
-  --pie-bg: rgba(20, 22, 28, 0.6);
-  --pie-bg-active: rgba(80, 110, 180, 0.85);
-  --pie-border: rgba(255, 255, 255, 0.18);
-  --pie-border-active: rgba(255, 255, 255, 0.55);
-  --pie-label: rgba(240, 240, 240, 0.9);
-  --pie-label-active: rgba(255, 255, 255, 1);
-
-  /* Central cancel target. Active fill is intentionally red-orange
-   * so it visually distinguishes "no action" from the blue sector
-   * active state — at a glance the user can tell which target the
-   * pie commit would fire. */
-  --pie-cancel-bg-active: rgba(180, 80, 80, 0.85);
-  --pie-cancel-label: rgba(240, 240, 240, 0.55);
-
   /* Connection-status banner */
   --status-bg: rgba(20, 22, 28, 0.85);
   --status-fg: rgba(255, 180, 100, 1);
@@ -87,7 +75,9 @@ body {
 }
 
 .pie-wedge.is-active {
-  fill: var(--pie-bg-active);
+  /* --sector-color is unset today; a future per-sector colour (#94 PR 3)
+   * overrides the theme's active fill by setting it on the wedge element. */
+  fill: var(--sector-color, var(--pie-bg-active));
   stroke: var(--pie-border-active);
 }
 
@@ -113,7 +103,7 @@ body {
  * visual anchor — "you came from this sector". */
 .pie-wedge.is-breadcrumb.is-drilled-into {
   opacity: 0.7;
-  fill: var(--pie-bg-active);
+  fill: var(--sector-color, var(--pie-bg-active));
   stroke: var(--pie-border-active);
 }
 
