@@ -32,8 +32,19 @@ export function selectedPath(
   return selectedIndex === null ? null : [...viewPath, selectedIndex];
 }
 
-/** Sectors of the ring currently in view. Reuses the renderer's
- *  `currentSectors` so editor and pie agree on path semantics. */
+/**
+ * Sectors of the ring currently in view. Reuses the renderer's
+ * `currentSectors` so editor and pie agree on path semantics.
+ *
+ * Stale-path behaviour differs from `sectorAtPath` (which returns null)
+ * by design: `currentSectors` falls back to the *root* ring on a stale
+ * `viewPath`, and `breadcrumbLabels` stops early. We rely on `viewPath`
+ * never being stale rather than reconciling the three: `adopt()` resets
+ * it to root on every external reload, and a local edit can't orphan it
+ * (you can't turn the branch you're standing inside into a leaf — its
+ * row isn't in the ring you're viewing). If that invariant is ever
+ * weakened, these three consumers must be unified.
+ */
 export function ringSectors(config: MenuConfig, viewPath: readonly number[]): MenuSector[] {
   return currentSectors(config, viewPath);
 }

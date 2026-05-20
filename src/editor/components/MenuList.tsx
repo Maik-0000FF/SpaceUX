@@ -63,11 +63,16 @@ export function MenuList() {
               <button
                 type="button"
                 className={`${styles.item} ${selectedIndex === i ? styles.itemSelected : ''}`}
+                aria-current={selectedIndex === i ? 'true' : undefined}
                 onClick={() => selectSector(i)}
               >
                 {sector.label}
               </button>
-              {sector.children !== undefined && (
+              {/* Only offer drill when the submenu has a ring to show:
+                  currentSectors treats empty children as stale and would
+                  land on the root ring (unreachable today — the validator
+                  rejects empty children — but keeps the affordance honest). */}
+              {sector.children !== undefined && sector.children.length > 0 && (
                 <button
                   type="button"
                   className={styles.drill}

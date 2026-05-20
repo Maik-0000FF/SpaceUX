@@ -160,15 +160,17 @@ export function Properties() {
               <Row label="Submenu items">
                 <span className={styles.readonly}>{sector.children.length}</span>
               </Row>
-              <button
-                type="button"
-                className={styles.openButton}
-                onClick={() => {
-                  if (selectedIndex !== null) drillInto(selectedIndex);
-                }}
-              >
-                Open submenu →
-              </button>
+              {sector.children.length > 0 && (
+                <button
+                  type="button"
+                  className={styles.openButton}
+                  onClick={() => {
+                    if (selectedIndex !== null) drillInto(selectedIndex);
+                  }}
+                >
+                  Open submenu →
+                </button>
+              )}
             </>
           )}
           {sector.children === undefined && (
