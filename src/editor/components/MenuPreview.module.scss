@@ -1,11 +1,11 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Faithful render of the live pie: these colours, stroke widths, font
-// sizes and opacities mirror the renderer's `--pie-*` tokens and pie CSS
-// (src/renderer/style.css) so the editor preview looks like the real menu,
-// not an editor-styled approximation. Keep in sync with that file (a
-// shared theme will unify them with the theming work).
+// Faithful render of the live pie: it reads the same shared `--pie-*` tokens
+// as the live renderer (src/core/pie-theme.css, imported in the editor
+// entry), so the preview tracks the pie theme automatically and can't drift.
+// Only the stroke widths, font sizes, opacities and the editor-only hover/
+// drag affordances live here.
 
 .pie {
   // Size is set inline (config.scale / devicePixelRatio) so the preview
@@ -25,8 +25,8 @@
 }
 
 .wedge {
-  fill: rgba(20, 22, 28, 0.6); // --pie-bg
-  stroke: rgba(255, 255, 255, 0.18); // --pie-border
+  fill: var(--pie-bg);
+  stroke: var(--pie-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
   transition:
@@ -34,18 +34,18 @@
     stroke 80ms ease-out;
 
   // The live pie has no hover (it's axis-driven); a faint lift gives the
-  // mouse-driven editor some feedback without changing the palette.
+  // mouse-driven editor some feedback. Themed via --pie-bg-hover.
   .wedgeGroup:hover & {
-    fill: rgba(45, 52, 68, 0.7);
+    fill: var(--pie-bg-hover);
   }
 }
 
 .wedgeSelected {
-  fill: rgba(80, 110, 180, 0.85); // --pie-bg-active
-  stroke: rgba(255, 255, 255, 0.55); // --pie-border-active
+  fill: var(--sector-color, var(--pie-bg-active));
+  stroke: var(--pie-border-active);
 
   .wedgeGroup:hover & {
-    fill: rgba(80, 110, 180, 0.85);
+    fill: var(--sector-color, var(--pie-bg-active));
   }
 }
 
@@ -56,12 +56,12 @@
 
 // Slot the dragged wedge would land in (editor-only): a bright outline.
 .wedgeDropTarget {
-  stroke: rgba(255, 255, 255, 0.55);
+  stroke: var(--pie-border-active);
   stroke-width: 2.5;
 }
 
 .label {
-  fill: rgba(240, 240, 240, 0.9); // --pie-label
+  fill: var(--pie-label);
   font-size: 18px;
   font-weight: 600;
   pointer-events: none;
@@ -69,14 +69,14 @@
 
 // Centre cancel area — mirrors .pie-cancel-center / .pie-cancel-label.
 .cancelCenter {
-  fill: rgba(20, 22, 28, 0.6);
-  stroke: rgba(255, 255, 255, 0.18);
+  fill: var(--pie-bg);
+  stroke: var(--pie-border);
   stroke-width: 1.5;
   pointer-events: none;
 }
 
 .cancelLabel {
-  fill: rgba(240, 240, 240, 0.55); // --pie-cancel-label
+  fill: var(--pie-cancel-label);
   font-size: 28px;
   font-weight: bold;
   pointer-events: none;
@@ -96,8 +96,8 @@
 }
 
 .wedgeBreadcrumb {
-  fill: rgba(20, 22, 28, 0.6);
-  stroke: rgba(255, 255, 255, 0.18);
+  fill: var(--pie-bg);
+  stroke: var(--pie-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
   opacity: 0.35;
@@ -111,12 +111,12 @@
 // from here" anchor. Mirrors .pie-wedge.is-breadcrumb.is-drilled-into.
 .wedgeDrilledInto {
   opacity: 0.7;
-  fill: rgba(80, 110, 180, 0.85);
-  stroke: rgba(255, 255, 255, 0.55);
+  fill: var(--sector-color, var(--pie-bg-active));
+  stroke: var(--pie-border-active);
 }
 
 .labelBreadcrumb {
-  fill: rgba(240, 240, 240, 0.9);
+  fill: var(--pie-label);
   font-size: 14px;
   font-weight: 600;
   opacity: 0.45;

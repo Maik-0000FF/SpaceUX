@@ -6,7 +6,13 @@
  * properties, so a theme is just a different set of values selected by
  * the `data-theme` attribute on <html> (set from the persisted choice;
  * 'system' resolves to light/dark via prefers-color-scheme — see App).
+ *
+ * The pie preview reads the shared `--pie-*` palette (themed by
+ * `data-pie-theme`, orthogonal to the editor UI's `data-theme`); imported
+ * here so MenuPreview tracks the live pie's theme without duplicating it.
  */
+
+@import '../core/pie-theme.css';
 
 /* Dark (default until the script applies a theme). */
 :root,
