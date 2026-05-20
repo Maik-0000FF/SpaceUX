@@ -10,6 +10,8 @@ import { immer } from 'zustand/middleware/immer';
 import type { MenuConfigSnapshot } from '@/shared/ipc';
 import type { MenuConfig, MenuSector } from '@/shared/menu';
 
+import { nextSectorId } from './sector-keys';
+
 /**
  * The editor's working copy of the menu config plus the bookkeeping the
  * write-back loop and conflict handling need.
@@ -67,6 +69,20 @@ type MenuSettingsState = {
   setTriggerButton: (button: number) => void;
 };
 
+/** Return a copy of `config` with an editor-only stable id (see
+ *  MenuSector.id) on every sector, recursively. Adopted configs arrive
+ *  without ids; this gives the tree/list a reorder- and edit-stable
+ *  identity. Pure — never mutates the input (the adopted snapshot may be
+ *  a shared object, e.g. DEFAULT_MENU_CONFIG). */
+function withSectorIds(config: MenuConfig): MenuConfig {
+  const tag = (sector: MenuSector): MenuSector => ({
+    ...sector,
+    id: sector.id ?? nextSectorId(),
+    ...(sector.children ? { children: sector.children.map(tag) } : {}),
+  });
+  return { ...config, sectors: config.sectors.map(tag) };
+}
+
 /** Navigate to the children array (ring) at `ringPath` within an immer
  *  draft, or null if any segment isn't a branch. */
 function draftRingAt(
@@ -94,7 +110,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
       saveError: null,
       setConfig: (snapshot) =>
         set((state) => {
-          state.config = snapshot.config;
+          state.config = withSectorIds(snapshot.config);
           state.mtime = snapshot.mtime;
           state.origin = 'remote';
           state.remoteRev += 1;
@@ -140,7 +156,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (!state.config) return;
           const ring = draftRingAt(state.config, ringPath);
           if (!ring) return;
-          ring.push({ label: 'New item' });
+          ring.push({ label: 'New item', id: nextSectorId() });
           state.origin = 'local';
           state.dirty = true;
         }),

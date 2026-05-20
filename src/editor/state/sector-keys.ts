@@ -3,33 +3,37 @@
 
 import type { MenuSector } from '@/shared/menu';
 
-/**
- * Stable React key for a sector, scoped to the editor session.
- *
- * Backed by a WeakMap keyed on the sector object's identity. Reorders
- * (`moveSector` splices the same object references, and immer leaves
- * untouched objects untouched) preserve identity, so React reconciles the
- * list/preview by identity instead of array position — that's the fix for
- * the `key={i}` reconciliation smell when sectors are added / deleted /
- * moved.
- *
- * A sector edited through the store is a *new* object (immer copy-on-
- * write), so it gets a fresh key and its row remounts. The rows are
- * stateless, the remount is invisible, and it only happens on edit — never
- * during a reorder, where keys must stay put.
- *
- * Transient by design: ids live only in memory, are never written to
- * menu.json, and are re-minted whenever a config is reloaded / adopted
- * (the adopted snapshot is a fresh set of objects).
- */
-const keys = new WeakMap<MenuSector, string>();
-let next = 0;
+let counter = 0;
 
+/**
+ * Mint a fresh editor-only sector id. The menu-settings store stamps these
+ * onto sectors when a config is adopted and onto newly-added sectors, so
+ * every sector the editor renders carries one.
+ */
+export function nextSectorId(): string {
+  return `sec-${counter++}`;
+}
+
+// Fallback identity for sectors that never went through the store (ad-hoc
+// test/screenshot data). Keyed on object identity, so it does NOT survive
+// immer copies — only the persisted `id` does.
+const weak = new WeakMap<MenuSector, string>();
+
+/**
+ * Stable React/identity key for a sector.
+ *
+ * Prefers the editor-only `id` (see MenuSector.id): because it lives on
+ * the object, immer copies it across edits and reorders, so the key — and
+ * anything keyed on it, like the tree's expand state — survives a
+ * copy-on-write that replaces the object. Falls back to a WeakMap for
+ * id-less sectors that never passed through the store.
+ */
 export function sectorKey(sector: MenuSector): string {
-  let key = keys.get(sector);
+  if (sector.id !== undefined) return sector.id;
+  let key = weak.get(sector);
   if (key === undefined) {
-    key = `sec-${next++}`;
-    keys.set(sector, key);
+    key = `weak-${counter++}`;
+    weak.set(sector, key);
   }
   return key;
 }

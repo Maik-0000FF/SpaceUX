@@ -3,7 +3,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_MENU_CONFIG, type MenuConfig } from '@/shared/menu';
+import { DEFAULT_MENU_CONFIG, type MenuConfig, type MenuSector } from '@/shared/menu';
 
 import { useAppState } from '../src/editor/state/app-state';
 import { useMenuSettings } from '../src/editor/state/menu-settings';
@@ -12,6 +12,16 @@ import { ringSectors, sectorAtPath, selectedPath } from '../src/editor/state/sel
 // The editor's selection store and path resolver are pure logic, so
 // they're exercised here without a DOM — the components that consume
 // them stay verified by the manual Electron smoke test.
+
+// The store stamps editor-only `id`s onto adopted sectors; strip them to
+// compare against the (id-less) source config.
+function stripIds(config: MenuConfig): MenuConfig {
+  const strip = (s: MenuSector): MenuSector => {
+    const { id: _id, children, ...rest } = s;
+    return children ? { ...rest, children: children.map(strip) } : rest;
+  };
+  return { ...config, sectors: config.sectors.map(strip) };
+}
 
 describe('app-state navigation', () => {
   beforeEach(() => {
@@ -124,7 +134,7 @@ describe('menu-settings', () => {
   it('setConfig adopts the snapshot as a clean remote change', () => {
     useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 123 });
     const state = useMenuSettings.getState();
-    expect(state.config).toEqual(DEFAULT_MENU_CONFIG);
+    expect(stripIds(state.config!)).toEqual(DEFAULT_MENU_CONFIG);
     expect(state.mtime).toBe(123);
     // Remote origin so the write-back subscription won't echo it to disk;
     // clean (not dirty) and no conflict after adopting.
