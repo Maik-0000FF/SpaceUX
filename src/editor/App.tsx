@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import type { ThemeChoice } from '@/shared/ipc';
+import type { PieThemeChoice, ThemeChoice } from '@/shared/ipc';
+import { PIE_OPACITY_MAX, PIE_OPACITY_MIN, PIE_OPACITY_STEP } from '@/shared/pie-appearance';
 
 import { LiveToggle } from './components/LiveToggle';
 import { MenuList } from './components/MenuList';
@@ -9,6 +10,7 @@ import { MenuPreview } from './components/MenuPreview';
 import { PreviewHeader } from './components/PreviewHeader';
 import { Properties } from './components/Properties';
 import { useExternalSync } from './hooks/useExternalSync';
+import { usePieAppearance } from './hooks/usePieAppearance';
 import { useThemePreference } from './hooks/useThemePreference';
 import { useUndoRedoShortcuts } from './hooks/useUndoRedoShortcuts';
 import { useWriteBack } from './hooks/useWriteBack';
@@ -27,6 +29,7 @@ export function App() {
   const saveError = useMenuSettings((s) => s.saveError);
 
   const { theme, changeTheme } = useThemePreference();
+  const { appearance: pie, setTheme: setPieTheme, setOpacity: setPieOpacity } = usePieAppearance();
   useExternalSync();
   useWriteBack();
   useUndoRedoShortcuts();
@@ -62,19 +65,46 @@ export function App() {
     <div className={styles.app}>
       <header className={styles.toolbar}>
         <span className={styles.brand}>SpaceUX</span>
-        <label className={styles.themeControl}>
-          <span className={styles.themeLabel}>Theme</span>
-          <select
-            className={styles.themeSelect}
-            value={theme}
-            onChange={(e) => changeTheme(e.target.value as ThemeChoice)}
-          >
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="spaceux">SpaceUX</option>
-          </select>
-        </label>
+        <div className={styles.toolbarControls}>
+          <label className={styles.themeControl}>
+            <span className={styles.themeLabel}>Pie</span>
+            <select
+              className={styles.themeSelect}
+              value={pie.theme}
+              onChange={(e) => setPieTheme(e.target.value as PieThemeChoice)}
+            >
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+              <option value="spaceux">SpaceUX</option>
+            </select>
+          </label>
+          <label className={styles.themeControl}>
+            <span className={styles.themeLabel}>Opacity</span>
+            <input
+              className={styles.slider}
+              type="range"
+              min={PIE_OPACITY_MIN}
+              max={PIE_OPACITY_MAX}
+              step={PIE_OPACITY_STEP}
+              value={pie.opacity}
+              onChange={(e) => setPieOpacity(Number(e.target.value))}
+            />
+            <span className={styles.sliderValue}>{Math.round(pie.opacity * 100)}%</span>
+          </label>
+          <label className={styles.themeControl}>
+            <span className={styles.themeLabel}>Theme</span>
+            <select
+              className={styles.themeSelect}
+              value={theme}
+              onChange={(e) => changeTheme(e.target.value as ThemeChoice)}
+            >
+              <option value="system">System</option>
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="spaceux">SpaceUX</option>
+            </select>
+          </label>
+        </div>
       </header>
       {conflict !== null ? (
         <div className={styles.bannerConflict} role="alert">

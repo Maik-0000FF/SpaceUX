@@ -7,8 +7,12 @@
  * MenuPreview). Both renderers import this file, so the preview can never
  * drift from the live pie. A theme is just a different set of `--pie-*`
  * values, selected by the `data-pie-theme` attribute on the document root;
- * the default (no attribute) is `dark`, byte-for-byte the original renderer
- * palette. The values stay translucent so the desktop shows through.
+ * the default (no attribute) is `dark`.
+ *
+ * The tokens are fully opaque colours. Translucency is applied separately:
+ * only the wedge *fill* is scaled by `--pie-opacity` (the appearance slider,
+ * set on <html> by usePieAppearance), so strokes and labels stay at full
+ * opacity at any slider value — the menu's structure and text never wash out.
  *
  * Wedge active fills resolve through `var(--sector-color, ...)` so a future
  * per-sector colour (issue #94, PR 3) only has to set `--sector-color` on
@@ -17,48 +21,47 @@
 
 :root,
 :root[data-pie-theme='dark'] {
-  --pie-bg: rgba(20, 22, 28, 0.6);
-  /* Editor-only hover lift (the live pie is axis-driven, no hover). Kept in
-     the palette so it tracks the theme instead of being a dark-only value. */
-  --pie-bg-hover: rgba(45, 52, 68, 0.7);
-  --pie-bg-active: rgba(80, 110, 180, 0.85);
-  --pie-border: rgba(255, 255, 255, 0.18);
-  --pie-border-active: rgba(255, 255, 255, 0.55);
-  --pie-label: rgba(240, 240, 240, 0.9);
-  --pie-label-active: rgba(255, 255, 255, 1);
+  --pie-bg: rgb(20, 22, 28);
+  /* Editor-only hover lift (the live pie is axis-driven, no hover). */
+  --pie-bg-hover: rgb(45, 52, 68);
+  --pie-bg-active: rgb(80, 110, 180);
+  --pie-border: rgb(255, 255, 255);
+  --pie-border-active: rgb(255, 255, 255);
+  --pie-label: rgb(240, 240, 240);
+  --pie-label-active: rgb(255, 255, 255);
 
-  /* Central cancel target. Active fill is intentionally red-orange so it
-     visually distinguishes "no action" from the active sector state — at a
-     glance the user can tell which target the pie commit would fire. Kept
-     red across all themes for the same reason. */
-  --pie-cancel-bg-active: rgba(180, 80, 80, 0.85);
-  --pie-cancel-label: rgba(240, 240, 240, 0.55);
+  /* Central cancel target. Fill is intentionally red-orange so it visually
+     distinguishes "no action" from the active sector state — at a glance the
+     user can tell which target the pie commit would fire. Kept red across
+     all themes for the same reason. */
+  --pie-cancel-bg-active: rgb(180, 80, 80);
+  --pie-cancel-label: rgb(240, 240, 240);
 }
 
-/* Light: pale translucent wedges, dark labels, the editor's light-theme
-   blue accent. First pass — tuned visually once the picker lands (PR 2). */
+/* Light: pale wedges, dark labels, the editor's light-theme blue accent.
+   First pass — tuned visually via the live picker (PR 2). */
 :root[data-pie-theme='light'] {
-  --pie-bg: rgba(245, 246, 249, 0.62);
-  --pie-bg-hover: rgba(220, 224, 232, 0.72);
-  --pie-bg-active: rgba(60, 95, 200, 0.85);
-  --pie-border: rgba(0, 0, 0, 0.18);
-  --pie-border-active: rgba(255, 255, 255, 0.7);
-  --pie-label: rgba(20, 22, 28, 0.9);
-  --pie-label-active: rgba(255, 255, 255, 1);
-  --pie-cancel-bg-active: rgba(200, 70, 70, 0.9);
-  --pie-cancel-label: rgba(20, 22, 28, 0.55);
+  --pie-bg: rgb(245, 246, 249);
+  --pie-bg-hover: rgb(220, 224, 232);
+  --pie-bg-active: rgb(60, 95, 200);
+  --pie-border: rgb(40, 44, 54);
+  --pie-border-active: rgb(255, 255, 255);
+  --pie-label: rgb(20, 22, 28);
+  --pie-label-active: rgb(255, 255, 255);
+  --pie-cancel-bg-active: rgb(200, 70, 70);
+  --pie-cancel-label: rgb(20, 22, 28);
 }
 
 /* Branded: deep-space wedges + the logo's cyan accent. First pass —
-   tuned visually once the picker lands (PR 2). */
+   tuned visually via the live picker (PR 2). */
 :root[data-pie-theme='spaceux'] {
-  --pie-bg: rgba(13, 20, 36, 0.62);
-  --pie-bg-hover: rgba(30, 46, 82, 0.72);
-  --pie-bg-active: rgba(0, 120, 170, 0.7);
-  --pie-border: rgba(124, 211, 255, 0.22);
-  --pie-border-active: rgba(124, 211, 255, 0.85);
-  --pie-label: rgba(226, 240, 255, 0.92);
-  --pie-label-active: rgba(255, 255, 255, 1);
-  --pie-cancel-bg-active: rgba(200, 70, 70, 0.85);
-  --pie-cancel-label: rgba(160, 190, 220, 0.6);
+  --pie-bg: rgb(13, 20, 36);
+  --pie-bg-hover: rgb(30, 46, 82);
+  --pie-bg-active: rgb(0, 120, 170);
+  --pie-border: rgb(124, 211, 255);
+  --pie-border-active: rgb(124, 211, 255);
+  --pie-label: rgb(226, 240, 255);
+  --pie-label-active: rgb(255, 255, 255);
+  --pie-cancel-bg-active: rgb(200, 70, 70);
+  --pie-cancel-label: rgb(160, 190, 220);
 }

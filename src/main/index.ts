@@ -11,10 +11,14 @@ import {
   type DaemonStatusPayload,
   type MenuConfigSnapshot,
   type MenuOpenPayload,
+  type PieAppearance,
 } from '../shared/ipc.js';
 import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
+import { DEFAULT_PIE_APPEARANCE } from '../shared/pie-appearance.js';
 import type { DaemonEvent } from '../shared/protocol.js';
 
+import { wireAppIpc } from './app-ipc.js';
+import { loadPieAppearance, saveAppSettings, saveAppSettingsSync } from './app-settings.js';
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
 import { wireEditorIpc } from './editor-ipc.js';
@@ -82,6 +86,15 @@ let menuConfigMtime: number | null = null;
 let menuConfigSource: string | null = null;
 let menuSearchPaths: string[] = [];
 let stopMenuWatcher: (() => void) | null = null;
+
+// The pie appearance (theme + opacity) — own app setting, broadcast to both
+// renderers on change. Defaults until loadPieAppearance() resolves at startup.
+let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
+// Debounce the disk write: dragging the opacity slider fires a change per
+// step (~16 across the range), but the broadcast stays live so the pie
+// updates immediately — only the persist is coalesced to the final value.
+let pieAppearanceSaveTimer: NodeJS.Timeout | null = null;
+const PIE_APPEARANCE_SAVE_DEBOUNCE_MS = 250;
 // True between MENU_OPEN and MENU_COMMIT — drives the click-to-toggle
 // trigger lifecycle so a second press commits instead of re-opening.
 let menuShown = false;
@@ -421,6 +434,10 @@ app.whenReady().then(async () => {
   menuConfigMtime = menuResult.mtime;
   menuConfigSource = menuResult.source;
 
+  // Load the persisted pie appearance before any window exists, so the
+  // initial GET_PIE_APPEARANCE pull returns the user's value, not defaults.
+  pieAppearance = await loadPieAppearance();
+
   // Hot-reload: re-read on every menu.json edit and push the new config
   // to both renderers. The editor's own writes are suppressed by the
   // watcher's self-write window, so a reload here always means an
@@ -457,6 +474,26 @@ app.whenReady().then(async () => {
       mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, config);
     },
   });
+  wireAppIpc({
+    getAppearance: () => pieAppearance,
+    setAppearance: (patch) => {
+      pieAppearance = { ...pieAppearance, ...patch };
+      // Broadcast the full value to both renderers at once: the live pie
+      // hot-reloads and the editor preview (incl. the one that made the
+      // edit) tracks it without waiting on the debounced disk write.
+      mainWindow?.webContents.send(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
+      sendToEditor(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
+      // Coalesce the persist so a slider drag doesn't write the file ~16x.
+      if (pieAppearanceSaveTimer) clearTimeout(pieAppearanceSaveTimer);
+      pieAppearanceSaveTimer = setTimeout(() => {
+        pieAppearanceSaveTimer = null;
+        void saveAppSettings({
+          pieTheme: pieAppearance.theme,
+          pieOpacity: pieAppearance.opacity,
+        });
+      }, PIE_APPEARANCE_SAVE_DEBOUNCE_MS);
+    },
+  });
   wireDaemonEvents();
   daemon.start();
 
@@ -468,6 +505,13 @@ app.whenReady().then(async () => {
 // hide-on-close interceptor would veto the close and stall the exit.
 app.on('before-quit', () => {
   setAppQuitting();
+  // Flush a pending debounced appearance save synchronously — the async
+  // timer wouldn't fire (and an async write wouldn't settle) before exit.
+  if (pieAppearanceSaveTimer) {
+    clearTimeout(pieAppearanceSaveTimer);
+    pieAppearanceSaveTimer = null;
+    saveAppSettingsSync({ pieTheme: pieAppearance.theme, pieOpacity: pieAppearance.opacity });
+  }
 });
 
 app.on('window-all-closed', () => {

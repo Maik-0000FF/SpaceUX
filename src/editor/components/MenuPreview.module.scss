@@ -24,8 +24,11 @@
   }
 }
 
+// Only the wedge fill carries --pie-opacity (relative-colour alpha); strokes
+// and labels read the opaque tokens, so they stay full-opacity at any slider
+// value — mirrors the live pie (src/renderer/style.css).
 .wedge {
-  fill: var(--pie-bg);
+  fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
@@ -36,16 +39,16 @@
   // The live pie has no hover (it's axis-driven); a faint lift gives the
   // mouse-driven editor some feedback. Themed via --pie-bg-hover.
   .wedgeGroup:hover & {
-    fill: var(--pie-bg-hover);
+    fill: rgb(from var(--pie-bg-hover) r g b / var(--pie-opacity, 0.6));
   }
 }
 
 .wedgeSelected {
-  fill: var(--sector-color, var(--pie-bg-active));
+  fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border-active);
 
   .wedgeGroup:hover & {
-    fill: var(--sector-color, var(--pie-bg-active));
+    fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
   }
 }
 
@@ -69,7 +72,7 @@
 
 // Centre cancel area — mirrors .pie-cancel-center / .pie-cancel-label.
 .cancelCenter {
-  fill: var(--pie-bg);
+  fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   pointer-events: none;
@@ -96,7 +99,7 @@
 }
 
 .wedgeBreadcrumb {
-  fill: var(--pie-bg);
+  fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
@@ -111,7 +114,7 @@
 // from here" anchor. Mirrors .pie-wedge.is-breadcrumb.is-drilled-into.
 .wedgeDrilledInto {
   opacity: 0.7;
-  fill: var(--sector-color, var(--pie-bg-active));
+  fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border-active);
 }
 
