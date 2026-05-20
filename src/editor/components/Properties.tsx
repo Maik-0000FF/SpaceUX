@@ -3,6 +3,8 @@
 
 import { useState } from 'react';
 
+import { BUILTIN_ACTION, builtinAction, DEFAULT_TRIGGER_BUTTON } from '@/shared/menu';
+
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
@@ -89,6 +91,7 @@ export function Properties() {
   const config = useMenuSettings((s) => s.config);
   const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
   const deleteSector = useMenuSettings((s) => s.deleteSector);
+  const setTriggerButton = useMenuSettings((s) => s.setTriggerButton);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
@@ -98,6 +101,18 @@ export function Properties() {
 
   const path = selectedPath(viewPath, selectedIndex);
   const sector = config && path ? sectorAtPath(config, path) : null;
+  const isExec = sector?.binding?.action === builtinAction(BUILTIN_ACTION.EXEC);
+
+  // Pick a file for an exec command and write it into the action config.
+  const handleBrowse = (): void => {
+    if (!path) return;
+    void window.editor.pickFile().then((file) => {
+      if (!file) return;
+      updateSectorAt(path, (s) => {
+        if (s.binding) s.binding.config = { ...(s.binding.config ?? {}), command: file };
+      });
+    });
+  };
 
   const canDelete =
     selectedIndex !== null && (config ? ringSectors(config, viewPath).length : 0) > 1;
@@ -115,7 +130,23 @@ export function Properties() {
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Properties</div>
       {!sector || !path ? (
-        <p className={styles.empty}>Select a sector to edit it.</p>
+        <div className={styles.fields}>
+          <p className={styles.empty}>Select a sector to edit it.</p>
+          {config && (
+            <Row label="Trigger button">
+              <input
+                className={styles.input}
+                type="number"
+                min={0}
+                value={config.triggerButton ?? DEFAULT_TRIGGER_BUTTON}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  if (Number.isInteger(n) && n >= 0) setTriggerButton(n);
+                }}
+              />
+            </Row>
+          )}
+        </div>
       ) : (
         <div className={styles.fields}>
           <Row label="Label">
@@ -189,6 +220,11 @@ export function Properties() {
                   }
                 />
               </Row>
+              {isExec && (
+                <button type="button" className={styles.openButton} onClick={handleBrowse}>
+                  Browse for file…
+                </button>
+              )}
               {sector.binding !== undefined && (
                 // Keyed on the selection + remoteRev so the local JSON
                 // text remounts on an external adoption, not while typing.

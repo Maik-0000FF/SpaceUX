@@ -63,6 +63,8 @@ type MenuSettingsState = {
   /** Reorder the ring at `ringPath` so the one at `from` ends up at
    *  `to`. No-op for invalid indices. */
   moveSector: (ringPath: readonly number[], from: number, to: number) => void;
+  /** Set the puck button (zero-based) that opens the pie. */
+  setTriggerButton: (button: number) => void;
 };
 
 /** Navigate to the children array (ring) at `ringPath` within an immer
@@ -161,6 +163,13 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (to < 0 || to >= ring.length || from === to) return;
           const [moved] = ring.splice(from, 1);
           ring.splice(to, 0, moved!);
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setTriggerButton: (button) =>
+        set((state) => {
+          if (!state.config) return;
+          state.config.triggerButton = button;
           state.origin = 'local';
           state.dirty = true;
         }),

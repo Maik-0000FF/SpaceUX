@@ -2,20 +2,57 @@
  * SPDX-FileCopyrightText: Maik-0000FF
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Editor global styles. Unlike the pie overlay (transparent, click-
- * through), the editor is a normal opaque window, so the body gets a
- * solid dark background. The palette mirrors the renderer's dark
- * theme; a later PR (Editor-6) adds a light/dark toggle driven by the
- * system theme.
+ * Editor global styles + theme palettes. The whole UI reads CSS custom
+ * properties, so a theme is just a different set of values selected by
+ * the `data-theme` attribute on <html> (set from the persisted choice;
+ * 'system' resolves to light/dark via prefers-color-scheme — see App).
  */
 
-:root {
+/* Dark (default until the script applies a theme). */
+:root,
+:root[data-theme='dark'] {
+  /* Make native controls (the <select> popup, scrollbars) render dark
+     too — they're drawn by the OS and ignore our CSS variables. */
+  color-scheme: dark;
   --editor-bg: #14161c;
   --editor-panel-bg: #1b1e26;
   --editor-border: rgba(255, 255, 255, 0.1);
   --editor-fg: rgba(240, 240, 240, 0.92);
   --editor-fg-dim: rgba(240, 240, 240, 0.55);
   --editor-accent: rgba(80, 110, 180, 0.85);
+  --editor-hover: rgba(255, 255, 255, 0.06);
+  --editor-input-bg: rgba(0, 0, 0, 0.25);
+  --editor-wedge: rgba(40, 44, 54, 0.9);
+  --editor-wedge-hover: rgba(60, 66, 80, 0.95);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --editor-bg: #f3f4f7;
+  --editor-panel-bg: #ffffff;
+  --editor-border: rgba(0, 0, 0, 0.12);
+  --editor-fg: rgba(20, 22, 28, 0.92);
+  --editor-fg-dim: rgba(20, 22, 28, 0.5);
+  --editor-accent: rgba(60, 95, 200, 0.9);
+  --editor-hover: rgba(0, 0, 0, 0.05);
+  --editor-input-bg: rgba(0, 0, 0, 0.04);
+  --editor-wedge: rgba(224, 228, 236, 0.95);
+  --editor-wedge-hover: rgba(205, 211, 222, 1);
+}
+
+/* Branded: deep-space background + the logo's gradient accent. */
+:root[data-theme='spaceux'] {
+  color-scheme: dark;
+  --editor-bg: #070b16;
+  --editor-panel-bg: #0d1424;
+  --editor-border: rgba(124, 211, 255, 0.18);
+  --editor-fg: rgba(226, 240, 255, 0.95);
+  --editor-fg-dim: rgba(160, 190, 220, 0.6);
+  --editor-accent: #00d4ff;
+  --editor-hover: rgba(124, 211, 255, 0.1);
+  --editor-input-bg: rgba(0, 0, 0, 0.3);
+  --editor-wedge: rgba(20, 30, 55, 0.9);
+  --editor-wedge-hover: rgba(30, 46, 82, 0.95);
 }
 
 * {

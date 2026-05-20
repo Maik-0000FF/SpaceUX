@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import Mousetrap from 'mousetrap';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-import type { MenuConfigSnapshot } from '@/shared/ipc';
+import type { MenuConfigSnapshot, ThemeChoice } from '@/shared/ipc';
 
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
@@ -48,6 +48,37 @@ function adopt(snapshot: MenuConfigSnapshot): void {
 export function App() {
   const conflict = useMenuSettings((s) => s.conflict);
   const saveError = useMenuSettings((s) => s.saveError);
+
+  const [theme, setTheme] = useState<ThemeChoice>('system');
+
+  // Load the persisted theme on mount.
+  useEffect(() => {
+    void window.editor.getTheme().then((t) => setTheme(t));
+  }, []);
+
+  // Apply the theme to <html>: 'system' resolves to light/dark via
+  // prefers-color-scheme and tracks OS changes; the others map directly.
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = (): void => {
+      root.dataset.theme =
+        theme === 'system'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+          : theme;
+    };
+    apply();
+    if (theme !== 'system') return undefined;
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [theme]);
+
+  const changeTheme = (next: ThemeChoice): void => {
+    setTheme(next);
+    window.editor.setTheme(next); // persist (best-effort)
+  };
 
   // Initial load.
   useEffect(() => {
@@ -168,6 +199,22 @@ export function App() {
 
   return (
     <div className={styles.app}>
+      <header className={styles.toolbar}>
+        <span className={styles.brand}>SpaceUX</span>
+        <label className={styles.themeControl}>
+          <span className={styles.themeLabel}>Theme</span>
+          <select
+            className={styles.themeSelect}
+            value={theme}
+            onChange={(e) => changeTheme(e.target.value as ThemeChoice)}
+          >
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="spaceux">SpaceUX</option>
+          </select>
+        </label>
+      </header>
       {conflict !== null ? (
         <div className={styles.bannerConflict} role="alert">
           <span className={styles.bannerText}>

@@ -24,11 +24,11 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "Maik-0000FF"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
-# Binary raster assets cannot carry an inline SPDX header. The tray
-# icons are rendered from the project logo (assets/icons/*.svg), so
-# they inherit the same CC-BY-4.0 branding licence as their source.
+# Binary raster assets cannot carry an inline SPDX header. The tray and
+# window icons are rendered from the project logo (assets/icons/*.svg),
+# so they inherit the same CC-BY-4.0 branding licence as their source.
 [[annotations]]
-path = ["assets/tray-icon.png", "assets/tray-icon@2x.png"]
+path = ["assets/tray-icon.png", "assets/tray-icon@2x.png", "assets/icon.png"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Maik-0000FF"
 SPDX-License-Identifier = "CC-BY-4.0"

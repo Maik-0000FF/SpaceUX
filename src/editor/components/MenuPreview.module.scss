@@ -23,7 +23,7 @@
 }
 
 .wedge {
-  fill: rgba(40, 44, 54, 0.9);
+  fill: var(--editor-wedge);
   stroke: var(--editor-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
@@ -32,7 +32,7 @@
     stroke 80ms ease-out;
 
   .wedgeGroup:hover & {
-    fill: rgba(60, 66, 80, 0.95);
+    fill: var(--editor-wedge-hover);
   }
 }
 
