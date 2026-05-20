@@ -4,8 +4,7 @@
 import { ipcMain } from 'electron';
 
 import { IpcChannel, type PieAppearance } from '../shared/ipc.js';
-
-import { clampPieOpacity, PIE_THEMES } from './app-settings.js';
+import { clampPieOpacity, PIE_THEMES } from '../shared/pie-appearance.js';
 
 /**
  * App-level IPC: the pie appearance setting, shared by the live pie and the

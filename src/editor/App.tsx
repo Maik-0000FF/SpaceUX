@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import type { PieThemeChoice, ThemeChoice } from '@/shared/ipc';
+import { PIE_OPACITY_MAX, PIE_OPACITY_MIN, PIE_OPACITY_STEP } from '@/shared/pie-appearance';
 
 import { LiveToggle } from './components/LiveToggle';
 import { MenuList } from './components/MenuList';
@@ -82,9 +83,9 @@ export function App() {
             <input
               className={styles.slider}
               type="range"
-              min={0.2}
-              max={1}
-              step={0.05}
+              min={PIE_OPACITY_MIN}
+              max={PIE_OPACITY_MAX}
+              step={PIE_OPACITY_STEP}
               value={pie.opacity}
               onChange={(e) => setPieOpacity(Number(e.target.value))}
             />

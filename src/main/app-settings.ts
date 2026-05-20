@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import { describeError } from '../shared/errors.js';
 import type { PieAppearance, PieThemeChoice } from '../shared/ipc.js';
+import { clampPieOpacity, DEFAULT_PIE_APPEARANCE, PIE_THEMES } from '../shared/pie-appearance.js';
 
 /**
  * App-wide preferences stored at $XDG_CONFIG_HOME/spaceux/app-settings.json
@@ -15,27 +16,16 @@ import type { PieAppearance, PieThemeChoice } from '../shared/ipc.js';
  * live pie itself — currently its appearance (theme + opacity), with blur to
  * follow. Same best-effort contract as editor-settings: a missing or corrupt
  * file yields defaults, and a failed write is logged, not thrown.
+ *
+ * The pure validation (theme whitelist, opacity clamp, defaults) lives in
+ * shared/pie-appearance so the editor renderer shares it; this module only
+ * adds the file IO.
  */
 
 export type AppSettings = { pieTheme?: PieThemeChoice; pieOpacity?: number };
 
 const FILENAME = 'app-settings.json';
 const SUBDIR = 'spaceux';
-
-export const PIE_THEMES: ReadonlySet<string> = new Set<PieThemeChoice>([
-  'dark',
-  'light',
-  'spaceux',
-]);
-/** Opacity is clamped to a usable band so the pie can't be made invisible. */
-export const PIE_OPACITY_MIN = 0.2;
-export const PIE_OPACITY_MAX = 1;
-/** Defaults preserve the original look: dark palette, full opacity. */
-export const DEFAULT_PIE_APPEARANCE: PieAppearance = { theme: 'dark', opacity: 1 };
-
-export function clampPieOpacity(n: number): number {
-  return Math.min(PIE_OPACITY_MAX, Math.max(PIE_OPACITY_MIN, n));
-}
 
 function settingsPath(): string {
   const xdg = process.env.XDG_CONFIG_HOME?.trim();

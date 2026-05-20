@@ -14,10 +14,11 @@ import {
   type PieAppearance,
 } from '../shared/ipc.js';
 import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
+import { DEFAULT_PIE_APPEARANCE } from '../shared/pie-appearance.js';
 import type { DaemonEvent } from '../shared/protocol.js';
 
 import { wireAppIpc } from './app-ipc.js';
-import { DEFAULT_PIE_APPEARANCE, loadPieAppearance, saveAppSettings } from './app-settings.js';
+import { loadPieAppearance, saveAppSettings } from './app-settings.js';
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
 import { wireEditorIpc } from './editor-ipc.js';
@@ -89,6 +90,11 @@ let stopMenuWatcher: (() => void) | null = null;
 // The pie appearance (theme + opacity) — own app setting, broadcast to both
 // renderers on change. Defaults until loadPieAppearance() resolves at startup.
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
+// Debounce the disk write: dragging the opacity slider fires a change per
+// step (~16 across the range), but the broadcast stays live so the pie
+// updates immediately — only the persist is coalesced to the final value.
+let pieAppearanceSaveTimer: NodeJS.Timeout | null = null;
+const PIE_APPEARANCE_SAVE_DEBOUNCE_MS = 250;
 // True between MENU_OPEN and MENU_COMMIT — drives the click-to-toggle
 // trigger lifecycle so a second press commits instead of re-opening.
 let menuShown = false;
@@ -472,11 +478,20 @@ app.whenReady().then(async () => {
     getAppearance: () => pieAppearance,
     setAppearance: (patch) => {
       pieAppearance = { ...pieAppearance, ...patch };
-      void saveAppSettings({ pieTheme: pieAppearance.theme, pieOpacity: pieAppearance.opacity });
-      // Broadcast the full value to both renderers: the live pie hot-reloads
-      // and the editor preview (incl. the one that made the edit) tracks it.
+      // Broadcast the full value to both renderers at once: the live pie
+      // hot-reloads and the editor preview (incl. the one that made the
+      // edit) tracks it without waiting on the debounced disk write.
       mainWindow?.webContents.send(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
       sendToEditor(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
+      // Coalesce the persist so a slider drag doesn't write the file ~16x.
+      if (pieAppearanceSaveTimer) clearTimeout(pieAppearanceSaveTimer);
+      pieAppearanceSaveTimer = setTimeout(() => {
+        pieAppearanceSaveTimer = null;
+        void saveAppSettings({
+          pieTheme: pieAppearance.theme,
+          pieOpacity: pieAppearance.opacity,
+        });
+      }, PIE_APPEARANCE_SAVE_DEBOUNCE_MS);
     },
   });
   wireDaemonEvents();

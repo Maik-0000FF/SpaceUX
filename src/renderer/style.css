@@ -59,14 +59,15 @@ body {
   left: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  /* Overall translucency multiplier from the pie appearance setting
-   * (--pie-opacity, set on <html> by usePieAppearance). Scales the whole
-   * pie uniformly; the per-state wedge opacities compose within it. */
-  opacity: var(--pie-opacity, 1);
 }
 
+/* Only the wedge *fill* carries the appearance slider's translucency
+ * (--pie-opacity, set on <html> by usePieAppearance): the relative-colour
+ * syntax keeps the theme colour but replaces its alpha. Strokes and labels
+ * read the opaque tokens directly, so they stay at full opacity regardless
+ * of the slider — the menu's structure and text never wash out. */
 .pie-wedge {
-  fill: var(--pie-bg);
+  fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   /* Required for the donut path emitted on full-circle wedges
@@ -81,7 +82,7 @@ body {
 .pie-wedge.is-active {
   /* --sector-color is unset today; a future per-sector colour (#94 PR 3)
    * overrides the theme's active fill by setting it on the wedge element. */
-  fill: var(--sector-color, var(--pie-bg-active));
+  fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border-active);
 }
 
@@ -107,7 +108,7 @@ body {
  * visual anchor — "you came from this sector". */
 .pie-wedge.is-breadcrumb.is-drilled-into {
   opacity: 0.7;
-  fill: var(--sector-color, var(--pie-bg-active));
+  fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border-active);
 }
 
@@ -135,7 +136,7 @@ body {
 /* Central cancel target — highlighted whenever the selection clears
  * (puck back in deadzone). Commit in that state is a silent dismiss. */
 .pie-cancel-center {
-  fill: var(--pie-bg);
+  fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   transition:
@@ -144,7 +145,7 @@ body {
 }
 
 .pie-cancel-center.is-active {
-  fill: var(--pie-cancel-bg-active);
+  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border-active);
 }
 

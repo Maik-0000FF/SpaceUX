@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import type { PieAppearance, PieThemeChoice } from '@/shared/ipc';
+import { DEFAULT_PIE_APPEARANCE } from '@/shared/pie-appearance';
 
 /**
  * Owns the pie appearance in the editor: loads the persisted value on mount,
@@ -17,7 +18,7 @@ export function usePieAppearance(): {
   setTheme: (theme: PieThemeChoice) => void;
   setOpacity: (opacity: number) => void;
 } {
-  const [appearance, setAppearance] = useState<PieAppearance>({ theme: 'dark', opacity: 1 });
+  const [appearance, setAppearance] = useState<PieAppearance>(DEFAULT_PIE_APPEARANCE);
 
   useEffect(() => {
     let cancelled = false;
