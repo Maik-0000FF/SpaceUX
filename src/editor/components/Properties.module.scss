@@ -41,7 +41,7 @@
   padding: 6px 8px;
   border: 1px solid var(--editor-border);
   border-radius: 5px;
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--editor-input-bg);
   color: var(--editor-fg);
   font: inherit;
   font-size: 13px;
@@ -84,14 +84,14 @@
   padding: 6px 12px;
   border: 1px solid var(--editor-border);
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
   color: var(--editor-fg);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: var(--editor-hover);
   }
 }
 

@@ -4,7 +4,12 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 import type { EditorBridge } from '../shared/bridge.js';
-import { IpcChannel, type MenuConfigSnapshot, type MenuWriteResult } from '../shared/ipc.js';
+import {
+  IpcChannel,
+  type MenuConfigSnapshot,
+  type MenuWriteResult,
+  type ThemeChoice,
+} from '../shared/ipc.js';
 import type { MenuConfig } from '../shared/menu.js';
 
 /**
@@ -31,6 +36,9 @@ const bridge: EditorBridge = {
     ipcRenderer.on(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, listener);
     return () => ipcRenderer.off(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, listener);
   },
+  getTheme: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_THEME) as Promise<ThemeChoice>,
+  setTheme: (theme: ThemeChoice) => ipcRenderer.send(IpcChannel.EDITOR_SET_THEME, theme),
+  pickFile: () => ipcRenderer.invoke(IpcChannel.EDITOR_PICK_FILE) as Promise<string | null>,
 };
 
 contextBridge.exposeInMainWorld('editor', bridge);

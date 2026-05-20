@@ -250,6 +250,15 @@ describe('menu-settings CRUD', () => {
     expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual(['B']);
   });
 
+  it('setTriggerButton sets the trigger and flags local/dirty', () => {
+    load([{ label: 'A' }]);
+    useMenuSettings.getState().setTriggerButton(2);
+    const state = useMenuSettings.getState();
+    expect(state.config?.triggerButton).toBe(2);
+    expect(state.origin).toBe('local');
+    expect(state.dirty).toBe(true);
+  });
+
   it('moveSector reorders so the item ends at the target index', () => {
     load([{ label: 'A' }, { label: 'B' }, { label: 'C' }, { label: 'D' }]);
     useMenuSettings.getState().moveSector([], 0, 2);

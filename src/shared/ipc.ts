@@ -69,7 +69,18 @@ export const IpcChannel = {
    *  suppressed by the watcher's self-write window). Lets the editor
    *  resync instead of clobbering an external edit. */
   EDITOR_MENU_CONFIG_CHANGED: 'spaceux:editor:menu-settings:changed',
+  /** Editor pulls the persisted theme choice on mount. */
+  EDITOR_GET_THEME: 'spaceux:editor:theme:get',
+  /** Editor persists a new theme choice (fire-and-forget). */
+  EDITOR_SET_THEME: 'spaceux:editor:theme:set',
+  /** Editor opens a native file-open dialog (for an exec command path);
+   *  resolves to the chosen absolute path, or null if cancelled. */
+  EDITOR_PICK_FILE: 'spaceux:editor:pick-file',
 } as const;
+
+/** Editor colour theme. `system` follows the OS light/dark preference;
+ *  `spaceux` is the branded palette. Persisted in editor-settings.json. */
+export type ThemeChoice = 'system' | 'light' | 'dark' | 'spaceux';
 
 /** Config plus the on-disk mtime it was read at. The editor snapshots
  *  the mtime and echoes it back on a write so main can detect a

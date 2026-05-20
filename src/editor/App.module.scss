@@ -13,6 +13,51 @@
   height: 100%;
 }
 
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  background: var(--editor-panel-bg);
+  border-bottom: 1px solid var(--editor-border);
+}
+
+.brand {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--editor-fg);
+}
+
+.themeControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.themeLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--editor-fg-dim);
+}
+
+.themeSelect {
+  padding: 4px 8px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 12px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--editor-accent);
+  }
+}
+
 .shell {
   display: grid;
   grid-template-columns: 240px 1fr 300px;

@@ -22,6 +22,7 @@ import type {
   MenuConfigSnapshot,
   MenuOpenPayload,
   MenuWriteResult,
+  ThemeChoice,
 } from './ipc';
 import type { MenuConfig } from './menu';
 
@@ -72,6 +73,13 @@ export type EditorBridge = {
   /** Subscribe to out-of-band config changes (the file was edited
    *  outside the editor). Returns an unsubscribe fn. */
   onMenuConfigChanged(handler: (snapshot: MenuConfigSnapshot) => void): () => void;
+  /** Pull the persisted theme choice once on mount (default 'system'). */
+  getTheme(): Promise<ThemeChoice>;
+  /** Persist a new theme choice. Fire-and-forget. */
+  setTheme(theme: ThemeChoice): void;
+  /** Open a native file-open dialog; resolves to the chosen absolute
+   *  path, or null if cancelled. */
+  pickFile(): Promise<string | null>;
 };
 
 declare global {

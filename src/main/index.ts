@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, screen, Tray } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,12 +11,14 @@ import {
   type DaemonStatusPayload,
   type MenuConfigSnapshot,
   type MenuOpenPayload,
+  type ThemeChoice,
 } from '../shared/ipc.js';
 import { DEFAULT_MENU_CONFIG, DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
 import type { DaemonEvent } from '../shared/protocol.js';
 
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
+import { loadEditorSettings, saveEditorSettings } from './editor-settings.js';
 import { openEditorWindow, sendToEditor, setAppQuitting } from './editor-window.js';
 import { KWinCursorService } from './kwin-cursor.js';
 import { loadMenuConfig, menuConfigSearchPaths } from './menu-loader.js';
@@ -121,6 +123,10 @@ async function createWindow(): Promise<void> {
     // toplevel so the dev WM treats it as a regular framed window.
     type: OVERLAY_MODE && process.platform === 'linux' ? 'toolbar' : undefined,
     title: 'SpaceUX (dev)',
+    // Window/taskbar icon for the dev-mode framed window (overlay mode is
+    // frameless + skipTaskbar). Same path + packaging caveat (#50) as the
+    // editor window.
+    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
     webPreferences: {
       // .cjs extension: preload is bundled by esbuild as CommonJS so
       // Electron's sandboxed preload context (which doesn't grok ESM
@@ -401,6 +407,24 @@ function wireEditorIpc(): void {
   // the handler exists so the renderer's fire-and-forget `ready()` has a
   // registered listener.
   ipcMain.on(IpcChannel.EDITOR_READY, () => {});
+
+  // Theme preference, persisted in editor-settings.json (best-effort).
+  ipcMain.handle(IpcChannel.EDITOR_GET_THEME, async (): Promise<ThemeChoice> => {
+    return (await loadEditorSettings()).theme ?? 'system';
+  });
+  ipcMain.on(IpcChannel.EDITOR_SET_THEME, (_evt, theme: ThemeChoice) => {
+    void saveEditorSettings({ theme });
+  });
+
+  // Native file-open dialog for the exec command path. Parented to the
+  // focused window (the editor) so it's modal to it.
+  ipcMain.handle(IpcChannel.EDITOR_PICK_FILE, async (): Promise<string | null> => {
+    const parent = BrowserWindow.getFocusedWindow();
+    const result = await (parent
+      ? dialog.showOpenDialog(parent, { properties: ['openFile'] })
+      : dialog.showOpenDialog({ properties: ['openFile'] }));
+    return result.canceled || result.filePaths.length === 0 ? null : (result.filePaths[0] ?? null);
+  });
 }
 
 /** Create the system-tray icon and its context menu. The tray is the
