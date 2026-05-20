@@ -5,10 +5,10 @@ import { useRef, useState } from 'react';
 
 import { sectorCenterAngle } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import type { MenuConfig, MenuSector } from '@/shared/menu';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
+import { buildRings } from '../state/preview-rings';
 import { sectorKey } from '../state/sector-keys';
 
 import styles from './MenuPreview.module.scss';
@@ -27,36 +27,6 @@ const RING_GAP = 3;
 const LABEL_FONT = 10;
 const MARGIN = 6;
 const SCALE = 3; // px per viewBox unit (fixed → inner ring keeps its size)
-
-type PreviewRing = {
-  sectors: readonly MenuSector[];
-  /** Index path to this ring (the moveSector ring path); `[]` for root. */
-  basePath: number[];
-  /** Sector on the selected path within this ring, or null. */
-  selectedIndex: number | null;
-  /** Cumulative rotation so each ring's children fan out from their
-   *  parent sector, matching the live pie's preview-ring rotation. */
-  rotation: number;
-};
-
-/** Walk from the root following `path`, collecting one ring per level
- *  plus, when the deepest selected sector is a branch, its children as the
- *  outermost ring. */
-function buildRings(config: MenuConfig, path: readonly number[]): PreviewRing[] {
-  const rings: PreviewRing[] = [];
-  let sectors: readonly MenuSector[] = config.sectors;
-  let rotation = 0;
-  for (let depth = 0; ; depth++) {
-    const selectedIndex = depth < path.length ? path[depth]! : null;
-    rings.push({ sectors, basePath: path.slice(0, depth), selectedIndex, rotation });
-    if (selectedIndex === null) break;
-    const sel = sectors[selectedIndex];
-    if (!sel?.children || sel.children.length === 0) break;
-    rotation += sectorCenterAngle(selectedIndex, sectors.length);
-    sectors = sel.children;
-  }
-  return rings;
-}
 
 /**
  * Centre stage: the menu drawn as concentric rings along the selected
@@ -85,7 +55,6 @@ export function MenuPreview() {
 
   const fullPath = selectedIndex !== null ? [...viewPath, selectedIndex] : [...viewPath];
   const rings = buildRings(config, fullPath);
-  const band = BAND;
   // The pie grows outward with depth; the SVG is sized to its extent at a
   // fixed px scale so the inner ring stays the same size and the panel
   // scrolls instead of clipping.
@@ -93,8 +62,8 @@ export function MenuPreview() {
   const px = 2 * view * SCALE;
 
   const ringRadii = (depth: number): { inner: number; outer: number; label: number } => {
-    const inner = CENTER_HOLE + depth * band;
-    const outer = inner + band;
+    const inner = CENTER_HOLE + depth * BAND;
+    const outer = inner + BAND;
     return { inner: inner + RING_GAP / 2, outer: outer - RING_GAP / 2, label: (inner + outer) / 2 };
   };
 
@@ -106,7 +75,7 @@ export function MenuPreview() {
     if (!svg || !ctm) return null;
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
     const r = Math.hypot(p.x, p.y);
-    const depth = Math.floor((r - CENTER_HOLE) / band);
+    const depth = Math.floor((r - CENTER_HOLE) / BAND);
     if (depth < 0 || depth >= rings.length) return null;
     const ring = rings[depth]!;
     const count = ring.sectors.length;
@@ -156,6 +125,12 @@ export function MenuPreview() {
           const center = sectorCenterAngle(i, count) + ring.rotation;
           const d = describeWedgePath(outer, inner, center - half, center + half);
           const onPath = ring.selectedIndex === i;
+          // The actual selection is the deepest on-path wedge; the shallower
+          // on-path wedges are its ancestors. Whole path is highlighted, but
+          // only the selection is aria-pressed (ancestors are aria-current),
+          // so a screen reader doesn't announce several "pressed" buttons.
+          const isSelection = onPath && depth === fullPath.length - 1;
+          const isAncestor = onPath && !isSelection;
           const dragging = drag !== null && drag.depth === depth && drag.index === i;
           const dropTarget =
             drag !== null && drag.depth === depth && dropIndex === i && dropIndex !== drag.index;
@@ -180,7 +155,8 @@ export function MenuPreview() {
               role="button"
               tabIndex={0}
               aria-label={`Select ${sector.label}`}
-              aria-pressed={onPath}
+              aria-current={isAncestor ? 'true' : undefined}
+              aria-pressed={isSelection ? true : undefined}
             >
               <path
                 d={d}
