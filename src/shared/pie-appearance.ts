@@ -30,3 +30,23 @@ export const DEFAULT_PIE_APPEARANCE: PieAppearance = { theme: 'dark', opacity: 0
 export function clampPieOpacity(n: number): number {
   return Math.min(PIE_OPACITY_MAX, Math.max(PIE_OPACITY_MIN, n));
 }
+
+/**
+ * Sanitise an untrusted appearance patch from the renderer into the subset
+ * of fields that are valid: an unknown theme is dropped, a non-finite or
+ * out-of-range opacity is dropped/clamped, and any other shape yields an
+ * empty patch. This is the IPC trust boundary (used by app-ipc); keeping it
+ * pure makes the boundary behaviour unit-testable without Electron.
+ */
+export function sanitizePieAppearancePatch(patch: unknown): Partial<PieAppearance> {
+  if (typeof patch !== 'object' || patch === null) return {};
+  const p = patch as Record<string, unknown>;
+  const clean: Partial<PieAppearance> = {};
+  if (typeof p.theme === 'string' && PIE_THEMES.has(p.theme)) {
+    clean.theme = p.theme as PieThemeChoice;
+  }
+  if (typeof p.opacity === 'number' && Number.isFinite(p.opacity)) {
+    clean.opacity = clampPieOpacity(p.opacity);
+  }
+  return clean;
+}

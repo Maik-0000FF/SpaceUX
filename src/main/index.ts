@@ -18,7 +18,7 @@ import { DEFAULT_PIE_APPEARANCE } from '../shared/pie-appearance.js';
 import type { DaemonEvent } from '../shared/protocol.js';
 
 import { wireAppIpc } from './app-ipc.js';
-import { loadPieAppearance, saveAppSettings } from './app-settings.js';
+import { loadPieAppearance, saveAppSettings, saveAppSettingsSync } from './app-settings.js';
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
 import { wireEditorIpc } from './editor-ipc.js';
@@ -505,6 +505,13 @@ app.whenReady().then(async () => {
 // hide-on-close interceptor would veto the close and stall the exit.
 app.on('before-quit', () => {
   setAppQuitting();
+  // Flush a pending debounced appearance save synchronously — the async
+  // timer wouldn't fire (and an async write wouldn't settle) before exit.
+  if (pieAppearanceSaveTimer) {
+    clearTimeout(pieAppearanceSaveTimer);
+    pieAppearanceSaveTimer = null;
+    saveAppSettingsSync({ pieTheme: pieAppearance.theme, pieOpacity: pieAppearance.opacity });
+  }
 });
 
 app.on('window-all-closed', () => {

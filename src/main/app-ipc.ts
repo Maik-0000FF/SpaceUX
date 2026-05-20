@@ -4,7 +4,7 @@
 import { ipcMain } from 'electron';
 
 import { IpcChannel, type PieAppearance } from '../shared/ipc.js';
-import { clampPieOpacity, PIE_THEMES } from '../shared/pie-appearance.js';
+import { sanitizePieAppearancePatch } from '../shared/pie-appearance.js';
 
 /**
  * App-level IPC: the pie appearance setting, shared by the live pie and the
@@ -24,15 +24,7 @@ export function wireAppIpc(deps: AppIpcDeps): void {
   ipcMain.handle(IpcChannel.GET_PIE_APPEARANCE, () => deps.getAppearance());
 
   ipcMain.on(IpcChannel.SET_PIE_APPEARANCE, (_evt, patch: unknown) => {
-    if (typeof patch !== 'object' || patch === null) return;
-    const p = patch as Record<string, unknown>;
-    const clean: Partial<PieAppearance> = {};
-    if (typeof p.theme === 'string' && PIE_THEMES.has(p.theme)) {
-      clean.theme = p.theme as PieAppearance['theme'];
-    }
-    if (typeof p.opacity === 'number' && Number.isFinite(p.opacity)) {
-      clean.opacity = clampPieOpacity(p.opacity);
-    }
+    const clean = sanitizePieAppearancePatch(patch);
     if (Object.keys(clean).length > 0) deps.setAppearance(clean);
   });
 }

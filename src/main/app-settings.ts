@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -92,5 +93,31 @@ export async function saveAppSettings(patch: AppSettings): Promise<void> {
     }
     // eslint-disable-next-line no-console
     console.warn(`[app-settings] save failed: ${describeError(err)}`);
+  }
+}
+
+/**
+ * Synchronous best-effort write for the quit path: a debounced async save
+ * pending at quit-time wouldn't settle before the process exits, so the flush
+ * in `before-quit` writes synchronously instead. Writes the given full
+ * settings (no merge — the caller passes the complete in-memory state, which
+ * is authoritative for the only fields stored today). Atomic temp + rename.
+ */
+export function saveAppSettingsSync(settings: AppSettings): void {
+  const target = settingsPath();
+  const dir = path.dirname(target);
+  const tmp = path.join(dir, `.${FILENAME}.${process.pid}.${Date.now()}.sync.tmp`);
+  try {
+    fsSync.mkdirSync(dir, { recursive: true });
+    fsSync.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+    fsSync.renameSync(tmp, target);
+  } catch (err) {
+    try {
+      fsSync.unlinkSync(tmp);
+    } catch {
+      // temp file may not exist — ignore
+    }
+    // eslint-disable-next-line no-console
+    console.warn(`[app-settings] sync save failed: ${describeError(err)}`);
   }
 }
