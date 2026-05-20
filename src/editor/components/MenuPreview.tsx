@@ -48,11 +48,11 @@ export function MenuPreview() {
         const lx = Math.sin(center) * LABEL_RADIUS;
         const ly = -Math.cos(center) * LABEL_RADIUS;
         return (
-          // tabIndex + onKeyDown make wedges keyboard-operable: a focused
-          // <g role="button"> does not fire onClick on Enter/Space, so the
-          // selection would otherwise be mouse-only (MenuList covers the
-          // same action for keyboard, but the preview shouldn't be a dead
-          // end).
+          // tabIndex + onKeyDown keep the wedges keyboard-operable: a
+          // focused <g role="button"> does not fire onClick on Enter/Space,
+          // so without this the preview would be mouse-only (MenuList still
+          // covers keyboard, but the preview shouldn't be a dead end). The
+          // focus ring itself is suppressed in CSS — see .wedgeGroup.
           <g
             key={i}
             className={styles.wedgeGroup}

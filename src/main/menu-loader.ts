@@ -36,6 +36,12 @@ export type MenuLoadResult = {
   /** Absolute path the user config was loaded from, or null if the
    *  loader fell back. Useful for logs and future hot-reload. */
   source: string | null;
+  /** Modification time (ms) of the file `source` points at, or null
+   *  when no file was read. The editor snapshots this and sends it
+   *  back on a write so main can reject a save that would clobber an
+   *  edit made to the file behind the editor's back (conflict
+   *  detection in menu-writer). */
+  mtime: number | null;
   /** Human-readable reason for the fallback, or null on success. */
   fallbackReason: string | null;
 };
@@ -62,6 +68,17 @@ export async function loadMenuConfig(
       continue;
     }
 
+    // Best-effort mtime for conflict detection. A stat failure right
+    // after a successful read is unlikely (and racy either way), so a
+    // null mtime there just means "no conflict baseline" — the writer
+    // treats that conservatively.
+    let mtime: number | null = null;
+    try {
+      mtime = (await fs.stat(candidate)).mtimeMs;
+    } catch {
+      mtime = null;
+    }
+
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
@@ -69,6 +86,7 @@ export async function loadMenuConfig(
       return {
         config: DEFAULT_MENU_CONFIG,
         source: candidate,
+        mtime,
         fallbackReason: `${candidate}: not valid JSON (${describeError(err)})`,
       };
     }
@@ -78,16 +96,18 @@ export async function loadMenuConfig(
       return {
         config: DEFAULT_MENU_CONFIG,
         source: candidate,
+        mtime,
         fallbackReason: `${candidate}: ${result.reason}`,
       };
     }
 
-    return { config: result.config, source: candidate, fallbackReason: null };
+    return { config: result.config, source: candidate, mtime, fallbackReason: null };
   }
 
   return {
     config: DEFAULT_MENU_CONFIG,
     source: null,
+    mtime: null,
     fallbackReason: 'no menu.json found in any XDG config path',
   };
 }
