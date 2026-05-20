@@ -5,6 +5,7 @@ import { BUILTIN_ACTION, builtinAction } from '@/shared/menu';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
+import { moveTargets, pathOfSectorId } from '../state/move-targets';
 import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
 import { nextSectorId } from '../state/sector-keys';
 
@@ -37,16 +38,33 @@ export function Properties() {
   const config = useMenuSettings((s) => s.config);
   const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
   const deleteSector = useMenuSettings((s) => s.deleteSector);
+  const moveSectorBetween = useMenuSettings((s) => s.moveSectorBetween);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
   const selectSector = useAppState((s) => s.selectSector);
+  const selectPath = useAppState((s) => s.selectPath);
   const clearSelection = useAppState((s) => s.clearSelection);
   const drillInto = useAppState((s) => s.drillInto);
 
   const path = selectedPath(viewPath, selectedIndex);
   const sector = config && path ? sectorAtPath(config, path) : null;
   const isExec = sector?.binding?.action === builtinAction(BUILTIN_ACTION.EXEC);
+
+  // Rings the selected sector can be moved into (excludes its own ring, its
+  // subtree, and too-deep targets). Picked from the "Move to…" dropdown.
+  const targets = config && path ? moveTargets(config, path) : [];
+  const handleMove = (toRingPath: number[]): void => {
+    if (!path || !config) return;
+    // Capture the stable id first: index paths (incl. toRingPath) can shift
+    // when the source splice reindexes a shared ancestor ring, so re-select
+    // the moved sector by id rather than by its pre-move target path.
+    const movedId = sectorAtPath(config, path)?.id;
+    moveSectorBetween(path, toRingPath);
+    const current = useMenuSettings.getState().config;
+    const newPath = current && movedId !== undefined ? pathOfSectorId(current, movedId) : null;
+    if (newPath) selectPath(newPath);
+  };
 
   // Pick a file for an exec command and write it into the action config.
   const handleBrowse = (): void => {
@@ -169,6 +187,26 @@ export function Properties() {
                 />
               )}
             </>
+          )}
+          {targets.length > 0 && (
+            <Row label="Move to">
+              <select
+                className={styles.select}
+                value=""
+                title="Move this item into another submenu (or the top level)"
+                onChange={(e) => {
+                  if (e.target.value === '') return;
+                  handleMove(targets[Number(e.target.value)]!.path);
+                }}
+              >
+                <option value="">Move to submenu…</option>
+                {targets.map((t, i) => (
+                  <option key={t.path.join('.')} value={i}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </Row>
           )}
           <button
             type="button"

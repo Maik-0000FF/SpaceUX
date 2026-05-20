@@ -8,8 +8,9 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 
 import type { MenuConfigSnapshot } from '@/shared/ipc';
-import type { MenuConfig, MenuSector } from '@/shared/menu';
+import { MAX_MENU_DEPTH, type MenuConfig, type MenuSector } from '@/shared/menu';
 
+import { eqPath, isPrefix, sectorHeight } from './move-targets';
 import { nextSectorId } from './sector-keys';
 
 /**
@@ -65,6 +66,12 @@ type MenuSettingsState = {
   /** Reorder the ring at `ringPath` so the one at `from` ends up at
    *  `to`. No-op for invalid indices. */
   moveSector: (ringPath: readonly number[], from: number, to: number) => void;
+  /** Move the sector at `fromPath` to the end of the ring at `toRingPath`
+   *  (a different ring). No-op for a cycle (target inside the moved
+   *  subtree), an empty-root result, the same ring, a target too deep for
+   *  the moved subtree (MAX_MENU_DEPTH), or invalid paths. If the source
+   *  submenu is emptied by the move, its parent becomes a leaf. */
+  moveSectorBetween: (fromPath: readonly number[], toRingPath: readonly number[]) => void;
   /** Set the puck button (zero-based) that opens the pie. */
   setTriggerButton: (button: number) => void;
 };
@@ -96,6 +103,16 @@ function draftRingAt(
     ring = next;
   }
   return ring;
+}
+
+/** Navigate to the sector at a full index path within an immer draft. */
+function draftSectorAt(
+  config: Draft<MenuConfig>,
+  path: readonly number[],
+): Draft<MenuSector> | null {
+  if (path.length === 0) return null;
+  const ring = draftRingAt(config, path.slice(0, -1));
+  return ring?.[path[path.length - 1]!] ?? null;
 }
 
 export const useMenuSettings = create<MenuSettingsState>()(
@@ -179,6 +196,38 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (to < 0 || to >= ring.length || from === to) return;
           const [moved] = ring.splice(from, 1);
           ring.splice(to, 0, moved!);
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      moveSectorBetween: (fromPath, toRingPath) =>
+        set((state) => {
+          if (!state.config || fromPath.length === 0) return;
+          if (isPrefix(fromPath, toRingPath)) return; // target inside the subtree (cycle)
+          const fromRingPath = fromPath.slice(0, -1);
+          if (eqPath(fromRingPath, toRingPath)) return; // same ring → use moveSector
+          const fromIndex = fromPath[fromPath.length - 1]!;
+          // Resolve both ring references before mutating: splicing the source
+          // doesn't invalidate the target array reference, even if it shifts
+          // indices in a shared ancestor ring.
+          const fromRing = draftRingAt(state.config, fromRingPath);
+          const toRing = draftRingAt(state.config, toRingPath);
+          if (!fromRing || !toRing) return;
+          if (fromIndex < 0 || fromIndex >= fromRing.length) return;
+          if (fromRingPath.length === 0 && fromRing.length <= 1) return; // don't empty root
+          // Don't let the moved subtree exceed the nesting cap at its new home.
+          if (
+            toRingPath.length + sectorHeight(fromRing[fromIndex] as MenuSector) >
+            MAX_MENU_DEPTH
+          ) {
+            return;
+          }
+          const [moved] = fromRing.splice(fromIndex, 1);
+          toRing.push(moved!);
+          // A submenu emptied by the move drops its level: parent → leaf.
+          if (fromRing.length === 0 && fromRingPath.length > 0) {
+            const parent = draftSectorAt(state.config, fromRingPath);
+            if (parent) delete parent.children;
+          }
           state.origin = 'local';
           state.dirty = true;
         }),

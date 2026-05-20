@@ -7,6 +7,7 @@ import { DEFAULT_MENU_CONFIG, type MenuConfig, type MenuSector } from '@/shared/
 
 import { useAppState } from '../src/editor/state/app-state';
 import { useMenuSettings } from '../src/editor/state/menu-settings';
+import { pathOfSectorId } from '../src/editor/state/move-targets';
 import { ringSectors, sectorAtPath, selectedPath } from '../src/editor/state/selectors';
 
 // The editor's selection store and path resolver are pure logic, so
@@ -326,5 +327,61 @@ describe('menu-settings CRUD', () => {
     // Stale ring path: index 0 is a leaf, not a branch → no-op.
     useMenuSettings.getState().addSector([0]);
     expect(labels()).toEqual(['A', 'B', 'C']);
+  });
+});
+
+describe('moveSectorBetween', () => {
+  // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
+  const nested = (): MenuConfig => ({
+    version: DEFAULT_MENU_CONFIG.version,
+    sectors: [
+      { label: 'A', binding: { action: 'p/a' } },
+      {
+        label: 'B',
+        children: [
+          { label: 'B0', binding: { action: 'p/a' } },
+          { label: 'B1', children: [{ label: 'B1a', binding: { action: 'p/a' } }] },
+        ],
+      },
+    ],
+  });
+  const ringLabels = (path: readonly number[]): string[] =>
+    ringSectors(useMenuSettings.getState().config!, path).map((s) => s.label);
+
+  beforeEach(() => useMenuSettings.getState().setConfig({ config: nested(), mtime: 1 }));
+
+  it('moves a leaf into another ring (appended at the end)', () => {
+    useMenuSettings.getState().moveSectorBetween([0], [1]); // A → B's children
+    expect(ringLabels([])).toEqual(['B']);
+    // A removed from root → B shifts to index 0; its children now hold A.
+    expect(ringLabels([0])).toEqual(['B0', 'B1', 'A']);
+  });
+
+  it('re-locating the moved sector by id survives the index shift', () => {
+    // The bug the "Move to…" picker hit: toRingPath ([1]) is stale after the
+    // move (B shifts to root[0]). Looking the moved item up by its stable id
+    // lands on the correct new path instead.
+    const aId = sectorAtPath(useMenuSettings.getState().config!, [0])!.id!;
+    useMenuSettings.getState().moveSectorBetween([0], [1]); // A → B's children
+    const after = useMenuSettings.getState().config!;
+    expect(pathOfSectorId(after, aId)).toEqual([0, 2]); // B is root[0]; A is its 3rd child
+  });
+
+  it('is a no-op for a cycle (target inside the moved subtree)', () => {
+    useMenuSettings.getState().moveSectorBetween([1], [1, 1]); // B into its own descendant
+    expect(ringLabels([])).toEqual(['A', 'B']);
+    expect(ringLabels([1])).toEqual(['B0', 'B1']);
+  });
+
+  it('is a no-op for the same ring (that path is moveSector)', () => {
+    useMenuSettings.getState().moveSectorBetween([1, 0], [1]);
+    expect(ringLabels([1])).toEqual(['B0', 'B1']);
+  });
+
+  it("drops a submenu's level when its last child moves out", () => {
+    useMenuSettings.getState().moveSectorBetween([1, 1, 0], []); // B1a → top level
+    expect(ringLabels([])).toEqual(['A', 'B', 'B1a']);
+    // B1 had only B1a → it becomes a leaf.
+    expect(sectorAtPath(useMenuSettings.getState().config!, [1, 1])?.children).toBeUndefined();
   });
 });
