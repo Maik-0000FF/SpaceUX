@@ -71,8 +71,13 @@ export function App() {
           if (result.ok === true) {
             s.markSaved(result.mtime);
           } else if (result.ok === 'conflict') {
-            // The file moved under us without a change-push reaching us
-            // yet — fetch the on-disk version so the banner can offer it.
+            // Backup path: the dirty-check on EDITOR_MENU_CONFIG_CHANGED
+            // normally raises the banner first, so reaching a write-time
+            // conflict is rare. getMenuConfig() returns main's in-memory
+            // config, which may briefly lag the watcher's debounce — but
+            // that same external change's change-push arrives moments
+            // later and re-stashes the authoritative snapshot (we're
+            // still dirty), so any staleness here self-corrects.
             void window.editor.getMenuConfig().then((snapshot) => s.setConflict(snapshot));
           } else {
             s.setSaveError(result.reason);
@@ -102,10 +107,14 @@ export function App() {
       if (result.ok === true) {
         s.markSaved(result.mtime);
         s.clearConflict();
-      } else if (result.ok === false) {
+      } else if (result.ok === 'conflict') {
+        // Raced another external write — refresh the stash to the current
+        // on-disk version so a follow-up Reload adopts the latest, not
+        // the now-superseded snapshot.
+        void window.editor.getMenuConfig().then((snapshot) => s.setConflict(snapshot));
+      } else {
         s.setSaveError(result.reason);
       }
-      // Still a conflict (changed again in the gap) → leave the banner.
     });
   };
 
@@ -126,6 +135,13 @@ export function App() {
       ) : saveError !== null ? (
         <div className={styles.bannerError} role="alert">
           <span className={styles.bannerText}>Save failed: {saveError}</span>
+          <button
+            type="button"
+            className={styles.bannerButton}
+            onClick={() => useMenuSettings.getState().setSaveError(null)}
+          >
+            Dismiss
+          </button>
         </div>
       ) : null}
 

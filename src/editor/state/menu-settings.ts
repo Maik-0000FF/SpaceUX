@@ -28,6 +28,11 @@ type MenuSettingsState = {
   config: MenuConfig | null;
   mtime: number | null;
   origin: 'remote' | 'local';
+  /** Bumped each time a remote snapshot is adopted (load / external
+   *  change / Reload), never on a local edit. Lets components that hold
+   *  their own derived text state (the Config JSON editor) remount on an
+   *  external adoption without remounting mid-typing. */
+  remoteRev: number;
   /** Unsaved local edits exist. */
   dirty: boolean;
   /** On-disk snapshot that clashed with unsaved edits, or null. Non-null
@@ -53,6 +58,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
     config: null,
     mtime: null,
     origin: 'remote',
+    remoteRev: 0,
     dirty: false,
     conflict: null,
     saveError: null,
@@ -61,6 +67,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
         state.config = snapshot.config;
         state.mtime = snapshot.mtime;
         state.origin = 'remote';
+        state.remoteRev += 1;
         state.dirty = false;
         state.conflict = null;
         state.saveError = null;

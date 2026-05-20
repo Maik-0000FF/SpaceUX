@@ -109,6 +109,19 @@ describe('menu-settings', () => {
     expect(DEFAULT_MENU_CONFIG.sectors[0]?.label).not.toBe('Renamed');
   });
 
+  it('setConfig bumps remoteRev (so derived editors remount), markSaved does not', () => {
+    const before = useMenuSettings.getState().remoteRev;
+    useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
+    const afterAdopt = useMenuSettings.getState().remoteRev;
+    expect(afterAdopt).toBe(before + 1);
+    // A local edit + save must NOT bump it (avoids remount mid-typing).
+    useMenuSettings.getState().updateSectorAt([0], (s) => {
+      s.label = 'Y';
+    });
+    useMenuSettings.getState().markSaved(2);
+    expect(useMenuSettings.getState().remoteRev).toBe(afterAdopt);
+  });
+
   it('markSaved clears dirty and updates the mtime baseline', () => {
     useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
     useMenuSettings.getState().updateSectorAt([0], (s) => {

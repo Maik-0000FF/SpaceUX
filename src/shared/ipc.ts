@@ -78,9 +78,11 @@ export const IpcChannel = {
 export type MenuConfigSnapshot = { config: MenuConfig; mtime: number | null };
 
 /** Outcome of an editor write-back. Mirrors menu-writer's result so the
- *  same shape crosses the IPC boundary. */
+ *  same shape crosses the IPC boundary. The success case carries the
+ *  *normalized* config (as written to disk) so main can keep its
+ *  in-memory copy identical to the file. */
 export type MenuWriteResult =
-  | { ok: true; mtime: number }
+  | { ok: true; mtime: number; config: MenuConfig }
   | { ok: false; reason: string }
   | { ok: 'conflict'; mtime: number | null };
 

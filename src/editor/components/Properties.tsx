@@ -88,6 +88,7 @@ function ConfigEditor({
 export function Properties() {
   const config = useMenuSettings((s) => s.config);
   const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
+  const remoteRev = useMenuSettings((s) => s.remoteRev);
   const selectedPath = useAppState((s) => s.selectedPath);
   const sector = config ? sectorAtPath(config, selectedPath) : null;
 
@@ -134,8 +135,12 @@ export function Properties() {
                 />
               </Row>
               {sector.binding !== undefined && (
+                // Keyed on the selection *and* remoteRev so the editor's
+                // local JSON text remounts (re-reads from the store) when
+                // an external change is adopted, but not while the user
+                // is typing (local edits don't bump remoteRev).
                 <ConfigEditor
-                  key={selectedPath.join('.')}
+                  key={`${selectedPath.join('.')}-${remoteRev}`}
                   path={selectedPath}
                   value={sector.binding.config}
                 />

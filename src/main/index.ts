@@ -385,11 +385,13 @@ function wireEditorIpc(): void {
       markSelfWrite(target);
       const result = await writeMenuConfig(target, config, expectedMtime);
       if (result.ok === true) {
-        menuConfig = config;
+        // Adopt the normalized config the writer persisted (not the raw
+        // IPC arg) so the in-memory copy matches the file exactly.
+        menuConfig = result.config;
         menuConfigMtime = result.mtime;
         menuConfigSource = target;
         // Hot-reload the live pie so an editor save takes effect at once.
-        mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, config);
+        mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, result.config);
       }
       return result;
     },

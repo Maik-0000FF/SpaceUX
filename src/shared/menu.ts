@@ -566,11 +566,16 @@ function orderSector(sector: MenuSector): Record<string, unknown> {
 /**
  * Serialize a MenuConfig to the canonical on-disk JSON string.
  *
- * The editor writes back through this so saves are *deterministic*:
- * keys are emitted in a fixed order (and absent optional fields are
- * omitted) regardless of how the in-memory object was assembled. That
- * keeps diffs of `menu.json` minimal and stable — a label edit changes
- * exactly one line, not the whole file from a reshuffled key order.
+ * The editor writes back through this so saves are *stable*: the
+ * top-level keys, each sector's keys, and each binding's keys are
+ * emitted in a fixed order, and absent optional fields are omitted.
+ * That keeps diffs of `menu.json` minimal — a label edit changes one
+ * line, not the whole file from a reshuffled key order.
+ *
+ * Note the small option objects (`axisInvert`, `magnitudeDrill`,
+ * `tiltDrill`) are emitted as-is, so *their* internal key order follows
+ * the in-memory object. The editor doesn't mutate them today; normalize
+ * them here too if it ever does.
  *
  * 2-space indent + trailing newline match the hand-authored style and
  * keep the file POSIX-friendly (newline-terminated).

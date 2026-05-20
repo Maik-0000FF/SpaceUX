@@ -82,7 +82,9 @@ export async function writeMenuConfig(
   }
 
   try {
-    return { ok: true, mtime: (await fs.stat(targetPath)).mtimeMs };
+    // Return the normalized (validated) config so the caller's in-memory
+    // copy matches what actually landed on disk, byte-for-byte.
+    return { ok: true, mtime: (await fs.stat(targetPath)).mtimeMs, config: validation.config };
   } catch (err) {
     return { ok: false, reason: describeError(err) };
   }
