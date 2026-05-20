@@ -83,8 +83,11 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  // `safe` so a preview larger than the panel (high size factor) stays
+  // scroll-reachable instead of clipping its top/left.
+  align-items: safe center;
+  justify-content: safe center;
+  overflow: auto;
 }
 
 .banner {

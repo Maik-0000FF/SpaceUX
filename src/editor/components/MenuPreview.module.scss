@@ -8,10 +8,9 @@
 // shared theme will unify them with the theming work).
 
 .pie {
-  // Fixed two-ring footprint (current ring + one preview ring), scaled to
-  // fit the panel via the viewBox.
-  width: min(70vmin, 460px);
-  height: min(70vmin, 460px);
+  // Size is set inline (config.scale / devicePixelRatio) so the preview
+  // matches the live pie's on-screen size and tracks the size slider.
+  flex: none;
   user-select: none;
 }
 

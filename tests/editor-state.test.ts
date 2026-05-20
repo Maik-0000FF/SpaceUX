@@ -250,6 +250,18 @@ describe('menu-settings CRUD', () => {
     expect(state.dirty).toBe(true);
   });
 
+  it('setScale clamps to [0.5, 2] and flags the change local + dirty', () => {
+    load([{ label: 'A' }]);
+    useMenuSettings.getState().setScale(1.5);
+    expect(useMenuSettings.getState().config?.scale).toBe(1.5);
+    expect(useMenuSettings.getState().dirty).toBe(true);
+    expect(useMenuSettings.getState().origin).toBe('local');
+    useMenuSettings.getState().setScale(99);
+    expect(useMenuSettings.getState().config?.scale).toBe(2);
+    useMenuSettings.getState().setScale(0.1);
+    expect(useMenuSettings.getState().config?.scale).toBe(0.5);
+  });
+
   it('addSector targets a submenu ring by path', () => {
     useMenuSettings.getState().setConfig({
       config: {
