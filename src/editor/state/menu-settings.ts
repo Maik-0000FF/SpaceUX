@@ -8,9 +8,9 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 
 import type { MenuConfigSnapshot } from '@/shared/ipc';
-import type { MenuConfig, MenuSector } from '@/shared/menu';
+import { MAX_MENU_DEPTH, type MenuConfig, type MenuSector } from '@/shared/menu';
 
-import { eqPath, isPrefix } from './move-targets';
+import { eqPath, isPrefix, sectorHeight } from './move-targets';
 import { nextSectorId } from './sector-keys';
 
 /**
@@ -68,8 +68,9 @@ type MenuSettingsState = {
   moveSector: (ringPath: readonly number[], from: number, to: number) => void;
   /** Move the sector at `fromPath` to the end of the ring at `toRingPath`
    *  (a different ring). No-op for a cycle (target inside the moved
-   *  subtree), an empty-root result, the same ring, or invalid paths. If
-   *  the source submenu is emptied by the move, its parent becomes a leaf. */
+   *  subtree), an empty-root result, the same ring, a target too deep for
+   *  the moved subtree (MAX_MENU_DEPTH), or invalid paths. If the source
+   *  submenu is emptied by the move, its parent becomes a leaf. */
   moveSectorBetween: (fromPath: readonly number[], toRingPath: readonly number[]) => void;
   /** Set the puck button (zero-based) that opens the pie. */
   setTriggerButton: (button: number) => void;
@@ -213,6 +214,13 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (!fromRing || !toRing) return;
           if (fromIndex < 0 || fromIndex >= fromRing.length) return;
           if (fromRingPath.length === 0 && fromRing.length <= 1) return; // don't empty root
+          // Don't let the moved subtree exceed the nesting cap at its new home.
+          if (
+            toRingPath.length + sectorHeight(fromRing[fromIndex] as MenuSector) >
+            MAX_MENU_DEPTH
+          ) {
+            return;
+          }
           const [moved] = fromRing.splice(fromIndex, 1);
           toRing.push(moved!);
           // A submenu emptied by the move drops its level: parent → leaf.

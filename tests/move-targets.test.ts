@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MenuConfig } from '@/shared/menu';
 
-import { moveTargets, sectorHeight } from '../src/editor/state/move-targets';
+import { moveTargets, pathOfSectorId, sectorHeight } from '../src/editor/state/move-targets';
 
 // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
 const cfg: MenuConfig = {
@@ -49,5 +49,20 @@ describe('moveTargets', () => {
       { path: [], label: 'Top level' },
       { path: [1, 1], label: 'B › B1' },
     ]);
+  });
+});
+
+describe('pathOfSectorId', () => {
+  it('finds a sector by id at any depth, or null when absent', () => {
+    const c: MenuConfig = {
+      version: 1,
+      sectors: [
+        { label: 'A', id: 'a', binding: { action: 'p/a' } },
+        { label: 'B', id: 'b', children: [{ label: 'C', id: 'c', binding: { action: 'p/a' } }] },
+      ],
+    };
+    expect(pathOfSectorId(c, 'a')).toEqual([0]);
+    expect(pathOfSectorId(c, 'c')).toEqual([1, 0]);
+    expect(pathOfSectorId(c, 'nope')).toBeNull();
   });
 });

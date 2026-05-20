@@ -5,7 +5,7 @@ import { BUILTIN_ACTION, builtinAction } from '@/shared/menu';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
-import { moveTargets } from '../state/move-targets';
+import { moveTargets, pathOfSectorId } from '../state/move-targets';
 import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
 import { nextSectorId } from '../state/sector-keys';
 
@@ -55,11 +55,15 @@ export function Properties() {
   // subtree, and too-deep targets). Picked from the "Move to…" dropdown.
   const targets = config && path ? moveTargets(config, path) : [];
   const handleMove = (toRingPath: number[]): void => {
-    if (!path) return;
+    if (!path || !config) return;
+    // Capture the stable id first: index paths (incl. toRingPath) can shift
+    // when the source splice reindexes a shared ancestor ring, so re-select
+    // the moved sector by id rather than by its pre-move target path.
+    const movedId = sectorAtPath(config, path)?.id;
     moveSectorBetween(path, toRingPath);
     const current = useMenuSettings.getState().config;
-    // The moved sector is appended to the target ring — select it there.
-    if (current) selectPath([...toRingPath, ringSectors(current, toRingPath).length - 1]);
+    const newPath = current && movedId !== undefined ? pathOfSectorId(current, movedId) : null;
+    if (newPath) selectPath(newPath);
   };
 
   // Pick a file for an exec command and write it into the action config.

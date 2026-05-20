@@ -59,3 +59,23 @@ export function moveTargets(config: MenuConfig, fromPath: readonly number[]): Mo
   visit(config.sectors, [], []);
   return targets;
 }
+
+/**
+ * Index path to the sector carrying `id`, or null. Used to re-locate a
+ * sector by its stable id after a move, since index paths shift when a
+ * shared ancestor ring is spliced.
+ */
+export function pathOfSectorId(config: MenuConfig, id: string): number[] | null {
+  const search = (sectors: readonly MenuSector[], prefix: number[]): number[] | null => {
+    for (let i = 0; i < sectors.length; i++) {
+      const sector = sectors[i]!;
+      if (sector.id === id) return [...prefix, i];
+      if (sector.children) {
+        const found = search(sector.children, [...prefix, i]);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  return search(config.sectors, []);
+}
