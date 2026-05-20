@@ -4,7 +4,10 @@
 .breadcrumb {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  // One line with horizontal scroll for deep paths, so the breadcrumb's
+  // height stays constant and the pie below never shifts.
+  flex-wrap: nowrap;
+  overflow-x: auto;
   gap: 2px;
   padding: 8px 4px;
   font-size: 13px;

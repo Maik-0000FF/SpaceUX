@@ -56,6 +56,22 @@ export const DEFAULT_PIE_GEOMETRY: PieGeometryConfig = {
   invertY: true,
 };
 
+// ── Radial layout ratios ────────────────────────────────────────────
+// Multiples of the inner pie's outer radius, shared by the live pie
+// (PieMenu) and the editor's faithful preview (MenuPreview) so the two
+// can't drift apart on proportions.
+
+/** Central cancel hole / inner cut-out of every wedge, as a fraction of
+ *  the inner pie's outer radius. */
+export const CANCEL_RADIUS_RATIO = 0.18;
+
+/** Inner edge of the outer (preview / child) ring. A small `>1` leaves a
+ *  visible gap between the inner pie and the outer ring. */
+export const OUTER_RING_INNER_RATIO = 1.04;
+
+/** Outer edge of the outer ring — the overall pie footprint. */
+export const OUTER_RING_OUTER_RATIO = 1.5;
+
 const TAU = Math.PI * 2;
 
 /**
@@ -107,27 +123,6 @@ export function axesToSector(
 export function sectorCenterAngle(sectorIndex: number, sectorCount: number): number {
   const sectors = Math.max(2, Math.floor(sectorCount));
   return ((sectorIndex % sectors) * TAU) / sectors;
-}
-
-/**
- * Inverse of sectorCenterAngle's placement: the sector nearest to a point
- * `(x, y)` measured from the pie centre. The renderer lays sector centres
- * out at `x = sin(θ)·r, y = -cos(θ)·r` (12 o'clock = 0, clockwise), so the
- * point's angle is `atan2(x, -y)`; rounding to the nearest sector step
- * gives the index. Used by the editor's drag-to-reorder in the preview to
- * turn a pointer position into a target slot. The radius is irrelevant —
- * only the angle matters — so a point at the exact centre is harmless
- * (resolves to sector 0).
- */
-export function sectorAtPoint(x: number, y: number, sectorCount: number): number {
-  const sectors = Math.max(2, Math.floor(sectorCount));
-  // The origin has no defined angle (and atan2(0, -0) would spuriously
-  // give π); pin it to sector 0. Unreachable in practice — the centre
-  // hole carries no wedge to grab.
-  if (x === 0 && y === 0) return 0;
-  let theta = Math.atan2(x, -y);
-  if (theta < 0) theta += TAU;
-  return Math.round(theta / (TAU / sectors)) % sectors;
 }
 
 /** Compute the magnitude of the axes vector. Lets the renderer scale

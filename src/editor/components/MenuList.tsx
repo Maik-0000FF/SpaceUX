@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { MenuSector } from '@/shared/menu';
 
@@ -55,6 +55,33 @@ export function MenuList() {
   // re-commit the cancelled edit (the onBlur→commit / Escape→cancel race).
   const renameCancelled = useRef(false);
 
+  // Reveal the current selection: expand every ancestor along viewPath so a
+  // node selected elsewhere (e.g. by clicking a wedge in the preview) shows
+  // up as a visible, highlighted row in the tree.
+  useEffect(() => {
+    if (!config) return;
+    const ancestors: string[] = [];
+    let ring: readonly MenuSector[] = config.sectors;
+    for (const idx of viewPath) {
+      const node = ring[idx];
+      if (!node) break;
+      ancestors.push(sectorKey(node));
+      if (!node.children) break;
+      ring = node.children;
+    }
+    if (ancestors.length === 0) return;
+    setExpanded((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const k of ancestors)
+        if (!next.has(k)) {
+          next.add(k);
+          changed = true;
+        }
+      return changed ? next : prev;
+    });
+  }, [config, viewPath]);
+
   const toggle = (key: string): void =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -92,15 +119,17 @@ export function MenuList() {
   const addItem = (path: number[], isBranch: boolean, key: string): void => {
     if (isBranch) {
       addSector(path);
-      const after = useMenuSettings.getState().config;
-      if (after) selectPath([...path, ringSectors(after, path).length - 1]);
     } else {
       updateSectorAt(path, (s) => {
         delete s.binding;
         s.children = [{ label: 'New item', id: nextSectorId() }];
       });
-      selectPath([...path, 0]);
     }
+    // Keep the *branch* selected (not the new child) so repeated ＋ adds
+    // more children into the same ring — and the preview shows them as the
+    // segmented outer ring — instead of selecting a leaf (no ring) or
+    // nesting one level deeper on the next ＋.
+    selectPath(path);
     setExpanded((prev) => new Set(prev).add(key));
   };
 
@@ -224,6 +253,7 @@ export function MenuList() {
                 className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
                 aria-current={selected ? 'true' : undefined}
                 aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                title={sector.label}
                 onClick={() => selectPath(path)}
                 onKeyDown={(e) => {
                   if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {

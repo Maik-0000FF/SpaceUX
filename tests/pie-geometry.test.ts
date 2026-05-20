@@ -10,7 +10,6 @@ import {
   clampPieAnchor,
   resolveTzDeadzone,
   rotateAxes,
-  sectorAtPoint,
   sectorCenterAngle,
   shouldCancelOnZ,
   type PieGeometryConfig,
@@ -89,37 +88,6 @@ describe('sectorCenterAngle', () => {
   it('wraps modulo sectorCount', () => {
     expect(sectorCenterAngle(8, 8)).toBe(0);
     expect(sectorCenterAngle(9, 8)).toBeCloseTo(Math.PI / 4);
-  });
-});
-
-describe('sectorAtPoint', () => {
-  // Inverse of sectorCenterAngle: a point on a sector's centre line
-  // resolves back to that sector index (12 o'clock = 0, clockwise).
-  it('round-trips each sector centre', () => {
-    const count = 8;
-    for (let i = 0; i < count; i++) {
-      const a = sectorCenterAngle(i, count);
-      const x = Math.sin(a) * 100;
-      const y = -Math.cos(a) * 100;
-      expect(sectorAtPoint(x, y, count)).toBe(i);
-    }
-  });
-
-  it('maps cardinal directions to the right slot', () => {
-    expect(sectorAtPoint(0, -100, 8)).toBe(0); // up = 12 o'clock
-    expect(sectorAtPoint(100, 0, 8)).toBe(2); // right = 3 o'clock
-    expect(sectorAtPoint(0, 100, 8)).toBe(4); // down = 6 o'clock
-    expect(sectorAtPoint(-100, 0, 8)).toBe(6); // left = 9 o'clock
-  });
-
-  it('rounds to the nearest sector and is radius-independent', () => {
-    // Just past sector 1's centre (45°) still rounds to 1; the centre
-    // resolves regardless of distance from the origin.
-    expect(sectorAtPoint(Math.sin(0.8) * 5, -Math.cos(0.8) * 5, 8)).toBe(1);
-  });
-
-  it('resolves the exact centre to sector 0 (angle undefined, harmless)', () => {
-    expect(sectorAtPoint(0, 0, 8)).toBe(0);
   });
 });
 
