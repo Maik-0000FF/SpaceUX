@@ -33,7 +33,9 @@
   },
   "dependencies": {
     "dbus-next": "^0.10.2",
+    "immer": "^11.1.8",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.13"
   }
 }

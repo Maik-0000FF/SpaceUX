@@ -1,0 +1,41 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+.pie {
+  width: min(70vmin, 460px);
+  height: min(70vmin, 460px);
+}
+
+.wedgeGroup {
+  cursor: pointer;
+}
+
+.wedge {
+  fill: rgba(40, 44, 54, 0.9);
+  stroke: var(--editor-border);
+  stroke-width: 1.5;
+  fill-rule: evenodd;
+  transition:
+    fill 80ms ease-out,
+    stroke 80ms ease-out;
+
+  .wedgeGroup:hover & {
+    fill: rgba(60, 66, 80, 0.95);
+  }
+}
+
+.wedgeSelected {
+  fill: var(--editor-accent);
+  stroke: rgba(255, 255, 255, 0.55);
+
+  .wedgeGroup:hover & {
+    fill: var(--editor-accent);
+  }
+}
+
+.label {
+  fill: var(--editor-fg);
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+}

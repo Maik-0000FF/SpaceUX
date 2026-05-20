@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Editor layout: a fixed three-column shell — left sidebar (menu
-// list), centre stage (pie preview, empty in PR Editor-1), right
-// sidebar (sector properties, empty in PR Editor-1). Columns are
-// styled here; interactivity arrives in later PRs.
+// Editor shell: a fixed three-column grid — left sidebar (MenuList),
+// centre stage (MenuPreview), right sidebar (Properties). Each column
+// component owns its own chrome; the shell only lays them out.
 
 .shell {
   display: grid;
@@ -13,54 +12,10 @@
   height: 100%;
 }
 
-.sidebar {
-  background: var(--editor-panel-bg);
-  border-right: 1px solid var(--editor-border);
-  overflow-y: auto;
-  padding: 12px;
-}
-
-.sidebarRight {
-  composes: sidebar;
-  border-right: none;
-  border-left: 1px solid var(--editor-border);
-}
-
 .center {
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-}
-
-.panelHeading {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--editor-fg-dim);
-  margin-bottom: 10px;
-}
-
-.menuList {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.menuItem {
-  padding: 7px 10px;
-  border-radius: 5px;
-  font-size: 14px;
-  cursor: default;
-
-  &:hover {
-    background: rgba(255, 255, 255, 0.05);
-  }
-}
-
-.empty {
-  color: var(--editor-fg-dim);
-  font-size: 13px;
+  padding: 16px;
 }
