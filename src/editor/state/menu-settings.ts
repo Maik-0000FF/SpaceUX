@@ -53,15 +53,32 @@ type MenuSettingsState = {
   /** Mutate the sector at `path` in place (immer). Tags the change
    *  `local` and dirty so it is written back. No-op on a stale path. */
   updateSectorAt: (path: readonly number[], updater: (sector: Draft<MenuSector>) => void) => void;
-  /** Append a new default leaf sector to the top level. */
-  addSector: () => void;
-  /** Remove the top-level sector at `index`. No-op if it would empty the
-   *  menu (the validator requires at least one sector) or `index` is out
-   *  of range. */
-  deleteSector: (index: number) => void;
-  /** Reorder the top-level sectors so the one at `from` ends up at `to`. */
-  moveSector: (from: number, to: number) => void;
+  /** Append a new default leaf sector to the ring at `ringPath`
+   *  (`[]` = top level). No-op if the path is stale. */
+  addSector: (ringPath: readonly number[]) => void;
+  /** Remove the sector at `index` within the ring at `ringPath`. No-op
+   *  if it would empty the ring (the validator requires a non-empty
+   *  menu / non-empty submenu) or the index/path is invalid. */
+  deleteSector: (ringPath: readonly number[], index: number) => void;
+  /** Reorder the ring at `ringPath` so the one at `from` ends up at
+   *  `to`. No-op for invalid indices. */
+  moveSector: (ringPath: readonly number[], from: number, to: number) => void;
 };
+
+/** Navigate to the children array (ring) at `ringPath` within an immer
+ *  draft, or null if any segment isn't a branch. */
+function draftRingAt(
+  config: Draft<MenuConfig>,
+  ringPath: readonly number[],
+): Draft<MenuSector>[] | null {
+  let ring: Draft<MenuSector>[] = config.sectors;
+  for (const i of ringPath) {
+    const next = ring[i]?.children;
+    if (!next) return null;
+    ring = next;
+  }
+  return ring;
+}
 
 export const useMenuSettings = create<MenuSettingsState>()(
   temporal(
@@ -116,30 +133,34 @@ export const useMenuSettings = create<MenuSettingsState>()(
           state.origin = 'local';
           state.dirty = true;
         }),
-      addSector: () =>
+      addSector: (ringPath) =>
         set((state) => {
           if (!state.config) return;
-          state.config.sectors.push({ label: 'New item' });
+          const ring = draftRingAt(state.config, ringPath);
+          if (!ring) return;
+          ring.push({ label: 'New item' });
           state.origin = 'local';
           state.dirty = true;
         }),
-      deleteSector: (index) =>
+      deleteSector: (ringPath, index) =>
         set((state) => {
           if (!state.config) return;
-          if (state.config.sectors.length <= 1) return; // keep the menu non-empty
-          if (index < 0 || index >= state.config.sectors.length) return;
-          state.config.sectors.splice(index, 1);
+          const ring = draftRingAt(state.config, ringPath);
+          if (!ring || ring.length <= 1) return; // keep the ring non-empty
+          if (index < 0 || index >= ring.length) return;
+          ring.splice(index, 1);
           state.origin = 'local';
           state.dirty = true;
         }),
-      moveSector: (from, to) =>
+      moveSector: (ringPath, from, to) =>
         set((state) => {
           if (!state.config) return;
-          const sectors = state.config.sectors;
-          if (from < 0 || from >= sectors.length) return;
-          if (to < 0 || to >= sectors.length || from === to) return;
-          const [moved] = sectors.splice(from, 1);
-          sectors.splice(to, 0, moved!);
+          const ring = draftRingAt(state.config, ringPath);
+          if (!ring) return;
+          if (from < 0 || from >= ring.length) return;
+          if (to < 0 || to >= ring.length || from === to) return;
+          const [moved] = ring.splice(from, 1);
+          ring.splice(to, 0, moved!);
           state.origin = 'local';
           state.dirty = true;
         }),

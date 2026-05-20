@@ -5,40 +5,39 @@ import { useState } from 'react';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
-import { isSelected } from '../state/selectors';
+import { ringSectors } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
 
 /**
- * Left sidebar: the top-level pie sectors as a clickable, reorderable
- * list. Clicking selects a sector; the preview and properties panel
- * react to the same `selectedPath`. "Add item" appends a sector; items
- * are reordered by drag-and-drop (mouse). Delete lives in the properties
- * panel. All operate on the top level (nested editing is PR Editor-5).
+ * Left sidebar: the sectors of the ring currently in view (top level, or
+ * a submenu after drilling in). Clicking selects; the "›" button on a
+ * submenu drills into it. "+ Add item" appends to the current ring;
+ * items reorder by drag-and-drop. Delete and the breadcrumb live
+ * elsewhere (Properties / PreviewHeader).
  */
 export function MenuList() {
   const config = useMenuSettings((s) => s.config);
   const addSector = useMenuSettings((s) => s.addSector);
   const moveSector = useMenuSettings((s) => s.moveSector);
-  const selectedPath = useAppState((s) => s.selectedPath);
+  const viewPath = useAppState((s) => s.viewPath);
+  const selectedIndex = useAppState((s) => s.selectedIndex);
   const selectSector = useAppState((s) => s.selectSector);
-  const sectors = config?.sectors ?? [];
+  const drillInto = useAppState((s) => s.drillInto);
 
-  // Index of the item being dragged, for the drop handler and a drag
-  // style. Null when no drag is in progress.
+  const sectors = config ? ringSectors(config, viewPath) : [];
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const handleAdd = (): void => {
-    addSector();
+    addSector(viewPath);
     const current = useMenuSettings.getState().config;
-    if (current) selectSector([current.sectors.length - 1]);
+    if (current) selectSector(ringSectors(current, viewPath).length - 1);
   };
 
   const handleDrop = (target: number): void => {
     if (dragIndex !== null && dragIndex !== target) {
-      moveSector(dragIndex, target);
-      // Keep the moved item selected at its new position.
-      selectSector([target]);
+      moveSector(viewPath, dragIndex, target);
+      selectSector(target); // keep the moved item selected
     }
     setDragIndex(null);
   };
@@ -50,30 +49,37 @@ export function MenuList() {
         <p className={styles.empty}>{config ? 'No sectors configured.' : 'Loading…'}</p>
       ) : (
         <ul className={styles.list}>
-          {sectors.map((sector, i) => {
-            // Index key: see app-state for why the index is the only
-            // correct key today (no stable sector id yet).
-            const selected = isSelected(selectedPath, i);
-            return (
-              <li
-                key={i}
-                draggable
-                onDragStart={() => setDragIndex(i)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleDrop(i)}
-                onDragEnd={() => setDragIndex(null)}
-                className={dragIndex === i ? styles.dragging : undefined}
+          {sectors.map((sector, i) => (
+            // Index key: no stable sector id yet (see app-state).
+            <li
+              key={i}
+              draggable
+              onDragStart={() => setDragIndex(i)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => handleDrop(i)}
+              onDragEnd={() => setDragIndex(null)}
+              className={`${styles.row} ${dragIndex === i ? styles.dragging : ''}`}
+            >
+              <button
+                type="button"
+                className={`${styles.item} ${selectedIndex === i ? styles.itemSelected : ''}`}
+                onClick={() => selectSector(i)}
               >
+                {sector.label}
+              </button>
+              {sector.children !== undefined && (
                 <button
                   type="button"
-                  className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
-                  onClick={() => selectSector([i])}
+                  className={styles.drill}
+                  title="Open submenu"
+                  aria-label={`Open submenu ${sector.label}`}
+                  onClick={() => drillInto(i)}
                 >
-                  {sector.label}
+                  ›
                 </button>
-              </li>
-            );
-          })}
+              )}
+            </li>
+          ))}
         </ul>
       )}
       {config !== null && (

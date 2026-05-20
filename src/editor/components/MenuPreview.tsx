@@ -6,29 +6,29 @@ import { describeWedgePath } from '@/core/pie-path';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
-import { isSelected } from '../state/selectors';
+import { ringSectors } from '../state/selectors';
 
 import styles from './MenuPreview.module.scss';
 
-// Preview geometry, in viewBox units. Static for PR Editor-2 — no drag,
-// no hover-drill. Reuses the renderer's wedge-path and sector-angle
-// helpers so the preview matches the live pie's layout exactly.
+// Preview geometry, in viewBox units. Static — reuses the renderer's
+// wedge-path and sector-angle helpers so the preview matches the live
+// pie's layout exactly.
 const OUTER_RADIUS = 130;
 const INNER_RADIUS = 52;
 const LABEL_RADIUS = (OUTER_RADIUS + INNER_RADIUS) / 2;
 
 /**
- * Centre stage: a static SVG rendering of the top-level pie. Clicking a
- * wedge selects that sector (mirroring MenuList). Selection is shown by
- * highlighting the wedge. Interactivity beyond click-select — drag to
- * reorder (PR Editor-4), drill into submenus (PR Editor-5) — is out of
- * scope here.
+ * Centre stage: a static SVG rendering of the ring currently in view
+ * (top level, or a submenu after drilling in). Clicking a wedge selects
+ * that sector. Drilling into a submenu is done from the list/properties
+ * (the "›" button / "Open submenu"); the breadcrumb navigates back.
  */
 export function MenuPreview() {
   const config = useMenuSettings((s) => s.config);
-  const selectedPath = useAppState((s) => s.selectedPath);
+  const viewPath = useAppState((s) => s.viewPath);
+  const selectedIndex = useAppState((s) => s.selectedIndex);
   const selectSector = useAppState((s) => s.selectSector);
-  const sectors = config?.sectors ?? [];
+  const sectors = config ? ringSectors(config, viewPath) : [];
 
   if (sectors.length === 0) {
     return <p className={styles.empty}>{config ? 'No sectors to preview.' : ''}</p>;
@@ -42,25 +42,21 @@ export function MenuPreview() {
       {sectors.map((sector, i) => {
         const center = sectorCenterAngle(i, count);
         const d = describeWedgePath(OUTER_RADIUS, INNER_RADIUS, center - half, center + half);
-        const selected = isSelected(selectedPath, i);
-        // 12 o'clock = 0, clockwise positive (same convention as the
-        // path helper): x = sin·r, y = -cos·r.
+        const selected = selectedIndex === i;
+        // 12 o'clock = 0, clockwise positive: x = sin·r, y = -cos·r.
         const lx = Math.sin(center) * LABEL_RADIUS;
         const ly = -Math.cos(center) * LABEL_RADIUS;
         return (
-          // tabIndex + onKeyDown keep the wedges keyboard-operable: a
-          // focused <g role="button"> does not fire onClick on Enter/Space,
-          // so without this the preview would be mouse-only (MenuList still
-          // covers keyboard, but the preview shouldn't be a dead end). The
-          // focus ring itself is suppressed in CSS — see .wedgeGroup.
+          // tabIndex + onKeyDown keep the wedges keyboard-operable; the
+          // focus ring itself is suppressed in CSS (.wedgeGroup).
           <g
             key={i}
             className={styles.wedgeGroup}
-            onClick={() => selectSector([i])}
+            onClick={() => selectSector(i)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                selectSector([i]);
+                selectSector(i);
               }
             }}
             role="button"

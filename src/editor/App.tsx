@@ -8,7 +8,9 @@ import type { MenuConfigSnapshot } from '@/shared/ipc';
 
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
+import { PreviewHeader } from './components/PreviewHeader';
 import { Properties } from './components/Properties';
+import { useAppState } from './state/app-state';
 import { useMenuSettings } from './state/menu-settings';
 
 import styles from './App.module.scss';
@@ -30,6 +32,9 @@ const WRITE_DEBOUNCE_MS = 300;
 function adopt(snapshot: MenuConfigSnapshot): void {
   useMenuSettings.getState().setConfig(snapshot);
   useMenuSettings.temporal.getState().clear();
+  // A reload may change the menu structure, so reset navigation to the
+  // top level (also clears the selection) rather than risk a stale view.
+  useAppState.getState().drillTo(0);
 }
 
 /**
@@ -191,7 +196,10 @@ export function App() {
       <div className={styles.shell}>
         <MenuList />
         <main className={styles.center}>
-          <MenuPreview />
+          <PreviewHeader />
+          <div className={styles.previewArea}>
+            <MenuPreview />
+          </div>
         </main>
         <Properties />
       </div>
