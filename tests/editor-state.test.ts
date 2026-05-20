@@ -44,6 +44,19 @@ describe('app-state navigation', () => {
     useAppState.getState().drillTo(0);
     expect(useAppState.getState().viewPath).toEqual([]);
   });
+
+  it('selectPath jumps to any depth: parent ring becomes the view, last segment the selection', () => {
+    useAppState.getState().selectPath([2, 1, 0]);
+    expect(useAppState.getState().viewPath).toEqual([2, 1]);
+    expect(useAppState.getState().selectedIndex).toBe(0);
+
+    useAppState.getState().selectPath([3]);
+    expect(useAppState.getState().viewPath).toEqual([]);
+    expect(useAppState.getState().selectedIndex).toBe(3);
+
+    useAppState.getState().selectPath([]);
+    expect(useAppState.getState().selectedIndex).toBeNull();
+  });
 });
 
 describe('sectorAtPath', () => {

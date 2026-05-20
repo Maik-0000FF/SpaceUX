@@ -74,16 +74,18 @@
   }
 }
 
-.drill {
+// Expand/collapse toggle on a branch row. The spacer keeps leaf rows'
+// labels aligned with branch labels (same width as the chevron).
+.chevron {
   flex: none;
-  width: 26px;
+  width: 18px;
   padding: 7px 0;
   border: none;
   border-radius: 5px;
   background: transparent;
   color: var(--editor-fg-dim);
   font: inherit;
-  font-size: 18px;
+  font-size: 11px;
   line-height: 1;
   cursor: pointer;
 
@@ -91,6 +93,11 @@
     background: var(--editor-hover);
     color: var(--editor-fg);
   }
+}
+
+.chevronSpacer {
+  flex: none;
+  width: 18px;
 }
 
 .itemSelected {

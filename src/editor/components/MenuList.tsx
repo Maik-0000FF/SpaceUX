@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+
+import type { MenuSector } from '@/shared/menu';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
@@ -11,13 +13,19 @@ import { ringSectors } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
 
+/** Two index paths point at the same ring/node. */
+function eqPath(a: readonly number[], b: readonly number[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
 /**
- * Left sidebar: the sectors of the ring currently in view (top level, or
- * a submenu after drilling in). Clicking selects; the "›" button on a
- * submenu drills into it. "+ Add item" appends to the current ring.
- * Items reorder by drag-and-drop (with a drop-line showing where they'll
- * land) or by keyboard — Alt+↑/↓ on the focused item. Delete and the
- * breadcrumb live elsewhere (Properties / PreviewHeader).
+ * Left sidebar: the whole menu as an expandable tree. Each row is one
+ * sector, indented by depth; branches get a ▸/▾ toggle. Clicking a row
+ * jumps to it — its parent ring becomes the preview's view and the row
+ * its selection (so any nested item is one click away). Reorder works
+ * within a ring (siblings only): drag with a drop-line, or Alt+↑/↓ on the
+ * focused row. "+ Add item" appends to the ring of the current selection.
+ * Cross-ring moves are a separate concern (#55).
  */
 export function MenuList() {
   const config = useMenuSettings((s) => s.config);
@@ -25,116 +33,143 @@ export function MenuList() {
   const moveSector = useMenuSettings((s) => s.moveSector);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
-  const selectSector = useAppState((s) => s.selectSector);
-  const drillInto = useAppState((s) => s.drillInto);
+  const selectPath = useAppState((s) => s.selectPath);
 
-  const sectors = config ? ringSectors(config, viewPath) : [];
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-  // Insertion gap (0..length) the dragged item would land in; drives the
-  // drop-line. Null when not dragging.
+  // Expand/collapse keyed on sector identity (sectorKey) so the state
+  // survives reorder; an edited branch (new immer object) re-collapses,
+  // which is harmless.
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  // Sibling drag: the dragged node's ring + index, plus the hovered
+  // insertion gap within that same ring (drag is confined to one ring).
+  const [drag, setDrag] = useState<{ ring: number[]; index: number } | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  const toggle = (key: string): void =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const endDrag = (): void => {
+    setDrag(null);
+    setDropIndex(null);
+  };
+
+  // Move within a ring, keeping the moved node selected. No-op for an
+  // out-of-range target.
+  const moveWithin = (ring: number[], from: number, to: number, ringLen: number): void => {
+    if (to < 0 || to >= ringLen || to === from) return;
+    moveSector(ring, from, to);
+    selectPath([...ring, to]);
+  };
+
+  const handleDrop = (): void => {
+    if (drag && dropIndex !== null) {
+      const to = moveTarget(drag.index, dropIndex);
+      if (to !== null) {
+        moveSector(drag.ring, drag.index, to);
+        selectPath([...drag.ring, to]);
+      }
+    }
+    endDrag();
+  };
 
   const handleAdd = (): void => {
     addSector(viewPath);
     const current = useMenuSettings.getState().config;
-    if (current) selectSector(ringSectors(current, viewPath).length - 1);
+    if (current) selectPath([...viewPath, ringSectors(current, viewPath).length - 1]);
   };
 
-  // Move the item at `from` to `to`, keeping it selected so the edit flow
-  // and Properties panel follow it. No-op for an out-of-range target.
-  const move = (from: number, to: number): void => {
-    if (to < 0 || to >= sectors.length || to === from) return;
-    moveSector(viewPath, from, to);
-    selectSector(to);
-  };
+  const rows: ReactNode[] = [];
+  const walk = (sectors: readonly MenuSector[], ringPath: number[], depth: number): void => {
+    const ringLen = sectors.length;
+    sectors.forEach((sector, i) => {
+      const path = [...ringPath, i];
+      const key = sectorKey(sector);
+      const isBranch = sector.children !== undefined && sector.children.length > 0;
+      const isOpen = expanded.has(key);
+      const selected = eqPath(ringPath, viewPath) && selectedIndex === i;
+      const inDragRing = drag !== null && eqPath(drag.ring, ringPath);
+      const dragging = inDragRing && drag.index === i;
+      // Drop-line only on the dragged node's siblings, and only where a
+      // drop would actually reorder (moveTarget !== null on no-op gaps).
+      const showDrop =
+        inDragRing && dropIndex !== null && moveTarget(drag.index, dropIndex) !== null;
 
-  const handleDrop = (): void => {
-    if (dragIndex !== null && dropIndex !== null) {
-      const to = moveTarget(dragIndex, dropIndex);
-      if (to !== null) move(dragIndex, to);
-    }
-    setDragIndex(null);
-    setDropIndex(null);
+      rows.push(
+        <li
+          key={key}
+          draggable
+          onDragStart={() => setDrag({ ring: ringPath, index: i })}
+          onDragOver={(e) => {
+            if (!inDragRing) return; // siblings only
+            e.preventDefault();
+            const r = e.currentTarget.getBoundingClientRect();
+            setDropIndex(e.clientY > r.top + r.height / 2 ? i + 1 : i);
+          }}
+          onDrop={(e) => {
+            if (!inDragRing) return;
+            e.preventDefault();
+            handleDrop();
+          }}
+          onDragEnd={endDrag}
+          style={{ paddingLeft: 8 + depth * 14 }}
+          className={[
+            styles.row,
+            dragging ? styles.dragging : '',
+            showDrop && dropIndex === i ? styles.dropBefore : '',
+            showDrop && dropIndex === ringLen && i === ringLen - 1 ? styles.dropAfter : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {isBranch ? (
+            <button
+              type="button"
+              className={styles.chevron}
+              aria-expanded={isOpen}
+              aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${sector.label}`}
+              onClick={() => toggle(key)}
+            >
+              {isOpen ? '▾' : '▸'}
+            </button>
+          ) : (
+            <span className={styles.chevronSpacer} aria-hidden="true" />
+          )}
+          <button
+            type="button"
+            className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
+            aria-current={selected ? 'true' : undefined}
+            aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+            onClick={() => selectPath(path)}
+            onKeyDown={(e) => {
+              if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                e.preventDefault();
+                moveWithin(ringPath, i, e.key === 'ArrowUp' ? i - 1 : i + 1, ringLen);
+              }
+            }}
+          >
+            {sector.label}
+          </button>
+        </li>,
+      );
+
+      if (isBranch && isOpen) walk(sector.children!, path, depth + 1);
+    });
   };
+  if (config) walk(config.sectors, [], 0);
 
   return (
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Menu</div>
-      {sectors.length === 0 ? (
-        <p className={styles.empty}>{config ? 'No sectors configured.' : 'Loading…'}</p>
+      {!config ? (
+        <p className={styles.empty}>Loading…</p>
+      ) : config.sectors.length === 0 ? (
+        <p className={styles.empty}>No sectors configured.</p>
       ) : (
-        <ul className={styles.list}>
-          {sectors.map((sector, i) => {
-            // Drop-line only where a drop would actually reorder: moveTarget
-            // is null for the dragged item's own slot and the gap right after
-            // it, so no accent bar paints on those no-op positions.
-            const dropTo =
-              dragIndex !== null && dropIndex !== null ? moveTarget(dragIndex, dropIndex) : null;
-            const rowClass = [
-              styles.row,
-              dragIndex === i ? styles.dragging : '',
-              dropTo !== null && dropIndex === i ? styles.dropBefore : '',
-              dropTo !== null && dropIndex === sectors.length && i === sectors.length - 1
-                ? styles.dropAfter
-                : '',
-            ]
-              .filter(Boolean)
-              .join(' ');
-            return (
-              // Identity key (see sector-keys): survives reorder so React
-              // reconciles by sector, not array position — which also keeps
-              // keyboard focus on the moved item.
-              <li
-                key={sectorKey(sector)}
-                draggable
-                onDragStart={() => setDragIndex(i)}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  const r = e.currentTarget.getBoundingClientRect();
-                  // Below the row's midpoint → drop after it, else before.
-                  setDropIndex(e.clientY > r.top + r.height / 2 ? i + 1 : i);
-                }}
-                onDrop={handleDrop}
-                onDragEnd={() => {
-                  setDragIndex(null);
-                  setDropIndex(null);
-                }}
-                className={rowClass}
-              >
-                <button
-                  type="button"
-                  className={`${styles.item} ${selectedIndex === i ? styles.itemSelected : ''}`}
-                  aria-current={selectedIndex === i ? 'true' : undefined}
-                  aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                  onClick={() => selectSector(i)}
-                  onKeyDown={(e) => {
-                    if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                      e.preventDefault();
-                      move(i, e.key === 'ArrowUp' ? i - 1 : i + 1);
-                    }
-                  }}
-                >
-                  {sector.label}
-                </button>
-                {/* Only offer drill when the submenu has a ring to show:
-                    currentSectors treats empty children as stale and would
-                    land on the root ring (unreachable today — the validator
-                    rejects empty children — but keeps the affordance honest). */}
-                {sector.children !== undefined && sector.children.length > 0 && (
-                  <button
-                    type="button"
-                    className={styles.drill}
-                    title="Open submenu"
-                    aria-label={`Open submenu ${sector.label}`}
-                    onClick={() => drillInto(i)}
-                  >
-                    ›
-                  </button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+        <ul className={styles.list}>{rows}</ul>
       )}
       {config !== null && (
         <button type="button" className={styles.addButton} onClick={handleAdd}>
