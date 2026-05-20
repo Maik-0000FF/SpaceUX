@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
+import { moveTarget } from '../state/reorder';
 import { sectorKey } from '../state/sector-keys';
 import { ringSectors } from '../state/selectors';
 
@@ -13,9 +14,10 @@ import styles from './MenuList.module.scss';
 /**
  * Left sidebar: the sectors of the ring currently in view (top level, or
  * a submenu after drilling in). Clicking selects; the "›" button on a
- * submenu drills into it. "+ Add item" appends to the current ring;
- * items reorder by drag-and-drop. Delete and the breadcrumb live
- * elsewhere (Properties / PreviewHeader).
+ * submenu drills into it. "+ Add item" appends to the current ring.
+ * Items reorder by drag-and-drop (with a drop-line showing where they'll
+ * land) or by keyboard — Alt+↑/↓ on the focused item. Delete and the
+ * breadcrumb live elsewhere (Properties / PreviewHeader).
  */
 export function MenuList() {
   const config = useMenuSettings((s) => s.config);
@@ -28,6 +30,9 @@ export function MenuList() {
 
   const sectors = config ? ringSectors(config, viewPath) : [];
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  // Insertion gap (0..length) the dragged item would land in; drives the
+  // drop-line. Null when not dragging.
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   const handleAdd = (): void => {
     addSector(viewPath);
@@ -35,12 +40,21 @@ export function MenuList() {
     if (current) selectSector(ringSectors(current, viewPath).length - 1);
   };
 
-  const handleDrop = (target: number): void => {
-    if (dragIndex !== null && dragIndex !== target) {
-      moveSector(viewPath, dragIndex, target);
-      selectSector(target); // keep the moved item selected
+  // Move the item at `from` to `to`, keeping it selected so the edit flow
+  // and Properties panel follow it. No-op for an out-of-range target.
+  const move = (from: number, to: number): void => {
+    if (to < 0 || to >= sectors.length || to === from) return;
+    moveSector(viewPath, from, to);
+    selectSector(to);
+  };
+
+  const handleDrop = (): void => {
+    if (dragIndex !== null && dropIndex !== null) {
+      const to = moveTarget(dragIndex, dropIndex);
+      if (to !== null) move(dragIndex, to);
     }
     setDragIndex(null);
+    setDropIndex(null);
   };
 
   return (
@@ -50,43 +64,72 @@ export function MenuList() {
         <p className={styles.empty}>{config ? 'No sectors configured.' : 'Loading…'}</p>
       ) : (
         <ul className={styles.list}>
-          {sectors.map((sector, i) => (
-            // Identity key (see sector-keys): survives reorder so React
-            // reconciles by sector, not array position.
-            <li
-              key={sectorKey(sector)}
-              draggable
-              onDragStart={() => setDragIndex(i)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => handleDrop(i)}
-              onDragEnd={() => setDragIndex(null)}
-              className={`${styles.row} ${dragIndex === i ? styles.dragging : ''}`}
-            >
-              <button
-                type="button"
-                className={`${styles.item} ${selectedIndex === i ? styles.itemSelected : ''}`}
-                aria-current={selectedIndex === i ? 'true' : undefined}
-                onClick={() => selectSector(i)}
+          {sectors.map((sector, i) => {
+            const dragging = dragIndex !== null;
+            const rowClass = [
+              styles.row,
+              dragIndex === i ? styles.dragging : '',
+              dragging && dropIndex === i ? styles.dropBefore : '',
+              dragging && dropIndex === sectors.length && i === sectors.length - 1
+                ? styles.dropAfter
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+            return (
+              // Identity key (see sector-keys): survives reorder so React
+              // reconciles by sector, not array position — which also keeps
+              // keyboard focus on the moved item.
+              <li
+                key={sectorKey(sector)}
+                draggable
+                onDragStart={() => setDragIndex(i)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  const r = e.currentTarget.getBoundingClientRect();
+                  // Below the row's midpoint → drop after it, else before.
+                  setDropIndex(e.clientY > r.top + r.height / 2 ? i + 1 : i);
+                }}
+                onDrop={handleDrop}
+                onDragEnd={() => {
+                  setDragIndex(null);
+                  setDropIndex(null);
+                }}
+                className={rowClass}
               >
-                {sector.label}
-              </button>
-              {/* Only offer drill when the submenu has a ring to show:
-                  currentSectors treats empty children as stale and would
-                  land on the root ring (unreachable today — the validator
-                  rejects empty children — but keeps the affordance honest). */}
-              {sector.children !== undefined && sector.children.length > 0 && (
                 <button
                   type="button"
-                  className={styles.drill}
-                  title="Open submenu"
-                  aria-label={`Open submenu ${sector.label}`}
-                  onClick={() => drillInto(i)}
+                  className={`${styles.item} ${selectedIndex === i ? styles.itemSelected : ''}`}
+                  aria-current={selectedIndex === i ? 'true' : undefined}
+                  aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                  onClick={() => selectSector(i)}
+                  onKeyDown={(e) => {
+                    if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                      e.preventDefault();
+                      move(i, e.key === 'ArrowUp' ? i - 1 : i + 1);
+                    }
+                  }}
                 >
-                  ›
+                  {sector.label}
                 </button>
-              )}
-            </li>
-          ))}
+                {/* Only offer drill when the submenu has a ring to show:
+                    currentSectors treats empty children as stale and would
+                    land on the root ring (unreachable today — the validator
+                    rejects empty children — but keeps the affordance honest). */}
+                {sector.children !== undefined && sector.children.length > 0 && (
+                  <button
+                    type="button"
+                    className={styles.drill}
+                    title="Open submenu"
+                    aria-label={`Open submenu ${sector.label}`}
+                    onClick={() => drillInto(i)}
+                  >
+                    ›
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
       {config !== null && (
