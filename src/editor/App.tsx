@@ -40,6 +40,11 @@ export function App() {
         ) : (
           <ul className={styles.menuList}>
             {sectors.map((sector, i) => (
+              // Index key: MenuSector has no stable id and labels aren't
+              // guaranteed unique, so the index is the only correct key
+              // today. It also matches the index-path selection model the
+              // later PRs use. When reorder/add/delete land (PR Editor-4)
+              // a stable per-sector id should be introduced and used here.
               <li key={i} className={styles.menuItem}>
                 {sector.label}
               </li>

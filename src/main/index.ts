@@ -363,13 +363,18 @@ function wireEditorIpc(): void {
  *  chrome of its own). Icon is resolved from the repo `assets/` dir;
  *  nativeImage auto-selects `tray-icon@2x.png` on HiDPI displays. */
 function createTray(repoRoot: string): void {
+  // TODO(packaging): repoRoot is `__dirname/../..`, which points at the
+  // real assets/ only while running unpackaged. Once app.isPackaged,
+  // __dirname lives inside the asar and this path won't resolve — the
+  // tray icon (and plugin/asset loading, which share this assumption)
+  // need an extraResource/files bundling strategy.
   const icon = nativeImage.createFromPath(path.join(repoRoot, 'assets', 'tray-icon.png'));
   tray = new Tray(icon);
   tray.setToolTip('SpaceUX');
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Editor öffnen', click: () => void openEditorWindow() },
+    { label: 'Open Editor', click: () => void openEditorWindow() },
     { type: 'separator' },
-    { label: 'Beenden', role: 'quit' },
+    { label: 'Quit', role: 'quit' },
   ]);
   tray.setContextMenu(contextMenu);
   // Left-click is inconsistent across Linux tray hosts (many route
