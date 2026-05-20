@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
+import { sectorKey } from '../state/sector-keys';
 import { ringSectors } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
@@ -50,9 +51,10 @@ export function MenuList() {
       ) : (
         <ul className={styles.list}>
           {sectors.map((sector, i) => (
-            // Index key: no stable sector id yet (see app-state).
+            // Identity key (see sector-keys): survives reorder so React
+            // reconciles by sector, not array position.
             <li
-              key={i}
+              key={sectorKey(sector)}
               draggable
               onDragStart={() => setDragIndex(i)}
               onDragOver={(e) => e.preventDefault()}
