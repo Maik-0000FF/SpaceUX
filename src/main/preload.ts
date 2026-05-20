@@ -4,7 +4,12 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 
 import type { AxesValues, ButtonEventPayload, SpaceUxBridge } from '../shared/bridge.js';
-import { IpcChannel, type DaemonStatusPayload, type MenuOpenPayload } from '../shared/ipc.js';
+import {
+  IpcChannel,
+  type DaemonStatusPayload,
+  type MenuOpenPayload,
+  type PieAppearance,
+} from '../shared/ipc.js';
 import type { MenuConfig } from '../shared/menu.js';
 
 /**
@@ -38,6 +43,10 @@ const bridge: SpaceUxBridge = {
   },
   invokeAction: (key, config) => ipcRenderer.invoke(IpcChannel.INVOKE_ACTION, key, config),
   closeMenu: () => ipcRenderer.send(IpcChannel.CLOSE_MENU),
+  getPieAppearance: () =>
+    ipcRenderer.invoke(IpcChannel.GET_PIE_APPEARANCE) as Promise<PieAppearance>,
+  onPieAppearanceChanged: (handler) =>
+    subscribe<PieAppearance>(IpcChannel.PIE_APPEARANCE_CHANGED, handler),
 };
 
 contextBridge.exposeInMainWorld('spaceux', bridge);

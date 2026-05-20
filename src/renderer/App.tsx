@@ -8,6 +8,7 @@ import { type MenuConfig } from '@/shared/menu';
 
 import { PieMenu } from './PieMenu';
 import { useDrillNavigation } from './hooks/useDrillNavigation';
+import { usePieAppearance } from './hooks/usePieAppearance';
 import { useSpaceMouse } from './hooks/useSpaceMouse';
 
 /**
@@ -26,6 +27,7 @@ import { useSpaceMouse } from './hooks/useSpaceMouse';
  */
 export function App() {
   const { axes, daemonStatus } = useSpaceMouse();
+  usePieAppearance(); // applies data-pie-theme + --pie-opacity to <html>
   const [menuConfig, setMenuConfig] = useState<MenuConfig | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
 

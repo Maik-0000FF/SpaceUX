@@ -12,6 +12,9 @@
   // matches the live pie's on-screen size and tracks the size slider.
   flex: none;
   user-select: none;
+  // Tracks the pie opacity setting (--pie-opacity on <html>) so the preview
+  // shows the live pie's translucency, not just its colours.
+  opacity: var(--pie-opacity, 1);
 }
 
 .wedgeGroup {

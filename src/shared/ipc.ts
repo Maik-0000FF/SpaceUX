@@ -89,11 +89,39 @@ export const IpcChannel = {
    *  pops the overlay pie and drills the preview — and (b) skip the axis
    *  forwarding above when no one is listening. Fire-and-forget. */
   EDITOR_LIVE: 'spaceux:editor:live',
+
+  // ── Pie appearance (own app setting, separate from menu.json and the
+  //    editor UI theme; consumed by both the live pie and the editor
+  //    preview) ─────────────────────────────────────────────────────────
+  /** Either renderer pulls the current pie appearance on mount (pull-not-
+   *  push, same startup-race rationale as GET_MENU_CONFIG). */
+  GET_PIE_APPEARANCE: 'spaceux:pie:appearance:get',
+  /** Editor pushes a partial appearance change (theme and/or opacity).
+   *  Main validates, persists, and re-broadcasts the full value.
+   *  Fire-and-forget. */
+  SET_PIE_APPEARANCE: 'spaceux:pie:appearance:set',
+  /** Main pushes the full appearance to both renderers after a change so
+   *  the live pie hot-reloads and the editor preview tracks it. */
+  PIE_APPEARANCE_CHANGED: 'spaceux:pie:appearance:changed',
 } as const;
 
 /** Editor colour theme. `system` follows the OS light/dark preference;
  *  `spaceux` is the branded palette. Persisted in editor-settings.json. */
 export type ThemeChoice = 'system' | 'light' | 'dark' | 'spaceux';
+
+/** Pie-menu colour theme. No `system` (the overlay's look is chosen
+ *  explicitly); selected by the `data-pie-theme` attribute via the shared
+ *  src/core/pie-theme.css. Persisted in app-settings.json. */
+export type PieThemeChoice = 'dark' | 'light' | 'spaceux';
+
+/** The pie's appearance — its own app setting, independent of the editor
+ *  UI theme. `opacity` is an overall translucency multiplier (1 = the
+ *  palette's baked-in look). Blur will join here later without new
+ *  channels. */
+export type PieAppearance = {
+  theme: PieThemeChoice;
+  opacity: number;
+};
 
 /** Config plus the on-disk mtime it was read at. The editor snapshots
  *  the mtime and echoes it back on a write so main can detect a

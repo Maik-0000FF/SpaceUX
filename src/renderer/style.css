@@ -59,6 +59,10 @@ body {
   left: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
+  /* Overall translucency multiplier from the pie appearance setting
+   * (--pie-opacity, set on <html> by usePieAppearance). Scales the whole
+   * pie uniformly; the per-state wedge opacities compose within it. */
+  opacity: var(--pie-opacity, 1);
 }
 
 .pie-wedge {

@@ -8,6 +8,7 @@ import {
   IpcChannel,
   type MenuConfigSnapshot,
   type MenuWriteResult,
+  type PieAppearance,
   type ThemeChoice,
 } from '../shared/ipc.js';
 import type { MenuConfig } from '../shared/menu.js';
@@ -50,6 +51,14 @@ const bridge: EditorBridge = {
     return () => ipcRenderer.off(IpcChannel.EDITOR_BUTTON, listener);
   },
   setLive: (on: boolean) => ipcRenderer.send(IpcChannel.EDITOR_LIVE, on),
+  getPieAppearance: () =>
+    ipcRenderer.invoke(IpcChannel.GET_PIE_APPEARANCE) as Promise<PieAppearance>,
+  setPieAppearance: (patch) => ipcRenderer.send(IpcChannel.SET_PIE_APPEARANCE, patch),
+  onPieAppearanceChanged: (handler) => {
+    const listener = (_evt: IpcRendererEvent, appearance: PieAppearance) => handler(appearance);
+    ipcRenderer.on(IpcChannel.PIE_APPEARANCE_CHANGED, listener);
+    return () => ipcRenderer.off(IpcChannel.PIE_APPEARANCE_CHANGED, listener);
+  },
 };
 
 contextBridge.exposeInMainWorld('editor', bridge);

@@ -22,6 +22,7 @@ import type {
   MenuConfigSnapshot,
   MenuOpenPayload,
   MenuWriteResult,
+  PieAppearance,
   ThemeChoice,
 } from './ipc';
 import type { MenuConfig } from './menu';
@@ -51,6 +52,10 @@ export type SpaceUxBridge = {
    *  fire or silent dismiss) and not a drill-into-submenu.
    *  Fire-and-forget — no acknowledgement, no error path. */
   closeMenu(): void;
+  /** Pull the current pie appearance (theme + opacity) on mount. */
+  getPieAppearance(): Promise<PieAppearance>;
+  /** Main pushes the appearance when it changes (editor edit). */
+  onPieAppearanceChanged(handler: (appearance: PieAppearance) => void): () => void;
 };
 
 /**
@@ -91,6 +96,14 @@ export type EditorBridge = {
    *  overlay pie (and skips axis forwarding) while the editor drives the
    *  preview with the puck. Fire-and-forget. */
   setLive(on: boolean): void;
+  /** Pull the current pie appearance (theme + opacity) on mount. */
+  getPieAppearance(): Promise<PieAppearance>;
+  /** Push a partial appearance change (theme and/or opacity). Main
+   *  validates, persists, and re-broadcasts. Fire-and-forget. */
+  setPieAppearance(patch: Partial<PieAppearance>): void;
+  /** Main re-broadcasts the full appearance after any change, so the
+   *  preview tracks edits (including this editor's own). */
+  onPieAppearanceChanged(handler: (appearance: PieAppearance) => void): () => void;
 };
 
 declare global {

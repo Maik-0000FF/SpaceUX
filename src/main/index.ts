@@ -11,10 +11,13 @@ import {
   type DaemonStatusPayload,
   type MenuConfigSnapshot,
   type MenuOpenPayload,
+  type PieAppearance,
 } from '../shared/ipc.js';
 import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
 import type { DaemonEvent } from '../shared/protocol.js';
 
+import { wireAppIpc } from './app-ipc.js';
+import { DEFAULT_PIE_APPEARANCE, loadPieAppearance, saveAppSettings } from './app-settings.js';
 import { BUILTIN_PLUGIN } from './builtins/index.js';
 import { DaemonClient } from './daemon-client.js';
 import { wireEditorIpc } from './editor-ipc.js';
@@ -82,6 +85,10 @@ let menuConfigMtime: number | null = null;
 let menuConfigSource: string | null = null;
 let menuSearchPaths: string[] = [];
 let stopMenuWatcher: (() => void) | null = null;
+
+// The pie appearance (theme + opacity) — own app setting, broadcast to both
+// renderers on change. Defaults until loadPieAppearance() resolves at startup.
+let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // True between MENU_OPEN and MENU_COMMIT — drives the click-to-toggle
 // trigger lifecycle so a second press commits instead of re-opening.
 let menuShown = false;
@@ -421,6 +428,10 @@ app.whenReady().then(async () => {
   menuConfigMtime = menuResult.mtime;
   menuConfigSource = menuResult.source;
 
+  // Load the persisted pie appearance before any window exists, so the
+  // initial GET_PIE_APPEARANCE pull returns the user's value, not defaults.
+  pieAppearance = await loadPieAppearance();
+
   // Hot-reload: re-read on every menu.json edit and push the new config
   // to both renderers. The editor's own writes are suppressed by the
   // watcher's self-write window, so a reload here always means an
@@ -455,6 +466,17 @@ app.whenReady().then(async () => {
       menuConfigSource = target;
       // Hot-reload the live pie so an editor save takes effect at once.
       mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, config);
+    },
+  });
+  wireAppIpc({
+    getAppearance: () => pieAppearance,
+    setAppearance: (patch) => {
+      pieAppearance = { ...pieAppearance, ...patch };
+      void saveAppSettings({ pieTheme: pieAppearance.theme, pieOpacity: pieAppearance.opacity });
+      // Broadcast the full value to both renderers: the live pie hot-reloads
+      // and the editor preview (incl. the one that made the edit) tracks it.
+      mainWindow?.webContents.send(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
+      sendToEditor(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
     },
   });
   wireDaemonEvents();
