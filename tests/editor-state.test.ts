@@ -328,3 +328,49 @@ describe('menu-settings CRUD', () => {
     expect(labels()).toEqual(['A', 'B', 'C']);
   });
 });
+
+describe('moveSectorBetween', () => {
+  // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
+  const nested = (): MenuConfig => ({
+    version: DEFAULT_MENU_CONFIG.version,
+    sectors: [
+      { label: 'A', binding: { action: 'p/a' } },
+      {
+        label: 'B',
+        children: [
+          { label: 'B0', binding: { action: 'p/a' } },
+          { label: 'B1', children: [{ label: 'B1a', binding: { action: 'p/a' } }] },
+        ],
+      },
+    ],
+  });
+  const ringLabels = (path: readonly number[]): string[] =>
+    ringSectors(useMenuSettings.getState().config!, path).map((s) => s.label);
+
+  beforeEach(() => useMenuSettings.getState().setConfig({ config: nested(), mtime: 1 }));
+
+  it('moves a leaf into another ring (appended at the end)', () => {
+    useMenuSettings.getState().moveSectorBetween([0], [1]); // A → B's children
+    expect(ringLabels([])).toEqual(['B']);
+    // A removed from root → B shifts to index 0; its children now hold A.
+    expect(ringLabels([0])).toEqual(['B0', 'B1', 'A']);
+  });
+
+  it('is a no-op for a cycle (target inside the moved subtree)', () => {
+    useMenuSettings.getState().moveSectorBetween([1], [1, 1]); // B into its own descendant
+    expect(ringLabels([])).toEqual(['A', 'B']);
+    expect(ringLabels([1])).toEqual(['B0', 'B1']);
+  });
+
+  it('is a no-op for the same ring (that path is moveSector)', () => {
+    useMenuSettings.getState().moveSectorBetween([1, 0], [1]);
+    expect(ringLabels([1])).toEqual(['B0', 'B1']);
+  });
+
+  it("drops a submenu's level when its last child moves out", () => {
+    useMenuSettings.getState().moveSectorBetween([1, 1, 0], []); // B1a → top level
+    expect(ringLabels([])).toEqual(['A', 'B', 'B1a']);
+    // B1 had only B1a → it becomes a leaf.
+    expect(sectorAtPath(useMenuSettings.getState().config!, [1, 1])?.children).toBeUndefined();
+  });
+});
