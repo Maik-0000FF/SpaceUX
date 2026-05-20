@@ -88,9 +88,26 @@ function ConfigEditor({
 export function Properties() {
   const config = useMenuSettings((s) => s.config);
   const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
+  const deleteSector = useMenuSettings((s) => s.deleteSector);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
   const selectedPath = useAppState((s) => s.selectedPath);
+  const selectSector = useAppState((s) => s.selectSector);
+  const clearSelection = useAppState((s) => s.clearSelection);
   const sector = config ? sectorAtPath(config, selectedPath) : null;
+
+  // PR-4 operates on the top level only (nested editing is PR-5).
+  const isTopLevel = selectedPath.length === 1;
+  const canDelete = isTopLevel && (config?.sectors.length ?? 0) > 1;
+  const handleDelete = (): void => {
+    if (!isTopLevel) return;
+    const index = selectedPath[0]!;
+    deleteSector(index);
+    // Keep the editing flow going: select a neighbour rather than
+    // dropping back to "nothing selected".
+    const remaining = useMenuSettings.getState().config?.sectors.length ?? 0;
+    if (remaining > 0) selectSector([Math.min(index, remaining - 1)]);
+    else clearSelection();
+  };
 
   return (
     <aside className={styles.sidebar}>
@@ -111,7 +128,33 @@ export function Properties() {
             />
           </Row>
           <Row label="Type">
-            <span className={styles.readonly}>{sector.children ? 'Submenu' : 'Action'}</span>
+            <select
+              className={styles.select}
+              value={sector.children !== undefined ? 'submenu' : 'action'}
+              title={
+                sector.children !== undefined
+                  ? 'Switching to Action discards this submenu and its items'
+                  : undefined
+              }
+              onChange={(e) =>
+                updateSectorAt(selectedPath, (s) => {
+                  if (e.target.value === 'submenu') {
+                    // Branch needs ≥1 child; branch/leaf are exclusive, so
+                    // seed a default child and drop the action binding.
+                    if (s.children === undefined) {
+                      s.children = [{ label: 'New item' }];
+                      delete s.binding;
+                    }
+                  } else {
+                    // Back to a leaf: drop the children; binding starts empty.
+                    delete s.children;
+                  }
+                })
+              }
+            >
+              <option value="action">Action</option>
+              <option value="submenu">Submenu</option>
+            </select>
           </Row>
           {sector.children !== undefined && (
             <Row label="Submenu items">
@@ -147,6 +190,15 @@ export function Properties() {
               )}
             </>
           )}
+          <button
+            type="button"
+            className={styles.deleteButton}
+            onClick={handleDelete}
+            disabled={!canDelete}
+            title={canDelete ? 'Delete this sector' : 'A menu must keep at least one sector'}
+          >
+            Delete sector
+          </button>
         </div>
       )}
     </aside>
