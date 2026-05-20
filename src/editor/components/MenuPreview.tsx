@@ -67,10 +67,13 @@ export function MenuPreview() {
   const parentRing = isDrilled ? ringSectors(config, viewPath.slice(0, -1)) : [];
   const drilledIntoIndex = isDrilled ? viewPath[viewPath.length - 1]! : -1;
 
-  // Same size formula as the live pie (config.scale, made DPR-aware) so the
-  // preview renders at the same on-screen size the overlay will — and
-  // updates live as the size slider moves. The viewBox stays VIEW·2; only
-  // the rendered px size scales.
+  // Same size formula as the live pie so the preview matches its on-screen
+  // size and tracks the slider live. The `/ devicePixelRatio` is a
+  // compositor-specific correction for this KDE Wayland setup's fractional
+  // scaling (see PieMenu's note / #71), not standard Chromium. Read at
+  // render, not reactive — dragging the editor to a different-DPR monitor
+  // updates on the next render. The viewBox stays VIEW·2; only the rendered
+  // px size scales.
   const displaySize = (VIEW * 2 * (config.scale ?? 1)) / (window.devicePixelRatio || 1);
 
   // Active ring = the current menu: inner band at top level, outer band when

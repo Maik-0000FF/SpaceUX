@@ -144,10 +144,15 @@ export function PieMenu({
   const outerRingInnerRadius = radius * OUTER_RING_INNER_RATIO;
   const viewportSize = outerRingOuterRadius * 2;
 
-  // User size multiplier, made device-pixel-ratio-aware so the on-screen
-  // size is consistent across monitor scalings (a fixed CSS size renders
-  // bigger at higher OS scaling). The viewBox stays `viewportSize`; only
-  // the rendered px size and the clamp margin scale by this factor.
+  // User size multiplier. The `/ devicePixelRatio` is a compositor-specific
+  // correction, NOT standard behaviour: under plain Chromium a fixed CSS
+  // size already renders at a consistent physical size across DPRs. But on
+  // this KDE Wayland setup with fractional scaling the overlay renders
+  // *larger* at higher OS scaling, so we divide it back out to keep the
+  // on-screen size steady (same fractional-scaling family as #71). Read at
+  // render, not reactive — fine here since the overlay is recreated per
+  // invocation. The viewBox stays `viewportSize`; only the rendered px size
+  // and the clamp margin scale by this factor.
   const sizeFactor = (config.scale ?? 1) / (window.devicePixelRatio || 1);
   const displaySize = viewportSize * sizeFactor;
   const clampRadius = outerRingOuterRadius * sizeFactor;
