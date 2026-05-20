@@ -38,6 +38,31 @@ function boundsVisible(bounds: WindowBounds): boolean {
 
 let editorWindow: BrowserWindow | null = null;
 let appIsQuitting = false;
+// Whether the editor's live preview is on (reported by the renderer over
+// EDITOR_LIVE). Drives two suppressions in the daemon-event path: the real
+// overlay pie (only when the editor is also focused) and axis forwarding.
+let editorLive = false;
+
+/** Record the editor's live-preview state (EDITOR_LIVE from the renderer). */
+export function setEditorLive(on: boolean): void {
+  editorLive = on;
+}
+
+/** True while the editor is consuming the live puck stream — gates axis
+ *  forwarding so frames don't cross the IPC boundary with no subscriber. */
+export function isEditorLive(): boolean {
+  return editorLive;
+}
+
+/** True only when the editor is live *and* focused: in that state the
+ *  trigger belongs to the preview, so main must not also pop the overlay
+ *  pie. Focus distinguishes "driving the preview" from "puck used elsewhere
+ *  with the editor merely open in the background". */
+export function isEditorLiveFocused(): boolean {
+  return (
+    editorLive && editorWindow !== null && !editorWindow.isDestroyed() && editorWindow.isFocused()
+  );
+}
 
 /**
  * Flip the editor into "let me close for real" mode. Called from the
@@ -135,6 +160,8 @@ export async function openEditorWindow(): Promise<BrowserWindow> {
   });
   win.on('closed', () => {
     editorWindow = null;
+    // The renderer is gone, so its last EDITOR_LIVE report is stale.
+    editorLive = false;
   });
 
   if (VITE_DEV_SERVER_URL) {

@@ -3,6 +3,7 @@
 
 import type { ThemeChoice } from '@/shared/ipc';
 
+import { LiveToggle } from './components/LiveToggle';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
 import { PreviewHeader } from './components/PreviewHeader';
@@ -105,6 +106,7 @@ export function App() {
         <main className={styles.center}>
           <div className={styles.breadcrumbSlot}>
             <PreviewHeader />
+            <LiveToggle />
           </div>
           <div className={styles.previewArea}>
             <MenuPreview />

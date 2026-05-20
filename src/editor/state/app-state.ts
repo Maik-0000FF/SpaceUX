@@ -34,6 +34,11 @@ type AppState = {
   /** Breadcrumb navigation: truncate the view path to `depth` levels
    *  (0 = top-level). Clears the selection. */
   drillTo: (depth: number) => void;
+  /** When true, the preview highlights the sector under the live
+   *  SpaceMouse puck (axes streamed from main) instead of just the click
+   *  selection — lets the author feel the menu while building it. */
+  livePreview: boolean;
+  setLivePreview: (on: boolean) => void;
 };
 
 export const useAppState = create<AppState>()(
@@ -62,6 +67,11 @@ export const useAppState = create<AppState>()(
       set((state) => {
         state.viewPath = state.viewPath.slice(0, depth);
         state.selectedIndex = null;
+      }),
+    livePreview: false,
+    setLivePreview: (on) =>
+      set((state) => {
+        state.livePreview = on;
       }),
   })),
 );

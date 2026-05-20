@@ -1,0 +1,27 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+.toggle {
+  flex: none;
+  margin-left: auto; // push to the right of the breadcrumb row
+  padding: 4px 10px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--editor-fg-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--editor-hover);
+    color: var(--editor-fg);
+  }
+}
+
+// Active state: accent border + tint so "live" reads as engaged.
+.on {
+  border-color: var(--editor-accent);
+  color: var(--editor-fg);
+  background: rgba(80, 110, 180, 0.25);
+}
