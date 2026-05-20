@@ -69,6 +69,12 @@ export async function loadEditorSettings(): Promise<EditorSettings> {
 /**
  * Merge a partial update into the saved settings and write atomically
  * (temp file + rename). Best-effort: a failure is logged, not thrown.
+ *
+ * Note: the read-modify-write is not serialized — two saves firing close
+ * together (e.g. a debounced geometry save and a setTheme) can interleave
+ * so the later read misses the earlier write, dropping one field. This is
+ * last-writer-wins, acceptable for UI prefs; the dropped field re-saves on
+ * the next interaction. Add a queue if this ever needs to be lossless.
  */
 export async function saveEditorSettings(patch: EditorSettings): Promise<void> {
   const merged: EditorSettings = { ...(await loadEditorSettings()), ...patch };

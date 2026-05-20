@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,6 +17,24 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 
 const DEFAULT_BOUNDS: WindowBounds = { width: 1100, height: 720 };
 const GEOMETRY_SAVE_DEBOUNCE_MS = 400;
+
+/**
+ * Whether saved bounds are still usable. A size-only record (no x/y) is
+ * fine — Electron centres it. With a position, require its top-left to
+ * land inside some current display's work area; otherwise the monitor it
+ * was last on is gone and restoring would open the window off-screen.
+ */
+function boundsVisible(bounds: WindowBounds): boolean {
+  if (bounds.x === undefined || bounds.y === undefined) return true;
+  return screen.getAllDisplays().some(({ workArea: w }) => {
+    return (
+      bounds.x! >= w.x &&
+      bounds.x! < w.x + w.width &&
+      bounds.y! >= w.y &&
+      bounds.y! < w.y + w.height
+    );
+  });
+}
 
 let editorWindow: BrowserWindow | null = null;
 let appIsQuitting = false;
@@ -59,7 +77,10 @@ export async function openEditorWindow(): Promise<BrowserWindow> {
   }
 
   const settings = await loadEditorSettings();
-  const bounds = settings.window ?? DEFAULT_BOUNDS;
+  // Fall back to centred defaults if the saved position is off every
+  // current display (e.g. the monitor it was on got disconnected).
+  const bounds =
+    settings.window && boundsVisible(settings.window) ? settings.window : DEFAULT_BOUNDS;
 
   const win = new BrowserWindow({
     width: bounds.width,

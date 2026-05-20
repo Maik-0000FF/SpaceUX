@@ -11,6 +11,19 @@ import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
 
 import styles from './Properties.module.scss';
 
+/**
+ * Quote a picked file path so the exec tokenizer keeps it as one token
+ * (it honours "…"/'…' but has no backslash escapes). Only quotes when
+ * the path has whitespace, and picks a quote char the path doesn't
+ * contain so a space (or a quote) in the path doesn't split the command.
+ */
+function quoteCommandPath(p: string): string {
+  if (!/\s/.test(p)) return p;
+  if (!p.includes('"')) return `"${p}"`;
+  if (!p.includes("'")) return `'${p}'`;
+  return `"${p}"`;
+}
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className={styles.row}>
@@ -109,7 +122,9 @@ export function Properties() {
     void window.editor.pickFile().then((file) => {
       if (!file) return;
       updateSectorAt(path, (s) => {
-        if (s.binding) s.binding.config = { ...(s.binding.config ?? {}), command: file };
+        if (s.binding) {
+          s.binding.config = { ...(s.binding.config ?? {}), command: quoteCommandPath(file) };
+        }
       });
     });
   };
