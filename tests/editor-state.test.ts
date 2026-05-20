@@ -147,3 +147,41 @@ describe('menu-settings', () => {
     expect(useMenuSettings.getState().dirty).toBe(false);
   });
 });
+
+describe('menu-settings undo/redo (zundo temporal)', () => {
+  const labelAt0 = () => useMenuSettings.getState().config?.sectors[0]?.label;
+
+  it('steps through config edits with undo and redo', () => {
+    const original = DEFAULT_MENU_CONFIG.sectors[0]?.label;
+    useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
+    // Only edits made after this baseline should be undoable.
+    useMenuSettings.temporal.getState().clear();
+
+    useMenuSettings.getState().updateSectorAt([0], (s) => {
+      s.label = 'A';
+    });
+    useMenuSettings.getState().updateSectorAt([0], (s) => {
+      s.label = 'B';
+    });
+    expect(labelAt0()).toBe('B');
+
+    useMenuSettings.temporal.getState().undo();
+    expect(labelAt0()).toBe('A');
+    useMenuSettings.temporal.getState().undo();
+    expect(labelAt0()).toBe(original);
+
+    useMenuSettings.temporal.getState().redo();
+    expect(labelAt0()).toBe('A');
+  });
+
+  it('does not record a no-op edit (deep equality)', () => {
+    useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
+    useMenuSettings.temporal.getState().clear();
+    const before = useMenuSettings.temporal.getState().pastStates.length;
+    // Set the label to the value it already has → no state change.
+    useMenuSettings.getState().updateSectorAt([0], (s) => {
+      s.label = DEFAULT_MENU_CONFIG.sectors[0]!.label;
+    });
+    expect(useMenuSettings.temporal.getState().pastStates.length).toBe(before);
+  });
+});

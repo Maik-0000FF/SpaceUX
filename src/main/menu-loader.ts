@@ -6,7 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { describeError } from '../shared/errors.js';
-import { DEFAULT_MENU_CONFIG, validateMenuConfig, type MenuConfig } from '../shared/menu.js';
+import {
+  DEFAULT_MENU_CONFIG,
+  MENU_CONFIG_VERSION,
+  migrateMenuConfig,
+  validateMenuConfig,
+  type MenuConfig,
+} from '../shared/menu.js';
 import { dedupPreserveOrder } from '../shared/util.js';
 
 /**
@@ -91,7 +97,31 @@ export async function loadMenuConfig(
       };
     }
 
-    const result = validateMenuConfig(parsed);
+    // Migrate an older schema version up to the current one before
+    // validating, so a future MENU_CONFIG_VERSION bump doesn't make
+    // every existing config fail validation and fall back to default.
+    let toValidate: unknown = parsed;
+    if (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      typeof (parsed as { version?: unknown }).version === 'number'
+    ) {
+      const version = (parsed as { version: number }).version;
+      if (version !== MENU_CONFIG_VERSION) {
+        const migrated = migrateMenuConfig(parsed as Record<string, unknown>, version);
+        if (!migrated.ok) {
+          return {
+            config: DEFAULT_MENU_CONFIG,
+            source: candidate,
+            mtime,
+            fallbackReason: `${candidate}: ${migrated.reason}`,
+          };
+        }
+        toValidate = migrated.raw;
+      }
+    }
+
+    const result = validateMenuConfig(toValidate);
     if (!result.ok) {
       return {
         config: DEFAULT_MENU_CONFIG,

@@ -590,3 +590,51 @@ export function serializeMenuConfig(config: MenuConfig): string {
   out.sectors = config.sectors.map(orderSector);
   return JSON.stringify(out, null, 2) + '\n';
 }
+
+// ── Migration ───────────────────────────────────────────────────────
+
+/** Upgrades a raw parsed config from version N to N+1. Registered by the
+ *  version it migrates *from*. */
+type MenuConfigMigration = (raw: Record<string, unknown>) => Record<string, unknown>;
+
+/** Step migrations keyed by source version. Empty while
+ *  :data:`MENU_CONFIG_VERSION` is 1 — the framework exists so a future
+ *  bump registers `{ 1: (raw) => ({ ...raw, version: 2, ... }) }` here
+ *  instead of every existing config silently failing validation and
+ *  falling back to the default (the latent bug this guards against). */
+const MENU_CONFIG_MIGRATIONS: Record<number, MenuConfigMigration> = {};
+
+export type MenuMigrationResult =
+  | { ok: true; raw: Record<string, unknown> }
+  | { ok: false; reason: string };
+
+/**
+ * Upgrade a raw parsed config from `fromVersion` to the current
+ * :data:`MENU_CONFIG_VERSION` by running the registered step migrations
+ * in order. The caller validates the result afterwards.
+ *
+ * Same version is a no-op; a version newer than supported, or a gap with
+ * no registered migration, is an error (the loader then falls back to
+ * the default and logs the reason).
+ */
+export function migrateMenuConfig(
+  raw: Record<string, unknown>,
+  fromVersion: number,
+): MenuMigrationResult {
+  if (fromVersion === MENU_CONFIG_VERSION) return { ok: true, raw };
+  if (fromVersion > MENU_CONFIG_VERSION) {
+    return {
+      ok: false,
+      reason: `config version ${fromVersion} is newer than supported version ${MENU_CONFIG_VERSION}`,
+    };
+  }
+  let current = raw;
+  for (let v = fromVersion; v < MENU_CONFIG_VERSION; v++) {
+    const migrate = MENU_CONFIG_MIGRATIONS[v];
+    if (!migrate) {
+      return { ok: false, reason: `no migration registered from config version ${v} to ${v + 1}` };
+    }
+    current = migrate(current);
+  }
+  return { ok: true, raw: current };
+}

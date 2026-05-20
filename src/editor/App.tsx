@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import Mousetrap from 'mousetrap';
 import { useEffect } from 'react';
+
+import type { MenuConfigSnapshot } from '@/shared/ipc';
 
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
@@ -16,6 +19,20 @@ import styles from './App.module.scss';
 const WRITE_DEBOUNCE_MS = 300;
 
 /**
+ * Adopt a remote snapshot (initial load / external change / Reload).
+ *
+ * The single chokepoint for accepting a config from outside the editor:
+ * it sets the config and drops the undo history. A remote snapshot is
+ * not an undoable step, and undo must never cross a reload boundary —
+ * routing every adoption through here keeps that structural rather than
+ * a "remember to call clear()" convention at each call site.
+ */
+function adopt(snapshot: MenuConfigSnapshot): void {
+  useMenuSettings.getState().setConfig(snapshot);
+  useMenuSettings.temporal.getState().clear();
+}
+
+/**
  * Editor root. Owns the write-back loop and conflict handling:
  *  - on mount, pull the config snapshot into the store (origin remote);
  *  - subscribe to local edits and write them back, debounced;
@@ -24,7 +41,6 @@ const WRITE_DEBOUNCE_MS = 300;
  *  - Reload adopts the on-disk version, Overwrite writes the local one.
  */
 export function App() {
-  const setConfig = useMenuSettings((s) => s.setConfig);
   const conflict = useMenuSettings((s) => s.conflict);
   const saveError = useMenuSettings((s) => s.saveError);
 
@@ -33,12 +49,12 @@ export function App() {
     window.editor.ready();
     let cancelled = false;
     void window.editor.getMenuConfig().then((snapshot) => {
-      if (!cancelled) setConfig(snapshot);
+      if (!cancelled) adopt(snapshot);
     });
     return () => {
       cancelled = true;
     };
-  }, [setConfig]);
+  }, []);
 
   // External changes (file edited outside the editor). Adopt when the
   // editor has no unsaved edits; otherwise it's a conflict — stash the
@@ -49,10 +65,37 @@ export function App() {
       window.editor.onMenuConfigChanged((snapshot) => {
         const store = useMenuSettings.getState();
         if (store.dirty) store.setConflict(snapshot);
-        else store.setConfig(snapshot);
+        else adopt(snapshot);
       }),
     [],
   );
+
+  // Undo / redo (Ctrl/Cmd+Z, Ctrl/Cmd+Y or Shift+Z). Only the config is
+  // tracked (zundo temporal, see the store). Mousetrap ignores these
+  // inside text inputs, so editing a field keeps the field's own native
+  // undo.
+  useEffect(() => {
+    const step = (direction: 'undo' | 'redo'): boolean => {
+      const temporal = useMenuSettings.temporal.getState();
+      const available = direction === 'undo' ? temporal.pastStates : temporal.futureStates;
+      if (available.length === 0) return false;
+      // Tag the restored config `local` so the write-back subscription
+      // persists it. Note: undoing all the way back to the on-disk state
+      // still flags dirty and re-writes identical content — harmless (the
+      // self-write window absorbs the echo), but a future "unsaved
+      // changes" indicator would need to reconcile this.
+      useMenuSettings.setState({ origin: 'local', dirty: true });
+      if (direction === 'undo') temporal.undo();
+      else temporal.redo();
+      return false;
+    };
+    Mousetrap.bind('mod+z', () => step('undo'));
+    Mousetrap.bind(['mod+y', 'mod+shift+z'], () => step('redo'));
+    return () => {
+      Mousetrap.unbind('mod+z');
+      Mousetrap.unbind(['mod+y', 'mod+shift+z']);
+    };
+  }, []);
 
   // Write-back: persist local edits, debounced. Skips while a conflict
   // is pending (the user resolves it via the banner) and skips remote
@@ -94,7 +137,7 @@ export function App() {
   // Discard local edits, adopt the on-disk version stashed on conflict.
   const reload = (): void => {
     const stashed = useMenuSettings.getState().conflict;
-    if (stashed) useMenuSettings.getState().setConfig(stashed);
+    if (stashed) adopt(stashed);
   };
 
   // Keep local edits: write them over the on-disk version using its
