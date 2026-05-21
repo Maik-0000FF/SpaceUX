@@ -12,11 +12,9 @@ import {
   MAX_MENU_DEPTH,
   MAX_PIE_SCALE,
   MIN_PIE_SCALE,
-  type AxisActivation,
   type MenuCenter,
   type MenuConfig,
   type MenuSector,
-  type MenuTwistCycle,
 } from '@/shared/menu';
 
 import { eqPath, isPrefix, sectorHeight } from './move-targets';
@@ -98,12 +96,6 @@ type MenuSettingsState = {
   /** Set (or clear, with `undefined`) the center binding's per-action
    *  config. No-op when the center has no binding. */
   setCenterActionConfig: (config: Record<string, unknown> | undefined) => void;
-  /** Set the center field's axis activation, or clear it with `null`
-   *  (commit reverts to trigger-button only). Prunes an emptied
-   *  centerField. */
-  setCenterActivation: (activation: AxisActivation | null) => void;
-  /** Set the twist-cycle gesture config, or remove it with `null`. */
-  setTwistCycle: (twistCycle: MenuTwistCycle | null) => void;
 };
 
 /** Return a copy of `config` with an editor-only stable id (see
@@ -141,19 +133,13 @@ function ensureCenter(config: Draft<MenuConfig>): Draft<MenuCenter> {
   return config.centerField;
 }
 
-/** Drop an all-empty `centerField` (no label/icon/binding/activation)
- *  from the draft, so the working copy matches what the validator
- *  persists — it normalises `{}` to "no center field". Keeps undo
- *  history and the on-disk diff free of meaningless empty objects. */
+/** Drop an all-empty `centerField` (no label/icon/binding) from the
+ *  draft, so the working copy matches what the validator persists — it
+ *  normalises `{}` to "no center field". Keeps undo history and the
+ *  on-disk diff free of meaningless empty objects. */
 function pruneCenter(config: Draft<MenuConfig>): void {
   const c = config.centerField;
-  if (
-    c &&
-    c.label === undefined &&
-    c.icon === undefined &&
-    c.binding === undefined &&
-    c.activation === undefined
-  ) {
+  if (c && c.label === undefined && c.icon === undefined && c.binding === undefined) {
     delete config.centerField;
   }
 }
@@ -325,24 +311,6 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (!binding) return; // config is meaningless without a binding
           if (config === undefined) delete binding.config;
           else binding.config = config;
-          state.origin = 'local';
-          state.dirty = true;
-        }),
-      setCenterActivation: (activation) =>
-        set((state) => {
-          if (!state.config) return;
-          const center = ensureCenter(state.config);
-          if (activation === null) delete center.activation;
-          else center.activation = activation;
-          pruneCenter(state.config);
-          state.origin = 'local';
-          state.dirty = true;
-        }),
-      setTwistCycle: (twistCycle) =>
-        set((state) => {
-          if (!state.config) return;
-          if (twistCycle === null) delete state.config.twistCycle;
-          else state.config.twistCycle = twistCycle;
           state.origin = 'local';
           state.dirty = true;
         }),

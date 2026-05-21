@@ -182,7 +182,7 @@ export function resolveTwistFrame(opts: {
   priority: TwistCyclePriority;
   /** Active ring size, for the wrap. */
   count: number;
-  /** Whether `twistCycle` is enabled — gates the sticky drill fallback. */
+  /** Whether the cycle gesture is bound — gates the sticky drill fallback. */
   cycleEnabled: boolean;
 }): TwistFrame {
   const { sec, sticky, cycleStep, priority, count, cycleEnabled } = opts;

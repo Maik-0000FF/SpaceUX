@@ -8,21 +8,20 @@ import {
   axesMagnitude,
   axesToSector,
   axisValue,
+  backAxisEngaged,
   clampPieAnchor,
+  cycleStepFromInputs,
   gestureActive,
   inputActive,
   meetsActivation,
-  resolveTzDeadzone,
   rotateAxes,
   sectorCenterAngle,
-  shouldCancelOnZ,
   twistCycleStep,
-  tzBackEngaged,
   type GestureFrame,
   type PieGeometryConfig,
   type SixAxes,
 } from '../src/core/pie-geometry';
-import type { AxisActivation, InputBinding } from '../src/shared/menu';
+import type { GestureBinding, InputBinding } from '../src/shared/menu';
 
 describe('axesToSector', () => {
   const eight: PieGeometryConfig = { sectorCount: 8, deadzone: 50, invertX: false, invertY: true };
@@ -132,64 +131,6 @@ describe('axesMagnitude', () => {
   it('matches Euclidean distance', () => {
     expect(axesMagnitude({ tx: 3, ty: 4 })).toBe(5);
     expect(axesMagnitude({ tx: -3, ty: -4 })).toBe(5);
-  });
-});
-
-describe('resolveTzDeadzone', () => {
-  it('returns the fallback when the override is undefined', () => {
-    // Default fallback path: behaviour identical to "no separate TZ
-    // threshold configured" — equivalent to pre-#12 behaviour.
-    expect(resolveTzDeadzone(undefined, 50)).toBe(50);
-  });
-
-  it('returns the override when set (ignoring the fallback)', () => {
-    // Raising the TZ threshold to filter cross-talk shouldn't drag
-    // the lateral selection's sensitivity along with it.
-    expect(resolveTzDeadzone(120, 50)).toBe(120);
-  });
-
-  it('honours an explicit override of 0 as "no TZ threshold"', () => {
-    // `?? fallback` only fills the gap on `undefined` — a literal 0
-    // means "fire on any TZ deflection". Edge-case but worth a pin
-    // so a future "override || fallback" refactor (which would
-    // collapse 0 to the fallback) fails here. The validator
-    // currently rejects 0 from menu.json, so this branch is only
-    // reachable from direct in-code callers, but the helper's
-    // contract still has to honour it.
-    expect(resolveTzDeadzone(0, 50)).toBe(0);
-  });
-});
-
-describe('shouldCancelOnZ', () => {
-  // The deadzone parameter is the user-facing threshold; pick 50 in
-  // tests for parity with DEFAULT_PIE_GEOMETRY.deadzone.
-  const DZ = 50;
-
-  it('does not fire when tz is exactly zero', () => {
-    expect(shouldCancelOnZ(0, DZ)).toBe(false);
-  });
-
-  it('does not fire inside the deadzone (positive and negative)', () => {
-    expect(shouldCancelOnZ(40, DZ)).toBe(false);
-    expect(shouldCancelOnZ(-40, DZ)).toBe(false);
-    expect(shouldCancelOnZ(DZ, DZ)).toBe(false);
-    expect(shouldCancelOnZ(-DZ, DZ)).toBe(false);
-  });
-
-  it('fires past the deadzone in either direction (symmetry guard)', () => {
-    // The whole point of the helper is that push and pull both
-    // register — pin both signs explicitly so a future "only count
-    // negative tz" tweak fails this test instead of silently
-    // breaking users with the opposite puck polarity.
-    expect(shouldCancelOnZ(51, DZ)).toBe(true);
-    expect(shouldCancelOnZ(-51, DZ)).toBe(true);
-    expect(shouldCancelOnZ(100, DZ)).toBe(true);
-    expect(shouldCancelOnZ(-100, DZ)).toBe(true);
-  });
-
-  it('honours different deadzone values', () => {
-    expect(shouldCancelOnZ(10, 5)).toBe(true);
-    expect(shouldCancelOnZ(10, 50)).toBe(false);
   });
 });
 
@@ -305,61 +246,53 @@ describe('meetsActivation', () => {
   });
 });
 
-describe('tzBackEngaged', () => {
-  const DZ = 50;
-  const onTz = (direction: AxisActivation['direction']): AxisActivation => ({
-    axis: 'tz',
-    direction,
-    threshold: 200,
+describe('cycleStepFromInputs', () => {
+  const ZERO: SixAxes = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+  const rzCycle: InputBinding[] = [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }];
+
+  it('derives the step sign from the first axis input', () => {
+    expect(cycleStepFromInputs(rzCycle, { ...ZERO, rz: 150 })).toBe(1);
+    expect(cycleStepFromInputs(rzCycle, { ...ZERO, rz: -150 })).toBe(-1);
+    expect(cycleStepFromInputs(rzCycle, { ...ZERO, rz: 50 })).toBe(0); // under threshold
   });
 
-  it('no activation → direction-agnostic, same as shouldCancelOnZ', () => {
-    expect(tzBackEngaged(51, DZ, undefined)).toBe(true);
-    expect(tzBackEngaged(-51, DZ, undefined)).toBe(true);
-    expect(tzBackEngaged(DZ, DZ, undefined)).toBe(false);
-    expect(tzBackEngaged(-40, DZ, undefined)).toBe(false);
+  it('skips non-axis inputs (button/magnitude carry no direction)', () => {
+    const inputs: InputBinding[] = [
+      { kind: 'button', button: 0 },
+      { kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 },
+    ];
+    expect(cycleStepFromInputs(inputs, { ...ZERO, rz: 150 })).toBe(1);
   });
 
-  it('activation on another axis leaves TZ back fully intact', () => {
-    const onRz: AxisActivation = { axis: 'rz', direction: 'positive', threshold: 200 };
-    expect(tzBackEngaged(51, DZ, onRz)).toBe(true);
-    expect(tzBackEngaged(-51, DZ, onRz)).toBe(true);
+  it('is 0 with no inputs', () => {
+    expect(cycleStepFromInputs([], { ...ZERO, rz: 999 })).toBe(0);
+  });
+});
+
+describe('backAxisEngaged', () => {
+  const ZERO: SixAxes = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+
+  it('engages past the threshold in either direction (|value|)', () => {
+    const back: GestureBinding = {
+      inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }],
+    };
+    expect(backAxisEngaged(back, { ...ZERO, tz: 60 })).toBe(true);
+    expect(backAxisEngaged(back, { ...ZERO, tz: -60 })).toBe(true);
+    expect(backAxisEngaged(back, { ...ZERO, tz: 40 })).toBe(false);
   });
 
-  it('positive TZ activation cedes the up half — back is the down half', () => {
-    // center activation = TZ up, so back/pop responds only to TZ down.
-    expect(tzBackEngaged(-51, DZ, onTz('positive'))).toBe(true);
-    expect(tzBackEngaged(51, DZ, onTz('positive'))).toBe(false);
+  it('is direction-agnostic — even the half ceded to a split suppresses lateral', () => {
+    const back: GestureBinding = {
+      inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }],
+    };
+    // The positive half is ceded to a commit gesture, yet a positive
+    // deflection still quiets lateral (cross-talk is sign-agnostic).
+    expect(backAxisEngaged(back, { ...ZERO, tz: 60 })).toBe(true);
   });
 
-  it('negative TZ activation cedes the down half — back is the up half', () => {
-    expect(tzBackEngaged(51, DZ, onTz('negative'))).toBe(true);
-    expect(tzBackEngaged(-51, DZ, onTz('negative'))).toBe(false);
-  });
-
-  it('both-direction TZ activation claims the whole axis — no TZ back', () => {
-    expect(tzBackEngaged(51, DZ, onTz('both'))).toBe(false);
-    expect(tzBackEngaged(-51, DZ, onTz('both'))).toBe(false);
-  });
-
-  it('a deflection inside the deadzone never engages, regardless of activation', () => {
-    expect(tzBackEngaged(10, DZ, undefined)).toBe(false);
-    expect(tzBackEngaged(-10, DZ, onTz('positive'))).toBe(false);
-  });
-
-  it('cedes the activation half to the cross-talk guard, not to lateral selection', () => {
-    // Regression pin for the cross-talk guard in useDrillNavigation: in
-    // the ceded half between the deadzone and the activation threshold,
-    // tzBackEngaged declines (the back gesture must not fire there) while
-    // meetsActivation hasn't committed yet — BUT shouldCancelOnZ still
-    // reports the axis engaged. The hook keys its lateral-suppression
-    // guard off shouldCancelOnZ, so a not-yet-committed activation push
-    // can't leak through to spurious sector hover/drill. If any of the
-    // three relationships below changes, the guard's premise broke.
-    const tz = DZ + 1; // past deadzone, well below the 200 threshold
-    expect(tzBackEngaged(tz, DZ, onTz('positive'))).toBe(false); // back declines the ceded half
-    expect(meetsActivation(tz, 'positive', 200)).toBe(false); // not committing yet
-    expect(shouldCancelOnZ(tz, DZ)).toBe(true); // but lateral stays suppressed
+  it('ignores non-axis inputs', () => {
+    const back: GestureBinding = { inputs: [{ kind: 'button', button: 0 }] };
+    expect(backAxisEngaged(back, { ...ZERO, tz: 999 })).toBe(false);
   });
 });
 

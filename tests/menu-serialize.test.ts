@@ -52,18 +52,6 @@ describe('serializeMenuConfig', () => {
     expect(json).not.toContain('centerField');
   });
 
-  it('round-trips a twistDrill through the validator', () => {
-    const cfg: MenuConfig = {
-      version: 1,
-      twistDrill: { enabled: true, threshold: 180 },
-      sectors: [{ label: 'Solo' }],
-    };
-    const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
-    const result = validateMenuConfig(parsed);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.config).toEqual(cfg);
-  });
-
   it('round-trips a navigation block through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,
@@ -84,37 +72,10 @@ describe('serializeMenuConfig', () => {
     if (result.ok) expect(result.config).toEqual(cfg);
   });
 
-  it('round-trips a twistCycle through the validator', () => {
-    const cfg: MenuConfig = {
-      version: 1,
-      twistCycle: { enabled: true, threshold: 100, priority: 'twist' },
-      sectors: [{ label: 'Solo' }],
-    };
-    const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
-    const result = validateMenuConfig(parsed);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.config).toEqual(cfg);
-  });
-
   it('round-trips a centerField (label + binding) through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,
       centerField: { label: 'Close', binding: { action: 'org.spaceux.builtins/cancel' } },
-      sectors: [{ label: 'Solo' }],
-    };
-    const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
-    const result = validateMenuConfig(parsed);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.config).toEqual(cfg);
-  });
-
-  it('round-trips a centerField activation through the validator', () => {
-    const cfg: MenuConfig = {
-      version: 1,
-      centerField: {
-        binding: { action: 'org.spaceux.builtins/cancel' },
-        activation: { axis: 'tz', direction: 'positive', threshold: 200 },
-      },
       sectors: [{ label: 'Solo' }],
     };
     const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));

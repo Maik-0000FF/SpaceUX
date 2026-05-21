@@ -21,7 +21,6 @@
 
 import type {
   ActivationDirection,
-  AxisActivation,
   GestureBinding,
   InputBinding,
   MenuAxisName,
@@ -51,16 +50,6 @@ export type PieGeometryConfig = {
   /** Magnitude below which no selection is made. Same unit as the raw
    *  axis values fed in. */
   deadzone: number;
-  /** Optional separate threshold for the TZ-cancel gesture
-   *  (puck pushed forward / pulled back). When unset it defaults
-   *  to `deadzone` — same behaviour as before this field existed.
-   *  Splitting it out lets the user raise the TZ cutoff to filter
-   *  out lateral-push cross-talk on pucks where TZ shares a sense
-   *  with TX/TY, without making the lateral selection more
-   *  jittery. Use :func:`resolveTzDeadzone` rather than reading
-   *  this field directly so a missing override never silently
-   *  produces a 0 threshold. */
-  tzDeadzone?: number;
   /** Flip the X axis. Useful when the puck's TX sign points opposite
    *  to what the user expects from the screen layout. */
   invertX: boolean;
@@ -178,39 +167,6 @@ export function rotateAxes(axes: PieAxes, angle: number): PieAxes {
   };
 }
 
-/**
- * Whether a TZ deflection should clear the sticky selection and light
- * up the cancel target. Direction-agnostic on purpose — push OR pull
- * both register, so users don't have to learn their puck's TZ polarity.
- *
- * Lives in this module as a pure function so the rule is testable in
- * isolation rather than buried in the React effect that consumes it.
- * Pair with :func:`resolveTzDeadzone` at the call site so the
- * caller's optional `tzDeadzone` override on `PieGeometryConfig`
- * applies — passing `config.deadzone` directly here ignores any
- * separately-configured TZ threshold.
- */
-export function shouldCancelOnZ(tz: number, deadzone: number): boolean {
-  return Math.abs(tz) > deadzone;
-}
-
-/**
- * Pick the right TZ-cancel threshold: the caller's `override` if
- * set, the lateral `fallback` otherwise. Centralising the
- * `?? fallback` rule in one helper keeps every TZ-related call
- * site (cancel/pop, future TZ-cancel UI hints, etc.) from
- * re-implementing the coalesce and drifting on edge cases —
- * notably the explicit `0` carry, which a future `||`
- * "simplification" would silently coalesce to the fallback.
- *
- * Takes two scalars rather than a `PieGeometryConfig` so the
- * caller (the per-frame puck-handling effect) doesn't have to
- * synthesise a config object just to read two fields.
- */
-export function resolveTzDeadzone(override: number | undefined, fallback: number): number {
-  return override ?? fallback;
-}
-
 /** Read a named axis from a six-axis snapshot. Thin indexed access,
  *  but centralising it keeps the activation call sites from hand-
  *  mapping axis names to fields (and lets the helper be unit-tested
@@ -227,10 +183,10 @@ export function axisValue(axes: SixAxes, axis: MenuAxisName): number {
  *   - `both`: the magnitude is above `threshold` (direction-agnostic,
  *     matching the historical TZ-cancel rule).
  *
- * Strict-greater on purpose, mirroring :func:`shouldCancelOnZ`, so a
- * deflection sitting exactly on the threshold doesn't fire. `threshold`
- * is always a positive magnitude; the sign handling lives here so the
- * caller passes the raw axis value untouched.
+ * Strict-greater on purpose (a deflection sitting exactly on the
+ * threshold doesn't fire). `threshold` is always a positive magnitude;
+ * the sign handling lives here so the caller passes the raw axis value
+ * untouched.
  */
 export function meetsActivation(
   value: number,
@@ -242,20 +198,6 @@ export function meetsActivation(
   return Math.abs(value) > threshold; // 'both'
 }
 
-/**
- * Whether the current TZ deflection should engage the back/pop gesture,
- * given an optional center activation that may reserve part of the TZ
- * axis.
- *
- * When the activation watches TZ, the back gesture takes the *opposite*
- * half — so binding the center to "TZ pulled up" leaves "TZ pushed
- * down" as back/pop, the split the feature is built around. A
- * `both`-direction TZ activation claims the whole axis, leaving no TZ
- * back trigger (callers should prefer `positive`/`negative` when they
- * still want back/pop). Activations on other axes — or none — leave the
- * historical direction-agnostic TZ back intact, identical to
- * :func:`shouldCancelOnZ`.
- */
 /**
  * Direction of a twist-to-cycle step from the raw RZ value: `+1` for a
  * positive twist (step to the next sector, clockwise), `-1` for a
@@ -273,19 +215,34 @@ export function twistCycleStep(rz: number, threshold: number): -1 | 0 | 1 {
   return 0;
 }
 
-export function tzBackEngaged(
-  tz: number,
-  tzDeadzone: number,
-  activation: AxisActivation | undefined,
-): boolean {
-  // Delegate the magnitude test so the strict-greater contract lives in
-  // exactly one place and the "identical to shouldCancelOnZ when no TZ
-  // activation is configured" promise stays self-enforcing.
-  if (!shouldCancelOnZ(tz, tzDeadzone)) return false;
-  if (!activation || activation.axis !== 'tz') return true;
-  if (activation.direction === 'positive') return tz < 0;
-  if (activation.direction === 'negative') return tz > 0;
-  return false; // 'both' → whole TZ axis reserved for the activation
+/**
+ * The twist-cycle step for a frame, derived from a gesture's inputs:
+ * the first axis input whose deflection passes its threshold decides the
+ * direction (+1 next / -1 previous) via :func:`twistCycleStep`. Non-axis
+ * inputs (button/magnitude) carry no direction and are skipped. `0` when
+ * nothing steps. Rising-edge gating stays at the call site.
+ */
+export function cycleStepFromInputs(inputs: readonly InputBinding[], axes: SixAxes): -1 | 0 | 1 {
+  for (const input of inputs) {
+    if (input.kind !== 'axis') continue;
+    const step = twistCycleStep(axisValue(axes, input.axis), input.threshold);
+    if (step !== 0) return step;
+  }
+  return 0;
+}
+
+/**
+ * Whether the back gesture's axis is deflected enough to suppress the
+ * lateral selection this frame — the generalised cross-talk guard.
+ * Direction-agnostic (uses |value|, like the old TZ guard) so a back
+ * deflection in *either* sense quiets lateral hover/drill, even the half
+ * ceded to a split. Only `axis` inputs participate; button/magnitude
+ * back bindings don't induce lateral cross-talk.
+ */
+export function backAxisEngaged(back: GestureBinding, axes: SixAxes): boolean {
+  return back.inputs.some(
+    (input) => input.kind === 'axis' && Math.abs(axisValue(axes, input.axis)) > input.threshold,
+  );
 }
 
 /**
@@ -357,7 +314,7 @@ export function inputActive(input: InputBinding, frame: GestureFrame): boolean {
       return meetsActivation(axisValue(frame.axes, input.axis), input.direction, input.threshold);
     case 'magnitude': {
       const { tx, ty, rx, ry } = frame.axes;
-      const magnitude = input.source === 'lateral' ? Math.hypot(tx, ty) : Math.hypot(rx, ry);
+      const magnitude = input.source === 'lateral' ? axesMagnitude({ tx, ty }) : Math.hypot(rx, ry);
       return magnitude > input.threshold;
     }
     case 'none':
