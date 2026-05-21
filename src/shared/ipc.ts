@@ -89,16 +89,17 @@ export const IpcChannel = {
    *  pops the overlay pie and drills the preview — and (b) skip the axis
    *  forwarding above when no one is listening. Fire-and-forget. */
   EDITOR_LIVE: 'spaceux:editor:live',
-  /** Editor pulls the connected device's button count (from the daemon
-   *  hello) so its button pickers only offer buttons that exist. 0 when
-   *  no device / count unknown; the editor falls back to a default range
-   *  then. The pull covers the mount-time value; live changes arrive on
-   *  EDITOR_DEVICE below. */
+  /** Editor pulls the connected device (button count + VID/PID/name +
+   *  active profile id) on mount: the count clamps its button pickers
+   *  (#66), the identity + profile label the active device/profile (#113).
+   *  See {@link EditorDeviceInfo}. The pull covers the mount-time value;
+   *  live changes arrive on EDITOR_DEVICE below. */
   EDITOR_GET_DEVICE: 'spaceux:editor:device:get',
-  /** Main pushes the device's button count to the editor whenever it
-   *  changes (hotplug swap / (un)plug, or daemon (re)connect) so an
-   *  open editor re-clamps its button pickers live (#66 PR 2b). Pairs
-   *  with the EDITOR_GET_DEVICE pull for the initial value. */
+  /** Main pushes the device ({@link EditorDeviceInfo}) to the editor
+   *  whenever it changes (hotplug swap / (un)plug, daemon (re)connect, or
+   *  a profile switch) so an open editor re-clamps its pickers (#66 PR 2b)
+   *  and updates the active-device/profile display (#113). Pairs with the
+   *  EDITOR_GET_DEVICE pull for the initial value. */
   EDITOR_DEVICE: 'spaceux:editor:device',
 
   // ── Pie appearance (own app setting, separate from menu.json and the
@@ -115,6 +116,19 @@ export const IpcChannel = {
    *  the live pie hot-reloads and the editor preview tracks it. */
   PIE_APPEARANCE_CHANGED: 'spaceux:pie:appearance:changed',
 } as const;
+
+/** The connected device as the editor sees it (#66, #113): the daemon's
+ *  button count + USB identity, plus the id of the per-device profile
+ *  currently driving the config. All-zero / empty `name` when no device
+ *  is attached; `profileId` is null when the global menu.json fallback is
+ *  active (no device, no matching profile, or a broken profile). */
+export type EditorDeviceInfo = {
+  buttons: number;
+  vendor: number;
+  product: number;
+  name: string;
+  profileId: string | null;
+};
 
 /** Editor colour theme. `system` follows the OS light/dark preference;
  *  `spaceux` is the branded palette. Persisted in editor-settings.json. */

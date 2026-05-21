@@ -4,6 +4,7 @@
 import type { PieThemeChoice, ThemeChoice } from '@/shared/ipc';
 import { PIE_OPACITY_MAX, PIE_OPACITY_MIN, PIE_OPACITY_STEP } from '@/shared/pie-appearance';
 
+import { DeviceStatus } from './components/DeviceStatus';
 import { LiveToggle } from './components/LiveToggle';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
@@ -64,7 +65,10 @@ export function App() {
   return (
     <div className={styles.app}>
       <header className={styles.toolbar}>
-        <span className={styles.brand}>SpaceUX</span>
+        <div className={styles.toolbarLeft}>
+          <span className={styles.brand}>SpaceUX</span>
+          <DeviceStatus />
+        </div>
         <div className={styles.toolbarControls}>
           <label className={styles.themeControl}>
             <span className={styles.themeLabel}>Pie</span>

@@ -19,6 +19,7 @@
 
 import type {
   DaemonStatusPayload,
+  EditorDeviceInfo,
   MenuConfigSnapshot,
   MenuOpenPayload,
   MenuWriteResult,
@@ -96,14 +97,14 @@ export type EditorBridge = {
    *  overlay pie (and skips axis forwarding) while the editor drives the
    *  preview with the puck. Fire-and-forget. */
   setLive(on: boolean): void;
-  /** Pull the connected device's button count (from the daemon hello) so
-   *  the button pickers offer only buttons that exist. 0 when no device
-   *  or unknown. */
-  getDeviceButtonCount(): Promise<number>;
-  /** Subscribe to device button-count changes (hotplug swap / (un)plug,
-   *  daemon (re)connect) so the pickers re-clamp live. Returns an
-   *  unsubscribe fn. */
-  onDeviceButtonCount(handler: (count: number) => void): () => void;
+  /** Pull the connected device (button count + VID/PID/name + active
+   *  profile id) on mount: clamps the button pickers (#66) and labels the
+   *  active device/profile (#113). All-zero / null when no device. */
+  getDeviceInfo(): Promise<EditorDeviceInfo>;
+  /** Subscribe to device changes (hotplug swap / (un)plug, daemon
+   *  (re)connect, or a profile switch) so the pickers re-clamp and the
+   *  active-device display tracks live. Returns an unsubscribe fn. */
+  onDeviceInfo(handler: (info: EditorDeviceInfo) => void): () => void;
   /** Pull the current pie appearance (theme + opacity) on mount. */
   getPieAppearance(): Promise<PieAppearance>;
   /** Push a partial appearance change (theme and/or opacity). Main
