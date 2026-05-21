@@ -78,14 +78,16 @@ static int build_pollfds(struct pollfd *fds, int input_fd, const struct sock_sta
 	return n;
 }
 
-/* Fetch the open device's identity and advertise it to clients. Called
- * at startup and on every (un)plug; sock_set_device only broadcasts when
- * the identity actually changes, so calling it unconditionally is fine. */
-static void publish_device(struct sock_state *s)
+/* Fetch the open device's identity, advertise it to clients, and return
+ * it so the caller can log without a second fetch. Called at startup and
+ * on every (un)plug; sock_set_device only broadcasts when the identity
+ * actually changes, so calling it unconditionally is fine. */
+static struct input_device_info publish_device(struct sock_state *s)
 {
 	struct input_device_info dev;
 	input_device_info(&dev);
 	sock_set_device(s, &dev);
+	return dev;
 }
 
 int main(void)
@@ -177,9 +179,7 @@ int main(void)
 					/* Swapped/replugged puck: advertise the new
 					 * device's identity (count + VID/PID/name) so
 					 * clients re-clamp and re-pick their profile. */
-					publish_device(&sock);
-					struct input_device_info dev;
-					input_device_info(&dev);
+					struct input_device_info dev = publish_device(&sock);
 					fprintf(stderr,
 						"spaceux-daemon: input device reopened: %s "
 						"(%04x:%04x)\n",
