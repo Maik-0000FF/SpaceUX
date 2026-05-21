@@ -8,22 +8,27 @@ import path from 'node:path';
 
 import { describeError } from '../shared/errors.js';
 import type { PieAppearance, PieThemeChoice } from '../shared/ipc.js';
-import { clampPieOpacity, DEFAULT_PIE_APPEARANCE, PIE_THEMES } from '../shared/pie-appearance.js';
+import {
+  clampPieBlur,
+  clampPieOpacity,
+  DEFAULT_PIE_APPEARANCE,
+  PIE_THEMES,
+} from '../shared/pie-appearance.js';
 
 /**
  * App-wide preferences stored at $XDG_CONFIG_HOME/spaceux/app-settings.json
  * (or ~/.config/spaceux/...). Distinct from editor-settings.json (editor UI
  * state) and menu.json (menu content): this holds settings that affect the
- * live pie itself — currently its appearance (theme + opacity), with blur to
- * follow. Same best-effort contract as editor-settings: a missing or corrupt
- * file yields defaults, and a failed write is logged, not thrown.
+ * live pie itself — its appearance (theme + opacity + blur). Same best-effort
+ * contract as editor-settings: a missing or corrupt file yields defaults, and
+ * a failed write is logged, not thrown.
  *
- * The pure validation (theme whitelist, opacity clamp, defaults) lives in
+ * The pure validation (theme whitelist, opacity/blur clamp, defaults) lives in
  * shared/pie-appearance so the editor renderer shares it; this module only
  * adds the file IO.
  */
 
-export type AppSettings = { pieTheme?: PieThemeChoice; pieOpacity?: number };
+export type AppSettings = { pieTheme?: PieThemeChoice; pieOpacity?: number; pieBlur?: number };
 
 const FILENAME = 'app-settings.json';
 const SUBDIR = 'spaceux';
@@ -58,6 +63,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
   if (typeof obj.pieOpacity === 'number' && Number.isFinite(obj.pieOpacity)) {
     out.pieOpacity = clampPieOpacity(obj.pieOpacity);
   }
+  if (typeof obj.pieBlur === 'number' && Number.isFinite(obj.pieBlur)) {
+    out.pieBlur = clampPieBlur(obj.pieBlur);
+  }
   return out;
 }
 
@@ -67,6 +75,7 @@ export async function loadPieAppearance(): Promise<PieAppearance> {
   return {
     theme: s.pieTheme ?? DEFAULT_PIE_APPEARANCE.theme,
     opacity: s.pieOpacity ?? DEFAULT_PIE_APPEARANCE.opacity,
+    blur: s.pieBlur ?? DEFAULT_PIE_APPEARANCE.blur,
   };
 }
 

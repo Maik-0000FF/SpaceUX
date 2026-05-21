@@ -4,7 +4,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clampPieBlur,
   clampPieOpacity,
+  PIE_BLUR_MAX,
+  PIE_BLUR_MIN,
   PIE_OPACITY_MAX,
   PIE_OPACITY_MIN,
   sanitizePieAppearancePatch,
@@ -18,12 +21,27 @@ describe('clampPieOpacity', () => {
   });
 });
 
+describe('clampPieBlur', () => {
+  it('clamps to the [MIN, MAX] band', () => {
+    expect(clampPieBlur(99)).toBe(PIE_BLUR_MAX);
+    expect(clampPieBlur(-3)).toBe(PIE_BLUR_MIN);
+    expect(clampPieBlur(2.5)).toBe(2.5);
+  });
+});
+
 describe('sanitizePieAppearancePatch', () => {
-  it('keeps a valid theme and opacity', () => {
-    expect(sanitizePieAppearancePatch({ theme: 'spaceux', opacity: 0.5 })).toEqual({
+  it('keeps a valid theme, opacity and blur', () => {
+    expect(sanitizePieAppearancePatch({ theme: 'spaceux', opacity: 0.5, blur: 4 })).toEqual({
       theme: 'spaceux',
       opacity: 0.5,
+      blur: 4,
     });
+  });
+
+  it('clamps an out-of-range blur and drops a non-finite one', () => {
+    expect(sanitizePieAppearancePatch({ blur: 99 })).toEqual({ blur: PIE_BLUR_MAX });
+    expect(sanitizePieAppearancePatch({ blur: -1 })).toEqual({ blur: PIE_BLUR_MIN });
+    expect(sanitizePieAppearancePatch({ blur: NaN })).toEqual({});
   });
 
   it('keeps only the valid field of a mixed patch', () => {
@@ -51,6 +69,6 @@ describe('sanitizePieAppearancePatch', () => {
   });
 
   it('returns an empty patch when no known keys are present', () => {
-    expect(sanitizePieAppearancePatch({ blur: 5, foo: 'bar' })).toEqual({});
+    expect(sanitizePieAppearancePatch({ foo: 'bar', baz: 1 })).toEqual({});
   });
 });

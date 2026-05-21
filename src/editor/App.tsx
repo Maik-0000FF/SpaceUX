@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import type { PieThemeChoice, ThemeChoice } from '@/shared/ipc';
-import { PIE_OPACITY_MAX, PIE_OPACITY_MIN, PIE_OPACITY_STEP } from '@/shared/pie-appearance';
+import {
+  PIE_BLUR_MAX,
+  PIE_BLUR_MIN,
+  PIE_BLUR_STEP,
+  PIE_OPACITY_MAX,
+  PIE_OPACITY_MIN,
+  PIE_OPACITY_STEP,
+} from '@/shared/pie-appearance';
 
 import { DeviceStatus } from './components/DeviceStatus';
 import { LiveToggle } from './components/LiveToggle';
@@ -34,7 +41,12 @@ export function App() {
   const device = useDeviceInfo();
 
   const { theme, changeTheme } = useThemePreference();
-  const { appearance: pie, setTheme: setPieTheme, setOpacity: setPieOpacity } = usePieAppearance();
+  const {
+    appearance: pie,
+    setTheme: setPieTheme,
+    setOpacity: setPieOpacity,
+    setBlur: setPieBlur,
+  } = usePieAppearance();
   useExternalSync();
   useWriteBack();
   useUndoRedoShortcuts();
@@ -100,6 +112,19 @@ export function App() {
               onChange={(e) => setPieOpacity(Number(e.target.value))}
             />
             <span className={styles.sliderValue}>{Math.round(pie.opacity * 100)}%</span>
+          </label>
+          <label className={styles.themeControl}>
+            <span className={styles.themeLabel}>Blur</span>
+            <input
+              className={styles.slider}
+              type="range"
+              min={PIE_BLUR_MIN}
+              max={PIE_BLUR_MAX}
+              step={PIE_BLUR_STEP}
+              value={pie.blur}
+              onChange={(e) => setPieBlur(Number(e.target.value))}
+            />
+            <span className={styles.sliderValue}>{pie.blur}px</span>
           </label>
           <label className={styles.themeControl}>
             <span className={styles.themeLabel}>Theme</span>

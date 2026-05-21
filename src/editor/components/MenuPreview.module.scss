@@ -32,6 +32,9 @@
   stroke: var(--pie-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
+  // Mirrors the live pie: --pie-blur softens the wedge graphics only, labels
+  // stay crisp. 0px (default) is a no-op.
+  filter: blur(var(--pie-blur, 0px));
   transition:
     fill 80ms ease-out,
     stroke 80ms ease-out;
@@ -75,6 +78,7 @@
   fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
+  filter: blur(var(--pie-blur, 0px));
   pointer-events: none;
 }
 
@@ -103,6 +107,7 @@
   stroke: var(--pie-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
+  filter: blur(var(--pie-blur, 0px));
   opacity: 0.35;
 
   .breadcrumbGroup:hover & {

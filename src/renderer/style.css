@@ -74,6 +74,10 @@ body {
    * (sectorCount=1). For multi-sector wedges the path is simply
    * connected, so fill-rule is a no-op there. */
   fill-rule: evenodd;
+  /* The appearance blur slider (--pie-blur, set on <html> by
+   * usePieAppearance) softens the wedge graphics only — labels are
+   * separate <text> elements and stay crisp. 0px (default) is a no-op. */
+  filter: blur(var(--pie-blur, 0px));
   transition:
     fill var(--transition-fast),
     stroke var(--transition-fast);
@@ -139,6 +143,7 @@ body {
   fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
+  filter: blur(var(--pie-blur, 0px));
   transition:
     fill var(--transition-fast),
     stroke var(--transition-fast);

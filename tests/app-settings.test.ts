@@ -69,18 +69,18 @@ describe('app-settings', () => {
   });
 
   describe('loadPieAppearance', () => {
-    it('fills defaults (dark / 0.6) when nothing is persisted', async () => {
-      expect(await loadPieAppearance()).toEqual({ theme: 'dark', opacity: 0.6 });
+    it('fills defaults (dark / 0.6 / no blur) when nothing is persisted', async () => {
+      expect(await loadPieAppearance()).toEqual({ theme: 'dark', opacity: 0.6, blur: 0 });
     });
 
     it('applies persisted values over the defaults', async () => {
-      await saveAppSettings({ pieTheme: 'light', pieOpacity: 0.45 });
-      expect(await loadPieAppearance()).toEqual({ theme: 'light', opacity: 0.45 });
+      await saveAppSettings({ pieTheme: 'light', pieOpacity: 0.45, pieBlur: 3 });
+      expect(await loadPieAppearance()).toEqual({ theme: 'light', opacity: 0.45, blur: 3 });
     });
 
     it('falls back per-field when only one is persisted', async () => {
       await saveAppSettings({ pieTheme: 'spaceux' });
-      expect(await loadPieAppearance()).toEqual({ theme: 'spaceux', opacity: 0.6 });
+      expect(await loadPieAppearance()).toEqual({ theme: 'spaceux', opacity: 0.6, blur: 0 });
     });
   });
 });

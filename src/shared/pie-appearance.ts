@@ -22,13 +22,25 @@ export const PIE_OPACITY_MIN = 0;
 export const PIE_OPACITY_MAX = 1;
 export const PIE_OPACITY_STEP = 0.05;
 
+/** Blur radius (px) applied to the wedge graphics. 0 = crisp (default, no
+ *  regression); the max is a gentle ceiling — beyond it the menu turns to
+ *  mush. Half-px steps give fine control at the low end where it reads. */
+export const PIE_BLUR_MIN = 0;
+export const PIE_BLUR_MAX = 10;
+export const PIE_BLUR_STEP = 0.5;
+
 /** Defaults preserve the original look: dark palette, fills at ~60% (the
- *  palette's original baked translucency). Opacity scales only the wedge
- *  fill alpha — strokes and labels are always fully opaque. */
-export const DEFAULT_PIE_APPEARANCE: PieAppearance = { theme: 'dark', opacity: 0.6 };
+ *  palette's original baked translucency), no blur. Opacity scales only the
+ *  wedge fill alpha and blur softens only the wedge graphics — strokes-aside,
+ *  the labels are always fully opaque and crisp. */
+export const DEFAULT_PIE_APPEARANCE: PieAppearance = { theme: 'dark', opacity: 0.6, blur: 0 };
 
 export function clampPieOpacity(n: number): number {
   return Math.min(PIE_OPACITY_MAX, Math.max(PIE_OPACITY_MIN, n));
+}
+
+export function clampPieBlur(n: number): number {
+  return Math.min(PIE_BLUR_MAX, Math.max(PIE_BLUR_MIN, n));
 }
 
 /**
@@ -47,6 +59,9 @@ export function sanitizePieAppearancePatch(patch: unknown): Partial<PieAppearanc
   }
   if (typeof p.opacity === 'number' && Number.isFinite(p.opacity)) {
     clean.opacity = clampPieOpacity(p.opacity);
+  }
+  if (typeof p.blur === 'number' && Number.isFinite(p.blur)) {
+    clean.blur = clampPieBlur(p.blur);
   }
   return clean;
 }

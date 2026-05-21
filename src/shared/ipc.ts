@@ -168,11 +168,12 @@ export type PieThemeChoice = 'dark' | 'light' | 'spaceux';
 
 /** The pie's appearance — its own app setting, independent of the editor
  *  UI theme. `opacity` is an overall translucency multiplier (1 = the
- *  palette's baked-in look). Blur will join here later without new
- *  channels. */
+ *  palette's baked-in look); `blur` is a Gaussian blur applied to the wedge
+ *  graphics in px (0 = crisp), leaving the labels sharp. */
 export type PieAppearance = {
   theme: PieThemeChoice;
   opacity: number;
+  blur: number;
 };
 
 /** Config plus the on-disk mtime it was read at. The editor snapshots
