@@ -9,6 +9,7 @@ import { LiveToggle } from './components/LiveToggle';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
 import { PreviewHeader } from './components/PreviewHeader';
+import { ProfileControls } from './components/ProfileControls';
 import { Properties } from './components/Properties';
 import { useExternalSync } from './hooks/useExternalSync';
 import { usePieAppearance } from './hooks/usePieAppearance';
@@ -70,6 +71,7 @@ export function App() {
           <DeviceStatus />
         </div>
         <div className={styles.toolbarControls}>
+          <ProfileControls />
           <label className={styles.themeControl}>
             <span className={styles.themeLabel}>Pie</span>
             <select

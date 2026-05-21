@@ -10,6 +10,8 @@ import {
   type MenuConfigSnapshot,
   type MenuWriteResult,
   type PieAppearance,
+  type ProfileActionResult,
+  type ProfilesState,
   type ThemeChoice,
 } from '../shared/ipc.js';
 import type { MenuConfig } from '../shared/menu.js';
@@ -59,6 +61,18 @@ const bridge: EditorBridge = {
     ipcRenderer.on(IpcChannel.EDITOR_DEVICE, listener);
     return () => ipcRenderer.off(IpcChannel.EDITOR_DEVICE, listener);
   },
+  getProfiles: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_PROFILES) as Promise<ProfilesState>,
+  onProfilesChanged: (handler) => {
+    const listener = (_evt: IpcRendererEvent, state: ProfilesState) => handler(state);
+    ipcRenderer.on(IpcChannel.EDITOR_PROFILES_CHANGED, listener);
+    return () => ipcRenderer.off(IpcChannel.EDITOR_PROFILES_CHANGED, listener);
+  },
+  setProfileOverride: (id: string | null) =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_SET_PROFILE_OVERRIDE, id) as Promise<void>,
+  saveProfile: () =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_SAVE_PROFILE) as Promise<ProfileActionResult>,
+  deleteProfile: (id: string) =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_DELETE_PROFILE, id) as Promise<ProfileActionResult>,
   getPieAppearance: () =>
     ipcRenderer.invoke(IpcChannel.GET_PIE_APPEARANCE) as Promise<PieAppearance>,
   setPieAppearance: (patch) => ipcRenderer.send(IpcChannel.SET_PIE_APPEARANCE, patch),
