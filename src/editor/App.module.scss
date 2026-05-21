@@ -50,20 +50,6 @@
   gap: 6px;
 }
 
-.slider {
-  width: 90px;
-  accent-color: var(--editor-accent);
-  cursor: pointer;
-}
-
-.sliderValue {
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--editor-fg-dim);
-  min-width: 32px;
-  text-align: right;
-}
-
 .themeLabel {
   font-size: 11px;
   text-transform: uppercase;
