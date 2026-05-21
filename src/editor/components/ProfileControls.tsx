@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useProfiles } from '../hooks/useProfiles';
@@ -10,10 +10,12 @@ import styles from './ProfileControls.module.scss';
 
 const AUTO = ''; // the <select> value standing for "Auto" (no override)
 
+type Feedback = { kind: 'ok' | 'error'; text: string };
+
 /**
  * Toolbar control for per-device profiles (#113): pick which profile drives
  * the live config, save the current config as the connected device's
- * profile, or delete a profile.
+ * profile, or delete the active profile.
  *
  * The dropdown is the manual *override*: "Auto" lets the connected device
  * pick its own profile (or the menu.json fallback), while choosing a
@@ -23,27 +25,53 @@ const AUTO = ''; // the <select> value standing for "Auto" (no override)
 export function ProfileControls() {
   const { ids, override } = useProfiles();
   const device = useDeviceInfo();
-  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
 
   const hasDevice = device.vendor !== 0 || device.product !== 0;
+  const deviceLabel = device.name || 'this device';
+
+  // Drop stale feedback ("Saved profile for <old device>") when the
+  // connected device changes — keyed on the identity, not profileId, so a
+  // save that makes the device's own profile active doesn't wipe its own
+  // just-shown confirmation.
+  useEffect(() => {
+    setFeedback(null);
+  }, [device.vendor, device.product]);
+  // Delete targets the *active* profile, so the connected device's
+  // auto-resolved profile can be removed without first overriding to it.
+  const activeProfile = device.profileId;
 
   const setOverride = (value: string): void => {
-    setError(null);
+    setFeedback(null);
     void window.editor.setProfileOverride(value === AUTO ? null : value);
   };
 
   const save = (): void => {
-    setError(null);
+    setFeedback(null);
     void window.editor.saveProfile().then((r) => {
-      if (!r.ok) setError(r.reason);
+      if (!r.ok) {
+        setFeedback({ kind: 'error', text: r.reason });
+        return;
+      }
+      // Saving targets the connected device's profile. When an override is
+      // active it isn't what's live, so say so — otherwise it just took
+      // effect (Auto resolves to the device's own profile).
+      setFeedback({
+        kind: 'ok',
+        text:
+          override === null
+            ? `Saved profile for ${deviceLabel}.`
+            : `Saved profile for ${deviceLabel}; still showing ${override}.`,
+      });
     });
   };
 
   const remove = (): void => {
-    if (override === null) return;
-    setError(null);
-    void window.editor.deleteProfile(override).then((r) => {
-      if (!r.ok) setError(r.reason);
+    if (activeProfile === null) return;
+    setFeedback(null);
+    void window.editor.deleteProfile(activeProfile).then((r) => {
+      if (!r.ok) setFeedback({ kind: 'error', text: r.reason });
+      else setFeedback({ kind: 'ok', text: `Deleted profile ${activeProfile}.` });
     });
   };
 
@@ -80,14 +108,21 @@ export function ProfileControls() {
         type="button"
         className={styles.button}
         onClick={remove}
-        disabled={override === null}
-        title={override === null ? 'Select a profile to delete' : `Delete profile ${override}`}
+        disabled={activeProfile === null}
+        title={
+          activeProfile === null
+            ? 'No profile is active to delete'
+            : `Delete the active profile (${activeProfile})`
+        }
       >
         Delete
       </button>
-      {error !== null && (
-        <span className={styles.error} role="alert">
-          {error}
+      {feedback !== null && (
+        <span
+          className={feedback.kind === 'error' ? styles.error : styles.ok}
+          role={feedback.kind === 'error' ? 'alert' : 'status'}
+        >
+          {feedback.text}
         </span>
       )}
     </div>
