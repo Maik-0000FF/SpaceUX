@@ -85,9 +85,10 @@ describe('isDaemonEvent', () => {
     expect(isDaemonEvent({ event: 'device', buttons: 0 })).toBe(true);
   });
 
-  it('accepts device identity fields on hello and device events (#113)', () => {
-    // VID/PID/name key the per-device profile and label the active
-    // device. Both events carry them; absent (older daemon) is also fine.
+  it('still accepts hello/device events that carry the #113 identity fields', () => {
+    // isDaemonEvent discriminates only on `event`, so this is a regression
+    // guard that the added VID/PID/name fields don't trip the predicate —
+    // not a wire-shape pin (that lives daemon-side, no C test harness).
     expect(
       isDaemonEvent({
         event: 'device',
