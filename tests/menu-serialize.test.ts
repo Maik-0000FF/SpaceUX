@@ -49,5 +49,28 @@ describe('serializeMenuConfig', () => {
     expect(json).not.toContain('triggerButton');
     expect(json).not.toContain('axisInvert');
     expect(json).not.toContain('binding');
+    expect(json).not.toContain('centerField');
+  });
+
+  it('round-trips a centerField (label + binding) through the validator', () => {
+    const cfg: MenuConfig = {
+      version: 1,
+      centerField: { label: 'Close', binding: { action: 'org.spaceux.builtins/cancel' } },
+      sectors: [{ label: 'Solo' }],
+    };
+    const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
+    const result = validateMenuConfig(parsed);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.config).toEqual(cfg);
+  });
+
+  it('emits centerField before sectors', () => {
+    const cfg: MenuConfig = {
+      version: 1,
+      centerField: { label: 'Close' },
+      sectors: [{ label: 'Solo' }],
+    };
+    const out = serializeMenuConfig(cfg);
+    expect(out.indexOf('"centerField"')).toBeLessThan(out.indexOf('"sectors"'));
   });
 });

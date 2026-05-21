@@ -466,6 +466,78 @@ describe('validateMenuConfig — nested submenus', () => {
   });
 });
 
+describe('validateMenuConfig — centerField', () => {
+  it('is undefined when the field is absent (historical cancel behavior)', () => {
+    const r = validateMenuConfig({ version: MENU_CONFIG_VERSION, sectors: [{ label: 'x' }] });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.centerField).toBeUndefined();
+  });
+
+  it('accepts a center with label + binding and round-trips both', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      centerField: {
+        label: 'Close',
+        binding: { action: builtinAction(BUILTIN_ACTION.CANCEL) },
+      },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.centerField?.label).toBe('Close');
+      expect(r.config.centerField?.binding).toEqual({
+        action: builtinAction(BUILTIN_ACTION.CANCEL),
+      });
+    }
+  });
+
+  it('drops an empty center object (treated as omitted, never persisted)', () => {
+    // `{}` is semantically identical to no centerField at all; the
+    // validator normalises it to undefined so it can't round-trip to
+    // disk as a meaningless `"centerField": {}`.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      centerField: {},
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.centerField).toBeUndefined();
+  });
+
+  it('accepts a center binding to any action, not just cancel', () => {
+    // The center is a fully configurable target — pin that a non-cancel
+    // action is accepted so a future "center must be cancel" tightening
+    // has to delete this test rather than silently regress.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      centerField: { binding: { action: builtinAction('exec'), config: { command: 'x' } } },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.centerField?.binding?.action).toBe(builtinAction('exec'));
+  });
+
+  it('rejects malformed center shapes', () => {
+    const cases: Array<[unknown, RegExp]> = [
+      ['not-an-object', /centerField must be an object/],
+      [[], /centerField must be an object/],
+      [{ label: '   ' }, /"label".*non-empty string/],
+      [{ label: 42 }, /"label".*non-empty string/],
+      [{ icon: 42 }, /"icon".*must be a string/],
+      [{ binding: {} }, /binding.*"action".*non-empty string/],
+    ];
+    for (const [bad, pattern] of cases) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        centerField: bad,
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `centerField=${JSON.stringify(bad)}`).toBe(false);
+      if (!r.ok) expect(r.reason, `centerField=${JSON.stringify(bad)}`).toMatch(pattern);
+    }
+  });
+});
+
 describe('DEFAULT_MENU_CONFIG', () => {
   it('pins triggerButton to DEFAULT_TRIGGER_BUTTON', () => {
     // The shipped default exposes the trigger explicitly so users
@@ -619,6 +691,18 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
     expect(r.ok).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining('[menu-loader] unknown field "fakefield" at sector 0 child 0'),
+    );
+  });
+
+  it('warns for an unknown field inside centerField with the center path', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      centerField: { label: 'x', bindings: { action: 'p/x' } }, // typo of "binding"
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[menu-loader] unknown field "bindings" at centerField'),
     );
   });
 

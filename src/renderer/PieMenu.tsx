@@ -186,12 +186,16 @@ export function PieMenu({
       }
     : { width: displaySize, height: displaySize };
 
-  // Center-cancel target. Active whenever no sector is selected
-  // (puck in deadzone): a commit in that state is a silent dismiss,
-  // so highlighting the centre tells the user "release now and the
-  // pie goes away with no action". The radius is a visual cue, not
-  // a hit-test — the underlying selection logic is in App.tsx.
+  // Center target. Active whenever no sector is selected (puck in
+  // deadzone): committing in that state fires the center field's
+  // binding, or silently dismisses when it has none. Highlighting the
+  // centre tells the user "release now and the center wins". The
+  // radius is a visual cue, not a hit-test — the selection logic is in
+  // App.tsx. The label comes from `config.centerField`, falling back
+  // to the historical ✕ glyph when the field is unset (icon parallels
+  // sector icons and is ignored by the v0 renderer).
   const cancelActive = activeSector === null;
+  const centerLabel = config.centerField?.label ?? '✕';
 
   // Mid-radius of the outer ring band, used to position outer-ring
   // labels in the visual centre of each wedge. Pre-computed because
@@ -254,7 +258,7 @@ export function PieMenu({
           textAnchor="middle"
           dominantBaseline="central"
         >
-          ✕
+          {centerLabel}
         </text>
         {innerSectors.map((sector, i) => (
           <SectorLabel

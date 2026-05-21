@@ -77,12 +77,22 @@ export function App() {
       const cfg = configRef.current;
       const { navigation, stickyChildIndex } = drillStateRef.current;
       if (!cfg || stickyChildIndex === null) {
-        // No selection (puck never left deadzone or TZ-cancelled) →
-        // silent dismiss. Tell main to actually hide the window;
-        // local state resets so the next open starts clean.
+        // No sector selected (puck centered, or TZ-cancelled) → the
+        // center field wins. Hide the window first so a second commit
+        // can't double-fire, reset local state for a clean next open,
+        // then invoke the center's binding if it has one. No binding
+        // (or no config) → silent dismiss, the historical cancel.
         setMenuAnchor(null);
         dispatch({ type: 'reset' });
         window.spaceux.closeMenu();
+        const centerBinding = cfg?.centerField?.binding;
+        if (centerBinding) {
+          const { action, config: actionConfig } = centerBinding;
+          window.spaceux.invokeAction(action, actionConfig ?? {}).catch((err: unknown) => {
+            // eslint-disable-next-line no-console
+            console.warn(`[action] ${action} failed:`, err);
+          });
+        }
         return;
       }
       const current = currentSectors(cfg, navigation);
