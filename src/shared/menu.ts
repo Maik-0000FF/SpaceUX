@@ -15,7 +15,12 @@
  * an optional field is *not* a breaking change.
  */
 
-/** Bumped on every backwards-incompatible schema change. */
+/** Bumped on every backwards-incompatible schema change. Adding an
+ *  optional field is *not* a breaking change — the `navigation` block
+ *  (issue #105) is additive and stays at v1. The bump + a legacy→
+ *  navigation migrator land in the later PR that removes the legacy
+ *  gesture fields and switches the runtime over (that is the breaking
+ *  change). */
 export const MENU_CONFIG_VERSION = 1;
 
 /** Hard cap on how deeply menus can nest. Each level inside a
@@ -189,6 +194,94 @@ export type MenuTwistCycle = {
  *  steps, firmer twist drills — works out of the box. */
 export const DEFAULT_TWIST_CYCLE_THRESHOLD = 100;
 
+// ── Navigation input bindings (issue #105) ──────────────────────────
+//
+// A unified way to bind a navigation *gesture* (drill in, back/pop,
+// cycle, commit-center) to an *input* — a device button, a split axis,
+// or a 2D magnitude — configurable globally and (later) per sector.
+// This will subsume the scattered legacy fields (tzDeadzone, the
+// *Drill knobs, twistCycle, centerField.activation) via a v1→v2
+// migration; for now the type is additive and unused at runtime.
+
+/** A single thing that can fire a gesture. Tagged union so one editor
+ *  dropdown can offer every input kind, and one resolver can test them
+ *  uniformly. */
+export const INPUT_KINDS = ['button', 'axis', 'magnitude', 'none'] as const;
+export type InputKind = (typeof INPUT_KINDS)[number];
+
+/** 2D magnitude sources — the omnidirectional gestures that aren't a
+ *  single-axis split. `lateral` = hypot(tx, ty) (today's
+ *  magnitudeDrill), `tilt` = hypot(rx, ry) (today's tiltDrill). */
+export const MAGNITUDE_SOURCES = ['lateral', 'tilt'] as const;
+export type MagnitudeSource = (typeof MAGNITUDE_SOURCES)[number];
+
+/** Press of a device button (zero-based index; valid range depends on
+ *  the connected device's button count). */
+export type ButtonInput = { kind: 'button'; button: number };
+/** A single axis past a threshold on one side (`positive`/`negative`)
+ *  or either (`both`). Generalises the old `AxisActivation`. For the
+ *  *cycle* gesture a `both`-direction axis steps by the deflection's
+ *  sign. */
+export type AxisInput = {
+  kind: 'axis';
+  axis: MenuAxisName;
+  direction: ActivationDirection;
+  threshold: number;
+};
+/** A 2D push/tilt magnitude past a threshold (direction-agnostic). */
+export type MagnitudeInput = { kind: 'magnitude'; source: MagnitudeSource; threshold: number };
+/** Explicitly unbound. */
+export type NoInput = { kind: 'none' };
+
+export type InputBinding = ButtonInput | AxisInput | MagnitudeInput | NoInput;
+
+/** One gesture's binding: a *list* of inputs — ANY of them fires it.
+ *  A list (not a single input) because today several drills can be
+ *  enabled at once; the common case is a one-element list. */
+export type GestureBinding = {
+  inputs: InputBinding[];
+};
+
+/** The cycle gesture additionally needs the lateral-vs-twist priority
+ *  (carried over from `MenuTwistCycle`). Its inputs are interpreted
+ *  directionally — a `both` axis steps next/prev by the sign. */
+export type CycleBinding = GestureBinding & {
+  priority: TwistCyclePriority;
+};
+
+/** Global navigation-gesture bindings. Each gesture maps to the inputs
+ *  that trigger it. (Commit/open via the trigger button stays on
+ *  `MenuConfig.triggerButton` for now — folded in by a later PR.) */
+export type MenuNavigation = {
+  /** Drill into a hovered branch. Legacy: magnitudeDrill + tiltDrill + twistDrill. */
+  drillIn: GestureBinding;
+  /** Pop one level (drilled) or dismiss (top level). Legacy: TZ-back via tzDeadzone. */
+  back: GestureBinding;
+  /** Step the highlighted selection within a ring. Legacy: twistCycle. */
+  cycle: CycleBinding;
+  /** Commit the center field (fire its binding / dismiss). Legacy: centerField.activation. */
+  cancel: GestureBinding;
+};
+
+/** Default navigation bindings: the historical behaviour expressed in
+ *  the new model. Only `back` is bound out of the box (symmetric TZ at
+ *  the lateral deadzone, 50) — the drills, cycle, and axis-cancel are
+ *  all opt-in, matching today's defaults. Used as the fallback when a
+ *  config omits `navigation` and as the seed for a fresh menu. */
+export const DEFAULT_NAVIGATION: MenuNavigation = {
+  drillIn: { inputs: [] },
+  back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
+  cycle: { inputs: [], priority: 'lateral' },
+  cancel: { inputs: [] },
+};
+
+/** Resolve the navigation block for a config that may omit it, so every
+ *  consumer sees a complete :type:`MenuNavigation`. Mirrors the
+ *  `resolveAxisInvert` pattern — one fallback, no per-call-site drift. */
+export function resolveNavigation(config: Pick<MenuConfig, 'navigation'>): MenuNavigation {
+  return config.navigation ?? DEFAULT_NAVIGATION;
+}
+
 /** Shipped default for :type:`MenuAxisInvert` — both axes raw
  *  (correct for the SpaceNavigator we tested on). Used as the
  *  explicit setting in :data:`DEFAULT_MENU_CONFIG` *and* as the
@@ -337,6 +430,12 @@ export type MenuConfig = {
    *  historical hardcoded cancel target (✕ glyph, silent dismiss on
    *  commit). See :type:`MenuCenter`. */
   centerField?: MenuCenter;
+  /** Unified navigation-gesture input bindings (issue #105). Optional
+   *  and additive: omitting it falls back to :data:`DEFAULT_NAVIGATION`
+   *  via :func:`resolveNavigation`. The legacy gesture fields still
+   *  drive the runtime; a later PR migrates onto this block and removes
+   *  them. */
+  navigation?: MenuNavigation;
   /** Sectors in clockwise order starting at 12 o'clock. The pie's
    *  sector count = sectors.length — there is no separate "count"
    *  knob and there cannot be one. */
@@ -420,9 +519,17 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'twistCycle',
   'scale',
   'centerField',
+  'navigation',
   'sectors',
 ];
 const KNOWN_TWIST_CYCLE_FIELDS: readonly string[] = ['enabled', 'threshold', 'priority'];
+const KNOWN_NAVIGATION_FIELDS: readonly string[] = ['drillIn', 'back', 'cycle', 'cancel'];
+const KNOWN_GESTURE_FIELDS: readonly string[] = ['inputs'];
+const KNOWN_CYCLE_GESTURE_FIELDS: readonly string[] = ['inputs', 'priority'];
+const KNOWN_BUTTON_INPUT_FIELDS: readonly string[] = ['kind', 'button'];
+const KNOWN_AXIS_INPUT_FIELDS: readonly string[] = ['kind', 'axis', 'direction', 'threshold'];
+const KNOWN_MAGNITUDE_INPUT_FIELDS: readonly string[] = ['kind', 'source', 'threshold'];
+const KNOWN_NONE_INPUT_FIELDS: readonly string[] = ['kind'];
 const KNOWN_CENTER_FIELDS: readonly string[] = ['label', 'icon', 'binding', 'activation'];
 const KNOWN_ACTIVATION_FIELDS: readonly string[] = ['axis', 'direction', 'threshold'];
 // 'id' is the editor-only stable identity (see MenuSector.id). The
@@ -591,6 +698,13 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     }
   }
 
+  if (obj.navigation !== undefined) {
+    const navResult = validateNavigation(obj.navigation, 'navigation');
+    if (!navResult.ok) return { ok: false, reason: navResult.reason };
+    result.navigation = navResult.value;
+    warnNavigationConflicts(navResult.value);
+  }
+
   warnUnknownFields(obj, KNOWN_MENU_CONFIG_FIELDS, 'menu config');
   return { ok: true, config: result };
 }
@@ -669,6 +783,213 @@ function validateTwistCycle(raw: unknown, fieldName: string): TwistCycleValidati
       priority: c.priority as TwistCyclePriority,
     },
   };
+}
+
+// ── Navigation validation (issue #105) ──────────────────────────────
+
+type InputValidation = { ok: true; value: InputBinding } | { ok: false; reason: string };
+
+/** Validate one :type:`InputBinding`. Structural problems (unknown
+ *  `kind`, bad axis/direction/source, non-positive threshold,
+ *  negative button) are hard rejections; binding *conflicts* between
+ *  gestures are only warned about elsewhere (see
+ *  :func:`warnNavigationConflicts`) per the issue-#105 "permissive +
+ *  warn" decision. */
+function validateInputBinding(raw: unknown, where: string): InputValidation {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return { ok: false, reason: `${where} must be an object` };
+  }
+  const o = raw as Record<string, unknown>;
+  if (typeof o.kind !== 'string' || !INPUT_KINDS.includes(o.kind as InputKind)) {
+    return { ok: false, reason: `${where} field "kind" must be one of ${INPUT_KINDS.join(', ')}` };
+  }
+  switch (o.kind as InputKind) {
+    case 'button': {
+      if (typeof o.button !== 'number' || !Number.isInteger(o.button) || o.button < 0) {
+        return { ok: false, reason: `${where} field "button" must be a non-negative integer` };
+      }
+      warnUnknownFields(o, KNOWN_BUTTON_INPUT_FIELDS, where);
+      return { ok: true, value: { kind: 'button', button: o.button } };
+    }
+    case 'axis': {
+      if (typeof o.axis !== 'string' || !MENU_AXES.includes(o.axis as MenuAxisName)) {
+        return {
+          ok: false,
+          reason: `${where} field "axis" must be one of ${MENU_AXES.join(', ')}`,
+        };
+      }
+      if (
+        typeof o.direction !== 'string' ||
+        !ACTIVATION_DIRECTIONS.includes(o.direction as ActivationDirection)
+      ) {
+        return {
+          ok: false,
+          reason: `${where} field "direction" must be one of ${ACTIVATION_DIRECTIONS.join(', ')}`,
+        };
+      }
+      if (typeof o.threshold !== 'number' || !Number.isFinite(o.threshold) || o.threshold <= 0) {
+        return { ok: false, reason: `${where} field "threshold" must be a positive finite number` };
+      }
+      warnUnknownFields(o, KNOWN_AXIS_INPUT_FIELDS, where);
+      return {
+        ok: true,
+        value: {
+          kind: 'axis',
+          axis: o.axis as MenuAxisName,
+          direction: o.direction as ActivationDirection,
+          threshold: o.threshold,
+        },
+      };
+    }
+    case 'magnitude': {
+      if (
+        typeof o.source !== 'string' ||
+        !MAGNITUDE_SOURCES.includes(o.source as MagnitudeSource)
+      ) {
+        return {
+          ok: false,
+          reason: `${where} field "source" must be one of ${MAGNITUDE_SOURCES.join(', ')}`,
+        };
+      }
+      if (typeof o.threshold !== 'number' || !Number.isFinite(o.threshold) || o.threshold <= 0) {
+        return { ok: false, reason: `${where} field "threshold" must be a positive finite number` };
+      }
+      warnUnknownFields(o, KNOWN_MAGNITUDE_INPUT_FIELDS, where);
+      return {
+        ok: true,
+        value: { kind: 'magnitude', source: o.source as MagnitudeSource, threshold: o.threshold },
+      };
+    }
+    case 'none':
+      warnUnknownFields(o, KNOWN_NONE_INPUT_FIELDS, where);
+      return { ok: true, value: { kind: 'none' } };
+  }
+}
+
+type GestureValidation<T> = { ok: true; value: T } | { ok: false; reason: string };
+
+/** Validate a gesture's `inputs` array (each an InputBinding). A
+ *  missing array defaults to empty (gesture unbound). */
+function validateInputs(raw: unknown, where: string): GestureValidation<InputBinding[]> {
+  if (raw === undefined) return { ok: true, value: [] };
+  if (!Array.isArray(raw)) {
+    return { ok: false, reason: `${where} field "inputs" must be an array when present` };
+  }
+  const inputs: InputBinding[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const r = validateInputBinding(raw[i], `${where} input ${i}`);
+    if (!r.ok) return { ok: false, reason: r.reason };
+    inputs.push(r.value);
+  }
+  return { ok: true, value: inputs };
+}
+
+/** Validate a plain (non-cycle) gesture binding. */
+function validateGestureBinding(raw: unknown, where: string): GestureValidation<GestureBinding> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return { ok: false, reason: `${where} must be an object when present` };
+  }
+  const o = raw as Record<string, unknown>;
+  const inputs = validateInputs(o.inputs, where);
+  if (!inputs.ok) return { ok: false, reason: inputs.reason };
+  warnUnknownFields(o, KNOWN_GESTURE_FIELDS, where);
+  return { ok: true, value: { inputs: inputs.value } };
+}
+
+/** Validate the cycle gesture binding (inputs + priority enum). */
+function validateCycleBinding(raw: unknown, where: string): GestureValidation<CycleBinding> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return { ok: false, reason: `${where} must be an object when present` };
+  }
+  const o = raw as Record<string, unknown>;
+  const inputs = validateInputs(o.inputs, where);
+  if (!inputs.ok) return { ok: false, reason: inputs.reason };
+  let priority: TwistCyclePriority = 'lateral';
+  if (o.priority !== undefined) {
+    if (
+      typeof o.priority !== 'string' ||
+      !TWIST_CYCLE_PRIORITIES.includes(o.priority as TwistCyclePriority)
+    ) {
+      return {
+        ok: false,
+        reason: `${where} field "priority" must be one of ${TWIST_CYCLE_PRIORITIES.join(', ')}`,
+      };
+    }
+    priority = o.priority as TwistCyclePriority;
+  }
+  warnUnknownFields(o, KNOWN_CYCLE_GESTURE_FIELDS, where);
+  return { ok: true, value: { inputs: inputs.value, priority } };
+}
+
+type NavigationValidation = { ok: true; value: MenuNavigation } | { ok: false; reason: string };
+
+/** Validate the optional `navigation` block. Each gesture is optional;
+ *  an omitted one defaults to *unbound* (empty inputs) — distinct from
+ *  omitting the whole block, which falls back to the historical
+ *  defaults via :func:`resolveNavigation`. */
+function validateNavigation(raw: unknown, where: string): NavigationValidation {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return { ok: false, reason: `${where} must be an object when present` };
+  }
+  const o = raw as Record<string, unknown>;
+  const drillIn = validateGestureBinding(o.drillIn ?? {}, `${where}.drillIn`);
+  if (!drillIn.ok) return { ok: false, reason: drillIn.reason };
+  const back = validateGestureBinding(o.back ?? {}, `${where}.back`);
+  if (!back.ok) return { ok: false, reason: back.reason };
+  const cycle = validateCycleBinding(o.cycle ?? {}, `${where}.cycle`);
+  if (!cycle.ok) return { ok: false, reason: cycle.reason };
+  const cancel = validateGestureBinding(o.cancel ?? {}, `${where}.cancel`);
+  if (!cancel.ok) return { ok: false, reason: cancel.reason };
+  warnUnknownFields(o, KNOWN_NAVIGATION_FIELDS, where);
+  return {
+    ok: true,
+    value: { drillIn: drillIn.value, back: back.value, cycle: cycle.value, cancel: cancel.value },
+  };
+}
+
+/** A stable key identifying which input two gestures would collide on:
+ *  same button, or same axis (any direction), or same magnitude source.
+ *  `none` never collides. */
+function inputConflictKey(input: InputBinding): string | null {
+  switch (input.kind) {
+    case 'button':
+      return `button:${input.button}`;
+    case 'axis':
+      return `axis:${input.axis}`;
+    case 'magnitude':
+      return `magnitude:${input.source}`;
+    case 'none':
+      return null;
+  }
+}
+
+/** Warn (never reject) when two gestures bind the same input — the
+ *  issue-#105 "permissive + warn" rule. Splitting an axis by direction
+ *  is legitimate, so this is a heads-up, not an error; the user tunes
+ *  the feel on hardware. */
+function warnNavigationConflicts(nav: MenuNavigation): void {
+  const seen = new Map<string, string>(); // conflict key → first gesture that used it
+  const gestures: Array<[string, GestureBinding]> = [
+    ['drillIn', nav.drillIn],
+    ['back', nav.back],
+    ['cycle', nav.cycle],
+    ['cancel', nav.cancel],
+  ];
+  for (const [name, gesture] of gestures) {
+    for (const input of gesture.inputs) {
+      const key = inputConflictKey(input);
+      if (key === null) continue;
+      const prev = seen.get(key);
+      if (prev !== undefined && prev !== name) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[menu-loader] navigation: "${name}" and "${prev}" both bind ${key} — they may fight; split by direction or pick distinct inputs`,
+        );
+      } else if (prev === undefined) {
+        seen.set(key, name);
+      }
+    }
+  }
 }
 
 type SectorValidation = { ok: true; value: MenuSector } | { ok: false; reason: string };
@@ -881,6 +1202,36 @@ function orderCenter(center: MenuCenter): Record<string, unknown> {
   return out;
 }
 
+/** Build a plain object for one input binding with a fixed key order. */
+function orderInput(input: InputBinding): Record<string, unknown> {
+  switch (input.kind) {
+    case 'button':
+      return { kind: 'button', button: input.button };
+    case 'axis':
+      return {
+        kind: 'axis',
+        axis: input.axis,
+        direction: input.direction,
+        threshold: input.threshold,
+      };
+    case 'magnitude':
+      return { kind: 'magnitude', source: input.source, threshold: input.threshold };
+    case 'none':
+      return { kind: 'none' };
+  }
+}
+
+/** Build a plain object for the navigation block with a fixed key
+ *  order (gesture order + each input's keys), for stable diffs. */
+function orderNavigation(nav: MenuNavigation): Record<string, unknown> {
+  return {
+    drillIn: { inputs: nav.drillIn.inputs.map(orderInput) },
+    back: { inputs: nav.back.inputs.map(orderInput) },
+    cycle: { inputs: nav.cycle.inputs.map(orderInput), priority: nav.cycle.priority },
+    cancel: { inputs: nav.cancel.inputs.map(orderInput) },
+  };
+}
+
 /** Build a plain object for one sector with a fixed key order, omitting
  *  absent optional fields. Recursive for nested children. */
 function orderSector(sector: MenuSector): Record<string, unknown> {
@@ -924,6 +1275,7 @@ export function serializeMenuConfig(config: MenuConfig): string {
     };
   }
   if (config.centerField !== undefined) out.centerField = orderCenter(config.centerField);
+  if (config.navigation !== undefined) out.navigation = orderNavigation(config.navigation);
   out.sectors = config.sectors.map(orderSector);
   return JSON.stringify(out, null, 2) + '\n';
 }
