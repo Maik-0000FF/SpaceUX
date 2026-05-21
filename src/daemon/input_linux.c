@@ -36,6 +36,12 @@ static const size_t SPACEMOUSE_VIDS_N = sizeof(SPACEMOUSE_VIDS) / sizeof(SPACEMO
 
 static int g_axis_state[SPACEUX_AXIS_COUNT];
 static int g_axis_dirty;
+/* Button count of the currently-open device, discovered from its
+ * EV_KEY capability bits (0 when no device is open). Lets the editor
+ * offer only the buttons the puck actually has — accurate for every
+ * model, present and future, with no per-model table to maintain
+ * (see #66). */
+static int g_button_count;
 
 static int vid_matches(unsigned short vid)
 {
@@ -43,6 +49,28 @@ static int vid_matches(unsigned short vid)
 		if (SPACEMOUSE_VIDS[i] == vid)
 			return 1;
 	return 0;
+}
+
+/* Count the buttons a device exposes via its EV_KEY capability bitmap,
+ * over exactly the codes input_poll maps to a bnum: BTN_0..BTN_9
+ * (bnum 0..9) and BTN_TRIGGER_HAPPY1..40 (bnum 10..49). The kernel
+ * reports the device's real capabilities, so this is the authoritative
+ * per-device count without any VID/PID database. Returns 0 on failure. */
+static int discover_button_count(int fd)
+{
+	unsigned long keybits[(KEY_MAX / (8 * sizeof(unsigned long))) + 1];
+	memset(keybits, 0, sizeof(keybits));
+	if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keybits)), keybits) < 0)
+		return 0;
+	const unsigned long wb = 8 * sizeof(unsigned long);
+	int count = 0;
+	for (int code = BTN_0; code <= BTN_9; code++)
+		if (keybits[code / wb] & (1UL << (code % wb)))
+			count++;
+	for (int code = BTN_TRIGGER_HAPPY1; code <= BTN_TRIGGER_HAPPY40; code++)
+		if (keybits[code / wb] & (1UL << (code % wb)))
+			count++;
+	return count;
 }
 
 static int looks_like_spacemouse(int fd)
@@ -95,6 +123,7 @@ int input_open(void)
 
 	memset(g_axis_state, 0, sizeof(g_axis_state));
 	g_axis_dirty = 0;
+	g_button_count = found_fd >= 0 ? discover_button_count(found_fd) : 0;
 	return found_fd;
 }
 
@@ -104,6 +133,12 @@ void input_close(int fd)
 		close(fd);
 	memset(g_axis_state, 0, sizeof(g_axis_state));
 	g_axis_dirty = 0;
+	g_button_count = 0;
+}
+
+int input_button_count(void)
+{
+	return g_button_count;
 }
 
 /* Map a Linux EV_KEY code to a 0-based bnum. Buttons 1..10 live in

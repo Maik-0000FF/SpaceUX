@@ -76,6 +76,11 @@ struct sock_state {
 	 * no-ops; the client side checks the hello event's "led" flag
 	 * to suppress the round-trip entirely when it's known dead. */
 	int led_fd;
+	/* Button count reported in the `hello` event, kept in sync by the
+	 * daemon with the open device's discovered count (0 when none).
+	 * Lets a client (the editor) constrain its button pickers to what
+	 * the puck actually has. */
+	int button_count;
 };
 
 /* Bind a UNIX socket at /run/user/<uid>/spaceux.sock and start
@@ -111,6 +116,11 @@ void sock_set_inject_fd(struct sock_state *s, int fd);
 /* Same idea for the LED layer: wire led_open's fd into dispatch.
  * -1 disables SET_LED handling. */
 void sock_set_led_fd(struct sock_state *s, int fd);
+
+/* Set the button count advertised to clients in `hello`. The daemon
+ * calls this whenever the input device opens or closes (the discovered
+ * count, or 0 when no device is attached). */
+void sock_set_button_count(struct sock_state *s, int count);
 
 /* Returns 1 if any client currently holds the GRAB. */
 int sock_any_grabbed(const struct sock_state *s);

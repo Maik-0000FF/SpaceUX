@@ -115,6 +115,7 @@ int main(void)
 
 	int input_fd = input_open();
 	long long last_input_retry = time_ms();
+	sock_set_button_count(&sock, input_fd >= 0 ? input_button_count() : 0);
 	if (input_fd < 0)
 		fprintf(stderr, "spaceux-daemon: no SpaceMouse detected yet, will retry\n");
 
@@ -148,6 +149,9 @@ int main(void)
 				input_close(input_fd);
 				input_fd = -1;
 				last_input_retry = time_ms();
+				/* Device unplugged: clear the advertised count so a
+				 * client connecting before the replug sees "none". */
+				sock_set_button_count(&sock, 0);
 				fprintf(stderr, "spaceux-daemon: input device gone, retrying\n");
 			}
 		}
@@ -157,8 +161,12 @@ int main(void)
 			if (now - last_input_retry >= SPACEUX_INPUT_RETRY_MS) {
 				last_input_retry = now;
 				input_fd = input_open();
-				if (input_fd >= 0)
+				if (input_fd >= 0) {
+					/* Swapped/replugged puck: refresh the advertised
+					 * count to the new device's discovery. */
+					sock_set_button_count(&sock, input_button_count());
 					fprintf(stderr, "spaceux-daemon: input device reopened\n");
+				}
 			}
 		}
 
