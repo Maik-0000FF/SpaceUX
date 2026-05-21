@@ -46,6 +46,7 @@ import {
   loadDeviceProfile,
   resolveActiveConfig,
   writeDeviceProfile,
+  writeDeviceProfileSync,
   type ProfileLoadResult,
 } from './profile-loader.js';
 import {
@@ -178,6 +179,11 @@ function resolveProfileId(): string | null {
  * vanished on disk). Callers pass it; there's no sensible default.
  */
 async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
+  // Land any pending appearance edit on the *current* profile before we
+  // switch — the debounced write resolves its target at fire time, so a
+  // not-yet-flushed edit would otherwise follow us to the new profile.
+  await flushPendingAppearance();
+
   const id = resolveProfileId();
 
   let profile: ProfileLoadResult | null = null;
@@ -312,6 +318,40 @@ function applyActiveAppearance(profileAppearance: PieAppearance | null): void {
   pieAppearance = next;
   mainWindow?.webContents.send(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
   sendToEditor(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
+}
+
+/**
+ * Persist the current appearance to where it belongs (#113 PR 3c-3b): into
+ * the active profile's file when a profile is active, else the global
+ * app-settings. The debounced edit path and the quit flush both call this
+ * (the latter via the sync writers). Self-write is armed so the profile
+ * watcher doesn't echo our own write back as an external change.
+ */
+async function persistActiveAppearance(): Promise<void> {
+  if (activeProfileId !== null && menuConfig) {
+    markSelfWrite(deviceProfilePath(activeProfileId));
+    const result = await writeDeviceProfile(activeProfileId, menuConfig, pieAppearance);
+    if (result.ok !== true) {
+      // eslint-disable-next-line no-console
+      console.warn(`[profile] failed to save appearance into ${activeProfileId}`);
+    }
+    return;
+  }
+  await saveAppSettings({ pieTheme: globalAppearance.theme, pieOpacity: globalAppearance.opacity });
+}
+
+/**
+ * Flush a pending debounced appearance write *now*, against the current
+ * value + target. Called before a profile switch (applyActiveProfile): the
+ * debounced write reads both the value and its destination at fire time, so
+ * without this an edit made just before a hotplug/override switch would land
+ * on the *new* profile (or be lost). No-op when nothing is pending.
+ */
+async function flushPendingAppearance(): Promise<void> {
+  if (pieAppearanceSaveTimer === null) return;
+  clearTimeout(pieAppearanceSaveTimer);
+  pieAppearanceSaveTimer = null;
+  await persistActiveAppearance();
 }
 const PIE_APPEARANCE_SAVE_DEBOUNCE_MS = 250;
 // True between MENU_OPEN and MENU_COMMIT — drives the click-to-toggle
@@ -806,12 +846,12 @@ app.whenReady().then(async () => {
   wireAppIpc({
     getAppearance: () => pieAppearance,
     setAppearance: (patch) => {
-      // PR 3c-3a: appearance edits land in the *global* app-settings (and
-      // the live value tracks them for instant feedback). When a profile is
-      // active, its bundled appearance re-asserts on the next switch —
-      // routing edits into the active profile is PR 3c-3b.
-      globalAppearance = { ...globalAppearance, ...patch };
+      // The live value always tracks the edit for instant feedback. Where it
+      // *persists* depends on what's active (PR 3c-3b): an appearance edit
+      // while a profile is active is saved into that profile; otherwise it's
+      // the global app-settings.
       pieAppearance = { ...pieAppearance, ...patch };
+      if (activeProfileId === null) globalAppearance = { ...globalAppearance, ...patch };
       // Broadcast the full value to both renderers at once: the live pie
       // hot-reloads and the editor preview (incl. the one that made the
       // edit) tracks it without waiting on the debounced disk write.
@@ -821,10 +861,7 @@ app.whenReady().then(async () => {
       if (pieAppearanceSaveTimer) clearTimeout(pieAppearanceSaveTimer);
       pieAppearanceSaveTimer = setTimeout(() => {
         pieAppearanceSaveTimer = null;
-        void saveAppSettings({
-          pieTheme: globalAppearance.theme,
-          pieOpacity: globalAppearance.opacity,
-        });
+        void persistActiveAppearance();
       }, PIE_APPEARANCE_SAVE_DEBOUNCE_MS);
     },
   });
@@ -844,8 +881,16 @@ app.on('before-quit', () => {
   if (pieAppearanceSaveTimer) {
     clearTimeout(pieAppearanceSaveTimer);
     pieAppearanceSaveTimer = null;
-    // app-settings holds the global appearance, not a profile's active one.
-    saveAppSettingsSync({ pieTheme: globalAppearance.theme, pieOpacity: globalAppearance.opacity });
+    // Flush to the same place the debounced write would have (#113 PR 3c-3b):
+    // the active profile, else the global app-settings.
+    if (activeProfileId !== null && menuConfig) {
+      writeDeviceProfileSync(activeProfileId, menuConfig, pieAppearance);
+    } else {
+      saveAppSettingsSync({
+        pieTheme: globalAppearance.theme,
+        pieOpacity: globalAppearance.opacity,
+      });
+    }
   }
 });
 

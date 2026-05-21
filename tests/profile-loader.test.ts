@@ -19,6 +19,7 @@ import {
   loadDeviceProfile,
   resolveActiveConfig,
   writeDeviceProfile,
+  writeDeviceProfileSync,
   type FallbackMenu,
   type ProfileLoadResult,
 } from '../src/main/profile-loader';
@@ -196,6 +197,17 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
     if (loaded.status === 'loaded') {
       expect(loaded.config).toEqual(DEFAULT_MENU_CONFIG);
       expect(loaded.appearance).toBeNull(); // no override → caller keeps global
+    }
+  });
+
+  it('writeDeviceProfileSync (quit-path) writes a profile that round-trips', async () => {
+    const appearance = { theme: 'spaceux' as const, opacity: 0.3 };
+    writeDeviceProfileSync('046d-c62b', DEFAULT_MENU_CONFIG, appearance, dir);
+    const loaded = await loadDeviceProfile('046d-c62b', dir);
+    expect(loaded.status).toBe('loaded');
+    if (loaded.status === 'loaded') {
+      expect(loaded.config).toEqual(DEFAULT_MENU_CONFIG);
+      expect(loaded.appearance).toEqual(appearance);
     }
   });
 
