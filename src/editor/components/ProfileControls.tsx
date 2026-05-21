@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useProfiles } from '../hooks/useProfiles';
@@ -29,6 +29,14 @@ export function ProfileControls() {
 
   const hasDevice = device.vendor !== 0 || device.product !== 0;
   const deviceLabel = device.name || 'this device';
+
+  // Drop stale feedback ("Saved profile for <old device>") when the
+  // connected device changes — keyed on the identity, not profileId, so a
+  // save that makes the device's own profile active doesn't wipe its own
+  // just-shown confirmation.
+  useEffect(() => {
+    setFeedback(null);
+  }, [device.vendor, device.product]);
   // Delete targets the *active* profile, so the connected device's
   // auto-resolved profile can be removed without first overriding to it.
   const activeProfile = device.profileId;
