@@ -704,6 +704,9 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
       ],
       [{ cycle: { inputs: [], priority: 'sideways' } }, /"priority" must be one of/],
       [{ drillIn: { inputs: 'not-an-array' } }, /"inputs" must be an array/],
+      // A present-but-null gesture is rejected (not silently coerced to
+      // unbound) — only an *omitted* gesture defaults to empty.
+      [{ drillIn: null }, /drillIn must be an object/],
     ];
     for (const [nav, pattern] of cases) {
       const r = validateMenuConfig({
@@ -729,6 +732,25 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
       sectors: [{ label: 'x' }],
     });
     expect(r.ok).toBe(true); // permissive: a conflict never rejects
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind axis:rz:positive'));
+    warnSpy.mockRestore();
+  });
+
+  it('warns when a both-axis binding overlaps a directional one on the same axis', () => {
+    // `both` occupies the whole axis, so it collides with a positive
+    // binding even though their direction strings differ.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        drillIn: { inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 200 }] },
+        commitCenter: {
+          inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }],
+        },
+      },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind axis:rz:positive'));
     warnSpy.mockRestore();
   });

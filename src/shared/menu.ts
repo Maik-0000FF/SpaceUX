@@ -902,8 +902,12 @@ function validateInputs(raw: unknown, where: string): GestureValidation<InputBin
   return { ok: true, value: inputs };
 }
 
-/** Validate a plain (non-cycle) gesture binding. */
+/** Validate a plain (non-cycle) gesture binding. An *omitted* gesture
+ *  (`undefined`) defaults to unbound; anything else present (incl.
+ *  `null`) must be an object, so a stray `null` is rejected rather than
+ *  silently coerced to empty. */
 function validateGestureBinding(raw: unknown, where: string): GestureValidation<GestureBinding> {
+  if (raw === undefined) return { ok: true, value: { inputs: [] } };
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { ok: false, reason: `${where} must be an object when present` };
   }
@@ -914,8 +918,11 @@ function validateGestureBinding(raw: unknown, where: string): GestureValidation<
   return { ok: true, value: { inputs: inputs.value } };
 }
 
-/** Validate the cycle gesture binding (inputs + priority enum). */
+/** Validate the cycle gesture binding (inputs + priority enum). An
+ *  omitted cycle (`undefined`) defaults to unbound with `lateral`
+ *  priority; a present `null`/non-object is rejected. */
 function validateCycleBinding(raw: unknown, where: string): GestureValidation<CycleBinding> {
+  if (raw === undefined) return { ok: true, value: { inputs: [], priority: 'lateral' } };
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { ok: false, reason: `${where} must be an object when present` };
   }
@@ -950,13 +957,13 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
     return { ok: false, reason: `${where} must be an object when present` };
   }
   const o = raw as Record<string, unknown>;
-  const drillIn = validateGestureBinding(o.drillIn ?? {}, `${where}.drillIn`);
+  const drillIn = validateGestureBinding(o.drillIn, `${where}.drillIn`);
   if (!drillIn.ok) return { ok: false, reason: drillIn.reason };
-  const back = validateGestureBinding(o.back ?? {}, `${where}.back`);
+  const back = validateGestureBinding(o.back, `${where}.back`);
   if (!back.ok) return { ok: false, reason: back.reason };
-  const cycle = validateCycleBinding(o.cycle ?? {}, `${where}.cycle`);
+  const cycle = validateCycleBinding(o.cycle, `${where}.cycle`);
   if (!cycle.ok) return { ok: false, reason: cycle.reason };
-  const commitCenter = validateGestureBinding(o.commitCenter ?? {}, `${where}.commitCenter`);
+  const commitCenter = validateGestureBinding(o.commitCenter, `${where}.commitCenter`);
   if (!commitCenter.ok) return { ok: false, reason: commitCenter.reason };
   warnUnknownFields(o, KNOWN_NAVIGATION_FIELDS, where);
   return {
@@ -970,24 +977,24 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
   };
 }
 
-/** A stable key identifying which input two gestures would collide on:
- *  same button, same magnitude source, or the same *half* of an axis.
- *  A directional axis (`positive`/`negative`) keys by axis+direction so
- *  a deliberate split — e.g. RZ-up on one gesture, RZ-down on another —
- *  doesn't warn (they can never both be active); a `both` axis keys by
- *  axis alone since it claims the whole axis. `none` never collides. */
-function inputConflictKey(input: InputBinding): string | null {
+/** The keys an input *occupies* — two gestures collide when their key
+ *  sets intersect. Keying axes by their occupied half/halves
+ *  (`positive`/`negative`) means a deliberate split (RZ-up vs RZ-down)
+ *  shares no key and stays quiet, while a `both` axis occupies *both*
+ *  halves and therefore correctly overlaps a directional binding on the
+ *  same axis. `none` occupies nothing. */
+function inputConflictKeys(input: InputBinding): string[] {
   switch (input.kind) {
     case 'button':
-      return `button:${input.button}`;
+      return [`button:${input.button}`];
     case 'axis':
       return input.direction === 'both'
-        ? `axis:${input.axis}`
-        : `axis:${input.axis}:${input.direction}`;
+        ? [`axis:${input.axis}:positive`, `axis:${input.axis}:negative`]
+        : [`axis:${input.axis}:${input.direction}`];
     case 'magnitude':
-      return `magnitude:${input.source}`;
+      return [`magnitude:${input.source}`];
     case 'none':
-      return null;
+      return [];
   }
 }
 
@@ -1005,16 +1012,16 @@ function warnNavigationConflicts(nav: MenuNavigation): void {
   ];
   for (const [name, gesture] of gestures) {
     for (const input of gesture.inputs) {
-      const key = inputConflictKey(input);
-      if (key === null) continue;
-      const prev = seen.get(key);
-      if (prev !== undefined && prev !== name) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[menu-loader] navigation: "${name}" and "${prev}" both bind ${key} — they may fight; split by direction or pick distinct inputs`,
-        );
-      } else if (prev === undefined) {
-        seen.set(key, name);
+      for (const key of inputConflictKeys(input)) {
+        const prev = seen.get(key);
+        if (prev !== undefined && prev !== name) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[menu-loader] navigation: "${name}" and "${prev}" both bind ${key} — they may fight; split by direction or pick distinct inputs`,
+          );
+        } else if (prev === undefined) {
+          seen.set(key, name);
+        }
       }
     }
   }
