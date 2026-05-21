@@ -1,19 +1,17 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import type { PieThemeChoice, ThemeChoice } from '@/shared/ipc';
-import { PIE_OPACITY_MAX, PIE_OPACITY_MIN, PIE_OPACITY_STEP } from '@/shared/pie-appearance';
+import type { ThemeChoice } from '@/shared/ipc';
 
 import { DeviceStatus } from './components/DeviceStatus';
 import { LiveToggle } from './components/LiveToggle';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
-import { PreviewHeader } from './components/PreviewHeader';
+import { PieDesignControls } from './components/PieDesignControls';
 import { ProfileControls } from './components/ProfileControls';
 import { Properties } from './components/Properties';
 import { useDeviceInfo } from './hooks/useDeviceInfo';
 import { useExternalSync } from './hooks/useExternalSync';
-import { usePieAppearance } from './hooks/usePieAppearance';
 import { useThemePreference } from './hooks/useThemePreference';
 import { useUndoRedoShortcuts } from './hooks/useUndoRedoShortcuts';
 import { useWriteBack } from './hooks/useWriteBack';
@@ -34,7 +32,6 @@ export function App() {
   const device = useDeviceInfo();
 
   const { theme, changeTheme } = useThemePreference();
-  const { appearance: pie, setTheme: setPieTheme, setOpacity: setPieOpacity } = usePieAppearance();
   useExternalSync();
   useWriteBack();
   useUndoRedoShortcuts();
@@ -76,31 +73,6 @@ export function App() {
         </div>
         <div className={styles.toolbarControls}>
           <ProfileControls />
-          <label className={styles.themeControl}>
-            <span className={styles.themeLabel}>Pie</span>
-            <select
-              className={styles.themeSelect}
-              value={pie.theme}
-              onChange={(e) => setPieTheme(e.target.value as PieThemeChoice)}
-            >
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-              <option value="spaceux">SpaceUX</option>
-            </select>
-          </label>
-          <label className={styles.themeControl}>
-            <span className={styles.themeLabel}>Opacity</span>
-            <input
-              className={styles.slider}
-              type="range"
-              min={PIE_OPACITY_MIN}
-              max={PIE_OPACITY_MAX}
-              step={PIE_OPACITY_STEP}
-              value={pie.opacity}
-              onChange={(e) => setPieOpacity(Number(e.target.value))}
-            />
-            <span className={styles.sliderValue}>{Math.round(pie.opacity * 100)}%</span>
-          </label>
           <label className={styles.themeControl}>
             <span className={styles.themeLabel}>Theme</span>
             <select
@@ -168,8 +140,8 @@ export function App() {
       <div className={styles.shell}>
         <MenuList />
         <main className={styles.center}>
-          <div className={styles.breadcrumbSlot}>
-            <PreviewHeader />
+          <div className={styles.designBar}>
+            <PieDesignControls />
             <LiveToggle />
           </div>
           <div className={styles.previewArea}>

@@ -38,28 +38,13 @@ export function selectedPath(
  *
  * Stale-path behaviour differs from `sectorAtPath` (which returns null)
  * by design: `currentSectors` falls back to the *root* ring on a stale
- * `viewPath`, and `breadcrumbLabels` stops early. We rely on `viewPath`
- * never being stale rather than reconciling the three: `adopt()` resets
- * it to root on every external reload, and a local edit can't orphan it
- * (you can't turn the branch you're standing inside into a leaf — its
- * row isn't in the ring you're viewing). If that invariant is ever
- * weakened, these three consumers must be unified.
+ * `viewPath`. We rely on `viewPath` never being stale rather than
+ * reconciling the two: `adopt()` resets it to root on every external
+ * reload, and a local edit can't orphan it (you can't turn the branch
+ * you're standing inside into a leaf — its row isn't in the ring you're
+ * viewing). If that invariant is ever weakened, these consumers must be
+ * unified.
  */
 export function ringSectors(config: MenuConfig, viewPath: readonly number[]): MenuSector[] {
   return currentSectors(config, viewPath);
-}
-
-/** Labels of the drilled-into sectors along `viewPath` (excludes the
- *  implicit root). Drives the breadcrumb. Stops early on a stale path. */
-export function breadcrumbLabels(config: MenuConfig, viewPath: readonly number[]): string[] {
-  const labels: string[] = [];
-  let ring: MenuSector[] = config.sectors;
-  for (const i of viewPath) {
-    const sector = ring[i];
-    if (!sector) break;
-    labels.push(sector.label);
-    if (!sector.children) break;
-    ring = sector.children;
-  }
-  return labels;
 }
