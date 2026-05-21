@@ -212,6 +212,12 @@ export type AxisActivation = {
   threshold: number;
 };
 
+/** Starting threshold the editor seeds a fresh activation with. Sits
+ *  comfortably above the lateral deadzone (50) so a light deflection
+ *  still hovers, in the same low-hundreds range the auto-drill
+ *  thresholds recommend. The user tunes it from there. */
+export const DEFAULT_ACTIVATION_THRESHOLD = 200;
+
 /** The pie's center field. Historically a hardcoded cancel target
  *  (the ✕ glyph that dismisses the menu when committed with nothing
  *  selected); this type makes it a configurable target like a sector.

@@ -182,8 +182,14 @@ export function Properties() {
                 // text remounts on an external adoption, not while typing.
                 <ConfigEditor
                   key={`${path.join('.')}-${remoteRev}`}
-                  path={path}
                   value={sector.binding.config}
+                  onChange={(cfg) =>
+                    updateSectorAt(path, (s) => {
+                      if (!s.binding) return;
+                      if (cfg === undefined) delete s.binding.config;
+                      else s.binding.config = cfg;
+                    })
+                  }
                 />
               )}
             </>

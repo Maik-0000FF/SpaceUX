@@ -3,7 +3,13 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_MENU_CONFIG, type MenuConfig, type MenuSector } from '@/shared/menu';
+import {
+  BUILTIN_ACTION,
+  DEFAULT_MENU_CONFIG,
+  builtinAction,
+  type MenuConfig,
+  type MenuSector,
+} from '@/shared/menu';
 
 import { useAppState } from '../src/editor/state/app-state';
 import { useMenuSettings } from '../src/editor/state/menu-settings';
@@ -339,6 +345,78 @@ describe('menu-settings CRUD', () => {
     // Stale ring path: index 0 is a leaf, not a branch → no-op.
     useMenuSettings.getState().addSector([0]);
     expect(labels()).toEqual(['A', 'B', 'C']);
+  });
+});
+
+describe('menu-settings center field', () => {
+  const load = () =>
+    useMenuSettings.getState().setConfig({
+      config: { version: DEFAULT_MENU_CONFIG.version, sectors: [{ label: 'A' }] },
+      mtime: 1,
+    });
+  const center = () => useMenuSettings.getState().config?.centerField;
+
+  it('setCenterLabel sets the label and flags local/dirty', () => {
+    load();
+    useMenuSettings.getState().setCenterLabel('Close');
+    expect(center()?.label).toBe('Close');
+    expect(useMenuSettings.getState().origin).toBe('local');
+    expect(useMenuSettings.getState().dirty).toBe(true);
+  });
+
+  it('a blank label prunes an otherwise-empty centerField to undefined', () => {
+    load();
+    useMenuSettings.getState().setCenterLabel('Close');
+    useMenuSettings.getState().setCenterLabel('   ');
+    expect(center()).toBeUndefined();
+  });
+
+  it('setCenterAction sets the binding; blank removes it but keeps a label', () => {
+    load();
+    useMenuSettings.getState().setCenterLabel('Close');
+    useMenuSettings.getState().setCenterAction(builtinAction(BUILTIN_ACTION.CANCEL));
+    expect(center()?.binding).toEqual({ action: builtinAction(BUILTIN_ACTION.CANCEL) });
+    useMenuSettings.getState().setCenterAction('');
+    expect(center()?.binding).toBeUndefined();
+    expect(center()?.label).toBe('Close'); // label survives clearing the action
+  });
+
+  it('setCenterAction preserves existing per-action config when changing the id', () => {
+    load();
+    useMenuSettings.getState().setCenterAction(builtinAction(BUILTIN_ACTION.EXEC));
+    useMenuSettings.getState().setCenterActionConfig({ command: 'xdg-open .' });
+    useMenuSettings.getState().setCenterAction(builtinAction(BUILTIN_ACTION.KEY_COMBO));
+    expect(center()?.binding).toEqual({
+      action: builtinAction(BUILTIN_ACTION.KEY_COMBO),
+      config: { command: 'xdg-open .' },
+    });
+  });
+
+  it('setCenterActionConfig is a no-op without a binding', () => {
+    load();
+    useMenuSettings.getState().setCenterActionConfig({ x: 1 });
+    expect(center()).toBeUndefined();
+  });
+
+  it('setCenterActivation sets the gesture; null clears it', () => {
+    load();
+    const act = { axis: 'tz', direction: 'positive', threshold: 200 } as const;
+    useMenuSettings.getState().setCenterActivation(act);
+    expect(center()?.activation).toEqual(act);
+    useMenuSettings.getState().setCenterActivation(null);
+    expect(center()).toBeUndefined(); // pruned once empty
+  });
+
+  it('keeps the centerField while any field remains, prunes only when fully empty', () => {
+    load();
+    useMenuSettings
+      .getState()
+      .setCenterActivation({ axis: 'rz', direction: 'both', threshold: 150 });
+    useMenuSettings.getState().setCenterLabel('Twist');
+    useMenuSettings.getState().setCenterLabel(''); // clears label, activation remains
+    expect(center()).toEqual({ activation: { axis: 'rz', direction: 'both', threshold: 150 } });
+    useMenuSettings.getState().setCenterActivation(null); // now empty → pruned
+    expect(center()).toBeUndefined();
   });
 });
 
