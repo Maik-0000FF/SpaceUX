@@ -259,25 +259,43 @@ export type MenuNavigation = {
   back: GestureBinding;
   /** Step the highlighted selection within a ring. Legacy: twistCycle. */
   cycle: CycleBinding;
-  /** Commit the center field (fire its binding / dismiss). Legacy: centerField.activation. */
-  cancel: GestureBinding;
+  /** Commit the center field (fire its binding, or dismiss when it has
+   *  none). Legacy: centerField.activation. */
+  commitCenter: GestureBinding;
 };
+
+/** Recursively freeze an object so a shared default can be handed out
+ *  by reference without a consumer mutating it for the whole process.
+ *  Mutations then throw in strict mode (fail-fast) — callers that need
+ *  to edit must clone first. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    for (const v of Object.values(value)) deepFreeze(v);
+    Object.freeze(value);
+  }
+  return value;
+}
 
 /** Default navigation bindings: the historical behaviour expressed in
  *  the new model. Only `back` is bound out of the box (symmetric TZ at
- *  the lateral deadzone, 50) — the drills, cycle, and axis-cancel are
- *  all opt-in, matching today's defaults. Used as the fallback when a
- *  config omits `navigation` and as the seed for a fresh menu. */
-export const DEFAULT_NAVIGATION: MenuNavigation = {
+ *  the lateral deadzone, 50) — the drills, cycle, and axis commit-center
+ *  are all opt-in, matching today's defaults. Used as the fallback when
+ *  a config omits `navigation` and as the seed for a fresh menu.
+ *
+ *  Deep-frozen: :func:`resolveNavigation` returns it by reference, so
+ *  freezing guards the shared singleton against accidental mutation. */
+export const DEFAULT_NAVIGATION: MenuNavigation = deepFreeze({
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
-  cancel: { inputs: [] },
-};
+  commitCenter: { inputs: [] },
+});
 
 /** Resolve the navigation block for a config that may omit it, so every
  *  consumer sees a complete :type:`MenuNavigation`. Mirrors the
- *  `resolveAxisInvert` pattern — one fallback, no per-call-site drift. */
+ *  `resolveAxisInvert` pattern — one fallback, no per-call-site drift.
+ *  The fallback (:data:`DEFAULT_NAVIGATION`) is frozen, so treat the
+ *  result as read-only; clone before mutating. */
 export function resolveNavigation(config: Pick<MenuConfig, 'navigation'>): MenuNavigation {
   return config.navigation ?? DEFAULT_NAVIGATION;
 }
@@ -523,7 +541,7 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'sectors',
 ];
 const KNOWN_TWIST_CYCLE_FIELDS: readonly string[] = ['enabled', 'threshold', 'priority'];
-const KNOWN_NAVIGATION_FIELDS: readonly string[] = ['drillIn', 'back', 'cycle', 'cancel'];
+const KNOWN_NAVIGATION_FIELDS: readonly string[] = ['drillIn', 'back', 'cycle', 'commitCenter'];
 const KNOWN_GESTURE_FIELDS: readonly string[] = ['inputs'];
 const KNOWN_CYCLE_GESTURE_FIELDS: readonly string[] = ['inputs', 'priority'];
 const KNOWN_BUTTON_INPUT_FIELDS: readonly string[] = ['kind', 'button'];
@@ -938,24 +956,34 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
   if (!back.ok) return { ok: false, reason: back.reason };
   const cycle = validateCycleBinding(o.cycle ?? {}, `${where}.cycle`);
   if (!cycle.ok) return { ok: false, reason: cycle.reason };
-  const cancel = validateGestureBinding(o.cancel ?? {}, `${where}.cancel`);
-  if (!cancel.ok) return { ok: false, reason: cancel.reason };
+  const commitCenter = validateGestureBinding(o.commitCenter ?? {}, `${where}.commitCenter`);
+  if (!commitCenter.ok) return { ok: false, reason: commitCenter.reason };
   warnUnknownFields(o, KNOWN_NAVIGATION_FIELDS, where);
   return {
     ok: true,
-    value: { drillIn: drillIn.value, back: back.value, cycle: cycle.value, cancel: cancel.value },
+    value: {
+      drillIn: drillIn.value,
+      back: back.value,
+      cycle: cycle.value,
+      commitCenter: commitCenter.value,
+    },
   };
 }
 
 /** A stable key identifying which input two gestures would collide on:
- *  same button, or same axis (any direction), or same magnitude source.
- *  `none` never collides. */
+ *  same button, same magnitude source, or the same *half* of an axis.
+ *  A directional axis (`positive`/`negative`) keys by axis+direction so
+ *  a deliberate split — e.g. RZ-up on one gesture, RZ-down on another —
+ *  doesn't warn (they can never both be active); a `both` axis keys by
+ *  axis alone since it claims the whole axis. `none` never collides. */
 function inputConflictKey(input: InputBinding): string | null {
   switch (input.kind) {
     case 'button':
       return `button:${input.button}`;
     case 'axis':
-      return `axis:${input.axis}`;
+      return input.direction === 'both'
+        ? `axis:${input.axis}`
+        : `axis:${input.axis}:${input.direction}`;
     case 'magnitude':
       return `magnitude:${input.source}`;
     case 'none':
@@ -973,7 +1001,7 @@ function warnNavigationConflicts(nav: MenuNavigation): void {
     ['drillIn', nav.drillIn],
     ['back', nav.back],
     ['cycle', nav.cycle],
-    ['cancel', nav.cancel],
+    ['commitCenter', nav.commitCenter],
   ];
   for (const [name, gesture] of gestures) {
     for (const input of gesture.inputs) {
@@ -1228,7 +1256,7 @@ function orderNavigation(nav: MenuNavigation): Record<string, unknown> {
     drillIn: { inputs: nav.drillIn.inputs.map(orderInput) },
     back: { inputs: nav.back.inputs.map(orderInput) },
     cycle: { inputs: nav.cycle.inputs.map(orderInput), priority: nav.cycle.priority },
-    cancel: { inputs: nav.cancel.inputs.map(orderInput) },
+    commitCenter: { inputs: nav.commitCenter.inputs.map(orderInput) },
   };
 }
 

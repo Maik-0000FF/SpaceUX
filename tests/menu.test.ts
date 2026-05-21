@@ -655,7 +655,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
         inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
         priority: 'twist',
       },
-      cancel: { inputs: [{ kind: 'button', button: 2 }] },
+      commitCenter: { inputs: [{ kind: 'button', button: 2 }] },
     };
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
@@ -678,7 +678,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
         drillIn: { inputs: [{ kind: 'none' }] },
         back: { inputs: [] },
         cycle: { inputs: [], priority: 'lateral' },
-        cancel: { inputs: [] },
+        commitCenter: { inputs: [] },
       });
     }
   });
@@ -690,7 +690,10 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
         { back: { inputs: [{ kind: 'axis', axis: 'zz', direction: 'both', threshold: 1 }] } },
         /"axis" must be one of/,
       ],
-      [{ cancel: { inputs: [{ kind: 'button', button: -1 }] } }, /"button".*non-negative integer/],
+      [
+        { commitCenter: { inputs: [{ kind: 'button', button: -1 }] } },
+        /"button".*non-negative integer/,
+      ],
       [
         { drillIn: { inputs: [{ kind: 'magnitude', source: 'nope', threshold: 1 }] } },
         /"source" must be one of/,
@@ -713,18 +716,39 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     }
   });
 
-  it('warns (but accepts) when two gestures bind the same input', () => {
+  it('warns (but accepts) when two gestures bind the same axis half', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       navigation: {
         drillIn: { inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }] },
-        cancel: { inputs: [{ kind: 'axis', axis: 'rz', direction: 'negative', threshold: 200 }] },
+        commitCenter: {
+          inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }],
+        },
       },
       sectors: [{ label: 'x' }],
     });
     expect(r.ok).toBe(true); // permissive: a conflict never rejects
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind axis:rz'));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind axis:rz:positive'));
+    warnSpy.mockRestore();
+  });
+
+  it('does NOT warn for a legitimate direction split on one axis', () => {
+    // RZ-up on one gesture, RZ-down on another can never both be active,
+    // so the split-axis setups the feature encourages stay quiet.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        drillIn: { inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }] },
+        commitCenter: {
+          inputs: [{ kind: 'axis', axis: 'rz', direction: 'negative', threshold: 200 }],
+        },
+      },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('both bind'));
     warnSpy.mockRestore();
   });
 });

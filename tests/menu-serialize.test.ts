@@ -74,7 +74,7 @@ describe('serializeMenuConfig', () => {
           inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
           priority: 'lateral',
         },
-        cancel: { inputs: [{ kind: 'button', button: 1 }] },
+        commitCenter: { inputs: [{ kind: 'button', button: 1 }] },
       },
       sectors: [{ label: 'Solo' }],
     };
