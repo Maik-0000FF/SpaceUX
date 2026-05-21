@@ -55,7 +55,7 @@ import {
 import { resolveAxisInvert, type MenuAutoDrill, type MenuConfig } from '@/shared/menu';
 
 /** Per-frame edge detector for the auto-drill gestures (lateral
- *  magnitude, tilt). Returns `true` once when `value` crosses
+ *  magnitude, tilt, twist). Returns `true` once when `value` crosses
  *  `threshold` from below, then stays `false` until it dips back
  *  under. Mutates `prevRef` so each call hands the next frame the
  *  "was over" memory it needs.
