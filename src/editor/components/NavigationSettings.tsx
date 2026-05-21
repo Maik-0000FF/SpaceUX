@@ -35,8 +35,9 @@ import styles from './Properties.module.scss';
  * land in a later PR.
  */
 
-/** Device button count we offer until the daemon advertises the real
- *  one (see #66). 8 covers a SpaceNavigator through the common pucks. */
+/** Fallback button count when no device is connected (count 0) — covers
+ *  a SpaceNavigator through the common pucks. With a device attached the
+ *  daemon-reported count is used instead (#66). */
 const FALLBACK_BUTTON_COUNT = 8;
 
 const GESTURE_KEYS = ['drillIn', 'back', 'cycle', 'commitCenter'] as const;
@@ -65,10 +66,13 @@ function defaultThresholdFor(key: GestureKey): number {
   return key === 'cycle' ? DEFAULT_TWIST_CYCLE_THRESHOLD : DEFAULT_ACTIVATION_THRESHOLD;
 }
 
-export function NavigationSettings() {
+/** @param buttonCount Connected device's button count, or 0 when none —
+ *  drives how many buttons the input dropdown offers. */
+export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
   const navigation = useMenuSettings((s) => s.config?.navigation);
   const setNavigation = useMenuSettings((s) => s.setNavigation);
   const nav = resolveNavigation({ navigation });
+  const offeredButtons = buttonCount > 0 ? buttonCount : FALLBACK_BUTTON_COUNT;
 
   // Clone (the resolved fallback is frozen) → mutate → store.
   const commit = (mutator: (n: MenuNavigation) => void): void => {
@@ -103,7 +107,7 @@ export function NavigationSettings() {
                   >
                     <option value="none">None</option>
                     <optgroup label="Buttons">
-                      {Array.from({ length: FALLBACK_BUTTON_COUNT }, (_, b) => (
+                      {Array.from({ length: offeredButtons }, (_, b) => (
                         <option key={b} value={`button:${b}`}>
                           Button {b}
                         </option>

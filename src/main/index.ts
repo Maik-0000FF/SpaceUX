@@ -89,6 +89,10 @@ let stopMenuWatcher: (() => void) | null = null;
 
 // The pie appearance (theme + opacity) — own app setting, broadcast to both
 // renderers on change. Defaults until loadPieAppearance() resolves at startup.
+// Latest button count the daemon reported in its hello event (0 when no
+// device / not yet connected). Pulled by the editor so its button pickers
+// only offer buttons that exist (#66); a live hotplug push follows (PR 2b).
+let deviceButtonCount = 0;
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // Debounce the disk write: dragging the opacity slider fires a change per
 // step (~16 across the range), but the broadcast stays live so the pie
@@ -330,6 +334,7 @@ function wireDaemonEvents(): void {
           // Same `=== true` narrowing for the LED capability flag.
           led: ev.led === true,
         };
+        deviceButtonCount = ev.buttons;
         mainWindow.webContents.send(IpcChannel.DAEMON_STATUS, payload);
         break;
       }
@@ -337,6 +342,7 @@ function wireDaemonEvents(): void {
   });
 
   daemon.on('disconnected', () => {
+    deviceButtonCount = 0;
     if (!mainWindow) return;
     const payload: DaemonStatusPayload = { state: 'disconnected', reason: 'socket closed' };
     mainWindow.webContents.send(IpcChannel.DAEMON_STATUS, payload);
@@ -372,6 +378,10 @@ function wireActionDispatch(): void {
   // the current value at mount-time without racing the push-based
   // channel that handles hot-reloads later.
   ipcMain.handle(IpcChannel.GET_MENU_CONFIG, () => menuConfig);
+
+  // Editor pulls the connected device's button count (latched from the
+  // daemon hello) so its button pickers offer only buttons that exist.
+  ipcMain.handle(IpcChannel.EDITOR_GET_DEVICE, () => deviceButtonCount);
 
   // Renderer requests a real close (leaf-commit or silent dismiss).
   // The trigger button only sends MENU_COMMIT now; it's the
