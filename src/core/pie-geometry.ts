@@ -50,16 +50,6 @@ export type PieGeometryConfig = {
   /** Magnitude below which no selection is made. Same unit as the raw
    *  axis values fed in. */
   deadzone: number;
-  /** Optional separate threshold for the TZ-cancel gesture
-   *  (puck pushed forward / pulled back). When unset it defaults
-   *  to `deadzone` — same behaviour as before this field existed.
-   *  Splitting it out lets the user raise the TZ cutoff to filter
-   *  out lateral-push cross-talk on pucks where TZ shares a sense
-   *  with TX/TY, without making the lateral selection more
-   *  jittery. Use :func:`resolveTzDeadzone` rather than reading
-   *  this field directly so a missing override never silently
-   *  produces a 0 threshold. */
-  tzDeadzone?: number;
   /** Flip the X axis. Useful when the puck's TX sign points opposite
    *  to what the user expects from the screen layout. */
   invertX: boolean;
@@ -193,10 +183,10 @@ export function axisValue(axes: SixAxes, axis: MenuAxisName): number {
  *   - `both`: the magnitude is above `threshold` (direction-agnostic,
  *     matching the historical TZ-cancel rule).
  *
- * Strict-greater on purpose, mirroring :func:`shouldCancelOnZ`, so a
- * deflection sitting exactly on the threshold doesn't fire. `threshold`
- * is always a positive magnitude; the sign handling lives here so the
- * caller passes the raw axis value untouched.
+ * Strict-greater on purpose (a deflection sitting exactly on the
+ * threshold doesn't fire). `threshold` is always a positive magnitude;
+ * the sign handling lives here so the caller passes the raw axis value
+ * untouched.
  */
 export function meetsActivation(
   value: number,
@@ -208,20 +198,6 @@ export function meetsActivation(
   return Math.abs(value) > threshold; // 'both'
 }
 
-/**
- * Whether the current TZ deflection should engage the back/pop gesture,
- * given an optional center activation that may reserve part of the TZ
- * axis.
- *
- * When the activation watches TZ, the back gesture takes the *opposite*
- * half — so binding the center to "TZ pulled up" leaves "TZ pushed
- * down" as back/pop, the split the feature is built around. A
- * `both`-direction TZ activation claims the whole axis, leaving no TZ
- * back trigger (callers should prefer `positive`/`negative` when they
- * still want back/pop). Activations on other axes — or none — leave the
- * historical direction-agnostic TZ back intact, identical to
- * :func:`shouldCancelOnZ`.
- */
 /**
  * Direction of a twist-to-cycle step from the raw RZ value: `+1` for a
  * positive twist (step to the next sector, clockwise), `-1` for a
