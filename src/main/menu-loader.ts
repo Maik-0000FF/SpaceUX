@@ -77,15 +77,23 @@ export function migrateAndValidateMenuConfig(parsed: unknown): MenuConfigValidat
   return validateMenuConfig(toValidate);
 }
 
-/** Build the ordered list of paths the loader will probe. Exposed
- *  so tests can substitute fake locations. */
-export function menuConfigSearchPaths(): string[] {
+/** Ordered SpaceMouse config directories to probe: `$XDG_CONFIG_HOME/spaceux`
+ *  first (when the var is set), then `~/.config/spaceux`. Deduped. The
+ *  single source of the XDG resolution, shared with the per-device profile
+ *  loader (#113) so the two can't drift. */
+export function spaceuxConfigDirs(): string[] {
   const xdg = process.env.XDG_CONFIG_HOME?.trim();
   const home = os.homedir();
   return dedupPreserveOrder<string>([
-    xdg ? path.join(xdg, MENU_CONFIG_SUBDIR, MENU_CONFIG_FILENAME) : null,
-    path.join(home, '.config', MENU_CONFIG_SUBDIR, MENU_CONFIG_FILENAME),
+    xdg ? path.join(xdg, MENU_CONFIG_SUBDIR) : null,
+    path.join(home, '.config', MENU_CONFIG_SUBDIR),
   ]);
+}
+
+/** Build the ordered list of paths the loader will probe. Exposed
+ *  so tests can substitute fake locations. */
+export function menuConfigSearchPaths(): string[] {
+  return spaceuxConfigDirs().map((dir) => path.join(dir, MENU_CONFIG_FILENAME));
 }
 
 export async function loadMenuConfig(

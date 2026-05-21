@@ -31,7 +31,12 @@ import {
 import { KWinCursorService } from './kwin-cursor.js';
 import { loadMenuConfig, menuConfigSearchPaths, type MenuLoadResult } from './menu-loader.js';
 import { watchMenuConfig } from './menu-watcher.js';
-import { deviceProfileId, loadDeviceProfile } from './profile-loader.js';
+import {
+  deviceProfileId,
+  loadDeviceProfile,
+  resolveActiveConfig,
+  type ProfileLoadResult,
+} from './profile-loader.js';
 import {
   indexActions,
   loadPlugins,
@@ -136,29 +141,23 @@ async function applyActiveProfile(): Promise<void> {
   const product = deviceProduct;
   const id = deviceProfileId(vendor, product);
 
-  let next: {
-    config: MenuConfig;
-    mtime: number | null;
-    source: string | null;
-    profileId: string | null;
-  };
+  let profile: ProfileLoadResult | null = null;
   if (id) {
-    const prof = await loadDeviceProfile(id);
+    profile = await loadDeviceProfile(id);
     // A newer device change landed while we were reading: that call owns
     // the result now, so drop this stale one.
     if (deviceVendor !== vendor || deviceProduct !== product) return;
-    if (prof.status === 'loaded') {
-      next = { config: prof.config, mtime: prof.mtime, source: prof.path, profileId: id };
-    } else {
-      if (prof.status === 'invalid')
-        // eslint-disable-next-line no-console
-        console.warn(`[profile] ${id}: ${prof.reason} — using fallback`);
-      next = fallbackActive();
-    }
-  } else {
-    next = fallbackActive();
+    if (profile.status === 'invalid')
+      // eslint-disable-next-line no-console
+      console.warn(`[profile] ${id}: ${profile.reason} — using fallback`);
   }
 
+  const fallback = fallbackMenu ?? { config: DEFAULT_MENU_CONFIG, mtime: null, source: null };
+  const next = resolveActiveConfig(id, profile, fallback);
+
+  // State is updated unconditionally so main stays authoritative; the IPC
+  // push is gated on a source change so a swap between two unprofiled
+  // devices (both → fallback) is a no-op.
   const changed = next.profileId !== activeProfileId;
   activeProfileId = next.profileId;
   menuConfig = next.config;
@@ -176,17 +175,6 @@ async function applyActiveProfile(): Promise<void> {
       mtime: next.mtime,
     } satisfies MenuConfigSnapshot);
   }
-}
-
-/** The fallback (global menu.json) as an active-config tuple. */
-function fallbackActive(): {
-  config: MenuConfig;
-  mtime: number | null;
-  source: string | null;
-  profileId: string | null;
-} {
-  const fb = fallbackMenu ?? { config: DEFAULT_MENU_CONFIG, mtime: null, source: null };
-  return { config: fb.config, mtime: fb.mtime, source: fb.source, profileId: null };
 }
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // Debounce the disk write: dragging the opacity slider fires a change per

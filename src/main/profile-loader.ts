@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 
 import { describeError } from '../shared/errors.js';
 import { type MenuConfig } from '../shared/menu.js';
 
-import { migrateAndValidateMenuConfig } from './menu-loader.js';
+import { migrateAndValidateMenuConfig, spaceuxConfigDirs } from './menu-loader.js';
 
 /**
  * Per-device config profiles (#113).
@@ -26,7 +25,6 @@ import { migrateAndValidateMenuConfig } from './menu-loader.js';
  */
 
 const PROFILES_SUBDIR = 'profiles';
-const CONFIG_SUBDIR = 'spaceux';
 
 /** Zero-padded 4-digit lowercase hex for a USB id (16-bit). */
 function hex4(n: number): string {
@@ -43,12 +41,11 @@ export function deviceProfileId(vendor: number, product: number): string | null 
   return `${hex4(vendor)}-${hex4(product)}`;
 }
 
-/** Directory holding the per-device profile files. Mirrors the menu
- *  loader's primary XDG location (XDG_CONFIG_HOME if set, else ~/.config). */
+/** Directory holding the per-device profile files, under the menu
+ *  loader's primary config dir (the first {@link spaceuxConfigDirs}
+ *  entry — `$XDG_CONFIG_HOME/spaceux` if set, else `~/.config/spaceux`). */
 export function deviceProfilesDir(): string {
-  const xdg = process.env.XDG_CONFIG_HOME?.trim();
-  const base = xdg ? xdg : path.join(os.homedir(), '.config');
-  return path.join(base, CONFIG_SUBDIR, PROFILES_SUBDIR);
+  return path.join(spaceuxConfigDirs()[0]!, PROFILES_SUBDIR);
 }
 
 /** Absolute path of a profile file by id. */
@@ -109,4 +106,32 @@ export async function loadDeviceProfile(
   if (!result.ok) return { status: 'invalid', reason: `${file}: ${result.reason}` };
 
   return { status: 'loaded', config: result.config, mtime, path: file };
+}
+
+/** The global menu.json baseline, as the inputs the resolver needs. */
+export type FallbackMenu = { config: MenuConfig; mtime: number | null; source: string | null };
+
+/** The menu config the app should run with right now, plus where it came
+ *  from. `profileId` is the active profile's id, or null when the fallback
+ *  is active. */
+export type ActiveMenuConfig = FallbackMenu & { profileId: string | null };
+
+/**
+ * Decide the active menu config from a device's profile load result and
+ * the global fallback — the pure core of main's resolution, split out so
+ * the priority can be unit-tested without Electron. Only a `loaded`
+ * profile wins; `absent`, `invalid`, and "no device" (`profileId` null /
+ * `profile` null) all resolve to the fallback. The caller owns reading the
+ * profile (and warning on `invalid`) and comparing `profileId` to decide
+ * whether to push.
+ */
+export function resolveActiveConfig(
+  profileId: string | null,
+  profile: ProfileLoadResult | null,
+  fallback: FallbackMenu,
+): ActiveMenuConfig {
+  if (profileId && profile && profile.status === 'loaded') {
+    return { config: profile.config, mtime: profile.mtime, source: profile.path, profileId };
+  }
+  return { ...fallback, profileId: null };
 }

@@ -9,7 +9,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_MENU_CONFIG, MENU_CONFIG_VERSION } from '@/shared/menu';
 
-import { deviceProfileId, deviceProfilePath, loadDeviceProfile } from '../src/main/profile-loader';
+import {
+  deviceProfileId,
+  deviceProfilePath,
+  loadDeviceProfile,
+  resolveActiveConfig,
+  type FallbackMenu,
+  type ProfileLoadResult,
+} from '../src/main/profile-loader';
 
 describe('deviceProfileId', () => {
   it('formats VID:PID as zero-padded lowercase hex', () => {
@@ -68,5 +75,45 @@ describe('loadDeviceProfile', () => {
     await write('046d-c62b', { version: MENU_CONFIG_VERSION, sectors: 'nope' });
     const result = await loadDeviceProfile('046d-c62b', dir);
     expect(result.status).toBe('invalid');
+  });
+});
+
+describe('resolveActiveConfig', () => {
+  const fallback: FallbackMenu = {
+    config: DEFAULT_MENU_CONFIG,
+    mtime: 111,
+    source: '/cfg/menu.json',
+  };
+  const profileConfig = { ...DEFAULT_MENU_CONFIG, triggerButton: 3 };
+  const loaded: ProfileLoadResult = {
+    status: 'loaded',
+    config: profileConfig,
+    mtime: 222,
+    path: '/cfg/profiles/046d-c62b.json',
+  };
+
+  it('uses the profile when one loaded for the device', () => {
+    const active = resolveActiveConfig('046d-c62b', loaded, fallback);
+    expect(active).toEqual({
+      config: profileConfig,
+      mtime: 222,
+      source: '/cfg/profiles/046d-c62b.json',
+      profileId: '046d-c62b',
+    });
+  });
+
+  it('falls back when the device has no profile file (absent)', () => {
+    const active = resolveActiveConfig('046d-c62b', { status: 'absent' }, fallback);
+    expect(active).toEqual({ ...fallback, profileId: null });
+  });
+
+  it('falls back (with profileId null) when the profile is invalid', () => {
+    const active = resolveActiveConfig('046d-c62b', { status: 'invalid', reason: 'bad' }, fallback);
+    expect(active).toEqual({ ...fallback, profileId: null });
+  });
+
+  it('falls back when there is no device (null id / null profile)', () => {
+    const active = resolveActiveConfig(null, null, fallback);
+    expect(active).toEqual({ ...fallback, profileId: null });
   });
 });
