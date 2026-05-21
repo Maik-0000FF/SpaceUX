@@ -37,7 +37,9 @@ export function useWriteBack(): void {
             // that same external change's change-push arrives moments
             // later and re-stashes the authoritative snapshot (we're
             // still dirty), so any staleness here self-corrects.
-            void window.editor.getMenuConfig().then((snapshot) => s.setConflict(snapshot));
+            void window.editor
+              .getMenuConfig()
+              .then((snapshot) => s.setConflict(snapshot, 'external'));
           } else {
             s.setSaveError(result.reason);
           }

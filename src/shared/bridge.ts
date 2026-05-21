@@ -20,6 +20,7 @@
 import type {
   DaemonStatusPayload,
   EditorDeviceInfo,
+  MenuConfigChange,
   MenuConfigSnapshot,
   MenuOpenPayload,
   MenuWriteResult,
@@ -78,9 +79,10 @@ export type EditorBridge = {
    *  the editor last saw; main rejects with a `conflict` result if the
    *  file changed underneath. Resolves with the new mtime on success. */
   setMenuConfig(config: MenuConfig, expectedMtime: number | null): Promise<MenuWriteResult>;
-  /** Subscribe to out-of-band config changes (the file was edited
-   *  outside the editor). Returns an unsubscribe fn. */
-  onMenuConfigChanged(handler: (snapshot: MenuConfigSnapshot) => void): () => void;
+  /** Subscribe to out-of-band config changes — an external file edit or a
+   *  device/profile switch ({@link MenuConfigChange} carries the cause).
+   *  Returns an unsubscribe fn. */
+  onMenuConfigChanged(handler: (change: MenuConfigChange) => void): () => void;
   /** Pull the persisted theme choice once on mount (default 'system'). */
   getTheme(): Promise<ThemeChoice>;
   /** Persist a new theme choice. Fire-and-forget. */

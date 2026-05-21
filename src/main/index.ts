@@ -9,9 +9,10 @@ import { fileURLToPath } from 'node:url';
 import { describeError } from '../shared/errors.js';
 import {
   IpcChannel,
+  type ConfigChangeCause,
   type DaemonStatusPayload,
   type EditorDeviceInfo,
-  type MenuConfigSnapshot,
+  type MenuConfigChange,
   type MenuOpenPayload,
   type PieAppearance,
   type ProfileActionResult,
@@ -155,7 +156,7 @@ function setDeviceInfo(buttons: number, vendor: number, product: number, name: s
   deviceVendor = vendor;
   deviceProduct = product;
   deviceName = name;
-  if (idChanged) void applyActiveProfile();
+  if (idChanged) void applyActiveProfile('device');
   else if (countChanged) pushEditorDevice();
 }
 
@@ -167,12 +168,16 @@ function resolveProfileId(): string | null {
 
 /**
  * Resolve and apply the active menu config: the manual override profile,
- * else the connected device's profile, else the global fallback. Called
- * on every device-identity change and on every override / save / delete.
- * Pushes the new config to both renderers (same channels as a hot-reload)
- * only when the active source actually changes.
+ * else the connected device's profile, else the global fallback. Pushes
+ * the new config to both renderers (same channels as a hot-reload) only
+ * when the active source actually changes.
+ *
+ * `cause` classifies *why* this re-resolution happened, for the editor's
+ * conflict banner: `device` (a hotplug), `profile` (the user switched the
+ * override / saved / deleted), or `external` (a profile file appeared or
+ * vanished on disk). Callers pass it; there's no sensible default.
  */
-async function applyActiveProfile(): Promise<void> {
+async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
   const id = resolveProfileId();
 
   let profile: ProfileLoadResult | null = null;
@@ -197,6 +202,10 @@ async function applyActiveProfile(): Promise<void> {
   menuConfig = next.config;
   menuConfigMtime = next.mtime;
   menuConfigSource = next.source;
+  // Refresh the editor's device/profile display first, so its useDeviceInfo
+  // is current before the config-changed push (below) can raise the banner —
+  // the banner names the device/profile from that hook.
+  pushEditorDevice();
   if (changed) {
     // eslint-disable-next-line no-console
     console.info(
@@ -207,12 +216,9 @@ async function applyActiveProfile(): Promise<void> {
     sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
       config: next.config,
       mtime: next.mtime,
-    } satisfies MenuConfigSnapshot);
+      cause,
+    } satisfies MenuConfigChange);
   }
-  // Always refresh the editor's device/profile display: identity, name, or
-  // profileId may have changed even when the active menu source did not
-  // (e.g. a swap between two unprofiled devices, both → fallback).
-  pushEditorDevice();
 }
 
 /** Push the profile list + current override to the editor (#113), after a
@@ -245,7 +251,7 @@ async function onProfilesChangedOnDisk(): Promise<void> {
   void pushEditorProfiles();
   const id = resolveProfileId();
   if (id !== activeProfileId) {
-    await applyActiveProfile();
+    await applyActiveProfile('external');
     return;
   }
   if (id === null) return; // no device/override → fallback owns the config
@@ -258,17 +264,20 @@ async function onProfilesChangedOnDisk(): Promise<void> {
     menuConfigMtime = prof.mtime;
     menuConfigSource = prof.path;
     mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, prof.config);
+    // cause 'external': the active profile *file* was edited outside the
+    // editor (same kind of event as a menu.json edit).
     sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
       config: prof.config,
       mtime: prof.mtime,
-    } satisfies MenuConfigSnapshot);
+      cause: 'external',
+    } satisfies MenuConfigChange);
     return;
   }
   // Active profile deleted externally → drop a matching override and
   // re-resolve (an invalid file keeps the override so the user can fix it;
   // resolution falls back meanwhile).
   if (prof.status === 'absent' && overrideProfileId === id) overrideProfileId = null;
-  await applyActiveProfile();
+  await applyActiveProfile('external');
 }
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // Debounce the disk write: dragging the opacity slider fires a change per
@@ -593,7 +602,7 @@ function wireActionDispatch(): void {
   ipcMain.handle(IpcChannel.EDITOR_SET_PROFILE_OVERRIDE, async (_evt, id: unknown) => {
     if (id !== null && (typeof id !== 'string' || !isProfileId(id))) return;
     overrideProfileId = id;
-    await applyActiveProfile();
+    await applyActiveProfile('profile');
     await pushEditorProfiles();
   });
 
@@ -610,7 +619,7 @@ function wireActionDispatch(): void {
       return { ok: false, reason: result.ok === 'conflict' ? 'write conflict' : result.reason };
     }
     // The new file may now be the active source (device match, no override).
-    await applyActiveProfile();
+    await applyActiveProfile('profile');
     await pushEditorProfiles();
     return { ok: true };
   });
@@ -626,7 +635,7 @@ function wireActionDispatch(): void {
       if (!result.ok) return result;
       if (overrideProfileId === id) overrideProfileId = null;
       // The active source may have been the deleted profile → re-resolve.
-      await applyActiveProfile();
+      await applyActiveProfile('profile');
       await pushEditorProfiles();
       return { ok: true };
     },
@@ -724,10 +733,12 @@ app.whenReady().then(async () => {
     menuConfigMtime = result.mtime;
     menuConfigSource = result.source;
     mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, result.config);
+    // cause 'external': menu.json was edited outside the editor.
     sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
       config: result.config,
       mtime: result.mtime,
-    } satisfies MenuConfigSnapshot);
+      cause: 'external',
+    } satisfies MenuConfigChange);
   });
 
   // Watch the per-device profiles dir so an external edit to the *active*

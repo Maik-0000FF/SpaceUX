@@ -30,10 +30,11 @@ export function useExternalSync(): void {
   // banner decide, rather than clobbering in-progress edits.
   useEffect(
     () =>
-      window.editor.onMenuConfigChanged((snapshot) => {
+      window.editor.onMenuConfigChanged((change) => {
         const store = useMenuSettings.getState();
-        if (store.dirty) store.setConflict(snapshot);
-        else adopt(snapshot);
+        if (store.dirty)
+          store.setConflict({ config: change.config, mtime: change.mtime }, change.cause);
+        else adopt(change);
       }),
     [],
   );

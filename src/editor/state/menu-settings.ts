@@ -7,7 +7,7 @@ import { temporal } from 'zundo';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 
-import type { MenuConfigSnapshot } from '@/shared/ipc';
+import type { ConfigChangeCause, MenuConfigSnapshot } from '@/shared/ipc';
 import {
   MAX_MENU_DEPTH,
   MAX_PIE_SCALE,
@@ -51,14 +51,19 @@ type MenuSettingsState = {
   /** On-disk snapshot that clashed with unsaved edits, or null. Non-null
    *  raises the banner: Reload adopts it, Overwrite writes over it. */
   conflict: MenuConfigSnapshot | null;
+  /** Why the conflicting change happened (external file edit vs device /
+   *  profile switch), or null when there's no conflict. Drives the banner
+   *  wording (#113, PR 3c-2). */
+  conflictCause: ConfigChangeCause | null;
   saveError: string | null;
   /** Adopt a snapshot (initial load or external change with no unsaved
    *  edits). Clears dirty + conflict; origin = 'remote'. */
   setConfig: (snapshot: MenuConfigSnapshot) => void;
   /** Record a successful save: new baseline mtime, no longer dirty. */
   markSaved: (mtime: number) => void;
-  /** Stash the on-disk snapshot that conflicts with unsaved edits. */
-  setConflict: (external: MenuConfigSnapshot) => void;
+  /** Stash the on-disk snapshot that conflicts with unsaved edits, with
+   *  the cause for the banner wording. */
+  setConflict: (external: MenuConfigSnapshot, cause: ConfigChangeCause) => void;
   clearConflict: () => void;
   setSaveError: (saveError: string | null) => void;
   /** Mutate the sector at `path` in place (immer). Tags the change
@@ -167,6 +172,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
       remoteRev: 0,
       dirty: false,
       conflict: null,
+      conflictCause: null,
       saveError: null,
       setConfig: (snapshot) =>
         set((state) => {
@@ -176,6 +182,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
           state.remoteRev += 1;
           state.dirty = false;
           state.conflict = null;
+          state.conflictCause = null;
           state.saveError = null;
         }),
       markSaved: (mtime) =>
@@ -184,13 +191,15 @@ export const useMenuSettings = create<MenuSettingsState>()(
           state.dirty = false;
           state.saveError = null;
         }),
-      setConflict: (external) =>
+      setConflict: (external, cause) =>
         set((state) => {
           state.conflict = external;
+          state.conflictCause = cause;
         }),
       clearConflict: () =>
         set((state) => {
           state.conflict = null;
+          state.conflictCause = null;
         }),
       setSaveError: (saveError) =>
         set((state) => {

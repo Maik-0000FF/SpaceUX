@@ -181,6 +181,21 @@ export type PieAppearance = {
  *  the config (fresh install running on DEFAULT_MENU_CONFIG). */
 export type MenuConfigSnapshot = { config: MenuConfig; mtime: number | null };
 
+/** Why the editor's active config changed out-of-band (#113), driving the
+ *  conflict banner's wording:
+ *   - `external` — a file edit outside the editor (menu.json or the active
+ *     profile file).
+ *   - `device`   — the connected device changed (hotplug / (un)plug), so a
+ *     different profile auto-resolved.
+ *   - `profile`  — the active profile was switched without a device change
+ *     (the editor's override dropdown, or a save/delete that re-resolved).
+ *  Distinguishing `device` from `profile` keeps the banner from claiming
+ *  "the connected device changed" when the user merely picked a profile. */
+export type ConfigChangeCause = 'external' | 'device' | 'profile';
+
+/** Payload of EDITOR_MENU_CONFIG_CHANGED: the new snapshot plus its cause. */
+export type MenuConfigChange = MenuConfigSnapshot & { cause: ConfigChangeCause };
+
 /** Outcome of an editor write-back. Mirrors menu-writer's result so the
  *  same shape crosses the IPC boundary. The success case carries the
  *  *normalized* config (as written to disk) so main can keep its

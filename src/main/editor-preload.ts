@@ -7,6 +7,7 @@ import type { AxesValues, ButtonEventPayload, EditorBridge } from '../shared/bri
 import {
   IpcChannel,
   type EditorDeviceInfo,
+  type MenuConfigChange,
   type MenuConfigSnapshot,
   type MenuWriteResult,
   type PieAppearance,
@@ -36,7 +37,7 @@ const bridge: EditorBridge = {
       expectedMtime,
     ) as Promise<MenuWriteResult>,
   onMenuConfigChanged: (handler) => {
-    const listener = (_evt: IpcRendererEvent, snapshot: MenuConfigSnapshot) => handler(snapshot);
+    const listener = (_evt: IpcRendererEvent, change: MenuConfigChange) => handler(change);
     ipcRenderer.on(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, listener);
     return () => ipcRenderer.off(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, listener);
   },
