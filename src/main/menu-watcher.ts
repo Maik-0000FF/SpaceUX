@@ -56,6 +56,46 @@ function isSelfWrite(absPath: string): boolean {
   return selfWrites.has(absPath);
 }
 
+/**
+ * Watch the per-device profiles directory (#113) and call `onChange` on
+ * any add/edit/delete of a `*.json` there. Unlike menu.json, profiles are
+ * keyed by VID:PID and the *active* one changes at runtime, so the caller
+ * (main) decides on each event whether the change touches the live config
+ * (active profile) or just the list (a different profile created/deleted).
+ *
+ * Editor-originated writes (save / delete / write-back to the active
+ * profile) arm markSelfWrite first, so this skips the echo. The dir is
+ * created at startup by main, so the watch always attaches.
+ */
+export function watchProfiles(profilesDir: string, onChange: () => void): () => void {
+  if (!fs.existsSync(profilesDir)) return () => {};
+
+  let timer: NodeJS.Timeout | null = null;
+  const schedule = (): void => {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = null;
+      onChange();
+    }, DEBOUNCE_MS);
+  };
+
+  const w = fs.watch(profilesDir, (_event, filename) => {
+    // null filename (some Linux configs) → reload anyway. Otherwise only
+    // profile files matter, and our own writes are suppressed.
+    if (filename !== null) {
+      if (!filename.endsWith('.json')) return;
+      if (isSelfWrite(path.join(profilesDir, filename))) return;
+    }
+    schedule();
+  });
+  w.on('error', () => {});
+
+  return () => {
+    if (timer) clearTimeout(timer);
+    w.close();
+  };
+}
+
 export function watchMenuConfig(
   searchPaths: string[],
   onChange: (result: MenuLoadResult) => void,

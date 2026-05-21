@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,10 +34,12 @@ import {
 } from './editor-window.js';
 import { KWinCursorService } from './kwin-cursor.js';
 import { loadMenuConfig, menuConfigSearchPaths, type MenuLoadResult } from './menu-loader.js';
-import { watchMenuConfig } from './menu-watcher.js';
+import { markSelfWrite, watchMenuConfig, watchProfiles } from './menu-watcher.js';
 import {
   deleteDeviceProfile,
   deviceProfileId,
+  deviceProfilePath,
+  deviceProfilesDir,
   isProfileId,
   listDeviceProfiles,
   loadDeviceProfile,
@@ -100,6 +103,7 @@ let menuConfigMtime: number | null = null;
 let menuConfigSource: string | null = null;
 let menuSearchPaths: string[] = [];
 let stopMenuWatcher: (() => void) | null = null;
+let stopProfileWatcher: (() => void) | null = null;
 
 // The global fallback config (the menu.json load result), kept live by the
 // watcher. The active `menuConfig` above is this whenever no device profile
@@ -218,6 +222,35 @@ async function pushEditorProfiles(): Promise<void> {
     ids: await listDeviceProfiles(),
     override: overrideProfileId,
   } satisfies ProfilesState);
+}
+
+/**
+ * React to an *external* change in the profiles dir (#113, PR 3c-1) — the
+ * editor's own writes are suppressed via markSelfWrite. Always refresh the
+ * dropdown list; if the active profile's file changed, hot-reload the live
+ * config the same way the menu.json watcher does (push + fresh mtime so the
+ * editor's conflict baseline tracks the external edit). A vanished/broken
+ * active profile re-resolves down the priority chain.
+ */
+async function onProfilesChangedOnDisk(): Promise<void> {
+  void pushEditorProfiles();
+  if (activeProfileId === null) return; // fallback active → profiles don't drive the live config
+  const prof = await loadDeviceProfile(activeProfileId);
+  if (prof.status === 'loaded') {
+    menuConfig = prof.config;
+    menuConfigMtime = prof.mtime;
+    menuConfigSource = prof.path;
+    mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, prof.config);
+    sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
+      config: prof.config,
+      mtime: prof.mtime,
+    } satisfies MenuConfigSnapshot);
+    return;
+  }
+  // Deleted externally → drop a matching override and re-resolve (a broken
+  // file keeps the override so the user can fix it; resolution falls back).
+  if (prof.status === 'absent' && overrideProfileId === activeProfileId) overrideProfileId = null;
+  await applyActiveProfile();
 }
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // Debounce the disk write: dragging the opacity slider fires a change per
@@ -551,6 +584,9 @@ function wireActionDispatch(): void {
     const id = deviceProfileId(deviceVendor, deviceProduct);
     if (!id) return { ok: false, reason: 'no device connected' };
     if (!menuConfig) return { ok: false, reason: 'no config loaded' };
+    // Arm the watcher's self-write guard so our own write doesn't echo back
+    // as an external profile change (#113, PR 3c-1).
+    markSelfWrite(deviceProfilePath(id));
     const result = await writeDeviceProfile(id, menuConfig);
     if (result.ok !== true) {
       return { ok: false, reason: result.ok === 'conflict' ? 'write conflict' : result.reason };
@@ -566,6 +602,8 @@ function wireActionDispatch(): void {
     IpcChannel.EDITOR_DELETE_PROFILE,
     async (_evt, id: unknown): Promise<ProfileActionResult> => {
       if (typeof id !== 'string' || !isProfileId(id)) return { ok: false, reason: 'invalid id' };
+      // Suppress the watcher echo for our own delete (#113, PR 3c-1).
+      markSelfWrite(deviceProfilePath(id));
       const result = await deleteDeviceProfile(id);
       if (!result.ok) return result;
       if (overrideProfileId === id) overrideProfileId = null;
@@ -674,6 +712,15 @@ app.whenReady().then(async () => {
     } satisfies MenuConfigSnapshot);
   });
 
+  // Watch the per-device profiles dir so an external edit to the *active*
+  // profile hot-reloads like menu.json (#113, PR 3c-1). Ensure the dir
+  // exists first so the watch attaches even before the first profile.
+  const profilesDir = deviceProfilesDir();
+  await fs.mkdir(profilesDir, { recursive: true }).catch(() => {});
+  stopProfileWatcher = watchProfiles(profilesDir, () => {
+    void onProfilesChangedOnDisk();
+  });
+
   wireActionDispatch();
   wireEditorIpc({
     getConfig: () => menuConfig,
@@ -738,6 +785,8 @@ app.on('window-all-closed', () => {
   daemon.stop();
   stopMenuWatcher?.();
   stopMenuWatcher = null;
+  stopProfileWatcher?.();
+  stopProfileWatcher = null;
   if (process.platform !== 'darwin') app.quit();
 });
 
