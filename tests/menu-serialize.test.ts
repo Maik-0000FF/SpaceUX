@@ -64,6 +64,21 @@ describe('serializeMenuConfig', () => {
     if (result.ok) expect(result.config).toEqual(cfg);
   });
 
+  it('round-trips a centerField activation through the validator', () => {
+    const cfg: MenuConfig = {
+      version: 1,
+      centerField: {
+        binding: { action: 'org.spaceux.builtins/cancel' },
+        activation: { axis: 'tz', direction: 'positive', threshold: 200 },
+      },
+      sectors: [{ label: 'Solo' }],
+    };
+    const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
+    const result = validateMenuConfig(parsed);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.config).toEqual(cfg);
+  });
+
   it('emits centerField before sectors', () => {
     const cfg: MenuConfig = {
       version: 1,

@@ -1,15 +1,30 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { currentSectors, type DrillState } from '@/core/menu-nav';
-import { type MenuConfig } from '@/shared/menu';
+import { type ActionRef, type MenuConfig } from '@/shared/menu';
 
 import { PieMenu } from './PieMenu';
 import { useDrillNavigation } from './hooks/useDrillNavigation';
 import { usePieAppearance } from './hooks/usePieAppearance';
 import { useSpaceMouse } from './hooks/useSpaceMouse';
+
+/** Fire an action binding through main, swallowing nothing — dispatch
+ *  failures surface on the renderer console so a user with devtools
+ *  open can see why an action did nothing. A no-op when the binding is
+ *  absent (label-only sector, or a center field set to plain dismiss).
+ *  Module-level so both the commit listener and the puck-gesture
+ *  callbacks share one implementation. */
+function invokeBinding(binding: ActionRef | undefined): void {
+  if (!binding) return;
+  const { action, config } = binding;
+  window.spaceux.invokeAction(action, config ?? {}).catch((err: unknown) => {
+    // eslint-disable-next-line no-console
+    console.warn(`[action] ${action} failed:`, err);
+  });
+}
 
 /**
  * Root renderer component.
@@ -31,21 +46,43 @@ export function App() {
   const [menuConfig, setMenuConfig] = useState<MenuConfig | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
 
-  // All puck-driven state (navigation, sticky, rising-edge refs for
-  // TZ-cancel / lateral-magnitude / tilt) lives in
-  // `useDrillNavigation`. App.tsx just owns the IPC subscription
-  // and the render — the hook hides the puck-handling effect so the
-  // top-level component stays readable as feature work continues.
+  // configRef lets the IPC commit listener and the puck-gesture
+  // callbacks read the latest config without re-subscribing on every
+  // config push from main.
+  const configRef = useRef(menuConfig);
+  configRef.current = menuConfig;
+
+  // Close the menu with no action — the back/pop gesture's top-level
+  // outcome. Stable identity (only a state setter + IPC, no reactive
+  // deps) so the per-frame puck effect that depends on it doesn't
+  // re-subscribe. The drill-state reset is the hook's job; here we just
+  // hide the window.
+  const dismissMenu = useCallback(() => {
+    setMenuAnchor(null);
+    window.spaceux.closeMenu();
+  }, []);
+
+  // Commit the center field: hide the window, then fire its binding (or
+  // nothing when it has none — a plain dismiss). Read through configRef
+  // so this stays stable across config hot-reloads.
+  const commitCenter = useCallback(() => {
+    setMenuAnchor(null);
+    window.spaceux.closeMenu();
+    invokeBinding(configRef.current?.centerField?.binding);
+  }, []);
+
+  // All puck-driven state (navigation, sticky, rising-edge refs for the
+  // back / center-activation / drill gestures) lives in
+  // `useDrillNavigation`. App.tsx owns the IPC subscription, the render,
+  // and the close callbacks the hook invokes when an axis gesture
+  // dismisses or commits the center.
   const { drillState, dispatch, drillStateRef, resetTransientRefs } = useDrillNavigation({
     axes,
     menuConfig,
     menuOpen: menuAnchor !== null,
+    onDismiss: dismissMenu,
+    onCommitCenter: commitCenter,
   });
-
-  // configRef lets the IPC commit listener read the latest config
-  // without re-subscribing on every config push from main.
-  const configRef = useRef(menuConfig);
-  configRef.current = menuConfig;
 
   useEffect(() => {
     // Pull once on mount so we never miss the initial config to a
@@ -85,14 +122,7 @@ export function App() {
         setMenuAnchor(null);
         dispatch({ type: 'reset' });
         window.spaceux.closeMenu();
-        const centerBinding = cfg?.centerField?.binding;
-        if (centerBinding) {
-          const { action, config: actionConfig } = centerBinding;
-          window.spaceux.invokeAction(action, actionConfig ?? {}).catch((err: unknown) => {
-            // eslint-disable-next-line no-console
-            console.warn(`[action] ${action} failed:`, err);
-          });
-        }
+        invokeBinding(cfg?.centerField?.binding);
         return;
       }
       const current = currentSectors(cfg, navigation);
@@ -118,15 +148,7 @@ export function App() {
       setMenuAnchor(null);
       dispatch({ type: 'reset' });
       window.spaceux.closeMenu();
-      if (!sector?.binding) return;
-      const { action, config: actionConfig } = sector.binding;
-      window.spaceux.invokeAction(action, actionConfig ?? {}).catch((err: unknown) => {
-        // Dispatch errors surface here. Main logs the raw failure;
-        // we keep a renderer-side console line so a user with the
-        // devtools open can see why nothing happened.
-        // eslint-disable-next-line no-console
-        console.warn(`[action] ${action} failed:`, err);
-      });
+      invokeBinding(sector?.binding);
     });
 
     return () => {

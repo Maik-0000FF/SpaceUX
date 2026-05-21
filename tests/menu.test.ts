@@ -536,6 +536,46 @@ describe('validateMenuConfig — centerField', () => {
       if (!r.ok) expect(r.reason, `centerField=${JSON.stringify(bad)}`).toMatch(pattern);
     }
   });
+
+  it('accepts a center activation and round-trips axis/direction/threshold', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      centerField: {
+        binding: { action: builtinAction(BUILTIN_ACTION.CANCEL) },
+        activation: { axis: 'tz', direction: 'positive', threshold: 200 },
+      },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.centerField?.activation).toEqual({
+        axis: 'tz',
+        direction: 'positive',
+        threshold: 200,
+      });
+    }
+  });
+
+  it('rejects malformed center activation shapes', () => {
+    const cases: Array<[unknown, RegExp]> = [
+      ['not-an-object', /activation must be an object/],
+      [{ axis: 'zz', direction: 'positive', threshold: 200 }, /"axis" must be one of/],
+      [{ axis: 'tz', direction: 'sideways', threshold: 200 }, /"direction" must be one of/],
+      [{ axis: 'tz', direction: 'positive', threshold: 0 }, /"threshold".*positive finite number/],
+      [{ axis: 'tz', direction: 'positive', threshold: -1 }, /"threshold".*positive finite number/],
+      [{ axis: 'tz', direction: 'positive' }, /"threshold".*positive finite number/],
+      [{ direction: 'positive', threshold: 200 }, /"axis" must be one of/],
+    ];
+    for (const [bad, pattern] of cases) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        centerField: { activation: bad },
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `activation=${JSON.stringify(bad)}`).toBe(false);
+      if (!r.ok) expect(r.reason, `activation=${JSON.stringify(bad)}`).toMatch(pattern);
+    }
+  });
 });
 
 describe('DEFAULT_MENU_CONFIG', () => {

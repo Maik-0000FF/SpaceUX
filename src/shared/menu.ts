@@ -178,6 +178,40 @@ export function resolveAxisInvert(
   };
 }
 
+/** The six SpaceMouse axes, in the order the daemon broadcasts them.
+ *  Used to name the axis an :type:`AxisActivation` watches. */
+export const MENU_AXES = ['tx', 'ty', 'tz', 'rx', 'ry', 'rz'] as const;
+export type MenuAxisName = (typeof MENU_AXES)[number];
+
+/** Which side of an axis a gesture responds to. `positive` /
+ *  `negative` split the axis into two independent halves (e.g. TZ
+ *  pulled up vs. pushed down); `both` fires on either side, matching
+ *  the historical direction-agnostic TZ-cancel. */
+export const ACTIVATION_DIRECTIONS = ['positive', 'negative', 'both'] as const;
+export type ActivationDirection = (typeof ACTIVATION_DIRECTIONS)[number];
+
+/** Opt-in: fire a target by deflecting a single axis past a threshold,
+ *  no trigger press needed. Rising-edge detected like the auto-drill
+ *  gestures (a sustained deflection fires once, then must dip back
+ *  under the threshold before re-firing).
+ *
+ *  `direction` lets one axis carry two meanings — the canonical use is
+ *  splitting TZ so pulling up activates the center while pushing down
+ *  stays the back/pop gesture. With `direction: 'both'` on TZ the whole
+ *  axis is claimed for the activation, so the back/pop gesture loses
+ *  its TZ trigger; prefer `positive`/`negative` when you still want
+ *  back/pop. */
+export type AxisActivation = {
+  /** Which axis to watch. */
+  axis: MenuAxisName;
+  /** Which side of the axis fires (or `both`). */
+  direction: ActivationDirection;
+  /** Deflection magnitude that fires the gesture. Positive finite;
+   *  compared against the axis value (or its absolute value when
+   *  `direction` is `both`). */
+  threshold: number;
+};
+
 /** The pie's center field. Historically a hardcoded cancel target
  *  (the ✕ glyph that dismisses the menu when committed with nothing
  *  selected); this type makes it a configurable target like a sector.
@@ -199,6 +233,12 @@ export type MenuCenter = {
    *  dismiss (historical cancel). The center is always a leaf — it
    *  never carries children. */
   binding?: ActionRef;
+  /** Optional axis gesture that commits the center directly, without a
+   *  trigger press (fires the `binding`, or dismisses when there is
+   *  none). The back/pop gesture always dismisses and never fires this
+   *  binding, so the two intents stay separate. See
+   *  :type:`AxisActivation`. */
+  activation?: AxisActivation;
 };
 
 /** Top-level menu config. */
@@ -329,7 +369,8 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'centerField',
   'sectors',
 ];
-const KNOWN_CENTER_FIELDS: readonly string[] = ['label', 'icon', 'binding'];
+const KNOWN_CENTER_FIELDS: readonly string[] = ['label', 'icon', 'binding', 'activation'];
+const KNOWN_ACTIVATION_FIELDS: readonly string[] = ['axis', 'direction', 'threshold'];
 // 'id' is the editor-only stable identity (see MenuSector.id). The
 // validator never copies it into its reconstructed output, so it's
 // stripped on write; listing it here just keeps warnUnknownFields quiet
@@ -637,8 +678,56 @@ function validateCenter(raw: unknown, where: string): CenterValidation {
     if (!result.ok) return { ok: false, reason: result.reason };
     center.binding = result.value;
   }
+  if (c.activation !== undefined) {
+    const result = validateAxisActivation(c.activation, `${where} activation`);
+    if (!result.ok) return { ok: false, reason: result.reason };
+    center.activation = result.value;
+  }
   warnUnknownFields(c, KNOWN_CENTER_FIELDS, where);
   return { ok: true, value: center };
+}
+
+type ActivationValidation = { ok: true; value: AxisActivation } | { ok: false; reason: string };
+
+/** Strict structural validator for an :type:`AxisActivation`. `axis`
+ *  must name one of the six SpaceMouse axes, `direction` one of the
+ *  three sides, and `threshold` a positive finite number (same
+ *  contract as the auto-drill thresholds). */
+function validateAxisActivation(raw: unknown, where: string): ActivationValidation {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return { ok: false, reason: `${where} must be an object when present` };
+  }
+  const a = raw as Record<string, unknown>;
+  if (typeof a.axis !== 'string' || !MENU_AXES.includes(a.axis as MenuAxisName)) {
+    return {
+      ok: false,
+      reason: `${where} field "axis" must be one of ${MENU_AXES.join(', ')}`,
+    };
+  }
+  if (
+    typeof a.direction !== 'string' ||
+    !ACTIVATION_DIRECTIONS.includes(a.direction as ActivationDirection)
+  ) {
+    return {
+      ok: false,
+      reason: `${where} field "direction" must be one of ${ACTIVATION_DIRECTIONS.join(', ')}`,
+    };
+  }
+  if (typeof a.threshold !== 'number' || !Number.isFinite(a.threshold) || a.threshold <= 0) {
+    return {
+      ok: false,
+      reason: `${where} field "threshold" must be a positive finite number`,
+    };
+  }
+  warnUnknownFields(a, KNOWN_ACTIVATION_FIELDS, where);
+  return {
+    ok: true,
+    value: {
+      axis: a.axis as MenuAxisName,
+      direction: a.direction as ActivationDirection,
+      threshold: a.threshold,
+    },
+  };
 }
 
 type ActionRefValidation = { ok: true; value: ActionRef } | { ok: false; reason: string };
@@ -678,6 +767,13 @@ function orderCenter(center: MenuCenter): Record<string, unknown> {
   if (center.label !== undefined) out.label = center.label;
   if (center.icon !== undefined) out.icon = center.icon;
   if (center.binding !== undefined) out.binding = orderActionRef(center.binding);
+  if (center.activation !== undefined) {
+    out.activation = {
+      axis: center.activation.axis,
+      direction: center.activation.direction,
+      threshold: center.activation.threshold,
+    };
+  }
   return out;
 }
 
