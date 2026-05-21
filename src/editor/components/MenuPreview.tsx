@@ -276,8 +276,10 @@ export function MenuPreview() {
         );
       })}
 
-      {/* Centre cancel area — mirrors the live pie's release-to-dismiss
-          target (and anchors the layout). Static for now. */}
+      {/* Centre target — mirrors the live pie (PieMenu.tsx): the
+          configurable center field's label, falling back to the ✕
+          glyph when unset. Editing controls for the field land in the
+          editor's properties panel (PR 3). */}
       <circle className={styles.cancelCenter} cx={0} cy={0} r={INNER_RADIUS} />
       <text
         className={styles.cancelLabel}
@@ -286,7 +288,7 @@ export function MenuPreview() {
         textAnchor="middle"
         dominantBaseline="central"
       >
-        ✕
+        {config.centerField?.label ?? '✕'}
       </text>
     </svg>
   );

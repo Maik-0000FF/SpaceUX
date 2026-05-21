@@ -491,14 +491,17 @@ describe('validateMenuConfig — centerField', () => {
     }
   });
 
-  it('accepts an empty center object (label falls back to ✕ at render)', () => {
+  it('drops an empty center object (treated as omitted, never persisted)', () => {
+    // `{}` is semantically identical to no centerField at all; the
+    // validator normalises it to undefined so it can't round-trip to
+    // disk as a meaningless `"centerField": {}`.
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       centerField: {},
       sectors: [{ label: 'x' }],
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.centerField).toEqual({});
+    if (r.ok) expect(r.config.centerField).toBeUndefined();
   });
 
   it('accepts a center binding to any action, not just cancel', () => {

@@ -480,7 +480,12 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
   if (obj.centerField !== undefined) {
     const centerResult = validateCenter(obj.centerField, 'centerField');
     if (!centerResult.ok) return { ok: false, reason: centerResult.reason };
-    result.centerField = centerResult.value;
+    // An empty center (`{}`, or all fields absent) is semantically
+    // identical to omitting `centerField` entirely — drop it so it
+    // never round-trips to disk as a meaningless `"centerField": {}`.
+    if (Object.keys(centerResult.value).length > 0) {
+      result.centerField = centerResult.value;
+    }
   }
 
   warnUnknownFields(obj, KNOWN_MENU_CONFIG_FIELDS, 'menu config');
