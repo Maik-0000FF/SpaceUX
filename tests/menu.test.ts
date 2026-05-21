@@ -377,19 +377,50 @@ describe('validateMenuConfig — nested submenus', () => {
     }
   });
 
-  it('accepts both auto-drill fields concurrently', () => {
-    // Lateral and tilt can both be enabled — either gesture
+  it('accepts an opt-in twistDrill config and round-trips its fields', () => {
+    // Twist (RZ) drill mirrors magnitude/tilt — same shape, same
+    // rising-edge semantics, just a different axis. Pin the round-trip.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      twistDrill: { enabled: true, threshold: 180 },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.twistDrill).toEqual({ enabled: true, threshold: 180 });
+  });
+
+  it('rejects malformed twistDrill shapes with field-specific messages', () => {
+    const cases: Array<[unknown, RegExp]> = [
+      ['not-an-object', /"twistDrill".*must be an object/],
+      [{ enabled: 'yes', threshold: 200 }, /"twistDrill\.enabled".*must be a boolean/],
+      [{ enabled: true, threshold: -1 }, /"twistDrill\.threshold".*positive finite number/],
+    ];
+    for (const [bad, pattern] of cases) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        twistDrill: bad,
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `twistDrill=${JSON.stringify(bad)}`).toBe(false);
+      if (!r.ok) expect(r.reason, `twistDrill=${JSON.stringify(bad)}`).toMatch(pattern);
+    }
+  });
+
+  it('accepts all three auto-drill fields concurrently', () => {
+    // Lateral, tilt, and twist can all be enabled — any gesture
     // triggers drill. Pin so a future "exclusive" tweak fails here.
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       magnitudeDrill: { enabled: true, threshold: 250 },
       tiltDrill: { enabled: true, threshold: 200 },
+      twistDrill: { enabled: true, threshold: 180 },
       sectors: [{ label: 'x' }],
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.config.magnitudeDrill).toEqual({ enabled: true, threshold: 250 });
       expect(r.config.tiltDrill).toEqual({ enabled: true, threshold: 200 });
+      expect(r.config.twistDrill).toEqual({ enabled: true, threshold: 180 });
     }
   });
 
@@ -760,6 +791,7 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
       tzDeadzone: 100,
       magnitudeDrill: { enabled: false, threshold: 250 },
       tiltDrill: { enabled: false, threshold: 200 },
+      twistDrill: { enabled: false, threshold: 180 },
       sectors: [
         {
           label: 'leaf',

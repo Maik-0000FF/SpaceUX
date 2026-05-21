@@ -52,6 +52,18 @@ describe('serializeMenuConfig', () => {
     expect(json).not.toContain('centerField');
   });
 
+  it('round-trips a twistDrill through the validator', () => {
+    const cfg: MenuConfig = {
+      version: 1,
+      twistDrill: { enabled: true, threshold: 180 },
+      sectors: [{ label: 'Solo' }],
+    };
+    const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
+    const result = validateMenuConfig(parsed);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.config).toEqual(cfg);
+  });
+
   it('round-trips a centerField (label + binding) through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,

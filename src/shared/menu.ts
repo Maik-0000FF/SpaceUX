@@ -282,6 +282,12 @@ export type MenuConfig = {
    *  "diving into" a branch since the puck literally tips over
    *  what the user is hovering. */
   tiltDrill?: MenuAutoDrill;
+  /** Optional twist drill-in driven by *twisting* the puck around its
+   *  vertical axis (RZ). Same shape and rising-edge semantics as
+   *  :data:`magnitudeDrill` / :data:`tiltDrill`, gated on
+   *  `Math.abs(rz)` so a twist either way drills in. Can run alongside
+   *  the other two — any gesture crossing its threshold drills. */
+  twistDrill?: MenuAutoDrill;
   /** Overall pie size multiplier. 1 = the default size; the renderer
    *  multiplies the base radius by this (and divides by the window's
    *  devicePixelRatio so the on-screen size is consistent across monitor
@@ -371,6 +377,7 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'tzDeadzone',
   'magnitudeDrill',
   'tiltDrill',
+  'twistDrill',
   'scale',
   'centerField',
   'sectors',
@@ -523,6 +530,10 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
   const tiltResult = validateAutoDrill(obj.tiltDrill, 'tiltDrill');
   if (!tiltResult.ok) return { ok: false, reason: tiltResult.reason };
   if (tiltResult.value !== undefined) result.tiltDrill = tiltResult.value;
+
+  const twistResult = validateAutoDrill(obj.twistDrill, 'twistDrill');
+  if (!twistResult.ok) return { ok: false, reason: twistResult.reason };
+  if (twistResult.value !== undefined) result.twistDrill = twistResult.value;
 
   if (obj.centerField !== undefined) {
     const centerResult = validateCenter(obj.centerField, 'centerField');
@@ -817,6 +828,7 @@ export function serializeMenuConfig(config: MenuConfig): string {
   if (config.tzDeadzone !== undefined) out.tzDeadzone = config.tzDeadzone;
   if (config.magnitudeDrill !== undefined) out.magnitudeDrill = config.magnitudeDrill;
   if (config.tiltDrill !== undefined) out.tiltDrill = config.tiltDrill;
+  if (config.twistDrill !== undefined) out.twistDrill = config.twistDrill;
   if (config.centerField !== undefined) out.centerField = orderCenter(config.centerField);
   out.sectors = config.sectors.map(orderSector);
   return JSON.stringify(out, null, 2) + '\n';
