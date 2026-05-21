@@ -16,6 +16,7 @@ import {
   type MenuCenter,
   type MenuConfig,
   type MenuSector,
+  type MenuTwistCycle,
 } from '@/shared/menu';
 
 import { eqPath, isPrefix, sectorHeight } from './move-targets';
@@ -101,6 +102,8 @@ type MenuSettingsState = {
    *  (commit reverts to trigger-button only). Prunes an emptied
    *  centerField. */
   setCenterActivation: (activation: AxisActivation | null) => void;
+  /** Set the twist-cycle gesture config, or remove it with `null`. */
+  setTwistCycle: (twistCycle: MenuTwistCycle | null) => void;
 };
 
 /** Return a copy of `config` with an editor-only stable id (see
@@ -332,6 +335,14 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (activation === null) delete center.activation;
           else center.activation = activation;
           pruneCenter(state.config);
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setTwistCycle: (twistCycle) =>
+        set((state) => {
+          if (!state.config) return;
+          if (twistCycle === null) delete state.config.twistCycle;
+          else state.config.twistCycle = twistCycle;
           state.origin = 'local';
           state.dirty = true;
         }),

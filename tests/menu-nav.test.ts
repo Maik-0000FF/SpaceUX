@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INITIAL_DRILL_STATE,
   currentSectors,
+  cycleSectorIndex,
   drillReducer,
   navigationRingRotation,
   previewChildren,
@@ -276,5 +277,28 @@ describe('previewChildren', () => {
     const result = previewChildren(deep, { navigation: [0], stickyChildIndex: 0 });
     expect(result).toHaveLength(1);
     expect(result?.[0]?.label).toBe('leaf');
+  });
+});
+
+describe('cycleSectorIndex', () => {
+  it('steps forward and backward with wrap-around', () => {
+    expect(cycleSectorIndex(0, 1, 4)).toBe(1);
+    expect(cycleSectorIndex(3, 1, 4)).toBe(0); // wrap forward
+    expect(cycleSectorIndex(0, -1, 4)).toBe(3); // wrap backward
+    expect(cycleSectorIndex(2, -1, 4)).toBe(1);
+  });
+
+  it('enters the ring at the natural end from no selection', () => {
+    expect(cycleSectorIndex(null, 1, 4)).toBe(0); // forward → first
+    expect(cycleSectorIndex(null, -1, 4)).toBe(3); // backward → last
+  });
+
+  it('keeps the current selection on a zero step', () => {
+    expect(cycleSectorIndex(2, 0, 4)).toBe(2);
+    expect(cycleSectorIndex(null, 0, 4)).toBe(0);
+  });
+
+  it('is defensive against a degenerate ring', () => {
+    expect(cycleSectorIndex(0, 1, 0)).toBe(0);
   });
 });

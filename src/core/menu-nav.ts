@@ -124,6 +124,25 @@ export function currentSectors(config: MenuConfig, navigation: readonly number[]
 }
 
 /**
+ * Step the highlighted sector index by `step` (+1 = next/clockwise,
+ * -1 = previous), wrapping at the ring's ends — the index maths behind
+ * the twist-cycle gesture.
+ *
+ * From "nothing selected" (`current === null`) a forward step lands on
+ * the first sector and a backward step on the last, so the user enters
+ * the ring at the natural end for their twist direction. `step === 0`
+ * is a no-op that keeps the current selection. `count < 1` yields 0
+ * (defensive — the validator forbids empty rings, but in-memory configs
+ * can bypass that).
+ */
+export function cycleSectorIndex(current: number | null, step: -1 | 0 | 1, count: number): number {
+  if (count < 1) return 0;
+  if (step === 0) return current ?? 0;
+  if (current === null) return step > 0 ? 0 : count - 1;
+  return (((current + step) % count) + count) % count;
+}
+
+/**
  * Rotation (radians) the outer ring uses so its sector 0 lines up
  * with the parent sector the user drilled in from. Returns 0 for
  * the top-level case (no parent) — the inner pie is the active
