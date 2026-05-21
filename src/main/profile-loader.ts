@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -203,13 +204,25 @@ export async function listDeviceProfiles(dir: string = deviceProfilesDir()): Pro
     .sort();
 }
 
+/** Validate the menu and build the profile-file body `{ menu, appearance }`
+ *  (menu via serializeMenuConfig for the same key ordering as menu.json).
+ *  Shared by the async + sync writers. */
+function buildProfileWrapper(
+  config: MenuConfig,
+  appearance: PieAppearance,
+): { ok: true; body: string; config: MenuConfig } | { ok: false; reason: string } {
+  const validation = validateMenuConfig(config);
+  if (!validation.ok) return { ok: false, reason: validation.reason };
+  const wrapper = { menu: JSON.parse(serializeMenuConfig(validation.config)), appearance };
+  return { ok: true, body: `${JSON.stringify(wrapper, null, 2)}\n`, config: validation.config };
+}
+
 /**
- * Write the profile for `id` (an explicit user "save current config as
- * this device's profile") as the wrapper `{ menu, appearance }`. Validates
- * the menu, then atomic temp-file + rename, overwriting any existing file —
- * no conflict check (this is a deliberate overwrite, not the editor's
- * background write-back). The menu is run through serializeMenuConfig for
- * the same key ordering as menu.json.
+ * Write the profile for `id` (a "save current config as this device's
+ * profile", or an appearance edit while the profile is active) as the
+ * wrapper `{ menu, appearance }`. Validates the menu, then atomic temp-file
+ * + rename, overwriting any existing file — no conflict check (this is a
+ * deliberate overwrite, not the editor's background write-back).
  */
 export async function writeDeviceProfile(
   id: string,
@@ -217,17 +230,14 @@ export async function writeDeviceProfile(
   appearance: PieAppearance,
   dir: string = deviceProfilesDir(),
 ): Promise<MenuWriteResult> {
-  const validation = validateMenuConfig(config);
-  if (!validation.ok) return { ok: false, reason: validation.reason };
+  const built = buildProfileWrapper(config, appearance);
+  if (!built.ok) return { ok: false, reason: built.reason };
 
   const file = deviceProfilePath(id, dir);
-  const wrapper = { menu: JSON.parse(serializeMenuConfig(validation.config)), appearance };
-  const body = `${JSON.stringify(wrapper, null, 2)}\n`;
-
   const tmp = path.join(dir, `.${id}.json.${process.pid}.${Date.now()}.tmp`);
   try {
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(tmp, body, 'utf8');
+    await fs.writeFile(tmp, built.body, 'utf8');
     await fs.rename(tmp, file);
   } catch (err) {
     try {
@@ -239,9 +249,37 @@ export async function writeDeviceProfile(
   }
 
   try {
-    return { ok: true, mtime: (await fs.stat(file)).mtimeMs, config: validation.config };
+    return { ok: true, mtime: (await fs.stat(file)).mtimeMs, config: built.config };
   } catch (err) {
     return { ok: false, reason: describeError(err) };
+  }
+}
+
+/**
+ * Synchronous best-effort profile write for the quit path (mirrors
+ * saveAppSettingsSync): a debounced async appearance write pending at
+ * quit-time wouldn't settle before the process exits. Atomic temp + rename.
+ */
+export function writeDeviceProfileSync(
+  id: string,
+  config: MenuConfig,
+  appearance: PieAppearance,
+  dir: string = deviceProfilesDir(),
+): void {
+  const built = buildProfileWrapper(config, appearance);
+  if (!built.ok) return;
+  const file = deviceProfilePath(id, dir);
+  const tmp = path.join(dir, `.${id}.json.${process.pid}.${Date.now()}.sync.tmp`);
+  try {
+    fsSync.mkdirSync(dir, { recursive: true });
+    fsSync.writeFileSync(tmp, built.body, 'utf8');
+    fsSync.renameSync(tmp, file);
+  } catch {
+    try {
+      fsSync.unlinkSync(tmp);
+    } catch {
+      // temp file may not exist — ignore
+    }
   }
 }
 
