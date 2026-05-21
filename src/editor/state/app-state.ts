@@ -20,10 +20,11 @@ import { immer } from 'zustand/middleware/immer';
 type AppState = {
   viewPath: number[];
   selectedIndex: number | null;
-  /** The current ring's centre field is selected for editing. Mutually
-   *  exclusive with `selectedIndex` — selecting a sector clears it and
-   *  vice versa. Lets the user click the centre circle in the preview to
-   *  configure it, rather than having to deselect everything. */
+  /** The menu's centre field is selected for editing (it's a single
+   *  menu-global config, not per-ring). Mutually exclusive with
+   *  `selectedIndex` — selecting a sector clears it and vice versa. Lets
+   *  the user click the centre circle in the preview to configure it,
+   *  rather than having to deselect everything. */
   centerSelected: boolean;
   /** Select the sector at `index` within the current ring. */
   selectSector: (index: number) => void;
