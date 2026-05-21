@@ -219,6 +219,9 @@ async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
       cause,
     } satisfies MenuConfigChange);
   }
+  // Apply the profile's bundled appearance (or restore the global one when
+  // it has none / on fallback). Independent of the menu-changed gate above.
+  applyActiveAppearance(next.appearance);
 }
 
 /** Push the profile list + current override to the editor (#113), after a
@@ -271,6 +274,8 @@ async function onProfilesChangedOnDisk(): Promise<void> {
       mtime: prof.mtime,
       cause: 'external',
     } satisfies MenuConfigChange);
+    // The external edit may have changed the profile's bundled appearance too.
+    applyActiveAppearance(prof.appearance);
     return;
   }
   // Active profile deleted externally → drop a matching override and
@@ -279,11 +284,35 @@ async function onProfilesChangedOnDisk(): Promise<void> {
   if (prof.status === 'absent' && overrideProfileId === id) overrideProfileId = null;
   await applyActiveProfile('external');
 }
+// The active pie appearance (what the live pie + editor preview show). It's
+// the active profile's bundled appearance when one applies (#113 PR 3c-3),
+// else `globalAppearance`.
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
+// The global appearance (persisted in app-settings.json) — the fallback when
+// no profile overrides it, and where the toolbar's appearance edits land.
+let globalAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // Debounce the disk write: dragging the opacity slider fires a change per
 // step (~16 across the range), but the broadcast stays live so the pie
 // updates immediately — only the persist is coalesced to the final value.
 let pieAppearanceSaveTimer: NodeJS.Timeout | null = null;
+
+/** Whether two appearances are value-equal (avoids redundant pushes). */
+function appearanceEqual(a: PieAppearance, b: PieAppearance): boolean {
+  return a.theme === b.theme && a.opacity === b.opacity;
+}
+
+/**
+ * Set the active appearance from the active profile's bundled value, or the
+ * global appearance when the profile specifies none (#113 PR 3c-3). Pushes
+ * PIE_APPEARANCE_CHANGED to both renderers only on a real change.
+ */
+function applyActiveAppearance(profileAppearance: PieAppearance | null): void {
+  const next = profileAppearance ?? globalAppearance;
+  if (appearanceEqual(next, pieAppearance)) return;
+  pieAppearance = next;
+  mainWindow?.webContents.send(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
+  sendToEditor(IpcChannel.PIE_APPEARANCE_CHANGED, pieAppearance);
+}
 const PIE_APPEARANCE_SAVE_DEBOUNCE_MS = 250;
 // True between MENU_OPEN and MENU_COMMIT — drives the click-to-toggle
 // trigger lifecycle so a second press commits instead of re-opening.
@@ -614,7 +643,9 @@ function wireActionDispatch(): void {
     // Arm the watcher's self-write guard so our own write doesn't echo back
     // as an external profile change (#113, PR 3c-1).
     markSelfWrite(deviceProfilePath(id));
-    const result = await writeDeviceProfile(id, menuConfig);
+    // Bundle the current active appearance into the profile (#113 PR 3c-3),
+    // so connecting this device restores its look as well as its menu.
+    const result = await writeDeviceProfile(id, menuConfig, pieAppearance);
     if (result.ok !== true) {
       return { ok: false, reason: result.ok === 'conflict' ? 'write conflict' : result.reason };
     }
@@ -706,9 +737,11 @@ app.whenReady().then(async () => {
   menuConfigMtime = menuResult.mtime;
   menuConfigSource = menuResult.source;
 
-  // Load the persisted pie appearance before any window exists, so the
-  // initial GET_PIE_APPEARANCE pull returns the user's value, not defaults.
-  pieAppearance = await loadPieAppearance();
+  // Load the persisted (global) pie appearance before any window exists, so
+  // the initial GET_PIE_APPEARANCE pull returns the user's value, not
+  // defaults. It's the active appearance until a profile overrides it.
+  globalAppearance = await loadPieAppearance();
+  pieAppearance = globalAppearance;
 
   // Hot-reload: re-read on every menu.json edit and push the new config
   // to both renderers. The editor's own writes are suppressed by the
@@ -773,6 +806,11 @@ app.whenReady().then(async () => {
   wireAppIpc({
     getAppearance: () => pieAppearance,
     setAppearance: (patch) => {
+      // PR 3c-3a: appearance edits land in the *global* app-settings (and
+      // the live value tracks them for instant feedback). When a profile is
+      // active, its bundled appearance re-asserts on the next switch —
+      // routing edits into the active profile is PR 3c-3b.
+      globalAppearance = { ...globalAppearance, ...patch };
       pieAppearance = { ...pieAppearance, ...patch };
       // Broadcast the full value to both renderers at once: the live pie
       // hot-reloads and the editor preview (incl. the one that made the
@@ -784,8 +822,8 @@ app.whenReady().then(async () => {
       pieAppearanceSaveTimer = setTimeout(() => {
         pieAppearanceSaveTimer = null;
         void saveAppSettings({
-          pieTheme: pieAppearance.theme,
-          pieOpacity: pieAppearance.opacity,
+          pieTheme: globalAppearance.theme,
+          pieOpacity: globalAppearance.opacity,
         });
       }, PIE_APPEARANCE_SAVE_DEBOUNCE_MS);
     },
@@ -806,7 +844,8 @@ app.on('before-quit', () => {
   if (pieAppearanceSaveTimer) {
     clearTimeout(pieAppearanceSaveTimer);
     pieAppearanceSaveTimer = null;
-    saveAppSettingsSync({ pieTheme: pieAppearance.theme, pieOpacity: pieAppearance.opacity });
+    // app-settings holds the global appearance, not a profile's active one.
+    saveAppSettingsSync({ pieTheme: globalAppearance.theme, pieOpacity: globalAppearance.opacity });
   }
 });
 

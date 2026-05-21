@@ -8,6 +8,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { DEFAULT_MENU_CONFIG, MENU_CONFIG_VERSION } from '@/shared/menu';
+import { DEFAULT_PIE_APPEARANCE } from '@/shared/pie-appearance';
 
 import {
   deleteDeviceProfile,
@@ -75,6 +76,22 @@ describe('loadDeviceProfile', () => {
     if (result.status === 'invalid') expect(result.reason).toMatch(/not valid JSON/);
   });
 
+  it('keeps the menu valid when the wrapper appearance is garbage (sanitized, not rejected)', async () => {
+    // A broken appearance section must not invalidate the whole profile —
+    // bad fields are dropped/clamped over the defaults.
+    await write('046d-c62b', {
+      menu: DEFAULT_MENU_CONFIG,
+      appearance: { theme: 'bogus-theme', opacity: 5 },
+    });
+    const result = await loadDeviceProfile('046d-c62b', dir);
+    expect(result.status).toBe('loaded');
+    if (result.status === 'loaded') {
+      expect(result.config).toEqual(DEFAULT_MENU_CONFIG);
+      // 'bogus-theme' dropped → default 'dark'; opacity 5 clamped → 1.
+      expect(result.appearance).toEqual({ theme: 'dark', opacity: 1 });
+    }
+  });
+
   it('reports invalid when the profile fails schema validation', async () => {
     await write('046d-c62b', { version: MENU_CONFIG_VERSION, sectors: 'nope' });
     const result = await loadDeviceProfile('046d-c62b', dir);
@@ -89,36 +106,39 @@ describe('resolveActiveConfig', () => {
     source: '/cfg/menu.json',
   };
   const profileConfig = { ...DEFAULT_MENU_CONFIG, triggerButton: 3 };
+  const profileAppearance = { theme: 'spaceux' as const, opacity: 0.8 };
   const loaded: ProfileLoadResult = {
     status: 'loaded',
     config: profileConfig,
+    appearance: profileAppearance,
     mtime: 222,
     path: '/cfg/profiles/046d-c62b.json',
   };
 
-  it('uses the profile when one loaded for the device', () => {
+  it('uses the profile (config + appearance) when one loaded for the device', () => {
     const active = resolveActiveConfig('046d-c62b', loaded, fallback);
     expect(active).toEqual({
       config: profileConfig,
       mtime: 222,
       source: '/cfg/profiles/046d-c62b.json',
       profileId: '046d-c62b',
+      appearance: profileAppearance,
     });
   });
 
-  it('falls back when the device has no profile file (absent)', () => {
+  it('falls back (appearance null = keep global) when the device has no profile file', () => {
     const active = resolveActiveConfig('046d-c62b', { status: 'absent' }, fallback);
-    expect(active).toEqual({ ...fallback, profileId: null });
+    expect(active).toEqual({ ...fallback, profileId: null, appearance: null });
   });
 
   it('falls back (with profileId null) when the profile is invalid', () => {
     const active = resolveActiveConfig('046d-c62b', { status: 'invalid', reason: 'bad' }, fallback);
-    expect(active).toEqual({ ...fallback, profileId: null });
+    expect(active).toEqual({ ...fallback, profileId: null, appearance: null });
   });
 
   it('falls back when there is no device (null id / null profile)', () => {
     const active = resolveActiveConfig(null, null, fallback);
-    expect(active).toEqual({ ...fallback, profileId: null });
+    expect(active).toEqual({ ...fallback, profileId: null, appearance: null });
   });
 });
 
@@ -156,25 +176,40 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
     expect(await listDeviceProfiles(path.join(dir, 'nope'))).toEqual([]);
   });
 
-  it('writes a profile that loads back, and round-trips via the loader', async () => {
-    const result = await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, dir);
+  it('writes a profile (menu + appearance) that round-trips via the loader', async () => {
+    const appearance = { theme: 'light' as const, opacity: 0.4 };
+    const result = await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, appearance, dir);
     expect(result.ok).toBe(true);
     const loaded = await loadDeviceProfile('046d-c62b', dir);
     expect(loaded.status).toBe('loaded');
-    if (loaded.status === 'loaded') expect(loaded.config).toEqual(DEFAULT_MENU_CONFIG);
+    if (loaded.status === 'loaded') {
+      expect(loaded.config).toEqual(DEFAULT_MENU_CONFIG);
+      expect(loaded.appearance).toEqual(appearance);
+    }
+  });
+
+  it('loads an old bare-MenuConfig profile (no wrapper) with appearance null', async () => {
+    // Pre-PR-3c profiles were the bare MenuConfig at the top level.
+    await fs.writeFile(deviceProfilePath('046d-c62b', dir), JSON.stringify(DEFAULT_MENU_CONFIG));
+    const loaded = await loadDeviceProfile('046d-c62b', dir);
+    expect(loaded.status).toBe('loaded');
+    if (loaded.status === 'loaded') {
+      expect(loaded.config).toEqual(DEFAULT_MENU_CONFIG);
+      expect(loaded.appearance).toBeNull(); // no override → caller keeps global
+    }
   });
 
   it('overwrites an existing profile without a conflict (deliberate save)', async () => {
-    await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, dir);
+    await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, DEFAULT_PIE_APPEARANCE, dir);
     const changed = { ...DEFAULT_MENU_CONFIG, triggerButton: 4 };
-    const result = await writeDeviceProfile('046d-c62b', changed, dir);
+    const result = await writeDeviceProfile('046d-c62b', changed, DEFAULT_PIE_APPEARANCE, dir);
     expect(result.ok).toBe(true);
     const loaded = await loadDeviceProfile('046d-c62b', dir);
     if (loaded.status === 'loaded') expect(loaded.config.triggerButton).toBe(4);
   });
 
   it('deletes a profile, and treats a missing file as success', async () => {
-    await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, dir);
+    await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, DEFAULT_PIE_APPEARANCE, dir);
     expect(await deleteDeviceProfile('046d-c62b', dir)).toEqual({ ok: true });
     expect((await loadDeviceProfile('046d-c62b', dir)).status).toBe('absent');
     // Idempotent: deleting again still succeeds.

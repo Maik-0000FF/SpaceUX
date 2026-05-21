@@ -5,25 +5,27 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { describeError } from '../shared/errors.js';
-import type { MenuWriteResult } from '../shared/ipc.js';
-import { type MenuConfig } from '../shared/menu.js';
+import type { MenuWriteResult, PieAppearance } from '../shared/ipc.js';
+import { serializeMenuConfig, validateMenuConfig, type MenuConfig } from '../shared/menu.js';
+import { DEFAULT_PIE_APPEARANCE, sanitizePieAppearancePatch } from '../shared/pie-appearance.js';
 
 import { migrateAndValidateMenuConfig, spaceuxConfigDirs } from './menu-loader.js';
-import { writeMenuConfig } from './menu-writer.js';
 
 /**
  * Per-device config profiles (#113).
  *
- * Each connected SpaceMouse model can have its own menu config, stored
- * at `$XDG_CONFIG_HOME/spaceux/profiles/<vid>-<pid>.json` (a plain
- * MenuConfig, same on-disk format as the global menu.json). The id is
- * the USB VID:PID in lowercase hex — evdev exposes no serial, so a
+ * Each connected SpaceMouse model can have its own config, stored at
+ * `$XDG_CONFIG_HOME/spaceux/profiles/<vid>-<pid>.json` as a wrapper
+ * `{ menu: MenuConfig, appearance?: PieAppearance }` (#113 PR 3c-3 added
+ * the bundled appearance). Older profiles written as a bare MenuConfig
+ * (PR 3b) still load — see loadDeviceProfile's format detection. The id
+ * is the USB VID:PID in lowercase hex — evdev exposes no serial, so a
  * profile is per *model*, not per physical unit.
  *
  * This module is pure I/O + path logic so it stays unit-testable. Main
  * decides *when* to switch profiles (on a daemon device-change event)
- * and falls back to the global menu.json whenever a device has no
- * profile, is unknown, or its profile file is unreadable.
+ * and falls back to the global menu.json + app-settings appearance
+ * whenever a device has no profile, is unknown, or its file is unreadable.
  */
 
 const PROFILES_SUBDIR = 'profiles';
@@ -63,7 +65,16 @@ export function deviceProfilePath(id: string, dir: string = deviceProfilesDir())
  *                 caller uses the fallback and should log `reason`.
  */
 export type ProfileLoadResult =
-  | { status: 'loaded'; config: MenuConfig; mtime: number | null; path: string }
+  | {
+      status: 'loaded';
+      config: MenuConfig;
+      /** The profile's bundled appearance, or null when the file specifies
+       *  none (old bare-MenuConfig profiles, or a wrapper without the key) —
+       *  the caller then keeps the global appearance. */
+      appearance: PieAppearance | null;
+      mtime: number | null;
+      path: string;
+    }
   | { status: 'absent' }
   | { status: 'invalid'; reason: string };
 
@@ -72,6 +83,9 @@ export type ProfileLoadResult =
  * (the expected case for a device the user hasn't customised) and is
  * distinct from `invalid` (a present-but-broken file) so the caller can
  * stay quiet for the former and warn for the latter.
+ *
+ * Format: the new wrapper `{ menu, appearance? }` (has a `menu` key), or
+ * an old bare MenuConfig (PR 3b — no `menu` key) treated as menu-only.
  */
 export async function loadDeviceProfile(
   id: string,
@@ -104,10 +118,23 @@ export async function loadDeviceProfile(
     return { status: 'invalid', reason: `${file}: not valid JSON (${describeError(err)})` };
   }
 
-  const result = migrateAndValidateMenuConfig(parsed);
+  // Wrapper format has a `menu` key; an old bare MenuConfig (PR 3b) does
+  // not (its top level is the menu itself). `appearanceRaw === undefined`
+  // → no override, keep the global appearance.
+  const isWrapper =
+    typeof parsed === 'object' && parsed !== null && 'menu' in (parsed as Record<string, unknown>);
+  const menuRaw = isWrapper ? (parsed as Record<string, unknown>).menu : parsed;
+  const appearanceRaw = isWrapper ? (parsed as Record<string, unknown>).appearance : undefined;
+
+  const result = migrateAndValidateMenuConfig(menuRaw);
   if (!result.ok) return { status: 'invalid', reason: `${file}: ${result.reason}` };
 
-  return { status: 'loaded', config: result.config, mtime, path: file };
+  const appearance =
+    appearanceRaw === undefined
+      ? null
+      : { ...DEFAULT_PIE_APPEARANCE, ...sanitizePieAppearancePatch(appearanceRaw) };
+
+  return { status: 'loaded', config: result.config, appearance, mtime, path: file };
 }
 
 /** The global menu.json baseline, as the inputs the resolver needs. */
@@ -115,8 +142,12 @@ export type FallbackMenu = { config: MenuConfig; mtime: number | null; source: s
 
 /** The menu config the app should run with right now, plus where it came
  *  from. `profileId` is the active profile's id, or null when the fallback
- *  is active. */
-export type ActiveMenuConfig = FallbackMenu & { profileId: string | null };
+ *  is active. `appearance` is the profile's bundled appearance, or null to
+ *  keep the global one (no profile, or a profile without an appearance). */
+export type ActiveMenuConfig = FallbackMenu & {
+  profileId: string | null;
+  appearance: PieAppearance | null;
+};
 
 /**
  * Decide the active menu config from a device's profile load result and
@@ -133,9 +164,15 @@ export function resolveActiveConfig(
   fallback: FallbackMenu,
 ): ActiveMenuConfig {
   if (profileId && profile && profile.status === 'loaded') {
-    return { config: profile.config, mtime: profile.mtime, source: profile.path, profileId };
+    return {
+      config: profile.config,
+      mtime: profile.mtime,
+      source: profile.path,
+      profileId,
+      appearance: profile.appearance,
+    };
   }
-  return { ...fallback, profileId: null };
+  return { ...fallback, profileId: null, appearance: null };
 }
 
 /** A profile id filename: `<vid>-<pid>` in 4-digit lowercase hex. */
@@ -167,27 +204,45 @@ export async function listDeviceProfiles(dir: string = deviceProfilesDir()): Pro
 }
 
 /**
- * Write `config` as the profile for `id` (an explicit user "save current
- * config as this device's profile"). Validates + atomic-writes via the
- * shared menu writer, overwriting any existing file for the device — no
- * conflict check (this is a deliberate overwrite, not the editor's
- * background write-back).
+ * Write the profile for `id` (an explicit user "save current config as
+ * this device's profile") as the wrapper `{ menu, appearance }`. Validates
+ * the menu, then atomic temp-file + rename, overwriting any existing file —
+ * no conflict check (this is a deliberate overwrite, not the editor's
+ * background write-back). The menu is run through serializeMenuConfig for
+ * the same key ordering as menu.json.
  */
 export async function writeDeviceProfile(
   id: string,
   config: MenuConfig,
+  appearance: PieAppearance,
   dir: string = deviceProfilesDir(),
 ): Promise<MenuWriteResult> {
+  const validation = validateMenuConfig(config);
+  if (!validation.ok) return { ok: false, reason: validation.reason };
+
   const file = deviceProfilePath(id, dir);
-  // Pass the current on-disk mtime so the writer's conflict check always
-  // agrees (force overwrite); null when the file doesn't exist yet.
-  let mtime: number | null = null;
+  const wrapper = { menu: JSON.parse(serializeMenuConfig(validation.config)), appearance };
+  const body = `${JSON.stringify(wrapper, null, 2)}\n`;
+
+  const tmp = path.join(dir, `.${id}.json.${process.pid}.${Date.now()}.tmp`);
   try {
-    mtime = (await fs.stat(file)).mtimeMs;
-  } catch {
-    mtime = null;
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(tmp, body, 'utf8');
+    await fs.rename(tmp, file);
+  } catch (err) {
+    try {
+      await fs.unlink(tmp);
+    } catch {
+      // Temp file may not exist if writeFile itself failed — ignore.
+    }
+    return { ok: false, reason: describeError(err) };
   }
-  return writeMenuConfig(file, config, mtime);
+
+  try {
+    return { ok: true, mtime: (await fs.stat(file)).mtimeMs, config: validation.config };
+  } catch (err) {
+    return { ok: false, reason: describeError(err) };
+  }
 }
 
 /** Delete the profile file for `id`. A missing file is success (the end
