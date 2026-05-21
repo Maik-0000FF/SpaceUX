@@ -6,10 +6,10 @@ import { PIE_OPACITY_MAX, PIE_OPACITY_MIN, PIE_OPACITY_STEP } from '@/shared/pie
 
 import { DeviceStatus } from './components/DeviceStatus';
 import { LiveToggle } from './components/LiveToggle';
-import { ProfileControls } from './components/ProfileControls';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
 import { PreviewHeader } from './components/PreviewHeader';
+import { ProfileControls } from './components/ProfileControls';
 import { Properties } from './components/Properties';
 import { useExternalSync } from './hooks/useExternalSync';
 import { usePieAppearance } from './hooks/usePieAppearance';
