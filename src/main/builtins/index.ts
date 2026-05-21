@@ -5,6 +5,7 @@ import { BUILTIN_ACTION, BUILTIN_PLUGIN_ID } from '../../shared/menu.js';
 import { PLUGIN_API_VERSION } from '../../shared/plugin-types.js';
 
 import type { LoadedPlugin } from '../plugin-loader.js';
+import { cancelAction } from './cancel.js';
 import { execAction } from './exec.js';
 import { keyCombo } from './key-combo.js';
 
@@ -58,11 +59,17 @@ export const BUILTIN_PLUGIN: LoadedPlugin = {
           },
         },
       },
+      {
+        name: BUILTIN_ACTION.CANCEL,
+        label: 'Cancel',
+        description: 'Dismiss the menu without performing any action.',
+      },
     ],
   },
   dir: '<built-in>',
   handlers: {
     [BUILTIN_ACTION.KEY_COMBO]: keyCombo,
     [BUILTIN_ACTION.EXEC]: execAction,
+    [BUILTIN_ACTION.CANCEL]: cancelAction,
   },
 };

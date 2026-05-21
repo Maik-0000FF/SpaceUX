@@ -47,6 +47,13 @@ export const BUILTIN_PLUGIN_ID = 'org.spaceux.builtins';
 export const BUILTIN_ACTION = {
   KEY_COMBO: 'key-combo',
   EXEC: 'exec',
+  /** Dismiss the menu without doing anything else. A no-op at
+   *  dispatch time (the renderer already hides the menu on commit);
+   *  exists as a named, assignable action so the user can place an
+   *  explicit Cancel on a sector or the center field — with its own
+   *  label/icon — rather than relying on the implicit "leave the puck
+   *  centered" gesture. */
+  CANCEL: 'cancel',
 } as const;
 
 /** Zero-based button index that opens the pie menu when no user
@@ -171,6 +178,29 @@ export function resolveAxisInvert(
   };
 }
 
+/** The pie's center field. Historically a hardcoded cancel target
+ *  (the ✕ glyph that dismisses the menu when committed with nothing
+ *  selected); this type makes it a configurable target like a sector.
+ *
+ *  No `binding` → committing the center is a silent dismiss, i.e. the
+ *  historical cancel behavior. With a `binding` it fires that action
+ *  on center-commit instead — assign :data:`BUILTIN_ACTION.CANCEL` to
+ *  keep "cancel" semantics with a custom label/icon, or any other
+ *  action to repurpose the center entirely. */
+export type MenuCenter = {
+  /** Display label for the center. Omitted → the renderer falls back
+   *  to the ✕ glyph (historical look). */
+  label?: string;
+  /** Icon name resolved by the renderer's theme. Parallels
+   *  :type:`MenuSector.icon` and is likewise ignored by the v0
+   *  renderer — labels are enough to drive the dispatch path. */
+  icon?: string;
+  /** Action invoked when the center wins on commit. Omitted → silent
+   *  dismiss (historical cancel). The center is always a leaf — it
+   *  never carries children. */
+  binding?: ActionRef;
+};
+
 /** Top-level menu config. */
 export type MenuConfig = {
   /** Schema version this config was written against. Compared against
@@ -212,6 +242,10 @@ export type MenuConfig = {
    *  scalings). Clamped to [:data:`MIN_PIE_SCALE`, :data:`MAX_PIE_SCALE`].
    *  Omitting falls back to 1. */
   scale?: number;
+  /** Optional configurable center field. Omitting it keeps the
+   *  historical hardcoded cancel target (✕ glyph, silent dismiss on
+   *  commit). See :type:`MenuCenter`. */
+  centerField?: MenuCenter;
   /** Sectors in clockwise order starting at 12 o'clock. The pie's
    *  sector count = sectors.length — there is no separate "count"
    *  knob and there cannot be one. */
@@ -292,8 +326,10 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'magnitudeDrill',
   'tiltDrill',
   'scale',
+  'centerField',
   'sectors',
 ];
+const KNOWN_CENTER_FIELDS: readonly string[] = ['label', 'icon', 'binding'];
 // 'id' is the editor-only stable identity (see MenuSector.id). The
 // validator never copies it into its reconstructed output, so it's
 // stripped on write; listing it here just keeps warnUnknownFields quiet
@@ -441,6 +477,12 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
   if (!tiltResult.ok) return { ok: false, reason: tiltResult.reason };
   if (tiltResult.value !== undefined) result.tiltDrill = tiltResult.value;
 
+  if (obj.centerField !== undefined) {
+    const centerResult = validateCenter(obj.centerField, 'centerField');
+    if (!centerResult.ok) return { ok: false, reason: centerResult.reason };
+    result.centerField = centerResult.value;
+  }
+
   warnUnknownFields(obj, KNOWN_MENU_CONFIG_FIELDS, 'menu config');
   return { ok: true, config: result };
 }
@@ -557,6 +599,43 @@ function validateSector(raw: unknown, where: string, depth = 0): SectorValidatio
   return { ok: true, value: sector };
 }
 
+type CenterValidation = { ok: true; value: MenuCenter } | { ok: false; reason: string };
+
+/** Strict structural validator for the optional center field. Mirrors
+ *  the leaf-sector rules (non-empty label, string icon, valid binding)
+ *  minus `children` — the center is always a leaf. `label` is optional
+ *  here (unlike a sector): omitting it lets the renderer fall back to
+ *  the ✕ glyph rather than forcing the user to name the cancel target. */
+function validateCenter(raw: unknown, where: string): CenterValidation {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return { ok: false, reason: `${where} must be an object when present` };
+  }
+  const c = raw as Record<string, unknown>;
+  const center: MenuCenter = {};
+  if (c.label !== undefined) {
+    if (typeof c.label !== 'string' || c.label.trim() === '') {
+      return {
+        ok: false,
+        reason: `${where} field "label" must be a non-empty string when present`,
+      };
+    }
+    center.label = c.label;
+  }
+  if (c.icon !== undefined) {
+    if (typeof c.icon !== 'string') {
+      return { ok: false, reason: `${where} field "icon" must be a string when present` };
+    }
+    center.icon = c.icon;
+  }
+  if (c.binding !== undefined) {
+    const result = validateActionRef(c.binding, `${where} binding`);
+    if (!result.ok) return { ok: false, reason: result.reason };
+    center.binding = result.value;
+  }
+  warnUnknownFields(c, KNOWN_CENTER_FIELDS, where);
+  return { ok: true, value: center };
+}
+
 type ActionRefValidation = { ok: true; value: ActionRef } | { ok: false; reason: string };
 
 function validateActionRef(raw: unknown, where: string): ActionRefValidation {
@@ -584,6 +663,16 @@ function validateActionRef(raw: unknown, where: string): ActionRefValidation {
 function orderActionRef(ref: ActionRef): Record<string, unknown> {
   const out: Record<string, unknown> = { action: ref.action };
   if (ref.config !== undefined) out.config = ref.config;
+  return out;
+}
+
+/** Build a plain object for the center field with a fixed key order,
+ *  omitting absent optional fields. */
+function orderCenter(center: MenuCenter): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (center.label !== undefined) out.label = center.label;
+  if (center.icon !== undefined) out.icon = center.icon;
+  if (center.binding !== undefined) out.binding = orderActionRef(center.binding);
   return out;
 }
 
@@ -621,6 +710,7 @@ export function serializeMenuConfig(config: MenuConfig): string {
   if (config.tzDeadzone !== undefined) out.tzDeadzone = config.tzDeadzone;
   if (config.magnitudeDrill !== undefined) out.magnitudeDrill = config.magnitudeDrill;
   if (config.tiltDrill !== undefined) out.tiltDrill = config.tiltDrill;
+  if (config.centerField !== undefined) out.centerField = orderCenter(config.centerField);
   out.sectors = config.sectors.map(orderSector);
   return JSON.stringify(out, null, 2) + '\n';
 }
