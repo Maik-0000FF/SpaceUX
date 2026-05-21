@@ -5,14 +5,16 @@ import { DEFAULT_TRIGGER_BUTTON, MAX_PIE_SCALE, MIN_PIE_SCALE } from '@/shared/m
 
 import { useMenuSettings } from '../state/menu-settings';
 
+import { CenterFieldSettings } from './CenterFieldSettings';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
 /**
  * Menu-level settings shown when no sector is selected: the trigger button
- * that opens this pie, and the pie size. Operate on the whole config rather
- * than a single sector. The size slider updates the store on every input,
- * so the preview (and a live overlay) resize as you drag.
+ * that opens this pie, the pie size, and the configurable center field.
+ * Operate on the whole config rather than a single sector. The size slider
+ * updates the store on every input, so the preview (and a live overlay)
+ * resize as you drag.
  */
 export function MenuSettings() {
   const triggerButton = useMenuSettings((s) => s.config?.triggerButton);
@@ -45,6 +47,7 @@ export function MenuSettings() {
           onChange={(e) => setScale(Number(e.target.value))}
         />
       </Row>
+      <CenterFieldSettings />
     </>
   );
 }

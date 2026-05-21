@@ -12,6 +12,8 @@ import {
   MAX_MENU_DEPTH,
   MAX_PIE_SCALE,
   MIN_PIE_SCALE,
+  type AxisActivation,
+  type MenuCenter,
   type MenuConfig,
   type MenuSector,
 } from '@/shared/menu';
@@ -82,6 +84,23 @@ type MenuSettingsState = {
   setTriggerButton: (button: number) => void;
   /** Set the pie size multiplier (clamped to [MIN_PIE_SCALE, MAX_PIE_SCALE]). */
   setScale: (scale: number) => void;
+  /** Set the center field's label; an empty/blank value clears it (the
+   *  renderer falls back to ✕). Prunes an emptied centerField. */
+  setCenterLabel: (label: string) => void;
+  /** Set the center field's binding. `null` removes it (commit becomes
+   *  a silent dismiss) and prunes an emptied centerField; a string sets
+   *  (or creates) `binding.action`, preserving any existing per-action
+   *  config. An empty string is kept as `{ action: '' }` — distinct
+   *  from `null` — so the editor's "action mode" stays mounted while
+   *  the user retypes, mirroring the sector editor. */
+  setCenterBinding: (action: string | null) => void;
+  /** Set (or clear, with `undefined`) the center binding's per-action
+   *  config. No-op when the center has no binding. */
+  setCenterActionConfig: (config: Record<string, unknown> | undefined) => void;
+  /** Set the center field's axis activation, or clear it with `null`
+   *  (commit reverts to trigger-button only). Prunes an emptied
+   *  centerField. */
+  setCenterActivation: (activation: AxisActivation | null) => void;
 };
 
 /** Return a copy of `config` with an editor-only stable id (see
@@ -111,6 +130,29 @@ function draftRingAt(
     ring = next;
   }
   return ring;
+}
+
+/** Ensure a `centerField` object exists on the draft and return it. */
+function ensureCenter(config: Draft<MenuConfig>): Draft<MenuCenter> {
+  if (!config.centerField) config.centerField = {};
+  return config.centerField;
+}
+
+/** Drop an all-empty `centerField` (no label/icon/binding/activation)
+ *  from the draft, so the working copy matches what the validator
+ *  persists — it normalises `{}` to "no center field". Keeps undo
+ *  history and the on-disk diff free of meaningless empty objects. */
+function pruneCenter(config: Draft<MenuConfig>): void {
+  const c = config.centerField;
+  if (
+    c &&
+    c.label === undefined &&
+    c.icon === undefined &&
+    c.binding === undefined &&
+    c.activation === undefined
+  ) {
+    delete config.centerField;
+  }
 }
 
 /** Navigate to the sector at a full index path within an immer draft. */
@@ -250,6 +292,46 @@ export const useMenuSettings = create<MenuSettingsState>()(
         set((state) => {
           if (!state.config) return;
           state.config.scale = Math.min(MAX_PIE_SCALE, Math.max(MIN_PIE_SCALE, scale));
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setCenterLabel: (label) =>
+        set((state) => {
+          if (!state.config) return;
+          const center = ensureCenter(state.config);
+          if (label.trim() === '') delete center.label;
+          else center.label = label;
+          pruneCenter(state.config);
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setCenterBinding: (action) =>
+        set((state) => {
+          if (!state.config) return;
+          const center = ensureCenter(state.config);
+          if (action === null) delete center.binding;
+          else if (center.binding) center.binding.action = action;
+          else center.binding = { action };
+          pruneCenter(state.config);
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setCenterActionConfig: (config) =>
+        set((state) => {
+          const binding = state.config?.centerField?.binding;
+          if (!binding) return; // config is meaningless without a binding
+          if (config === undefined) delete binding.config;
+          else binding.config = config;
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setCenterActivation: (activation) =>
+        set((state) => {
+          if (!state.config) return;
+          const center = ensureCenter(state.config);
+          if (activation === null) delete center.activation;
+          else center.activation = activation;
+          pruneCenter(state.config);
           state.origin = 'local';
           state.dirty = true;
         }),

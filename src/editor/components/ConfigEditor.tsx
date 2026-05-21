@@ -3,36 +3,35 @@
 
 import { useState } from 'react';
 
-import { useMenuSettings } from '../state/menu-settings';
-
 import styles from './Properties.module.scss';
 
 /**
- * JSON editor for a leaf sector's action config. Keeps local text state
- * so a half-typed (invalid) value stays in the field without being
- * pushed into the store; only a parse to a plain object commits. Clearing
- * the field removes the config. Remounted per selection (keyed on the
- * path + remoteRev) so switching sectors / adopting a remote change
- * reloads the field cleanly.
+ * JSON editor for an action's per-instance config. Keeps local text
+ * state so a half-typed (invalid) value stays in the field without
+ * being pushed out; only a parse to a plain object commits. Clearing
+ * the field reports `undefined` so the caller can remove the config.
+ *
+ * Caller-agnostic: it owns no store reference, just `value` in and an
+ * `onChange` out, so it serves both a leaf sector's binding and the
+ * center field's binding. Remount it (via `key`) on a selection change
+ * or external adoption so the field reloads cleanly rather than
+ * mid-typing.
  */
 export function ConfigEditor({
-  path,
   value,
+  onChange,
 }: {
-  path: readonly number[];
   value: Record<string, unknown> | undefined;
+  onChange: (config: Record<string, unknown> | undefined) => void;
 }) {
-  const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
   const [text, setText] = useState(value !== undefined ? JSON.stringify(value, null, 2) : '');
   const [error, setError] = useState<string | null>(null);
 
-  const onChange = (next: string): void => {
+  const handleChange = (next: string): void => {
     setText(next);
     if (next.trim() === '') {
       setError(null);
-      updateSectorAt(path, (s) => {
-        if (s.binding) delete s.binding.config;
-      });
+      onChange(undefined);
       return;
     }
     let parsed: unknown;
@@ -47,9 +46,7 @@ export function ConfigEditor({
       return;
     }
     setError(null);
-    updateSectorAt(path, (s) => {
-      if (s.binding) s.binding.config = parsed as Record<string, unknown>;
-    });
+    onChange(parsed as Record<string, unknown>);
   };
 
   return (
@@ -60,7 +57,7 @@ export function ConfigEditor({
         value={text}
         spellCheck={false}
         rows={5}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => handleChange(e.target.value)}
       />
       {error !== null && <span className={styles.fieldError}>{error}</span>}
     </div>
