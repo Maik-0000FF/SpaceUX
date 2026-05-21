@@ -20,12 +20,19 @@ import { immer } from 'zustand/middleware/immer';
 type AppState = {
   viewPath: number[];
   selectedIndex: number | null;
+  /** The current ring's centre field is selected for editing. Mutually
+   *  exclusive with `selectedIndex` — selecting a sector clears it and
+   *  vice versa. Lets the user click the centre circle in the preview to
+   *  configure it, rather than having to deselect everything. */
+  centerSelected: boolean;
   /** Select the sector at `index` within the current ring. */
   selectSector: (index: number) => void;
   /** Select the sector at a full index path: its parent ring becomes the
    *  view and the last segment the in-ring selection. Lets the tree jump
    *  to any depth in one click. Empty path clears the selection. */
   selectPath: (path: readonly number[]) => void;
+  /** Select the centre field (clears any sector selection). */
+  selectCenter: () => void;
   /** Clear the selection (keeps the current ring in view). */
   clearSelection: () => void;
   /** Descend into the submenu at `index` of the current ring. Clears the
@@ -45,28 +52,39 @@ export const useAppState = create<AppState>()(
   immer((set) => ({
     viewPath: [],
     selectedIndex: null,
+    centerSelected: false,
     selectSector: (index) =>
       set((state) => {
         state.selectedIndex = index;
+        state.centerSelected = false;
       }),
     selectPath: (path) =>
       set((state) => {
         state.viewPath = path.slice(0, -1);
         state.selectedIndex = path.length > 0 ? path[path.length - 1]! : null;
+        state.centerSelected = false;
+      }),
+    selectCenter: () =>
+      set((state) => {
+        state.selectedIndex = null;
+        state.centerSelected = true;
       }),
     clearSelection: () =>
       set((state) => {
         state.selectedIndex = null;
+        state.centerSelected = false;
       }),
     drillInto: (index) =>
       set((state) => {
         state.viewPath.push(index);
         state.selectedIndex = null;
+        state.centerSelected = false;
       }),
     drillTo: (depth) =>
       set((state) => {
         state.viewPath = state.viewPath.slice(0, depth);
         state.selectedIndex = null;
+        state.centerSelected = false;
       }),
     livePreview: false,
     setLivePreview: (on) =>

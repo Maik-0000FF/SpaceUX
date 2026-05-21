@@ -71,11 +71,29 @@
 }
 
 // Centre cancel area — mirrors .pie-cancel-center / .pie-cancel-label.
+// Editor-only: clickable to select the centre field for editing (unlike the
+// live pie, where it's non-interactive). Click events land on the circle's
+// fill and bubble to the wrapping .centerGroup.
+.centerGroup {
+  cursor: pointer;
+  outline: none;
+
+  &:focus,
+  &:focus-visible {
+    outline: none;
+  }
+}
+
 .cancelCenter {
   fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
-  pointer-events: none;
+}
+
+// Selected for editing — bright outline, mirrors .wedgeSelected.
+.cancelCenterSelected {
+  stroke: var(--pie-border-active);
+  stroke-width: 2.5;
 }
 
 .cancelLabel {

@@ -9,6 +9,7 @@ import { moveTargets, pathOfSectorId } from '../state/move-targets';
 import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
 import { nextSectorId } from '../state/sector-keys';
 
+import { CenterFieldSettings } from './CenterFieldSettings';
 import { ConfigEditor } from './ConfigEditor';
 import { MenuSettings } from './MenuSettings';
 import { Row } from './Row';
@@ -42,6 +43,7 @@ export function Properties() {
   const remoteRev = useMenuSettings((s) => s.remoteRev);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
+  const centerSelected = useAppState((s) => s.centerSelected);
   const selectSector = useAppState((s) => s.selectSector);
   const selectPath = useAppState((s) => s.selectPath);
   const clearSelection = useAppState((s) => s.clearSelection);
@@ -94,7 +96,12 @@ export function Properties() {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Properties</div>
-      {!sector || !path ? (
+      {config && centerSelected ? (
+        // Centre field clicked in the preview → focus just its editor.
+        <div className={styles.fields}>
+          <CenterFieldSettings />
+        </div>
+      ) : !sector || !path ? (
         <div className={styles.fields}>
           <p className={styles.empty}>Select a sector to edit it.</p>
           {config && <MenuSettings />}
