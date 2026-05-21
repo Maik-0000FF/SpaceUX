@@ -14,10 +14,8 @@ import {
   gestureActive,
   inputActive,
   meetsActivation,
-  resolveTzDeadzone,
   rotateAxes,
   sectorCenterAngle,
-  shouldCancelOnZ,
   twistCycleStep,
   type GestureFrame,
   type PieGeometryConfig,
@@ -133,64 +131,6 @@ describe('axesMagnitude', () => {
   it('matches Euclidean distance', () => {
     expect(axesMagnitude({ tx: 3, ty: 4 })).toBe(5);
     expect(axesMagnitude({ tx: -3, ty: -4 })).toBe(5);
-  });
-});
-
-describe('resolveTzDeadzone', () => {
-  it('returns the fallback when the override is undefined', () => {
-    // Default fallback path: behaviour identical to "no separate TZ
-    // threshold configured" — equivalent to pre-#12 behaviour.
-    expect(resolveTzDeadzone(undefined, 50)).toBe(50);
-  });
-
-  it('returns the override when set (ignoring the fallback)', () => {
-    // Raising the TZ threshold to filter cross-talk shouldn't drag
-    // the lateral selection's sensitivity along with it.
-    expect(resolveTzDeadzone(120, 50)).toBe(120);
-  });
-
-  it('honours an explicit override of 0 as "no TZ threshold"', () => {
-    // `?? fallback` only fills the gap on `undefined` — a literal 0
-    // means "fire on any TZ deflection". Edge-case but worth a pin
-    // so a future "override || fallback" refactor (which would
-    // collapse 0 to the fallback) fails here. The validator
-    // currently rejects 0 from menu.json, so this branch is only
-    // reachable from direct in-code callers, but the helper's
-    // contract still has to honour it.
-    expect(resolveTzDeadzone(0, 50)).toBe(0);
-  });
-});
-
-describe('shouldCancelOnZ', () => {
-  // The deadzone parameter is the user-facing threshold; pick 50 in
-  // tests for parity with DEFAULT_PIE_GEOMETRY.deadzone.
-  const DZ = 50;
-
-  it('does not fire when tz is exactly zero', () => {
-    expect(shouldCancelOnZ(0, DZ)).toBe(false);
-  });
-
-  it('does not fire inside the deadzone (positive and negative)', () => {
-    expect(shouldCancelOnZ(40, DZ)).toBe(false);
-    expect(shouldCancelOnZ(-40, DZ)).toBe(false);
-    expect(shouldCancelOnZ(DZ, DZ)).toBe(false);
-    expect(shouldCancelOnZ(-DZ, DZ)).toBe(false);
-  });
-
-  it('fires past the deadzone in either direction (symmetry guard)', () => {
-    // The whole point of the helper is that push and pull both
-    // register — pin both signs explicitly so a future "only count
-    // negative tz" tweak fails this test instead of silently
-    // breaking users with the opposite puck polarity.
-    expect(shouldCancelOnZ(51, DZ)).toBe(true);
-    expect(shouldCancelOnZ(-51, DZ)).toBe(true);
-    expect(shouldCancelOnZ(100, DZ)).toBe(true);
-    expect(shouldCancelOnZ(-100, DZ)).toBe(true);
-  });
-
-  it('honours different deadzone values', () => {
-    expect(shouldCancelOnZ(10, 5)).toBe(true);
-    expect(shouldCancelOnZ(10, 50)).toBe(false);
   });
 });
 

@@ -177,39 +177,6 @@ export function rotateAxes(axes: PieAxes, angle: number): PieAxes {
   };
 }
 
-/**
- * Whether a TZ deflection should clear the sticky selection and light
- * up the cancel target. Direction-agnostic on purpose — push OR pull
- * both register, so users don't have to learn their puck's TZ polarity.
- *
- * Lives in this module as a pure function so the rule is testable in
- * isolation rather than buried in the React effect that consumes it.
- * Pair with :func:`resolveTzDeadzone` at the call site so the
- * caller's optional `tzDeadzone` override on `PieGeometryConfig`
- * applies — passing `config.deadzone` directly here ignores any
- * separately-configured TZ threshold.
- */
-export function shouldCancelOnZ(tz: number, deadzone: number): boolean {
-  return Math.abs(tz) > deadzone;
-}
-
-/**
- * Pick the right TZ-cancel threshold: the caller's `override` if
- * set, the lateral `fallback` otherwise. Centralising the
- * `?? fallback` rule in one helper keeps every TZ-related call
- * site (cancel/pop, future TZ-cancel UI hints, etc.) from
- * re-implementing the coalesce and drifting on edge cases —
- * notably the explicit `0` carry, which a future `||`
- * "simplification" would silently coalesce to the fallback.
- *
- * Takes two scalars rather than a `PieGeometryConfig` so the
- * caller (the per-frame puck-handling effect) doesn't have to
- * synthesise a config object just to read two fields.
- */
-export function resolveTzDeadzone(override: number | undefined, fallback: number): number {
-  return override ?? fallback;
-}
-
 /** Read a named axis from a six-axis snapshot. Thin indexed access,
  *  but centralising it keeps the activation call sites from hand-
  *  mapping axis names to fields (and lets the helper be unit-tested
@@ -371,7 +338,7 @@ export function inputActive(input: InputBinding, frame: GestureFrame): boolean {
       return meetsActivation(axisValue(frame.axes, input.axis), input.direction, input.threshold);
     case 'magnitude': {
       const { tx, ty, rx, ry } = frame.axes;
-      const magnitude = input.source === 'lateral' ? Math.hypot(tx, ty) : Math.hypot(rx, ry);
+      const magnitude = input.source === 'lateral' ? axesMagnitude({ tx, ty }) : Math.hypot(rx, ry);
       return magnitude > input.threshold;
     }
     case 'none':

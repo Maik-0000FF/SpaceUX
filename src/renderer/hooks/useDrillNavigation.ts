@@ -217,7 +217,9 @@ export function useDrillNavigation(opts: {
       cycleStep,
       priority: nav.cycle.priority,
       count: current.length,
-      cycleEnabled: nav.cycle.inputs.length > 0,
+      // Only axis inputs can actually step; a button/magnitude-only
+      // cycle binding mustn't gate the sticky-drill fallback.
+      cycleEnabled: nav.cycle.inputs.some((input) => input.kind === 'axis'),
     });
 
     if (drillRising && drillTarget !== null) {

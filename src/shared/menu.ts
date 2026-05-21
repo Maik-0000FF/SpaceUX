@@ -156,9 +156,11 @@ export const DEFAULT_TWIST_CYCLE_THRESHOLD = 100;
 // A unified way to bind a navigation *gesture* (drill in, back/pop,
 // cycle, commit-center) to an *input* — a device button, a split axis,
 // or a 2D magnitude — configurable globally and (later) per sector.
-// This will subsume the scattered legacy fields (tzDeadzone, the
-// *Drill knobs, twistCycle, centerField.activation) via a v1→v2
-// migration; for now the type is additive and unused at runtime.
+// This is the runtime driver: the renderer hook resolves gestures from
+// `navigation` (see resolveNavigation + the pie-geometry resolver). It
+// replaced the scattered legacy fields (tzDeadzone, the *Drill knobs,
+// twistCycle, centerField.activation) in #109 — removed in place at v1
+// (no migration, pre-release) rather than via a version bump.
 
 /** A single thing that can fire a gesture. Tagged union so one editor
  *  dropdown can offer every input kind, and one resolver can test them
