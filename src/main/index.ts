@@ -9,6 +9,7 @@ import { describeError } from '../shared/errors.js';
 import {
   IpcChannel,
   type DaemonStatusPayload,
+  type EditorDeviceInfo,
   type MenuConfigSnapshot,
   type MenuOpenPayload,
   type PieAppearance,
@@ -113,20 +114,34 @@ let deviceVendor = 0;
 let deviceProduct = 0;
 let deviceName = '';
 
-// Single point that latches the reported device. Pushes the button count to
-// the editor on change (idempotent — same-value pushes no-op in the
-// renderer), and re-resolves the active profile whenever the device
-// *identity* (VID:PID) changes — connect, swap, or disconnect.
+/** Push the current device (count + identity + active profile id) to the
+ *  editor (#66, #113). The editor re-clamps its pickers and updates its
+ *  active-device/profile display. Only called on a real device/profile
+ *  transition, so there are no redundant same-value pushes to dedupe. */
+function pushEditorDevice(): void {
+  sendToEditor(IpcChannel.EDITOR_DEVICE, {
+    buttons: deviceButtonCount,
+    vendor: deviceVendor,
+    product: deviceProduct,
+    name: deviceName,
+    profileId: activeProfileId,
+  } satisfies EditorDeviceInfo);
+}
+
+// Single point that latches the reported device. Re-resolves the active
+// profile whenever the device *identity* (VID:PID) changes — connect, swap,
+// or disconnect — and pushes the device to the editor: via
+// applyActiveProfile on an identity change (so the new profileId rides
+// along), or directly on a count-only change.
 function setDeviceInfo(buttons: number, vendor: number, product: number, name: string): void {
-  if (buttons !== deviceButtonCount) {
-    deviceButtonCount = buttons;
-    sendToEditor(IpcChannel.EDITOR_DEVICE, buttons);
-  }
   const idChanged = vendor !== deviceVendor || product !== deviceProduct;
+  const countChanged = buttons !== deviceButtonCount;
+  deviceButtonCount = buttons;
   deviceVendor = vendor;
   deviceProduct = product;
   deviceName = name;
   if (idChanged) void applyActiveProfile();
+  else if (countChanged) pushEditorDevice();
 }
 
 /**
@@ -175,6 +190,10 @@ async function applyActiveProfile(): Promise<void> {
       mtime: next.mtime,
     } satisfies MenuConfigSnapshot);
   }
+  // Always refresh the editor's device/profile display: identity, name, or
+  // profileId may have changed even when the active menu source did not
+  // (e.g. a swap between two unprofiled devices, both → fallback).
+  pushEditorDevice();
 }
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // Debounce the disk write: dragging the opacity slider fires a change per
@@ -469,9 +488,19 @@ function wireActionDispatch(): void {
   // channel that handles hot-reloads later.
   ipcMain.handle(IpcChannel.GET_MENU_CONFIG, () => menuConfig);
 
-  // Editor pulls the connected device's button count (latched from the
-  // daemon hello) so its button pickers offer only buttons that exist.
-  ipcMain.handle(IpcChannel.EDITOR_GET_DEVICE, () => deviceButtonCount);
+  // Editor pulls the connected device (latched from the daemon) on mount:
+  // count clamps its button pickers, identity + profile id label the
+  // active device/profile (#66, #113).
+  ipcMain.handle(
+    IpcChannel.EDITOR_GET_DEVICE,
+    (): EditorDeviceInfo => ({
+      buttons: deviceButtonCount,
+      vendor: deviceVendor,
+      product: deviceProduct,
+      name: deviceName,
+      profileId: activeProfileId,
+    }),
+  );
 
   // Renderer requests a real close (leaf-commit or silent dismiss).
   // The trigger button only sends MENU_COMMIT now; it's the

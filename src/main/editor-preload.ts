@@ -6,6 +6,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { AxesValues, ButtonEventPayload, EditorBridge } from '../shared/bridge.js';
 import {
   IpcChannel,
+  type EditorDeviceInfo,
   type MenuConfigSnapshot,
   type MenuWriteResult,
   type PieAppearance,
@@ -51,9 +52,10 @@ const bridge: EditorBridge = {
     return () => ipcRenderer.off(IpcChannel.EDITOR_BUTTON, listener);
   },
   setLive: (on: boolean) => ipcRenderer.send(IpcChannel.EDITOR_LIVE, on),
-  getDeviceButtonCount: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_DEVICE) as Promise<number>,
-  onDeviceButtonCount: (handler) => {
-    const listener = (_evt: IpcRendererEvent, count: number) => handler(count);
+  getDeviceInfo: () =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_GET_DEVICE) as Promise<EditorDeviceInfo>,
+  onDeviceInfo: (handler) => {
+    const listener = (_evt: IpcRendererEvent, info: EditorDeviceInfo) => handler(info);
     ipcRenderer.on(IpcChannel.EDITOR_DEVICE, listener);
     return () => ipcRenderer.off(IpcChannel.EDITOR_DEVICE, listener);
   },

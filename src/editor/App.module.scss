@@ -23,11 +23,19 @@
   border-bottom: 1px solid var(--editor-border);
 }
 
+.toolbarLeft {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0; // let the device status truncate rather than push controls
+}
+
 .brand {
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--editor-fg);
+  flex: none;
 }
 
 .toolbarControls {
