@@ -78,6 +78,18 @@ static int build_pollfds(struct pollfd *fds, int input_fd, const struct sock_sta
 	return n;
 }
 
+/* Fetch the open device's identity, advertise it to clients, and return
+ * it so the caller can log without a second fetch. Called at startup and
+ * on every (un)plug; sock_set_device only broadcasts when the identity
+ * actually changes, so calling it unconditionally is fine. */
+static struct input_device_info publish_device(struct sock_state *s)
+{
+	struct input_device_info dev;
+	input_device_info(&dev);
+	sock_set_device(s, &dev);
+	return dev;
+}
+
 int main(void)
 {
 	struct sigaction sa;
@@ -115,8 +127,8 @@ int main(void)
 
 	int input_fd = input_open();
 	long long last_input_retry = time_ms();
-	/* input_button_count() is 0 when no device opened, so no guard needed. */
-	sock_set_button_count(&sock, input_button_count());
+	/* input_device_info reports zeros when no device opened, so no guard. */
+	publish_device(&sock);
 	if (input_fd < 0)
 		fprintf(stderr, "spaceux-daemon: no SpaceMouse detected yet, will retry\n");
 
@@ -150,9 +162,10 @@ int main(void)
 				input_close(input_fd);
 				input_fd = -1;
 				last_input_retry = time_ms();
-				/* Device unplugged: clear the advertised count so a
-				 * client connecting before the replug sees "none". */
-				sock_set_button_count(&sock, 0);
+				/* Device unplugged: input_close zeroed the identity, so
+				 * this advertises "none" to clients connecting before
+				 * the replug (and pushes the change to existing ones). */
+				publish_device(&sock);
 				fprintf(stderr, "spaceux-daemon: input device gone, retrying\n");
 			}
 		}
@@ -163,10 +176,15 @@ int main(void)
 				last_input_retry = now;
 				input_fd = input_open();
 				if (input_fd >= 0) {
-					/* Swapped/replugged puck: refresh the advertised
-					 * count to the new device's discovery. */
-					sock_set_button_count(&sock, input_button_count());
-					fprintf(stderr, "spaceux-daemon: input device reopened\n");
+					/* Swapped/replugged puck: advertise the new
+					 * device's identity (count + VID/PID/name) so
+					 * clients re-clamp and re-pick their profile. */
+					struct input_device_info dev = publish_device(&sock);
+					fprintf(stderr,
+						"spaceux-daemon: input device reopened: %s "
+						"(%04x:%04x)\n",
+						dev.name[0] ? dev.name : "?", dev.vendor,
+						dev.product);
 				}
 			}
 		}

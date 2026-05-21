@@ -58,11 +58,25 @@ int input_open(void);
 /* Close the backend handle and clear any cached state. */
 void input_close(int fd);
 
-/* Number of buttons the currently-open device exposes (0 when none is
- * open), discovered from the device's capabilities rather than a
- * per-model table. Surfaced to clients in the `hello` event so the
- * editor offers only buttons that exist. */
-int input_button_count(void);
+/* Identity + capabilities of the currently-open puck. All-zero / empty
+ * when no device is open. Surfaced to clients in the `hello` and
+ * `device` events: `buttons` lets the editor offer only buttons that
+ * exist (#66); `vendor`/`product`/`name` let it pick the matching
+ * per-device profile and label the active device (#113). */
+struct input_device_info {
+	unsigned short vendor;	/* USB vendor id (EVIOCGID), 0 when none */
+	unsigned short product; /* USB product id, 0 when none */
+	/* Button count discovered from the device's EV_KEY capabilities
+	 * rather than a per-model table (0 when none open). */
+	int buttons;
+	/* EVIOCGNAME model string, truncated to fit and pre-sanitized to
+	 * JSON-safe printable ASCII (see input_linux.c). "" when none. */
+	char name[SPACEUX_DEVICE_NAME_LEN];
+};
+
+/* Fill *out with the currently-open device's identity (zeros/empty when
+ * none is open). */
+void input_device_info(struct input_device_info *out);
 
 /* Drain one event from the backend's queue. Returns:
  *   1 — *out is populated, more may be queued (call again until 0)

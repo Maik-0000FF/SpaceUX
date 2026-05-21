@@ -85,6 +85,31 @@ describe('isDaemonEvent', () => {
     expect(isDaemonEvent({ event: 'device', buttons: 0 })).toBe(true);
   });
 
+  it('still accepts hello/device events that carry the #113 identity fields', () => {
+    // isDaemonEvent discriminates only on `event`, so this is a regression
+    // guard that the added VID/PID/name fields don't trip the predicate —
+    // not a wire-shape pin (that lives daemon-side, no C test harness).
+    expect(
+      isDaemonEvent({
+        event: 'device',
+        buttons: 15,
+        vendor: 1133,
+        product: 50741,
+        name: '3Dconnexion SpaceMouse Pro',
+      }),
+    ).toBe(true);
+    expect(
+      isDaemonEvent({
+        event: 'hello',
+        axes: 6,
+        buttons: 2,
+        vendor: 1133,
+        product: 50726,
+        name: '',
+      }),
+    ).toBe(true);
+  });
+
   it('accepts hello with the injection capability flag', () => {
     // New daemons (post-#6) include "inject" in hello so the renderer
     // can show "injection unavailable" instead of silently dropping
