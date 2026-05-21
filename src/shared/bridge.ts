@@ -100,6 +100,10 @@ export type EditorBridge = {
    *  the button pickers offer only buttons that exist. 0 when no device
    *  or unknown. */
   getDeviceButtonCount(): Promise<number>;
+  /** Subscribe to device button-count changes (hotplug swap / (un)plug,
+   *  daemon (re)connect) so the pickers re-clamp live. Returns an
+   *  unsubscribe fn. */
+  onDeviceButtonCount(handler: (count: number) => void): () => void;
   /** Pull the current pie appearance (theme + opacity) on mount. */
   getPieAppearance(): Promise<PieAppearance>;
   /** Push a partial appearance change (theme and/or opacity). Main

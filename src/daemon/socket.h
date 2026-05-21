@@ -108,6 +108,11 @@ void sock_broadcast_axes(struct sock_state *s, const int *values, int n_values);
 /* Push a single button transition to every subscribed client. */
 void sock_broadcast_button(struct sock_state *s, int bnum, int pressed);
 
+/* Push a device button-count change to every connected client,
+ * regardless of subscription (capability info, like hello). Called by
+ * sock_set_button_count on an actual change. */
+void sock_broadcast_device(struct sock_state *s, int button_count);
+
 /* Wire the daemon's inject layer fd into the dispatch state. Called
  * once at startup after inject_open(); -1 disables INJECT_CHORD
  * handling but leaves the rest of the protocol working. */
@@ -119,7 +124,9 @@ void sock_set_led_fd(struct sock_state *s, int fd);
 
 /* Set the button count advertised to clients in `hello`. The daemon
  * calls this whenever the input device opens or closes (the discovered
- * count, or 0 when no device is attached). */
+ * count, or 0 when no device is attached). On an actual change it also
+ * broadcasts a `device` event to connected clients so an open editor
+ * re-clamps live (#66 PR 2b). */
 void sock_set_button_count(struct sock_state *s, int count);
 
 /* Returns 1 if any client currently holds the GRAB. */

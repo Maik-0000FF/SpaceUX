@@ -78,6 +78,13 @@ describe('isDaemonEvent', () => {
     expect(isDaemonEvent({ event: 'hello', axes: 6, buttons: 32 })).toBe(true);
   });
 
+  it('accepts the device button-count event (live hotplug push, PR 2b)', () => {
+    // The daemon emits this when the connected puck's count changes so a
+    // long-lived client re-clamps without reconnecting. 0 = device gone.
+    expect(isDaemonEvent({ event: 'device', buttons: 15 })).toBe(true);
+    expect(isDaemonEvent({ event: 'device', buttons: 0 })).toBe(true);
+  });
+
   it('accepts hello with the injection capability flag', () => {
     // New daemons (post-#6) include "inject" in hello so the renderer
     // can show "injection unavailable" instead of silently dropping

@@ -120,7 +120,16 @@ void sock_set_led_fd(struct sock_state *s, int fd)
 
 void sock_set_button_count(struct sock_state *s, int count)
 {
+	/* Only act on an actual change. A new client always learns the
+	 * current count from the hello on connect, so the broadcast here
+	 * just covers the delta for clients already connected when a puck
+	 * is swapped/(un)plugged — that's what lets an open editor re-clamp
+	 * its pickers live (#66 PR 2b). The startup set runs before any
+	 * client connects, so it broadcasts to nobody, which is correct. */
+	if (s->button_count == count)
+		return;
 	s->button_count = count;
+	sock_broadcast_device(s, count);
 }
 
 void sock_close(struct sock_state *s)
@@ -461,6 +470,24 @@ void sock_broadcast_button(struct sock_state *s, int bnum, int pressed)
 	for (int i = 0; i < SPACEUX_MAX_CLIENTS; i++) {
 		struct sock_client *c = &s->clients[i];
 		if (c->fd < 0 || !(c->subscriptions & PROTO_SUB_BUTTONS))
+			continue;
+		if (ipc_write(c->fd, buf, len) < 0)
+			slot_clear(c);
+	}
+}
+
+void sock_broadcast_device(struct sock_state *s, int button_count)
+{
+	char buf[SPACEUX_EVENT_BUF_SIZE];
+	int len = protocol_format_device(buf, sizeof(buf), button_count);
+	if (len <= 0)
+		return;
+	/* No subscription gate: the button count is connection-level
+	 * capability info (like the hello event), not a stream a client
+	 * opts into. Every connected client gets it. */
+	for (int i = 0; i < SPACEUX_MAX_CLIENTS; i++) {
+		struct sock_client *c = &s->clients[i];
+		if (c->fd < 0)
 			continue;
 		if (ipc_write(c->fd, buf, len) < 0)
 			slot_clear(c);

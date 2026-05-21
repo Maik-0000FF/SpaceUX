@@ -92,8 +92,14 @@ export const IpcChannel = {
   /** Editor pulls the connected device's button count (from the daemon
    *  hello) so its button pickers only offer buttons that exist. 0 when
    *  no device / count unknown; the editor falls back to a default range
-   *  then. Live updates on a hotplug swap follow (#66 PR 2b). */
+   *  then. The pull covers the mount-time value; live changes arrive on
+   *  EDITOR_DEVICE below. */
   EDITOR_GET_DEVICE: 'spaceux:editor:device:get',
+  /** Main pushes the device's button count to the editor whenever it
+   *  changes (hotplug swap / (un)plug, or daemon (re)connect) so an
+   *  open editor re-clamps its button pickers live (#66 PR 2b). Pairs
+   *  with the EDITOR_GET_DEVICE pull for the initial value. */
+  EDITOR_DEVICE: 'spaceux:editor:device',
 
   // ── Pie appearance (own app setting, separate from menu.json and the
   //    editor UI theme; consumed by both the live pie and the editor
