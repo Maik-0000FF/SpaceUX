@@ -115,7 +115,8 @@ int main(void)
 
 	int input_fd = input_open();
 	long long last_input_retry = time_ms();
-	sock_set_button_count(&sock, input_fd >= 0 ? input_button_count() : 0);
+	/* input_button_count() is 0 when no device opened, so no guard needed. */
+	sock_set_button_count(&sock, input_button_count());
 	if (input_fd < 0)
 		fprintf(stderr, "spaceux-daemon: no SpaceMouse detected yet, will retry\n");
 

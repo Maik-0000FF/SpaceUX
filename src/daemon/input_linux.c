@@ -55,7 +55,12 @@ static int vid_matches(unsigned short vid)
  * over exactly the codes input_poll maps to a bnum: BTN_0..BTN_9
  * (bnum 0..9) and BTN_TRIGGER_HAPPY1..40 (bnum 10..49). The kernel
  * reports the device's real capabilities, so this is the authoritative
- * per-device count without any VID/PID database. Returns 0 on failure. */
+ * per-device count without any VID/PID database. Returns 0 on failure.
+ *
+ * The result is consumed as a contiguous range (buttons 0..count-1) —
+ * fine because SpaceMice report contiguous button codes. It's clamped
+ * to SPACEUX_MAX_BUTTONS: code_to_bnum drops any bnum past that cap, so
+ * advertising more would promise buttons input_poll never delivers. */
 static int discover_button_count(int fd)
 {
 	unsigned long keybits[(KEY_MAX / (8 * sizeof(unsigned long))) + 1];
@@ -70,7 +75,7 @@ static int discover_button_count(int fd)
 	for (int code = BTN_TRIGGER_HAPPY1; code <= BTN_TRIGGER_HAPPY40; code++)
 		if (keybits[code / wb] & (1UL << (code % wb)))
 			count++;
-	return count;
+	return count > SPACEUX_MAX_BUTTONS ? SPACEUX_MAX_BUTTONS : count;
 }
 
 static int looks_like_spacemouse(int fd)
