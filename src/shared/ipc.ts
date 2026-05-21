@@ -181,12 +181,17 @@ export type PieAppearance = {
  *  the config (fresh install running on DEFAULT_MENU_CONFIG). */
 export type MenuConfigSnapshot = { config: MenuConfig; mtime: number | null };
 
-/** Why the editor's active config changed out-of-band (#113): an
- *  `external` file edit (menu.json or the active profile, edited outside
- *  the editor), or a `device` switch (hotplug / (un)plug / profile
- *  override). Drives the conflict banner's wording so a hotplug swap reads
- *  as a device change, not a phantom "menu.json was edited". */
-export type ConfigChangeCause = 'external' | 'device';
+/** Why the editor's active config changed out-of-band (#113), driving the
+ *  conflict banner's wording:
+ *   - `external` — a file edit outside the editor (menu.json or the active
+ *     profile file).
+ *   - `device`   — the connected device changed (hotplug / (un)plug), so a
+ *     different profile auto-resolved.
+ *   - `profile`  — the active profile was switched without a device change
+ *     (the editor's override dropdown, or a save/delete that re-resolved).
+ *  Distinguishing `device` from `profile` keeps the banner from claiming
+ *  "the connected device changed" when the user merely picked a profile. */
+export type ConfigChangeCause = 'external' | 'device' | 'profile';
 
 /** Payload of EDITOR_MENU_CONFIG_CHANGED: the new snapshot plus its cause. */
 export type MenuConfigChange = MenuConfigSnapshot & { cause: ConfigChangeCause };

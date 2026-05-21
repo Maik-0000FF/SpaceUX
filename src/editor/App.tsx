@@ -123,16 +123,18 @@ export function App() {
               ? device.name
                 ? `The connected device changed to ${device.name} — its config differs from your unsaved edits.`
                 : 'The connected device changed while you had unsaved edits.'
-              : 'The active configuration was changed outside the editor while you had unsaved edits.'}
+              : conflictCause === 'profile'
+                ? `The active profile changed to ${device.profileId ?? 'Default'} — it differs from your unsaved edits.`
+                : 'The active configuration was changed outside the editor while you had unsaved edits.'}
           </span>
           <button
             type="button"
             className={styles.bannerButton}
             onClick={reload}
             title={
-              conflictCause === 'device'
-                ? "Discard your edits and load the active device's config"
-                : 'Discard your edits and load the changed config'
+              conflictCause === 'external'
+                ? 'Discard your edits and load the changed config'
+                : 'Discard your edits and load the now-active config'
             }
           >
             Reload
@@ -142,9 +144,9 @@ export function App() {
             className={styles.bannerButton}
             onClick={overwrite}
             title={
-              conflictCause === 'device'
-                ? 'Write your unsaved edits onto the now-active config'
-                : 'Write your unsaved edits over the changed config'
+              conflictCause === 'external'
+                ? 'Write your unsaved edits over the changed config'
+                : 'Write your unsaved edits onto the now-active config'
             }
           >
             Overwrite
