@@ -60,3 +60,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.ok {
+  font-size: 11px;
+  color: var(--editor-fg-dim);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
