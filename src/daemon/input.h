@@ -58,6 +58,12 @@ int input_open(void);
 /* Close the backend handle and clear any cached state. */
 void input_close(int fd);
 
+/* Number of buttons the currently-open device exposes (0 when none is
+ * open), discovered from the device's capabilities rather than a
+ * per-model table. Surfaced to clients in the `hello` event so the
+ * editor offers only buttons that exist. */
+int input_button_count(void);
+
 /* Drain one event from the backend's queue. Returns:
  *   1 — *out is populated, more may be queued (call again until 0)
  *   0 — nothing pending

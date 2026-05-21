@@ -104,6 +104,7 @@ int sock_init(struct sock_state *s)
 		s->clients[i].fd = -1;
 	s->inject_fd = -1;
 	s->led_fd = -1;
+	s->button_count = 0;
 	return ipc_listener_open(&s->listener);
 }
 
@@ -115,6 +116,11 @@ void sock_set_inject_fd(struct sock_state *s, int fd)
 void sock_set_led_fd(struct sock_state *s, int fd)
 {
 	s->led_fd = fd;
+}
+
+void sock_set_button_count(struct sock_state *s, int count)
+{
+	s->button_count = count;
 }
 
 void sock_close(struct sock_state *s)
@@ -234,9 +240,8 @@ int sock_accept(struct sock_state *s)
 		fprintf(stderr, "[sock] accept slot=%d pid=%d uid=%d\n", slot, peer.pid, peer.uid);
 
 	char hello[SPACEUX_EVENT_BUF_SIZE];
-	int hlen =
-		protocol_format_hello(hello, sizeof(hello), SPACEUX_AXIS_COUNT, SPACEUX_MAX_BUTTONS,
-				      s->inject_fd >= 0, s->led_fd >= 0, c->auth_token);
+	int hlen = protocol_format_hello(hello, sizeof(hello), SPACEUX_AXIS_COUNT, s->button_count,
+					 s->inject_fd >= 0, s->led_fd >= 0, c->auth_token);
 	if (hlen > 0)
 		(void)ipc_write(fd, hello, hlen);
 	return slot;
