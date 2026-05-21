@@ -7,13 +7,18 @@ import {
   DEFAULT_PIE_GEOMETRY,
   axesMagnitude,
   axesToSector,
+  axisValue,
   clampPieAnchor,
+  meetsActivation,
   resolveTzDeadzone,
   rotateAxes,
   sectorCenterAngle,
   shouldCancelOnZ,
+  tzBackEngaged,
   type PieGeometryConfig,
+  type SixAxes,
 } from '../src/core/pie-geometry';
+import type { AxisActivation } from '../src/shared/menu';
 
 describe('axesToSector', () => {
   const eight: PieGeometryConfig = { sectorCount: 8, deadzone: 50, invertX: false, invertY: true };
@@ -256,5 +261,85 @@ describe('clampPieAnchor', () => {
     // orientation.
     const shortFat = { width: 1080, height: 200 };
     expect(clampPieAnchor({ x: 0, y: 999 }, RADIUS, shortFat)).toEqual({ x: RADIUS, y: 100 });
+  });
+});
+
+describe('axisValue', () => {
+  const axes: SixAxes = { tx: 1, ty: 2, tz: 3, rx: 4, ry: 5, rz: 6 };
+  it('reads each named axis from the six-axis snapshot', () => {
+    expect(axisValue(axes, 'tx')).toBe(1);
+    expect(axisValue(axes, 'ty')).toBe(2);
+    expect(axisValue(axes, 'tz')).toBe(3);
+    expect(axisValue(axes, 'rx')).toBe(4);
+    expect(axisValue(axes, 'ry')).toBe(5);
+    expect(axisValue(axes, 'rz')).toBe(6);
+  });
+});
+
+describe('meetsActivation', () => {
+  const T = 100;
+  it('positive fires only above +threshold (strict)', () => {
+    expect(meetsActivation(101, 'positive', T)).toBe(true);
+    expect(meetsActivation(T, 'positive', T)).toBe(false); // exactly on → no
+    expect(meetsActivation(50, 'positive', T)).toBe(false);
+    expect(meetsActivation(-101, 'positive', T)).toBe(false); // wrong side
+  });
+
+  it('negative fires only below -threshold (strict)', () => {
+    expect(meetsActivation(-101, 'negative', T)).toBe(true);
+    expect(meetsActivation(-T, 'negative', T)).toBe(false);
+    expect(meetsActivation(-50, 'negative', T)).toBe(false);
+    expect(meetsActivation(101, 'negative', T)).toBe(false); // wrong side
+  });
+
+  it('both fires on either side past the magnitude (direction-agnostic)', () => {
+    expect(meetsActivation(101, 'both', T)).toBe(true);
+    expect(meetsActivation(-101, 'both', T)).toBe(true);
+    expect(meetsActivation(T, 'both', T)).toBe(false);
+    expect(meetsActivation(-T, 'both', T)).toBe(false);
+    expect(meetsActivation(0, 'both', T)).toBe(false);
+  });
+});
+
+describe('tzBackEngaged', () => {
+  const DZ = 50;
+  const onTz = (direction: AxisActivation['direction']): AxisActivation => ({
+    axis: 'tz',
+    direction,
+    threshold: 200,
+  });
+
+  it('no activation → direction-agnostic, same as shouldCancelOnZ', () => {
+    expect(tzBackEngaged(51, DZ, undefined)).toBe(true);
+    expect(tzBackEngaged(-51, DZ, undefined)).toBe(true);
+    expect(tzBackEngaged(DZ, DZ, undefined)).toBe(false);
+    expect(tzBackEngaged(-40, DZ, undefined)).toBe(false);
+  });
+
+  it('activation on another axis leaves TZ back fully intact', () => {
+    const onRz: AxisActivation = { axis: 'rz', direction: 'positive', threshold: 200 };
+    expect(tzBackEngaged(51, DZ, onRz)).toBe(true);
+    expect(tzBackEngaged(-51, DZ, onRz)).toBe(true);
+  });
+
+  it('positive TZ activation cedes the up half — back is the down half', () => {
+    // center activation = TZ up, so back/pop responds only to TZ down.
+    expect(tzBackEngaged(-51, DZ, onTz('positive'))).toBe(true);
+    expect(tzBackEngaged(51, DZ, onTz('positive'))).toBe(false);
+  });
+
+  it('negative TZ activation cedes the down half — back is the up half', () => {
+    expect(tzBackEngaged(51, DZ, onTz('negative'))).toBe(true);
+    expect(tzBackEngaged(-51, DZ, onTz('negative'))).toBe(false);
+  });
+
+  it('both-direction TZ activation claims the whole axis — no TZ back', () => {
+    expect(tzBackEngaged(51, DZ, onTz('both'))).toBe(false);
+    expect(tzBackEngaged(-51, DZ, onTz('both'))).toBe(false);
+  });
+
+  it('a deflection inside the deadzone never engages, regardless of activation', () => {
+    expect(tzBackEngaged(10, DZ, undefined)).toBe(false);
+    expect(tzBackEngaged(-10, DZ, onTz('positive'))).toBe(false);
   });
 });

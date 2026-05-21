@@ -10,17 +10,25 @@
  *  - `drillReducer` state (`navigation`, `stickyChildIndex`)
  *  - A ref mirror so the commit listener can read the latest state
  *    without re-subscribing on every frame
- *  - Edge-trigger refs for the three gestures that need
- *    rising-only semantics — TZ-cancel/pop, lateral magnitude
+ *  - Edge-trigger refs for the four gestures that need rising-only
+ *    semantics — center activation, TZ back/pop, lateral magnitude
  *    drill, tilt drill — so a sustained deflection fires once per
  *    gesture rather than cascading through nested levels
+ *
+ * The puck never fires actions itself: when a gesture commits the
+ * center or dismisses the menu, the hook calls back into App.tsx
+ * (`onCommitCenter` / `onDismiss`), which owns the IPC. The back/pop
+ * gesture always dismisses at the top level and never fires a bound
+ * center action — that stays reserved for the activation gesture and
+ * the trigger-button commit, keeping "abort" and "center action" as
+ * separate intents.
  *
  * App.tsx calls `useDrillNavigation` once and gets back the React
  * state plus a `resetTransientRefs` helper to invoke on MENU_OPEN.
  * Reset arms the rising-edge memories to `true` so a still-held
  * puck at open time doesn't fire any gesture on the first frame —
  * the user has to release past the threshold and re-engage before
- * a drill, pop, or cancel can register.
+ * a drill, pop, dismiss, or center activation can register.
  */
 
 import { useEffect, useReducer, useRef, type Dispatch, type RefObject } from 'react';
@@ -36,10 +44,12 @@ import {
 import {
   axesMagnitude,
   axesToSector,
+  axisValue,
   DEFAULT_PIE_GEOMETRY,
+  meetsActivation,
   resolveTzDeadzone,
   rotateAxes,
-  shouldCancelOnZ,
+  tzBackEngaged,
 } from '@/core/pie-geometry';
 import { resolveAxisInvert, type MenuAutoDrill, type MenuConfig } from '@/shared/menu';
 
@@ -88,13 +98,23 @@ export type UseDrillNavigation = {
 };
 
 export function useDrillNavigation(opts: {
-  axes: { tx: number; ty: number; tz: number; rx: number; ry: number };
+  axes: { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number };
   menuConfig: MenuConfig | null;
   /** Whether the menu is currently visible. The hook short-circuits
    *  when closed so the puck doesn't dispatch into nothing. */
   menuOpen: boolean;
+  /** Close the menu with no action — the back/pop gesture's outcome at
+   *  the top level, and the center field's outcome when it has no
+   *  binding. The hook owns no IPC, so App.tsx supplies the actual
+   *  hide/close. */
+  onDismiss: () => void;
+  /** Commit the center field: fire its binding, or dismiss when it has
+   *  none. Invoked by the configured center activation gesture. Kept
+   *  separate from `onDismiss` so the back gesture can never trigger a
+   *  bound center action. */
+  onCommitCenter: () => void;
 }): UseDrillNavigation {
-  const { axes, menuConfig, menuOpen } = opts;
+  const { axes, menuConfig, menuOpen, onDismiss, onCommitCenter } = opts;
 
   const [drillState, dispatch] = useReducer(drillReducer, INITIAL_DRILL_STATE);
 
@@ -111,32 +131,61 @@ export function useDrillNavigation(opts: {
   // pop. `resetTransientRefs` re-asserts this on every MENU_OPEN
   // so a previous session's tail state can't carry over.
   const wasCancelingRef = useRef<boolean>(true);
+  const wasActivatingRef = useRef<boolean>(true);
   const wasMagnitudeOverRef = useRef<boolean>(true);
   const wasTiltOverRef = useRef<boolean>(true);
 
   useEffect(() => {
     if (!menuOpen || !menuConfig) return;
 
-    // TZ first: cancel/pop short-circuits before the lateral
-    // gestures, so a deliberate "back" deflection isn't mistaken
-    // for "drill harder". Inlined (rather than going through
-    // `detectRisingEdge`) so both the gate and the rising-edge use
-    // the same strict-greater comparison from `shouldCancelOnZ`.
-    //
-    // The threshold goes through `resolveTzDeadzone` so the user's
-    // optional `MenuConfig.tzDeadzone` override is honoured —
-    // raising the TZ cutoff filters out lateral-push cross-talk
-    // without making lateral selection any less sensitive.
+    // Center activation first: a configured axis gesture commits the
+    // center directly — firing its binding, or dismissing when it has
+    // none. Rising-edge so a sustained deflection fires once, then has
+    // to dip back under the threshold before re-firing. Checked ahead
+    // of the back gesture: when both share the TZ axis, `tzBackEngaged`
+    // already cedes the activation's half, but checking here first also
+    // covers activations bound to a different axis.
+    const activation = menuConfig.centerField?.activation;
+    const activating = activation
+      ? meetsActivation(
+          axisValue(axes, activation.axis),
+          activation.direction,
+          activation.threshold,
+        )
+      : false;
+    const activationRising = activating && !wasActivatingRef.current;
+    wasActivatingRef.current = activating;
+    if (activating) {
+      if (activationRising) {
+        // Reset our own reducer state on the way out (the callback only
+        // hides the window + fires the binding); the next MENU_OPEN
+        // re-arms cleanly regardless.
+        dispatch({ type: 'reset' });
+        onCommitCenter();
+      }
+      return;
+    }
+
+    // TZ back/pop next: a deliberate "back" deflection short-circuits
+    // the lateral gestures so it isn't mistaken for "drill harder". At
+    // the top level it dismisses — never firing the center binding,
+    // which is reserved for the activation/commit paths so the back
+    // gesture stays a pure escape hatch; drilled in it pops one level.
+    // `tzBackEngaged` honours an optional TZ activation by taking the
+    // opposite half of the axis, and routes the threshold through
+    // `resolveTzDeadzone` so the user's `MenuConfig.tzDeadzone` override
+    // still filters lateral-push cross-talk.
     const tzDeadzone = resolveTzDeadzone(menuConfig.tzDeadzone, DEFAULT_PIE_GEOMETRY.deadzone);
-    const canceling = shouldCancelOnZ(axes.tz, tzDeadzone);
-    const tzRising = canceling && !wasCancelingRef.current;
-    wasCancelingRef.current = canceling;
-    if (canceling) {
+    const backing = tzBackEngaged(axes.tz, tzDeadzone, activation);
+    const tzRising = backing && !wasCancelingRef.current;
+    wasCancelingRef.current = backing;
+    if (backing) {
       if (tzRising) {
         if (drillStateRef.current.navigation.length > 0) {
           dispatch({ type: 'pop' });
         } else {
-          dispatch({ type: 'hover', index: null });
+          dispatch({ type: 'reset' });
+          onDismiss();
         }
       }
       return;
@@ -197,8 +246,10 @@ export function useDrillNavigation(opts: {
     // dep array. axes ticks frequently enough that the next frame
     // picks up any post-drill navigation; adding drillState here
     // would re-run on every reducer dispatch and defeat the
-    // identity short-circuits inside it.
-  }, [axes, menuConfig, menuOpen]);
+    // identity short-circuits inside it. `onDismiss`/`onCommitCenter`
+    // are stable callbacks from App.tsx; listed so the effect always
+    // calls the current ones.
+  }, [axes, menuConfig, menuOpen, onDismiss, onCommitCenter]);
 
   return {
     drillState,
@@ -209,6 +260,7 @@ export function useDrillNavigation(opts: {
       // MENU_OPEN doesn't claim a phantom rising edge on frame 1.
       // See the useRef initialisation above for the full rationale.
       wasCancelingRef.current = true;
+      wasActivatingRef.current = true;
       wasMagnitudeOverRef.current = true;
       wasTiltOverRef.current = true;
     },

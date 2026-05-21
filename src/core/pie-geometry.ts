@@ -19,9 +19,23 @@
  *   - Sectors are numbered clockwise starting from 0 at top.
  */
 
+import type { ActivationDirection, AxisActivation, MenuAxisName } from '../shared/menu';
+
 export type PieAxes = {
   tx: number;
   ty: number;
+};
+
+/** A full six-axis snapshot. The lateral selection maths only need
+ *  `tx`/`ty` (see :type:`PieAxes`); the axis-activation gestures can
+ *  watch any of the six, so they take this wider shape. */
+export type SixAxes = {
+  tx: number;
+  ty: number;
+  tz: number;
+  rx: number;
+  ry: number;
+  rz: number;
 };
 
 export type PieGeometryConfig = {
@@ -189,6 +203,63 @@ export function shouldCancelOnZ(tz: number, deadzone: number): boolean {
  */
 export function resolveTzDeadzone(override: number | undefined, fallback: number): number {
   return override ?? fallback;
+}
+
+/** Read a named axis from a six-axis snapshot. Thin indexed access,
+ *  but centralising it keeps the activation call sites from hand-
+ *  mapping axis names to fields (and lets the helper be unit-tested
+ *  against the daemon's broadcast order). */
+export function axisValue(axes: SixAxes, axis: MenuAxisName): number {
+  return axes[axis];
+}
+
+/**
+ * Direction-aware threshold test for an axis-activation gesture.
+ *
+ *   - `positive`: the raw value is above `+threshold`.
+ *   - `negative`: the raw value is below `-threshold`.
+ *   - `both`: the magnitude is above `threshold` (direction-agnostic,
+ *     matching the historical TZ-cancel rule).
+ *
+ * Strict-greater on purpose, mirroring :func:`shouldCancelOnZ`, so a
+ * deflection sitting exactly on the threshold doesn't fire. `threshold`
+ * is always a positive magnitude; the sign handling lives here so the
+ * caller passes the raw axis value untouched.
+ */
+export function meetsActivation(
+  value: number,
+  direction: ActivationDirection,
+  threshold: number,
+): boolean {
+  if (direction === 'positive') return value > threshold;
+  if (direction === 'negative') return value < -threshold;
+  return Math.abs(value) > threshold; // 'both'
+}
+
+/**
+ * Whether the current TZ deflection should engage the back/pop gesture,
+ * given an optional center activation that may reserve part of the TZ
+ * axis.
+ *
+ * When the activation watches TZ, the back gesture takes the *opposite*
+ * half — so binding the center to "TZ pulled up" leaves "TZ pushed
+ * down" as back/pop, the split the feature is built around. A
+ * `both`-direction TZ activation claims the whole axis, leaving no TZ
+ * back trigger (callers should prefer `positive`/`negative` when they
+ * still want back/pop). Activations on other axes — or none — leave the
+ * historical direction-agnostic TZ back intact, identical to
+ * :func:`shouldCancelOnZ`.
+ */
+export function tzBackEngaged(
+  tz: number,
+  tzDeadzone: number,
+  activation: AxisActivation | undefined,
+): boolean {
+  if (Math.abs(tz) <= tzDeadzone) return false;
+  if (!activation || activation.axis !== 'tz') return true;
+  if (activation.direction === 'positive') return tz < 0;
+  if (activation.direction === 'negative') return tz > 0;
+  return false; // 'both' → whole TZ axis reserved for the activation
 }
 
 /**
