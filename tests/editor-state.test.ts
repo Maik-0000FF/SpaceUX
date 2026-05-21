@@ -189,16 +189,19 @@ describe('menu-settings', () => {
     expect(state.mtime).toBe(999);
   });
 
-  it('setConflict stashes the external snapshot; clearConflict / setConfig clear it', () => {
+  it('setConflict stashes the external snapshot + cause; clearConflict / setConfig clear it', () => {
     const external = { config: DEFAULT_MENU_CONFIG, mtime: 555 };
-    useMenuSettings.getState().setConflict(external);
+    useMenuSettings.getState().setConflict(external, 'device');
     expect(useMenuSettings.getState().conflict).toEqual(external);
+    expect(useMenuSettings.getState().conflictCause).toBe('device');
     useMenuSettings.getState().clearConflict();
     expect(useMenuSettings.getState().conflict).toBeNull();
+    expect(useMenuSettings.getState().conflictCause).toBeNull();
     // Adopting a snapshot also clears any conflict + dirty.
-    useMenuSettings.getState().setConflict(external);
+    useMenuSettings.getState().setConflict(external, 'external');
     useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 7 });
     expect(useMenuSettings.getState().conflict).toBeNull();
+    expect(useMenuSettings.getState().conflictCause).toBeNull();
     expect(useMenuSettings.getState().dirty).toBe(false);
   });
 });

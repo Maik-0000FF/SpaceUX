@@ -11,7 +11,7 @@ import {
   IpcChannel,
   type DaemonStatusPayload,
   type EditorDeviceInfo,
-  type MenuConfigSnapshot,
+  type MenuConfigChange,
   type MenuOpenPayload,
   type PieAppearance,
   type ProfileActionResult,
@@ -204,10 +204,14 @@ async function applyActiveProfile(): Promise<void> {
         (deviceName ? ` — ${deviceName}` : ''),
     );
     mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, next.config);
+    // cause 'device': this push is always driven by a device/profile switch
+    // (hotplug, override, save/delete) — the conflict banner reads it as a
+    // device change rather than a file edit (#113, PR 3c-2).
     sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
       config: next.config,
       mtime: next.mtime,
-    } satisfies MenuConfigSnapshot);
+      cause: 'device',
+    } satisfies MenuConfigChange);
   }
   // Always refresh the editor's device/profile display: identity, name, or
   // profileId may have changed even when the active menu source did not
@@ -258,10 +262,13 @@ async function onProfilesChangedOnDisk(): Promise<void> {
     menuConfigMtime = prof.mtime;
     menuConfigSource = prof.path;
     mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, prof.config);
+    // cause 'external': the active profile *file* was edited outside the
+    // editor (same kind of event as a menu.json edit).
     sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
       config: prof.config,
       mtime: prof.mtime,
-    } satisfies MenuConfigSnapshot);
+      cause: 'external',
+    } satisfies MenuConfigChange);
     return;
   }
   // Active profile deleted externally → drop a matching override and
@@ -724,10 +731,12 @@ app.whenReady().then(async () => {
     menuConfigMtime = result.mtime;
     menuConfigSource = result.source;
     mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, result.config);
+    // cause 'external': menu.json was edited outside the editor.
     sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
       config: result.config,
       mtime: result.mtime,
-    } satisfies MenuConfigSnapshot);
+      cause: 'external',
+    } satisfies MenuConfigChange);
   });
 
   // Watch the per-device profiles dir so an external edit to the *active*

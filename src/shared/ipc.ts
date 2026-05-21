@@ -181,6 +181,16 @@ export type PieAppearance = {
  *  the config (fresh install running on DEFAULT_MENU_CONFIG). */
 export type MenuConfigSnapshot = { config: MenuConfig; mtime: number | null };
 
+/** Why the editor's active config changed out-of-band (#113): an
+ *  `external` file edit (menu.json or the active profile, edited outside
+ *  the editor), or a `device` switch (hotplug / (un)plug / profile
+ *  override). Drives the conflict banner's wording so a hotplug swap reads
+ *  as a device change, not a phantom "menu.json was edited". */
+export type ConfigChangeCause = 'external' | 'device';
+
+/** Payload of EDITOR_MENU_CONFIG_CHANGED: the new snapshot plus its cause. */
+export type MenuConfigChange = MenuConfigSnapshot & { cause: ConfigChangeCause };
+
 /** Outcome of an editor write-back. Mirrors menu-writer's result so the
  *  same shape crosses the IPC boundary. The success case carries the
  *  *normalized* config (as written to disk) so main can keep its

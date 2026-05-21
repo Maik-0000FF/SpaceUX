@@ -11,6 +11,7 @@ import { MenuPreview } from './components/MenuPreview';
 import { PreviewHeader } from './components/PreviewHeader';
 import { ProfileControls } from './components/ProfileControls';
 import { Properties } from './components/Properties';
+import { useDeviceInfo } from './hooks/useDeviceInfo';
 import { useExternalSync } from './hooks/useExternalSync';
 import { usePieAppearance } from './hooks/usePieAppearance';
 import { useThemePreference } from './hooks/useThemePreference';
@@ -28,7 +29,9 @@ import styles from './App.module.scss';
  */
 export function App() {
   const conflict = useMenuSettings((s) => s.conflict);
+  const conflictCause = useMenuSettings((s) => s.conflictCause);
   const saveError = useMenuSettings((s) => s.saveError);
+  const device = useDeviceInfo();
 
   const { theme, changeTheme } = useThemePreference();
   const { appearance: pie, setTheme: setPieTheme, setOpacity: setPieOpacity } = usePieAppearance();
@@ -55,8 +58,9 @@ export function App() {
       } else if (result.ok === 'conflict') {
         // Raced another external write — refresh the stash to the current
         // on-disk version so a follow-up Reload adopts the latest, not
-        // the now-superseded snapshot.
-        void window.editor.getMenuConfig().then((snapshot) => s.setConflict(snapshot));
+        // the now-superseded snapshot. A write race is a file-level
+        // conflict regardless of what first raised the banner.
+        void window.editor.getMenuConfig().then((snapshot) => s.setConflict(snapshot, 'external'));
       } else {
         s.setSaveError(result.reason);
       }
@@ -115,12 +119,34 @@ export function App() {
       {conflict !== null ? (
         <div className={styles.bannerConflict} role="alert">
           <span className={styles.bannerText}>
-            menu.json was changed outside the editor while you had unsaved edits.
+            {conflictCause === 'device'
+              ? device.name
+                ? `The connected device changed to ${device.name} — its config differs from your unsaved edits.`
+                : 'The connected device changed while you had unsaved edits.'
+              : 'The active configuration was changed outside the editor while you had unsaved edits.'}
           </span>
-          <button type="button" className={styles.bannerButton} onClick={reload}>
+          <button
+            type="button"
+            className={styles.bannerButton}
+            onClick={reload}
+            title={
+              conflictCause === 'device'
+                ? "Discard your edits and load the active device's config"
+                : 'Discard your edits and load the changed config'
+            }
+          >
             Reload
           </button>
-          <button type="button" className={styles.bannerButton} onClick={overwrite}>
+          <button
+            type="button"
+            className={styles.bannerButton}
+            onClick={overwrite}
+            title={
+              conflictCause === 'device'
+                ? 'Write your unsaved edits onto the now-active config'
+                : 'Write your unsaved edits over the changed config'
+            }
+          >
             Overwrite
           </button>
         </div>
