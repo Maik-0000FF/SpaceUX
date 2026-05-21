@@ -87,10 +87,13 @@ type MenuSettingsState = {
   /** Set the center field's label; an empty/blank value clears it (the
    *  renderer falls back to ✕). Prunes an emptied centerField. */
   setCenterLabel: (label: string) => void;
-  /** Set the center field's bound action id; an empty/blank value
-   *  removes the binding (commit becomes a silent dismiss). Preserves
-   *  any existing per-action config. Prunes an emptied centerField. */
-  setCenterAction: (action: string) => void;
+  /** Set the center field's binding. `null` removes it (commit becomes
+   *  a silent dismiss) and prunes an emptied centerField; a string sets
+   *  (or creates) `binding.action`, preserving any existing per-action
+   *  config. An empty string is kept as `{ action: '' }` — distinct
+   *  from `null` — so the editor's "action mode" stays mounted while
+   *  the user retypes, mirroring the sector editor. */
+  setCenterBinding: (action: string | null) => void;
   /** Set (or clear, with `undefined`) the center binding's per-action
    *  config. No-op when the center has no binding. */
   setCenterActionConfig: (config: Record<string, unknown> | undefined) => void;
@@ -302,11 +305,11 @@ export const useMenuSettings = create<MenuSettingsState>()(
           state.origin = 'local';
           state.dirty = true;
         }),
-      setCenterAction: (action) =>
+      setCenterBinding: (action) =>
         set((state) => {
           if (!state.config) return;
           const center = ensureCenter(state.config);
-          if (action.trim() === '') delete center.binding;
+          if (action === null) delete center.binding;
           else if (center.binding) center.binding.action = action;
           else center.binding = { action };
           pruneCenter(state.config);

@@ -371,21 +371,30 @@ describe('menu-settings center field', () => {
     expect(center()).toBeUndefined();
   });
 
-  it('setCenterAction sets the binding; blank removes it but keeps a label', () => {
+  it('setCenterBinding(null) removes the binding but keeps a label', () => {
     load();
     useMenuSettings.getState().setCenterLabel('Close');
-    useMenuSettings.getState().setCenterAction(builtinAction(BUILTIN_ACTION.CANCEL));
+    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.CANCEL));
     expect(center()?.binding).toEqual({ action: builtinAction(BUILTIN_ACTION.CANCEL) });
-    useMenuSettings.getState().setCenterAction('');
+    useMenuSettings.getState().setCenterBinding(null);
     expect(center()?.binding).toBeUndefined();
     expect(center()?.label).toBe('Close'); // label survives clearing the action
   });
 
-  it('setCenterAction preserves existing per-action config when changing the id', () => {
+  it('setCenterBinding("") keeps the binding (action mode stays mounted)', () => {
+    // Distinct from null: clearing the action text leaves an empty
+    // binding so the editor's action section doesn't collapse mid-edit.
     load();
-    useMenuSettings.getState().setCenterAction(builtinAction(BUILTIN_ACTION.EXEC));
+    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.CANCEL));
+    useMenuSettings.getState().setCenterBinding('');
+    expect(center()?.binding).toEqual({ action: '' });
+  });
+
+  it('setCenterBinding preserves existing per-action config when changing the id', () => {
+    load();
+    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.EXEC));
     useMenuSettings.getState().setCenterActionConfig({ command: 'xdg-open .' });
-    useMenuSettings.getState().setCenterAction(builtinAction(BUILTIN_ACTION.KEY_COMBO));
+    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.KEY_COMBO));
     expect(center()?.binding).toEqual({
       action: builtinAction(BUILTIN_ACTION.KEY_COMBO),
       config: { command: 'xdg-open .' },

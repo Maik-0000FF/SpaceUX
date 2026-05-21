@@ -31,12 +31,17 @@ import styles from './Properties.module.scss';
 export function CenterFieldSettings() {
   const center = useMenuSettings((s) => s.config?.centerField);
   const setCenterLabel = useMenuSettings((s) => s.setCenterLabel);
-  const setCenterAction = useMenuSettings((s) => s.setCenterAction);
+  const setCenterBinding = useMenuSettings((s) => s.setCenterBinding);
   const setCenterActionConfig = useMenuSettings((s) => s.setCenterActionConfig);
   const setCenterActivation = useMenuSettings((s) => s.setCenterActivation);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
 
-  const action = center?.binding?.action ?? '';
+  // "Action mode" is keyed on binding *presence*, not on the action
+  // string being non-empty — so clearing the field to retype keeps the
+  // section mounted (binding stays as `{ action: '' }`) instead of
+  // collapsing back to Dismiss, mirroring the sector editor's Type
+  // toggle.
+  const hasBinding = center?.binding !== undefined;
   const activation = center?.activation;
 
   return (
@@ -53,10 +58,10 @@ export function CenterFieldSettings() {
       <Row label="On commit">
         <select
           className={styles.select}
-          value={action === '' ? 'dismiss' : 'action'}
+          value={hasBinding ? 'action' : 'dismiss'}
           onChange={(e) =>
-            setCenterAction(
-              e.target.value === 'dismiss' ? '' : builtinAction(BUILTIN_ACTION.CANCEL),
+            setCenterBinding(
+              e.target.value === 'dismiss' ? null : builtinAction(BUILTIN_ACTION.CANCEL),
             )
           }
         >
@@ -64,14 +69,14 @@ export function CenterFieldSettings() {
           <option value="action">Run action…</option>
         </select>
       </Row>
-      {action !== '' && (
+      {hasBinding && (
         <>
           <Row label="Action">
             <input
               className={styles.input}
-              value={action}
+              value={center?.binding?.action ?? ''}
               placeholder="pluginId/actionName"
-              onChange={(e) => setCenterAction(e.target.value)}
+              onChange={(e) => setCenterBinding(e.target.value)}
             />
           </Row>
           <ConfigEditor
