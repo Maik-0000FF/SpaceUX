@@ -179,6 +179,11 @@ function resolveProfileId(): string | null {
  * vanished on disk). Callers pass it; there's no sensible default.
  */
 async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
+  // Land any pending appearance edit on the *current* profile before we
+  // switch — the debounced write resolves its target at fire time, so a
+  // not-yet-flushed edit would otherwise follow us to the new profile.
+  await flushPendingAppearance();
+
   const id = resolveProfileId();
 
   let profile: ProfileLoadResult | null = null;
@@ -333,6 +338,20 @@ async function persistActiveAppearance(): Promise<void> {
     return;
   }
   await saveAppSettings({ pieTheme: globalAppearance.theme, pieOpacity: globalAppearance.opacity });
+}
+
+/**
+ * Flush a pending debounced appearance write *now*, against the current
+ * value + target. Called before a profile switch (applyActiveProfile): the
+ * debounced write reads both the value and its destination at fire time, so
+ * without this an edit made just before a hotplug/override switch would land
+ * on the *new* profile (or be lost). No-op when nothing is pending.
+ */
+async function flushPendingAppearance(): Promise<void> {
+  if (pieAppearanceSaveTimer === null) return;
+  clearTimeout(pieAppearanceSaveTimer);
+  pieAppearanceSaveTimer = null;
+  await persistActiveAppearance();
 }
 const PIE_APPEARANCE_SAVE_DEBOUNCE_MS = 250;
 // True between MENU_OPEN and MENU_COMMIT — drives the click-to-toggle
