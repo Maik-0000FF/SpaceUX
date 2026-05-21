@@ -76,6 +76,22 @@ describe('loadDeviceProfile', () => {
     if (result.status === 'invalid') expect(result.reason).toMatch(/not valid JSON/);
   });
 
+  it('keeps the menu valid when the wrapper appearance is garbage (sanitized, not rejected)', async () => {
+    // A broken appearance section must not invalidate the whole profile —
+    // bad fields are dropped/clamped over the defaults.
+    await write('046d-c62b', {
+      menu: DEFAULT_MENU_CONFIG,
+      appearance: { theme: 'bogus-theme', opacity: 5 },
+    });
+    const result = await loadDeviceProfile('046d-c62b', dir);
+    expect(result.status).toBe('loaded');
+    if (result.status === 'loaded') {
+      expect(result.config).toEqual(DEFAULT_MENU_CONFIG);
+      // 'bogus-theme' dropped → default 'dark'; opacity 5 clamped → 1.
+      expect(result.appearance).toEqual({ theme: 'dark', opacity: 1 });
+    }
+  });
+
   it('reports invalid when the profile fails schema validation', async () => {
     await write('046d-c62b', { version: MENU_CONFIG_VERSION, sectors: 'nope' });
     const result = await loadDeviceProfile('046d-c62b', dir);
