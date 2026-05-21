@@ -227,15 +227,32 @@ async function pushEditorProfiles(): Promise<void> {
 /**
  * React to an *external* change in the profiles dir (#113, PR 3c-1) — the
  * editor's own writes are suppressed via markSelfWrite. Always refresh the
- * dropdown list; if the active profile's file changed, hot-reload the live
- * config the same way the menu.json watcher does (push + fresh mtime so the
- * editor's conflict baseline tracks the external edit). A vanished/broken
- * active profile re-resolves down the priority chain.
+ * dropdown list; then keep the live config in sync the way the menu.json
+ * watcher does (push + fresh mtime so the editor's conflict baseline tracks
+ * the external edit).
+ *
+ * Two cases, by whether the *resolved* profile id still matches what's
+ * loaded:
+ *   - id !== activeProfileId — the resolution changed: a profile was just
+ *     created for the connected device, the active one was deleted, or a
+ *     broken override got fixed. `applyActiveProfile` owns the transition.
+ *   - id === activeProfileId (non-null) — only the active profile's content
+ *     changed; reload it in place (applyActiveProfile gates its push on an
+ *     id change, so it would skip a content-only edit). A now-absent/invalid
+ *     file falls through to a re-resolve.
  */
 async function onProfilesChangedOnDisk(): Promise<void> {
   void pushEditorProfiles();
-  if (activeProfileId === null) return; // fallback active → profiles don't drive the live config
-  const prof = await loadDeviceProfile(activeProfileId);
+  const id = resolveProfileId();
+  if (id !== activeProfileId) {
+    await applyActiveProfile();
+    return;
+  }
+  if (id === null) return; // no device/override → fallback owns the config
+  const prof = await loadDeviceProfile(id);
+  // A device swap / override landed while we were reading — that call owns
+  // the result now (mirrors applyActiveProfile's guard).
+  if (resolveProfileId() !== id) return;
   if (prof.status === 'loaded') {
     menuConfig = prof.config;
     menuConfigMtime = prof.mtime;
@@ -247,9 +264,10 @@ async function onProfilesChangedOnDisk(): Promise<void> {
     } satisfies MenuConfigSnapshot);
     return;
   }
-  // Deleted externally → drop a matching override and re-resolve (a broken
-  // file keeps the override so the user can fix it; resolution falls back).
-  if (prof.status === 'absent' && overrideProfileId === activeProfileId) overrideProfileId = null;
+  // Active profile deleted externally → drop a matching override and
+  // re-resolve (an invalid file keeps the override so the user can fix it;
+  // resolution falls back meanwhile).
+  if (prof.status === 'absent' && overrideProfileId === id) overrideProfileId = null;
   await applyActiveProfile();
 }
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
