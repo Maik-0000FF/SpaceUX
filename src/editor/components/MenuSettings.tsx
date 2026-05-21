@@ -28,6 +28,11 @@ export function MenuSettings() {
   const buttonCount = useDeviceButtonCount();
   // Highest selectable button: device count − 1 when known, else open.
   const maxButton = buttonCount > 0 ? buttonCount - 1 : undefined;
+  const effectiveTrigger = triggerButton ?? DEFAULT_TRIGGER_BUTTON;
+  // The clamp blocks entering an out-of-range value but can't fix one
+  // already saved (e.g. a config from a larger puck) — flag it so the
+  // stale binding is visible rather than silently invalid.
+  const triggerOutOfRange = maxButton !== undefined && effectiveTrigger > maxButton;
 
   return (
     <>
@@ -37,7 +42,7 @@ export function MenuSettings() {
           type="number"
           min={0}
           max={maxButton}
-          value={triggerButton ?? DEFAULT_TRIGGER_BUTTON}
+          value={effectiveTrigger}
           onChange={(e) => {
             const n = Number(e.target.value);
             // Reject buttons the connected device doesn't have.
@@ -45,6 +50,11 @@ export function MenuSettings() {
               setTriggerButton(n);
           }}
         />
+        {triggerOutOfRange && (
+          <span className={styles.fieldError}>
+            This device has {buttonCount} buttons (0–{maxButton}). Pick a lower button.
+          </span>
+        )}
       </Row>
       <Row label={`Pie size — ${Math.round(scale * 100)}%`}>
         <input

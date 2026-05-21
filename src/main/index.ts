@@ -306,6 +306,11 @@ function wireDaemonEvents(): void {
   });
 
   daemon.on('event', (ev: DaemonEvent) => {
+    // Latch the device's button count before the window gate so the
+    // editor's pull always reflects reality — mirrors the disconnect
+    // reset, which is also ungated. A `hello` arriving while mainWindow
+    // is momentarily null (e.g. window recreation) must not be dropped.
+    if (ev.event === 'hello') deviceButtonCount = ev.buttons;
     if (!mainWindow) return;
     switch (ev.event) {
       case 'axes':
@@ -334,7 +339,6 @@ function wireDaemonEvents(): void {
           // Same `=== true` narrowing for the LED capability flag.
           led: ev.led === true,
         };
-        deviceButtonCount = ev.buttons;
         mainWindow.webContents.send(IpcChannel.DAEMON_STATUS, payload);
         break;
       }

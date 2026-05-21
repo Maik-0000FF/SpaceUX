@@ -89,6 +89,13 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
           <div className={styles.subheading}>{GESTURE_LABELS[key]}</div>
           {nav[key].inputs.map((input, i) => {
             const threshold = inputThreshold(input);
+            // A saved binding may reference a button the connected device
+            // doesn't have (e.g. a config carried over from a larger puck).
+            // Surface it as a flagged, disabled option so the select shows
+            // it as selected instead of silently falling back to the first
+            // entry — making the stale binding visible rather than phantom.
+            const staleButton =
+              input.kind === 'button' && input.button >= offeredButtons ? input.button : null;
             return (
               <Row key={i} label={`Input ${i + 1}`}>
                 <div className={styles.navInputRow}>
@@ -112,6 +119,11 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
                           Button {b}
                         </option>
                       ))}
+                      {staleButton !== null && (
+                        <option value={`button:${staleButton}`} disabled>
+                          Button {staleButton} (unavailable)
+                        </option>
+                      )}
                     </optgroup>
                     <optgroup label="Axes">
                       {MENU_AXES.flatMap((axis) =>
