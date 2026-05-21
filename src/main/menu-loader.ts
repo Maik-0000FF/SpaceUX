@@ -12,6 +12,7 @@ import {
   migrateMenuConfig,
   validateMenuConfig,
   type MenuConfig,
+  type MenuConfigValidation,
 } from '../shared/menu.js';
 import { dedupPreserveOrder } from '../shared/util.js';
 
@@ -52,15 +53,47 @@ export type MenuLoadResult = {
   fallbackReason: string | null;
 };
 
-/** Build the ordered list of paths the loader will probe. Exposed
- *  so tests can substitute fake locations. */
-export function menuConfigSearchPaths(): string[] {
+/**
+ * Migrate (if the file declares an older/newer schema version) and then
+ * validate an already-parsed config object. Shared by {@link loadMenuConfig}
+ * and the per-device profile loader (#113) so both run the exact same
+ * version-migration + validation pipeline. Does NOT do JSON parsing or
+ * path-prefixing — callers own the file read and error wording.
+ */
+export function migrateAndValidateMenuConfig(parsed: unknown): MenuConfigValidation {
+  let toValidate: unknown = parsed;
+  if (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    typeof (parsed as { version?: unknown }).version === 'number'
+  ) {
+    const version = (parsed as { version: number }).version;
+    if (version !== MENU_CONFIG_VERSION) {
+      const migrated = migrateMenuConfig(parsed as Record<string, unknown>, version);
+      if (!migrated.ok) return { ok: false, reason: migrated.reason };
+      toValidate = migrated.raw;
+    }
+  }
+  return validateMenuConfig(toValidate);
+}
+
+/** Ordered SpaceMouse config directories to probe: `$XDG_CONFIG_HOME/spaceux`
+ *  first (when the var is set), then `~/.config/spaceux`. Deduped. The
+ *  single source of the XDG resolution, shared with the per-device profile
+ *  loader (#113) so the two can't drift. */
+export function spaceuxConfigDirs(): string[] {
   const xdg = process.env.XDG_CONFIG_HOME?.trim();
   const home = os.homedir();
   return dedupPreserveOrder<string>([
-    xdg ? path.join(xdg, MENU_CONFIG_SUBDIR, MENU_CONFIG_FILENAME) : null,
-    path.join(home, '.config', MENU_CONFIG_SUBDIR, MENU_CONFIG_FILENAME),
+    xdg ? path.join(xdg, MENU_CONFIG_SUBDIR) : null,
+    path.join(home, '.config', MENU_CONFIG_SUBDIR),
   ]);
+}
+
+/** Build the ordered list of paths the loader will probe. Exposed
+ *  so tests can substitute fake locations. */
+export function menuConfigSearchPaths(): string[] {
+  return spaceuxConfigDirs().map((dir) => path.join(dir, MENU_CONFIG_FILENAME));
 }
 
 export async function loadMenuConfig(
@@ -100,28 +133,7 @@ export async function loadMenuConfig(
     // Migrate an older schema version up to the current one before
     // validating, so a future MENU_CONFIG_VERSION bump doesn't make
     // every existing config fail validation and fall back to default.
-    let toValidate: unknown = parsed;
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      typeof (parsed as { version?: unknown }).version === 'number'
-    ) {
-      const version = (parsed as { version: number }).version;
-      if (version !== MENU_CONFIG_VERSION) {
-        const migrated = migrateMenuConfig(parsed as Record<string, unknown>, version);
-        if (!migrated.ok) {
-          return {
-            config: DEFAULT_MENU_CONFIG,
-            source: candidate,
-            mtime,
-            fallbackReason: `${candidate}: ${migrated.reason}`,
-          };
-        }
-        toValidate = migrated.raw;
-      }
-    }
-
-    const result = validateMenuConfig(toValidate);
+    const result = migrateAndValidateMenuConfig(parsed);
     if (!result.ok) {
       return {
         config: DEFAULT_MENU_CONFIG,
