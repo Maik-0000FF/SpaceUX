@@ -17,6 +17,16 @@
   margin-bottom: 10px;
 }
 
+// A gesture sub-heading nested under a section heading (e.g. the four
+// gestures under "Navigation"): slightly indented + spaced above so the
+// blocks read as one feature rather than peers.
+.subheading {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--editor-fg-dim);
+  margin: 14px 0 8px 8px;
+}
+
 .fields {
   display: flex;
   flex-direction: column;

@@ -6,19 +6,19 @@ import { Fragment } from 'react';
 import {
   ACTIVATION_DIRECTIONS,
   DEFAULT_ACTIVATION_THRESHOLD,
+  DEFAULT_TWIST_CYCLE_THRESHOLD,
   MAGNITUDE_SOURCES,
   MENU_AXES,
   TWIST_CYCLE_PRIORITIES,
   resolveNavigation,
   type ActivationDirection,
-  type InputBinding,
   type MagnitudeSource,
-  type MenuAxisName,
   type MenuNavigation,
   type TwistCyclePriority,
 } from '@/shared/menu';
 
 import { useMenuSettings } from '../state/menu-settings';
+import { inputFromValue, inputThreshold, inputValue } from '../state/nav-input';
 
 import { Row } from './Row';
 import styles from './Properties.module.scss';
@@ -58,35 +58,11 @@ const MAGNITUDE_LABEL: Record<MagnitudeSource, string> = {
   tilt: 'Tilt (RX/RY)',
 };
 
-/** Encode an input binding as the dropdown's option value. */
-function inputValue(input: InputBinding): string {
-  switch (input.kind) {
-    case 'none':
-      return 'none';
-    case 'button':
-      return `button:${input.button}`;
-    case 'axis':
-      return `axis:${input.axis}:${input.direction}`;
-    case 'magnitude':
-      return `magnitude:${input.source}`;
-  }
-}
-
-/** Decode a dropdown option value back to an input binding, carrying a
- *  previous analog threshold across a kind change where it still
- *  applies (so flipping an axis direction keeps the tuned value). */
-function inputFromValue(value: string, prevThreshold: number | null): InputBinding {
-  const threshold = prevThreshold ?? DEFAULT_ACTIVATION_THRESHOLD;
-  if (value === 'none') return { kind: 'none' };
-  const [kind, a, b] = value.split(':');
-  if (kind === 'button') return { kind: 'button', button: Number(a) };
-  if (kind === 'magnitude') return { kind: 'magnitude', source: a as MagnitudeSource, threshold };
-  return { kind: 'axis', axis: a as MenuAxisName, direction: b as ActivationDirection, threshold };
-}
-
-/** Threshold of an analog input, or null for button/none. */
-function inputThreshold(input: InputBinding): number | null {
-  return input.kind === 'axis' || input.kind === 'magnitude' ? input.threshold : null;
+/** Default threshold to seed a fresh analog input with, per gesture:
+ *  cycle sits below the drill range (gentle twist steps, firm twist
+ *  drills), the rest use the activation default. */
+function defaultThresholdFor(key: GestureKey): number {
+  return key === 'cycle' ? DEFAULT_TWIST_CYCLE_THRESHOLD : DEFAULT_ACTIVATION_THRESHOLD;
 }
 
 export function NavigationSettings() {
@@ -103,9 +79,10 @@ export function NavigationSettings() {
 
   return (
     <>
+      <div className={styles.heading}>Navigation</div>
       {GESTURE_KEYS.map((key) => (
         <Fragment key={key}>
-          <div className={styles.heading}>{GESTURE_LABELS[key]}</div>
+          <div className={styles.subheading}>{GESTURE_LABELS[key]}</div>
           {nav[key].inputs.map((input, i) => {
             const threshold = inputThreshold(input);
             return (
@@ -116,7 +93,11 @@ export function NavigationSettings() {
                     value={inputValue(input)}
                     onChange={(e) =>
                       commit((n) => {
-                        n[key].inputs[i] = inputFromValue(e.target.value, inputThreshold(input));
+                        n[key].inputs[i] = inputFromValue(
+                          e.target.value,
+                          inputThreshold(input),
+                          defaultThresholdFor(key),
+                        );
                       })
                     }
                   >
