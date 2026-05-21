@@ -342,4 +342,19 @@ describe('tzBackEngaged', () => {
     expect(tzBackEngaged(10, DZ, undefined)).toBe(false);
     expect(tzBackEngaged(-10, DZ, onTz('positive'))).toBe(false);
   });
+
+  it('cedes the activation half to the cross-talk guard, not to lateral selection', () => {
+    // Regression pin for the cross-talk guard in useDrillNavigation: in
+    // the ceded half between the deadzone and the activation threshold,
+    // tzBackEngaged declines (the back gesture must not fire there) while
+    // meetsActivation hasn't committed yet — BUT shouldCancelOnZ still
+    // reports the axis engaged. The hook keys its lateral-suppression
+    // guard off shouldCancelOnZ, so a not-yet-committed activation push
+    // can't leak through to spurious sector hover/drill. If any of the
+    // three relationships below changes, the guard's premise broke.
+    const tz = DZ + 1; // past deadzone, well below the 200 threshold
+    expect(tzBackEngaged(tz, DZ, onTz('positive'))).toBe(false); // back declines the ceded half
+    expect(meetsActivation(tz, 'positive', 200)).toBe(false); // not committing yet
+    expect(shouldCancelOnZ(tz, DZ)).toBe(true); // but lateral stays suppressed
+  });
 });

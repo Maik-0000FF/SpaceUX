@@ -255,7 +255,10 @@ export function tzBackEngaged(
   tzDeadzone: number,
   activation: AxisActivation | undefined,
 ): boolean {
-  if (Math.abs(tz) <= tzDeadzone) return false;
+  // Delegate the magnitude test so the strict-greater contract lives in
+  // exactly one place and the "identical to shouldCancelOnZ when no TZ
+  // activation is configured" promise stays self-enforcing.
+  if (!shouldCancelOnZ(tz, tzDeadzone)) return false;
   if (!activation || activation.axis !== 'tz') return true;
   if (activation.direction === 'positive') return tz < 0;
   if (activation.direction === 'negative') return tz > 0;

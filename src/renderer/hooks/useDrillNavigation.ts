@@ -49,6 +49,7 @@ import {
   meetsActivation,
   resolveTzDeadzone,
   rotateAxes,
+  shouldCancelOnZ,
   tzBackEngaged,
 } from '@/core/pie-geometry';
 import { resolveAxisInvert, type MenuAutoDrill, type MenuConfig } from '@/shared/menu';
@@ -190,6 +191,17 @@ export function useDrillNavigation(opts: {
       }
       return;
     }
+
+    // TZ cross-talk guard. Any TZ deflection past the deadzone suppresses
+    // the lateral gestures — including the activation's *ceded* half,
+    // which `tzBackEngaged` declined above but which didn't reach the
+    // activation threshold either. Pushing a puck straight up/down
+    // induces lateral cross-talk, so without this a not-yet-committed
+    // activation push would spuriously hover (or, with magnitudeDrill on,
+    // drill) a sector. Restores the pre-split "TZ always suppresses
+    // lateral" rule using the same strict-greater test the back gesture
+    // and activation share.
+    if (shouldCancelOnZ(axes.tz, tzDeadzone)) return;
 
     const navigation = drillStateRef.current.navigation;
     const current = currentSectors(menuConfig, navigation);
