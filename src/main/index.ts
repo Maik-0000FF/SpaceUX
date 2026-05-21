@@ -116,7 +116,8 @@ let deviceName = '';
 
 /** Push the current device (count + identity + active profile id) to the
  *  editor (#66, #113). The editor re-clamps its pickers and updates its
- *  active-device/profile display; same-value pushes are idempotent. */
+ *  active-device/profile display. Only called on a real device/profile
+ *  transition, so there are no redundant same-value pushes to dedupe. */
 function pushEditorDevice(): void {
   sendToEditor(IpcChannel.EDITOR_DEVICE, {
     buttons: deviceButtonCount,
