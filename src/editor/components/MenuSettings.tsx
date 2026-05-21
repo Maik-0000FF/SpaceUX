@@ -3,6 +3,7 @@
 
 import { DEFAULT_TRIGGER_BUTTON, MAX_PIE_SCALE, MIN_PIE_SCALE } from '@/shared/menu';
 
+import { useDeviceButtonCount } from '../hooks/useDeviceButtonCount';
 import { useMenuSettings } from '../state/menu-settings';
 
 import { CenterFieldSettings } from './CenterFieldSettings';
@@ -22,6 +23,16 @@ export function MenuSettings() {
   const setTriggerButton = useMenuSettings((s) => s.setTriggerButton);
   const scale = useMenuSettings((s) => s.config?.scale ?? 1);
   const setScale = useMenuSettings((s) => s.setScale);
+  // Connected device's button count (0 = none/unknown). Constrains the
+  // button pickers to buttons that exist (#66).
+  const buttonCount = useDeviceButtonCount();
+  // Highest selectable button: device count − 1 when known, else open.
+  const maxButton = buttonCount > 0 ? buttonCount - 1 : undefined;
+  const effectiveTrigger = triggerButton ?? DEFAULT_TRIGGER_BUTTON;
+  // The clamp blocks entering an out-of-range value but can't fix one
+  // already saved (e.g. a config from a larger puck) — flag it so the
+  // stale binding is visible rather than silently invalid.
+  const triggerOutOfRange = maxButton !== undefined && effectiveTrigger > maxButton;
 
   return (
     <>
@@ -30,12 +41,20 @@ export function MenuSettings() {
           className={styles.input}
           type="number"
           min={0}
-          value={triggerButton ?? DEFAULT_TRIGGER_BUTTON}
+          max={maxButton}
+          value={effectiveTrigger}
           onChange={(e) => {
             const n = Number(e.target.value);
-            if (Number.isInteger(n) && n >= 0) setTriggerButton(n);
+            // Reject buttons the connected device doesn't have.
+            if (Number.isInteger(n) && n >= 0 && (maxButton === undefined || n <= maxButton))
+              setTriggerButton(n);
           }}
         />
+        {triggerOutOfRange && (
+          <span className={styles.fieldError}>
+            This device has {buttonCount} buttons (0–{maxButton}). Pick a lower button.
+          </span>
+        )}
       </Row>
       <Row label={`Pie size — ${Math.round(scale * 100)}%`}>
         <input
@@ -49,7 +68,7 @@ export function MenuSettings() {
         />
       </Row>
       <CenterFieldSettings />
-      <NavigationSettings />
+      <NavigationSettings buttonCount={buttonCount} />
     </>
   );
 }

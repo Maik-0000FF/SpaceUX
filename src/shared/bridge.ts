@@ -96,6 +96,10 @@ export type EditorBridge = {
    *  overlay pie (and skips axis forwarding) while the editor drives the
    *  preview with the puck. Fire-and-forget. */
   setLive(on: boolean): void;
+  /** Pull the connected device's button count (from the daemon hello) so
+   *  the button pickers offer only buttons that exist. 0 when no device
+   *  or unknown. */
+  getDeviceButtonCount(): Promise<number>;
   /** Pull the current pie appearance (theme + opacity) on mount. */
   getPieAppearance(): Promise<PieAppearance>;
   /** Push a partial appearance change (theme and/or opacity). Main

@@ -89,6 +89,11 @@ export const IpcChannel = {
    *  pops the overlay pie and drills the preview — and (b) skip the axis
    *  forwarding above when no one is listening. Fire-and-forget. */
   EDITOR_LIVE: 'spaceux:editor:live',
+  /** Editor pulls the connected device's button count (from the daemon
+   *  hello) so its button pickers only offer buttons that exist. 0 when
+   *  no device / count unknown; the editor falls back to a default range
+   *  then. Live updates on a hotplug swap follow (#66 PR 2b). */
+  EDITOR_GET_DEVICE: 'spaceux:editor:device:get',
 
   // ── Pie appearance (own app setting, separate from menu.json and the
   //    editor UI theme; consumed by both the live pie and the editor
