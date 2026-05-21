@@ -43,47 +43,23 @@ import {
   type DrillState,
 } from '@/core/menu-nav';
 import {
-  axesMagnitude,
   axesToSector,
-  axisValue,
+  backAxisEngaged,
+  cycleStepFromInputs,
   DEFAULT_PIE_GEOMETRY,
-  meetsActivation,
-  resolveTzDeadzone,
+  gestureActive,
   rotateAxes,
-  shouldCancelOnZ,
-  twistCycleStep,
-  tzBackEngaged,
+  type GestureFrame,
 } from '@/core/pie-geometry';
-import { resolveAxisInvert, type MenuAutoDrill, type MenuConfig } from '@/shared/menu';
+import { resolveAxisInvert, resolveNavigation, type MenuConfig } from '@/shared/menu';
 
-/** Per-frame edge detector for the auto-drill gestures (lateral
- *  magnitude, tilt, twist). Returns `true` once when `value` crosses
- *  `threshold` from below, then stays `false` until it dips back
- *  under. Mutates `prevRef` so each call hands the next frame the
- *  "was over" memory it needs.
- *
- *  Threshold comparison is `>=` (matches the per-frame check the
- *  original inline lateral-magnitude code used). Not reused for the
- *  TZ-cancel path because `shouldCancelOnZ` is strict-greater and
- *  changing the boundary there would be a separately-considered
- *  semantic tweak — kept inline below to preserve behaviour. */
-function detectRisingEdge(
-  enabled: boolean,
-  value: number,
-  threshold: number,
-  prevRef: RefObject<boolean>,
-): boolean {
-  const over = enabled && value >= threshold;
-  const rising = over && !prevRef.current;
-  prevRef.current = over;
+/** Rising-edge detector for a boolean gesture: `true` once when
+ *  `active` flips false→true, then stays `false` until it goes inactive
+ *  again. Mutates `prevRef` to carry the "was active" memory. */
+function risingEdge(active: boolean, prevRef: RefObject<boolean>): boolean {
+  const rising = active && !prevRef.current;
+  prevRef.current = active;
   return rising;
-}
-
-/** True when the field is present AND its `enabled` flag is `true`.
- *  Saves the call site from threading the optionality check by
- *  hand. */
-function autoDrillEnabled(config: MenuAutoDrill | undefined): boolean {
-  return config?.enabled === true;
 }
 
 export type UseDrillNavigation = {
@@ -124,45 +100,38 @@ export function useDrillNavigation(opts: {
   const drillStateRef = useRef<DrillState>(drillState);
   drillStateRef.current = drillState;
 
-  // One rising-edge memory per gesture (center activation, TZ back,
-  // lateral / tilt / twist drill). All start `true` so the first frame
-  // after MENU_OPEN is never treated as a rising
-  // edge: if the puck is already past the threshold at open time
-  // (the user was mid-gesture when they triggered the menu), the
-  // gesture has to physically dip back under the threshold and
-  // re-engage before it fires. Without this, opening the menu with
-  // a held puck would surprise the user with an immediate drill or
-  // pop. `resetTransientRefs` re-asserts this on every MENU_OPEN
-  // so a previous session's tail state can't carry over.
-  const wasCancelingRef = useRef<boolean>(true);
-  const wasActivatingRef = useRef<boolean>(true);
-  const wasMagnitudeOverRef = useRef<boolean>(true);
-  const wasTiltOverRef = useRef<boolean>(true);
-  const wasTwistOverRef = useRef<boolean>(true);
-  const wasCycleOverRef = useRef<boolean>(true);
+  // One rising-edge memory per gesture (commit-center, back, drill,
+  // cycle). All start `true` so the first frame after MENU_OPEN is
+  // never treated as a rising edge: if the puck is already past a
+  // threshold at open time (the user was mid-gesture when they
+  // triggered the menu), the gesture has to physically dip back under
+  // its threshold and re-engage before it fires. Without this, opening
+  // the menu with a held puck would surprise the user with an immediate
+  // drill or pop. `resetTransientRefs` re-asserts this on every
+  // MENU_OPEN so a previous session's tail state can't carry over.
+  const wasCommitRef = useRef<boolean>(true);
+  const wasBackRef = useRef<boolean>(true);
+  const wasDrillRef = useRef<boolean>(true);
+  const wasCycleRef = useRef<boolean>(true);
 
   useEffect(() => {
     if (!menuOpen || !menuConfig) return;
 
-    // Center activation first: a configured axis gesture commits the
-    // center directly — firing its binding, or dismissing when it has
-    // none. Rising-edge so a sustained deflection fires once, then has
-    // to dip back under the threshold before re-firing. Checked ahead
-    // of the back gesture: when both share the TZ axis, `tzBackEngaged`
-    // already cedes the activation's half, but checking here first also
-    // covers activations bound to a different axis.
-    const activation = menuConfig.centerField?.activation;
-    const activating = activation
-      ? meetsActivation(
-          axisValue(axes, activation.axis),
-          activation.direction,
-          activation.threshold,
-        )
-      : false;
-    const activationRising = activating && !wasActivatingRef.current;
-    wasActivatingRef.current = activating;
-    if (activating) {
-      if (activationRising) {
+    const nav = resolveNavigation(menuConfig);
+    // Button states aren't plumbed to the hook yet, so button-bound
+    // inputs are inert for now (no migrated config uses them); axis +
+    // magnitude inputs drive everything. A later PR feeds real button
+    // state here.
+    const frame: GestureFrame = { axes, buttons: [] };
+
+    // Commit-center first: its gesture commits the center directly —
+    // firing the binding, or dismissing when it has none. Rising-edge so
+    // a sustained deflection fires once. Checked ahead of back so a
+    // shared axis resolves to commit when its half is engaged.
+    const committing = gestureActive(nav.commitCenter, frame);
+    const commitRising = risingEdge(committing, wasCommitRef);
+    if (committing) {
+      if (commitRising) {
         // Reset our own reducer state on the way out (the callback only
         // hides the window + fires the binding); the next MENU_OPEN
         // re-arms cleanly regardless.
@@ -172,21 +141,15 @@ export function useDrillNavigation(opts: {
       return;
     }
 
-    // TZ back/pop next: a deliberate "back" deflection short-circuits
-    // the lateral gestures so it isn't mistaken for "drill harder". At
-    // the top level it dismisses — never firing the center binding,
-    // which is reserved for the activation/commit paths so the back
-    // gesture stays a pure escape hatch; drilled in it pops one level.
-    // `tzBackEngaged` honours an optional TZ activation by taking the
-    // opposite half of the axis, and routes the threshold through
-    // `resolveTzDeadzone` so the user's `MenuConfig.tzDeadzone` override
-    // still filters lateral-push cross-talk.
-    const tzDeadzone = resolveTzDeadzone(menuConfig.tzDeadzone, DEFAULT_PIE_GEOMETRY.deadzone);
-    const backing = tzBackEngaged(axes.tz, tzDeadzone, activation);
-    const tzRising = backing && !wasCancelingRef.current;
-    wasCancelingRef.current = backing;
+    // Back/pop next: a deliberate "back" gesture short-circuits the
+    // lateral gestures so it isn't mistaken for "drill harder". At the
+    // top level it dismisses — never firing the center binding, which is
+    // reserved for the commit/activation paths so back stays a pure
+    // escape hatch; drilled in it pops one level.
+    const backing = gestureActive(nav.back, frame);
+    const backRising = risingEdge(backing, wasBackRef);
     if (backing) {
-      if (tzRising) {
+      if (backRising) {
         if (drillStateRef.current.navigation.length > 0) {
           dispatch({ type: 'pop' });
         } else {
@@ -197,16 +160,12 @@ export function useDrillNavigation(opts: {
       return;
     }
 
-    // TZ cross-talk guard. Any TZ deflection past the deadzone suppresses
-    // the lateral gestures — including the activation's *ceded* half,
-    // which `tzBackEngaged` declined above but which didn't reach the
-    // activation threshold either. Pushing a puck straight up/down
-    // induces lateral cross-talk, so without this a not-yet-committed
-    // activation push would spuriously hover (or, with magnitudeDrill on,
-    // drill) a sector. Restores the pre-split "TZ always suppresses
-    // lateral" rule using the same strict-greater test the back gesture
-    // and activation share.
-    if (shouldCancelOnZ(axes.tz, tzDeadzone)) return;
+    // Cross-talk guard: a deflection on the back gesture's axis (in
+    // either sense) suppresses lateral selection, even the half a split
+    // cedes to commit-center that hasn't reached its threshold yet.
+    // Pushing the puck straight along that axis induces lateral
+    // cross-talk; this keeps it from spuriously hovering/drilling.
+    if (backAxisEngaged(nav.back, axes)) return;
 
     const navigation = drillStateRef.current.navigation;
     const current = currentSectors(menuConfig, navigation);
@@ -230,46 +189,24 @@ export function useDrillNavigation(opts: {
     // Clamp out so sticky always lands on an existing sector.
     const sec = rawSec === null ? null : rawSec % current.length;
 
-    // Three auto-drill gestures, same rising-edge semantics: lateral
-    // magnitude (TX/TY push), tilt magnitude (RX/RY rotation), and
-    // twist (RZ rotation, direction-agnostic via |rz|). Whichever rises
-    // first fires the drill; all run unconditionally each frame so a
-    // user with any combination enabled can use whichever they prefer.
-    const lateralRising = detectRisingEdge(
-      autoDrillEnabled(menuConfig.magnitudeDrill),
-      axesMagnitude({ tx: axes.tx, ty: axes.ty }),
-      menuConfig.magnitudeDrill?.threshold ?? Infinity,
-      wasMagnitudeOverRef,
-    );
-    const tiltRising = detectRisingEdge(
-      autoDrillEnabled(menuConfig.tiltDrill),
-      Math.hypot(axes.rx, axes.ry),
-      menuConfig.tiltDrill?.threshold ?? Infinity,
-      wasTiltOverRef,
-    );
-    const twistRising = detectRisingEdge(
-      autoDrillEnabled(menuConfig.twistDrill),
-      Math.abs(axes.rz),
-      menuConfig.twistDrill?.threshold ?? Infinity,
-      wasTwistOverRef,
-    );
+    // Drill gesture: any of its inputs (lateral/tilt/twist magnitude,
+    // a split axis, …) firing drills into the hovered branch. One
+    // rising-edge over the combined gesture — a held drill fires once.
+    const drillRising = risingEdge(gestureActive(nav.drillIn, frame), wasDrillRef);
 
-    // Twist-cycle: a directional twist steps the selection one sector
-    // (rising-edge, so a held twist steps once). Shares RZ with
-    // twist-drill via a threshold split — keep the cycle threshold
-    // below the drill threshold so a gentle twist steps and a firmer
-    // one drills (a fast twist past both does step then drill, landing
-    // the drill on the just-stepped sector via `drillTarget` below).
-    const twistCycle = menuConfig.twistCycle;
-    const cycleStepRaw = twistCycle?.enabled ? twistCycleStep(axes.rz, twistCycle.threshold) : 0;
+    // Cycle: a directional axis input steps the selection one sector.
+    // Rising-edge so a held twist steps once. Shares an axis with drill
+    // via a threshold split — keep the cycle threshold below the drill
+    // threshold so a gentle twist steps and a firmer one drills (a fast
+    // twist past both steps then drills the just-stepped sector via
+    // `drillTarget`).
+    const cycleStepRaw = cycleStepFromInputs(nav.cycle.inputs, axes);
     const cycleOver = cycleStepRaw !== 0;
-    const cycleStep = cycleOver && !wasCycleOverRef.current ? cycleStepRaw : 0;
-    // Mark the edge consumed every frame the twist is over the threshold —
-    // even one made while aiming laterally under `priority: 'lateral'`,
-    // where `resolveTwistFrame` drops the step. So re-centring mid-twist
-    // won't step until RZ first dips back under the threshold (the
-    // gesture began during aiming and has to be re-engaged).
-    wasCycleOverRef.current = cycleOver;
+    const cycleStep = cycleOver && !wasCycleRef.current ? cycleStepRaw : 0;
+    // Mark the edge consumed every frame the cycle axis is over its
+    // threshold — even one made while aiming laterally under
+    // `priority: 'lateral'`, where `resolveTwistFrame` drops the step.
+    wasCycleRef.current = cycleOver;
 
     // Resolve this frame's hover + drill target from the pure helper, so
     // the priority and sticky-drill-fallback rules stay unit-tested.
@@ -278,12 +215,12 @@ export function useDrillNavigation(opts: {
       sec,
       sticky,
       cycleStep,
-      priority: twistCycle?.priority ?? 'lateral',
+      priority: nav.cycle.priority,
       count: current.length,
-      cycleEnabled: twistCycle?.enabled === true,
+      cycleEnabled: nav.cycle.inputs.length > 0,
     });
 
-    if ((lateralRising || tiltRising || twistRising) && drillTarget !== null) {
+    if (drillRising && drillTarget !== null) {
       const hovered = current[drillTarget];
       if (hovered?.children) {
         // child[0] aligns with the parent sector's angle thanks to
@@ -312,12 +249,10 @@ export function useDrillNavigation(opts: {
       // Reset to `true` (not `false`) so a still-deflected puck at
       // MENU_OPEN doesn't claim a phantom rising edge on frame 1.
       // See the useRef initialisation above for the full rationale.
-      wasCancelingRef.current = true;
-      wasActivatingRef.current = true;
-      wasMagnitudeOverRef.current = true;
-      wasTiltOverRef.current = true;
-      wasTwistOverRef.current = true;
-      wasCycleOverRef.current = true;
+      wasCommitRef.current = true;
+      wasBackRef.current = true;
+      wasDrillRef.current = true;
+      wasCycleRef.current = true;
     },
   };
 }

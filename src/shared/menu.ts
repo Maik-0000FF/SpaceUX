@@ -137,61 +137,18 @@ export type MenuAxisInvert = {
   y?: boolean;
 };
 
-/** Optional opt-in: drill into a branch sector automatically when
- *  a puck gesture crosses `threshold` from below — no trigger press
- *  needed. The same shape is reused for two distinct gestures (see
- *  the `magnitudeDrill` / `tiltDrill` fields on `MenuConfig`), each
- *  configurable independently. Off by default so the trigger
- *  remains the only commit path for new users.
- *
- *  The threshold should sit comfortably above the relevant deadzone
- *  so light deflections still hover. For lateral magnitude
- *  (TX/TY): the lateral deadzone defaults to 50, a practical
- *  starting threshold is 200–300 on a SpaceNavigator (max ~350).
- *  For tilt magnitude (RX/RY): same shape, threshold also typically
- *  in the low-hundreds depending on the puck.
- *
- *  Detection is edge-triggered (rising-only): a sustained push past
- *  the threshold drills once, then has to dip back below it before
- *  the next gesture can fire — keeping the user from burning
- *  through nested levels on a single sustained deflection. */
-export type MenuAutoDrill = {
-  enabled: boolean;
-  threshold: number;
-};
-
 /** Which gesture wins when the puck is both twisted (cycling) and
  *  pushed laterally (aiming) in the same frame. `lateral` keeps aiming
  *  authoritative — twist only steps while the puck is laterally
  *  centred; `twist` lets a cycle step override the lateral hover for
- *  that frame. */
+ *  that frame. Carried on :type:`CycleBinding`. */
 export const TWIST_CYCLE_PRIORITIES = ['lateral', 'twist'] as const;
 export type TwistCyclePriority = (typeof TWIST_CYCLE_PRIORITIES)[number];
 
-/** Opt-in: twisting the puck around its vertical axis (RZ) steps the
- *  highlighted sector one at a time instead of aiming at it — a
- *  discrete alternative to lateral aiming, handy for precise selection.
- *  Direction-aware: a positive twist steps to the next sector
- *  (clockwise), negative to the previous, wrapping at the ends.
- *  Rising-edge per step (one step per crossing; the twist must dip back
- *  under the threshold to step again).
- *
- *  Shares the RZ axis with :data:`MenuConfig.twistDrill` via a
- *  threshold split: keep `threshold` below the twist-drill threshold so
- *  a gentle twist steps while a firmer twist drills. `priority`
- *  resolves the overlap with lateral aiming (see
- *  :type:`TwistCyclePriority`). */
-export type MenuTwistCycle = {
-  enabled: boolean;
-  /** Twist magnitude that steps one sector. Positive finite. */
-  threshold: number;
-  priority: TwistCyclePriority;
-};
-
-/** Threshold the editor seeds a fresh twist-cycle with. Sits above the
- *  lateral deadzone (50) yet below the auto-drill range (~200) so the
- *  threshold split with :data:`MenuConfig.twistDrill` — gentle twist
- *  steps, firmer twist drills — works out of the box. */
+/** Threshold the editor seeds a fresh twist-cycle gesture with. Sits
+ *  above the lateral deadzone (50) yet below the typical drill range
+ *  (~200) so a threshold split (gentle twist steps, firmer twist
+ *  drills) works out of the box. */
 export const DEFAULT_TWIST_CYCLE_THRESHOLD = 100;
 
 // ── Navigation input bindings (issue #105) ──────────────────────────
@@ -335,32 +292,10 @@ export type MenuAxisName = (typeof MENU_AXES)[number];
 export const ACTIVATION_DIRECTIONS = ['positive', 'negative', 'both'] as const;
 export type ActivationDirection = (typeof ACTIVATION_DIRECTIONS)[number];
 
-/** Opt-in: fire a target by deflecting a single axis past a threshold,
- *  no trigger press needed. Rising-edge detected like the auto-drill
- *  gestures (a sustained deflection fires once, then must dip back
- *  under the threshold before re-firing).
- *
- *  `direction` lets one axis carry two meanings — the canonical use is
- *  splitting TZ so pulling up activates the center while pushing down
- *  stays the back/pop gesture. With `direction: 'both'` on TZ the whole
- *  axis is claimed for the activation, so the back/pop gesture loses
- *  its TZ trigger; prefer `positive`/`negative` when you still want
- *  back/pop. */
-export type AxisActivation = {
-  /** Which axis to watch. */
-  axis: MenuAxisName;
-  /** Which side of the axis fires (or `both`). */
-  direction: ActivationDirection;
-  /** Deflection magnitude that fires the gesture. Positive finite;
-   *  compared against the axis value (or its absolute value when
-   *  `direction` is `both`). */
-  threshold: number;
-};
-
-/** Starting threshold the editor seeds a fresh activation with. Sits
- *  comfortably above the lateral deadzone (50) so a light deflection
- *  still hovers, in the same low-hundreds range the auto-drill
- *  thresholds recommend. The user tunes it from there. */
+/** Starting threshold the editor seeds a fresh axis activation with.
+ *  Sits comfortably above the lateral deadzone (50) so a light
+ *  deflection still hovers, in the low-hundreds range. The user tunes
+ *  it from there. */
 export const DEFAULT_ACTIVATION_THRESHOLD = 200;
 
 /** The pie's center field. Historically a hardcoded cancel target
@@ -384,12 +319,6 @@ export type MenuCenter = {
    *  dismiss (historical cancel). The center is always a leaf — it
    *  never carries children. */
   binding?: ActionRef;
-  /** Optional axis gesture that commits the center directly, without a
-   *  trigger press (fires the `binding`, or dismisses when there is
-   *  none). The back/pop gesture always dismisses and never fires this
-   *  binding, so the two intents stay separate. See
-   *  :type:`AxisActivation`. */
-  activation?: AxisActivation;
 };
 
 /** Top-level menu config. */
@@ -406,38 +335,6 @@ export type MenuConfig = {
   /** Optional per-axis sign overrides. Omitting the field (or one
    *  side of it) falls back to :data:`DEFAULT_AXIS_INVERT`. */
   axisInvert?: MenuAxisInvert;
-  /** Optional separate threshold for the TZ-cancel gesture. When
-   *  unset the renderer falls back to the lateral deadzone (50 by
-   *  default) — same behaviour as before this field existed. Raise
-   *  this on pucks where strong lateral pushes induce a parasitic
-   *  TZ deflection that triggers the cancel/back gesture by
-   *  accident. */
-  tzDeadzone?: number;
-  /** Optional puck-magnitude drill-in driven by *lateral*
-   *  translation (TX/TY). When `enabled` is true the renderer
-   *  auto-drills into a hovered branch once `Math.hypot(tx, ty)`
-   *  crosses `threshold` from below. See :type:`MenuAutoDrill` for
-   *  the rationale and threshold guidance. */
-  magnitudeDrill?: MenuAutoDrill;
-  /** Optional tilt drill-in driven by *rotation* (RX/RY). Same
-   *  shape and rising-edge semantics as :data:`magnitudeDrill` but
-   *  driven by tipping the puck rather than sliding it. Both
-   *  fields can be active concurrently — either gesture
-   *  crossing its threshold drills in. Tilt feels closer to
-   *  "diving into" a branch since the puck literally tips over
-   *  what the user is hovering. */
-  tiltDrill?: MenuAutoDrill;
-  /** Optional twist drill-in driven by *twisting* the puck around its
-   *  vertical axis (RZ). Same shape and rising-edge semantics as
-   *  :data:`magnitudeDrill` / :data:`tiltDrill`, gated on
-   *  `Math.abs(rz)` so a twist either way drills in. Can run alongside
-   *  the other two — any gesture crossing its threshold drills. */
-  twistDrill?: MenuAutoDrill;
-  /** Optional twist-to-cycle gesture: twisting the puck (RZ) steps the
-   *  highlighted sector instead of aiming at it. See
-   *  :type:`MenuTwistCycle` (incl. how it shares RZ with `twistDrill`
-   *  and resolves against lateral aiming). */
-  twistCycle?: MenuTwistCycle;
   /** Overall pie size multiplier. 1 = the default size; the renderer
    *  multiplies the base radius by this (and divides by the window's
    *  devicePixelRatio so the on-screen size is consistent across monitor
@@ -530,17 +427,11 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'version',
   'triggerButton',
   'axisInvert',
-  'tzDeadzone',
-  'magnitudeDrill',
-  'tiltDrill',
-  'twistDrill',
-  'twistCycle',
   'scale',
   'centerField',
   'navigation',
   'sectors',
 ];
-const KNOWN_TWIST_CYCLE_FIELDS: readonly string[] = ['enabled', 'threshold', 'priority'];
 const KNOWN_NAVIGATION_FIELDS: readonly string[] = ['drillIn', 'back', 'cycle', 'commitCenter'];
 const KNOWN_GESTURE_FIELDS: readonly string[] = ['inputs'];
 const KNOWN_CYCLE_GESTURE_FIELDS: readonly string[] = ['inputs', 'priority'];
@@ -548,15 +439,13 @@ const KNOWN_BUTTON_INPUT_FIELDS: readonly string[] = ['kind', 'button'];
 const KNOWN_AXIS_INPUT_FIELDS: readonly string[] = ['kind', 'axis', 'direction', 'threshold'];
 const KNOWN_MAGNITUDE_INPUT_FIELDS: readonly string[] = ['kind', 'source', 'threshold'];
 const KNOWN_NONE_INPUT_FIELDS: readonly string[] = ['kind'];
-const KNOWN_CENTER_FIELDS: readonly string[] = ['label', 'icon', 'binding', 'activation'];
-const KNOWN_ACTIVATION_FIELDS: readonly string[] = ['axis', 'direction', 'threshold'];
+const KNOWN_CENTER_FIELDS: readonly string[] = ['label', 'icon', 'binding'];
 // 'id' is the editor-only stable identity (see MenuSector.id). The
 // validator never copies it into its reconstructed output, so it's
 // stripped on write; listing it here just keeps warnUnknownFields quiet
 // when the editor sends an id-bearing config back to main to save.
 const KNOWN_MENU_SECTOR_FIELDS: readonly string[] = ['label', 'icon', 'binding', 'children', 'id'];
 const KNOWN_ACTION_REF_FIELDS: readonly string[] = ['action', 'config'];
-const KNOWN_AUTO_DRILL_FIELDS: readonly string[] = ['enabled', 'threshold'];
 const KNOWN_AXIS_INVERT_FIELDS: readonly string[] = ['x', 'y'];
 
 /** Walk an object's keys and warn (without failing validation) for
@@ -668,43 +557,6 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     warnUnknownFields(inv, KNOWN_AXIS_INVERT_FIELDS, 'axisInvert');
     result.axisInvert = axisInvert;
   }
-  if (obj.tzDeadzone !== undefined) {
-    // 0 is rejected here because writing it in `menu.json` is
-    // almost certainly an authoring mistake (the user means
-    // "default" / "no override", not "fire on every TZ tick"). The
-    // helper `resolveTzDeadzone` still treats a literal 0 as
-    // "no threshold" for direct in-code callers — see the
-    // resolveTzDeadzone spec in tests/pie-geometry.test.ts. Keep
-    // these two contracts aligned if either is ever loosened.
-    if (
-      typeof obj.tzDeadzone !== 'number' ||
-      !Number.isFinite(obj.tzDeadzone) ||
-      obj.tzDeadzone <= 0
-    ) {
-      return {
-        ok: false,
-        reason: 'menu config field "tzDeadzone" must be a positive finite number when present',
-      };
-    }
-    result.tzDeadzone = obj.tzDeadzone;
-  }
-
-  const magnitudeResult = validateAutoDrill(obj.magnitudeDrill, 'magnitudeDrill');
-  if (!magnitudeResult.ok) return { ok: false, reason: magnitudeResult.reason };
-  if (magnitudeResult.value !== undefined) result.magnitudeDrill = magnitudeResult.value;
-
-  const tiltResult = validateAutoDrill(obj.tiltDrill, 'tiltDrill');
-  if (!tiltResult.ok) return { ok: false, reason: tiltResult.reason };
-  if (tiltResult.value !== undefined) result.tiltDrill = tiltResult.value;
-
-  const twistResult = validateAutoDrill(obj.twistDrill, 'twistDrill');
-  if (!twistResult.ok) return { ok: false, reason: twistResult.reason };
-  if (twistResult.value !== undefined) result.twistDrill = twistResult.value;
-
-  const twistCycleResult = validateTwistCycle(obj.twistCycle, 'twistCycle');
-  if (!twistCycleResult.ok) return { ok: false, reason: twistCycleResult.reason };
-  if (twistCycleResult.value !== undefined) result.twistCycle = twistCycleResult.value;
-
   if (obj.centerField !== undefined) {
     const centerResult = validateCenter(obj.centerField, 'centerField');
     if (!centerResult.ok) return { ok: false, reason: centerResult.reason };
@@ -725,82 +577,6 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
 
   warnUnknownFields(obj, KNOWN_MENU_CONFIG_FIELDS, 'menu config');
   return { ok: true, config: result };
-}
-
-type AutoDrillValidation =
-  | { ok: true; value: MenuAutoDrill | undefined }
-  | { ok: false; reason: string };
-
-/** Validate one of the auto-drill fields (`magnitudeDrill` or
- *  `tiltDrill`). Both share the same `{ enabled, threshold }`
- *  shape, so the per-field error messages thread the field name
- *  through and the rest of the validation is identical. Returns
- *  `value: undefined` when the field is omitted (optional). */
-function validateAutoDrill(raw: unknown, fieldName: string): AutoDrillValidation {
-  if (raw === undefined) return { ok: true, value: undefined };
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return {
-      ok: false,
-      reason: `menu config field "${fieldName}" must be an object when present`,
-    };
-  }
-  const md = raw as Record<string, unknown>;
-  if (typeof md.enabled !== 'boolean') {
-    return {
-      ok: false,
-      reason: `menu config field "${fieldName}.enabled" must be a boolean`,
-    };
-  }
-  if (typeof md.threshold !== 'number' || !Number.isFinite(md.threshold) || md.threshold <= 0) {
-    return {
-      ok: false,
-      reason: `menu config field "${fieldName}.threshold" must be a positive finite number`,
-    };
-  }
-  warnUnknownFields(md, KNOWN_AUTO_DRILL_FIELDS, fieldName);
-  return { ok: true, value: { enabled: md.enabled, threshold: md.threshold } };
-}
-
-type TwistCycleValidation =
-  | { ok: true; value: MenuTwistCycle | undefined }
-  | { ok: false; reason: string };
-
-/** Validate the optional `twistCycle` field. Like the auto-drill
- *  shape (boolean `enabled`, positive-finite `threshold`) plus a
- *  `priority` enum. Returns `value: undefined` when omitted. */
-function validateTwistCycle(raw: unknown, fieldName: string): TwistCycleValidation {
-  if (raw === undefined) return { ok: true, value: undefined };
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return { ok: false, reason: `menu config field "${fieldName}" must be an object when present` };
-  }
-  const c = raw as Record<string, unknown>;
-  if (typeof c.enabled !== 'boolean') {
-    return { ok: false, reason: `menu config field "${fieldName}.enabled" must be a boolean` };
-  }
-  if (typeof c.threshold !== 'number' || !Number.isFinite(c.threshold) || c.threshold <= 0) {
-    return {
-      ok: false,
-      reason: `menu config field "${fieldName}.threshold" must be a positive finite number`,
-    };
-  }
-  if (
-    typeof c.priority !== 'string' ||
-    !TWIST_CYCLE_PRIORITIES.includes(c.priority as TwistCyclePriority)
-  ) {
-    return {
-      ok: false,
-      reason: `menu config field "${fieldName}.priority" must be one of ${TWIST_CYCLE_PRIORITIES.join(', ')}`,
-    };
-  }
-  warnUnknownFields(c, KNOWN_TWIST_CYCLE_FIELDS, fieldName);
-  return {
-    ok: true,
-    value: {
-      enabled: c.enabled,
-      threshold: c.threshold,
-      priority: c.priority as TwistCyclePriority,
-    },
-  };
 }
 
 // ── Navigation validation (issue #105) ──────────────────────────────
@@ -1138,56 +914,8 @@ function validateCenter(raw: unknown, where: string): CenterValidation {
     if (!result.ok) return { ok: false, reason: result.reason };
     center.binding = result.value;
   }
-  if (c.activation !== undefined) {
-    const result = validateAxisActivation(c.activation, `${where} activation`);
-    if (!result.ok) return { ok: false, reason: result.reason };
-    center.activation = result.value;
-  }
   warnUnknownFields(c, KNOWN_CENTER_FIELDS, where);
   return { ok: true, value: center };
-}
-
-type ActivationValidation = { ok: true; value: AxisActivation } | { ok: false; reason: string };
-
-/** Strict structural validator for an :type:`AxisActivation`. `axis`
- *  must name one of the six SpaceMouse axes, `direction` one of the
- *  three sides, and `threshold` a positive finite number (same
- *  contract as the auto-drill thresholds). */
-function validateAxisActivation(raw: unknown, where: string): ActivationValidation {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return { ok: false, reason: `${where} must be an object when present` };
-  }
-  const a = raw as Record<string, unknown>;
-  if (typeof a.axis !== 'string' || !MENU_AXES.includes(a.axis as MenuAxisName)) {
-    return {
-      ok: false,
-      reason: `${where} field "axis" must be one of ${MENU_AXES.join(', ')}`,
-    };
-  }
-  if (
-    typeof a.direction !== 'string' ||
-    !ACTIVATION_DIRECTIONS.includes(a.direction as ActivationDirection)
-  ) {
-    return {
-      ok: false,
-      reason: `${where} field "direction" must be one of ${ACTIVATION_DIRECTIONS.join(', ')}`,
-    };
-  }
-  if (typeof a.threshold !== 'number' || !Number.isFinite(a.threshold) || a.threshold <= 0) {
-    return {
-      ok: false,
-      reason: `${where} field "threshold" must be a positive finite number`,
-    };
-  }
-  warnUnknownFields(a, KNOWN_ACTIVATION_FIELDS, where);
-  return {
-    ok: true,
-    value: {
-      axis: a.axis as MenuAxisName,
-      direction: a.direction as ActivationDirection,
-      threshold: a.threshold,
-    },
-  };
 }
 
 type ActionRefValidation = { ok: true; value: ActionRef } | { ok: false; reason: string };
@@ -1227,13 +955,6 @@ function orderCenter(center: MenuCenter): Record<string, unknown> {
   if (center.label !== undefined) out.label = center.label;
   if (center.icon !== undefined) out.icon = center.icon;
   if (center.binding !== undefined) out.binding = orderActionRef(center.binding);
-  if (center.activation !== undefined) {
-    out.activation = {
-      axis: center.activation.axis,
-      direction: center.activation.direction,
-      threshold: center.activation.threshold,
-    };
-  }
   return out;
 }
 
@@ -1298,17 +1019,6 @@ export function serializeMenuConfig(config: MenuConfig): string {
   const out: Record<string, unknown> = { version: config.version };
   if (config.triggerButton !== undefined) out.triggerButton = config.triggerButton;
   if (config.axisInvert !== undefined) out.axisInvert = config.axisInvert;
-  if (config.tzDeadzone !== undefined) out.tzDeadzone = config.tzDeadzone;
-  if (config.magnitudeDrill !== undefined) out.magnitudeDrill = config.magnitudeDrill;
-  if (config.tiltDrill !== undefined) out.tiltDrill = config.tiltDrill;
-  if (config.twistDrill !== undefined) out.twistDrill = config.twistDrill;
-  if (config.twistCycle !== undefined) {
-    out.twistCycle = {
-      enabled: config.twistCycle.enabled,
-      threshold: config.twistCycle.threshold,
-      priority: config.twistCycle.priority,
-    };
-  }
   if (config.centerField !== undefined) out.centerField = orderCenter(config.centerField);
   if (config.navigation !== undefined) out.navigation = orderNavigation(config.navigation);
   out.sectors = config.sectors.map(orderSector);

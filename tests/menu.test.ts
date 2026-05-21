@@ -166,42 +166,6 @@ describe('validateMenuConfig', () => {
     if (none.ok) expect(none.config.scale).toBeUndefined();
   });
 
-  it('accepts an opt-in tzDeadzone and round-trips its value', () => {
-    // Optional positive-number knob that lets the user raise the
-    // TZ-cancel threshold separately from the lateral deadzone.
-    // Round-trip pin so a refactor that drops the field from the
-    // resolved config (e.g. accidentally narrowing the result type)
-    // fails here.
-    const r = validateMenuConfig({
-      version: MENU_CONFIG_VERSION,
-      tzDeadzone: 120,
-      sectors: [{ label: 'x' }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.tzDeadzone).toBe(120);
-  });
-
-  it('rejects malformed tzDeadzone shapes', () => {
-    // Same shape contract as the threshold field on
-    // magnitudeDrill/tiltDrill — positive finite number. Pinned as
-    // a table so a future "let 0 through" tweak (which would mean
-    // "fire on any TZ deflection") has to remove a test rather
-    // than tweak it silently.
-    const cases: unknown[] = ['100', null, true, 0, -1, Infinity, NaN];
-    for (const bad of cases) {
-      const r = validateMenuConfig({
-        version: MENU_CONFIG_VERSION,
-        tzDeadzone: bad,
-        sectors: [{ label: 'x' }],
-      });
-      expect(r.ok, `tzDeadzone=${JSON.stringify(bad)}`).toBe(false);
-      if (!r.ok)
-        expect(r.reason, `tzDeadzone=${JSON.stringify(bad)}`).toMatch(
-          /"tzDeadzone".*positive finite number/,
-        );
-    }
-  });
-
   it('rejects negative, fractional, or non-number triggerButton', () => {
     for (const bad of [-1, 1.5, '0', null, true]) {
       const r = validateMenuConfig({
@@ -305,159 +269,6 @@ describe('validateMenuConfig — nested submenus', () => {
     if (!r.ok) {
       expect(r.reason).toContain('sector 0 child 0 child 0');
       expect(r.reason).toContain('"label"');
-    }
-  });
-
-  it('accepts an opt-in magnitudeDrill config and round-trips its fields', () => {
-    const r = validateMenuConfig({
-      version: MENU_CONFIG_VERSION,
-      magnitudeDrill: { enabled: true, threshold: 250 },
-      sectors: [{ label: 'x' }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.magnitudeDrill).toEqual({ enabled: true, threshold: 250 });
-  });
-
-  it('rejects malformed magnitudeDrill shapes', () => {
-    // Each variant breaks a different invariant — enabled must be
-    // a real boolean, threshold a positive finite number. Pinned
-    // as a table so a future "loosen one of these" refactor has to
-    // remove a test rather than tweak it silently.
-    const cases: Array<[unknown, RegExp]> = [
-      ['not-an-object', /must be an object/],
-      [{ threshold: 200 }, /enabled.*must be a boolean/],
-      [{ enabled: 'yes', threshold: 200 }, /enabled.*must be a boolean/],
-      [{ enabled: true, threshold: '200' }, /threshold.*positive finite number/],
-      [{ enabled: true, threshold: 0 }, /threshold.*positive finite number/],
-      [{ enabled: true, threshold: -1 }, /threshold.*positive finite number/],
-      [{ enabled: true, threshold: Infinity }, /threshold.*positive finite number/],
-    ];
-    for (const [bad, pattern] of cases) {
-      const r = validateMenuConfig({
-        version: MENU_CONFIG_VERSION,
-        magnitudeDrill: bad,
-        sectors: [{ label: 'x' }],
-      });
-      expect(r.ok, `magnitudeDrill=${JSON.stringify(bad)}`).toBe(false);
-      if (!r.ok) expect(r.reason, `magnitudeDrill=${JSON.stringify(bad)}`).toMatch(pattern);
-    }
-  });
-
-  it('accepts an opt-in tiltDrill config and round-trips its fields', () => {
-    // Same shape as magnitudeDrill; the validator threads the
-    // field name through so error messages stay specific. Pinning
-    // both fields side-by-side guards a future "merge them into
-    // one autoDrill" refactor from silently dropping one path.
-    const r = validateMenuConfig({
-      version: MENU_CONFIG_VERSION,
-      tiltDrill: { enabled: true, threshold: 200 },
-      sectors: [{ label: 'x' }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.tiltDrill).toEqual({ enabled: true, threshold: 200 });
-  });
-
-  it('rejects malformed tiltDrill shapes with field-specific messages', () => {
-    // Mirror of the magnitudeDrill table — same invariants, but
-    // the error reason should name `tiltDrill` so a config author
-    // sees which field is wrong when both are present.
-    const cases: Array<[unknown, RegExp]> = [
-      ['not-an-object', /"tiltDrill".*must be an object/],
-      [{ enabled: 'yes', threshold: 200 }, /"tiltDrill\.enabled".*must be a boolean/],
-      [{ enabled: true, threshold: -1 }, /"tiltDrill\.threshold".*positive finite number/],
-    ];
-    for (const [bad, pattern] of cases) {
-      const r = validateMenuConfig({
-        version: MENU_CONFIG_VERSION,
-        tiltDrill: bad,
-        sectors: [{ label: 'x' }],
-      });
-      expect(r.ok, `tiltDrill=${JSON.stringify(bad)}`).toBe(false);
-      if (!r.ok) expect(r.reason, `tiltDrill=${JSON.stringify(bad)}`).toMatch(pattern);
-    }
-  });
-
-  it('accepts an opt-in twistDrill config and round-trips its fields', () => {
-    // Twist (RZ) drill mirrors magnitude/tilt — same shape, same
-    // rising-edge semantics, just a different axis. Pin the round-trip.
-    const r = validateMenuConfig({
-      version: MENU_CONFIG_VERSION,
-      twistDrill: { enabled: true, threshold: 180 },
-      sectors: [{ label: 'x' }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.twistDrill).toEqual({ enabled: true, threshold: 180 });
-  });
-
-  it('rejects malformed twistDrill shapes with field-specific messages', () => {
-    const cases: Array<[unknown, RegExp]> = [
-      ['not-an-object', /"twistDrill".*must be an object/],
-      [{ enabled: 'yes', threshold: 200 }, /"twistDrill\.enabled".*must be a boolean/],
-      [{ enabled: true, threshold: -1 }, /"twistDrill\.threshold".*positive finite number/],
-    ];
-    for (const [bad, pattern] of cases) {
-      const r = validateMenuConfig({
-        version: MENU_CONFIG_VERSION,
-        twistDrill: bad,
-        sectors: [{ label: 'x' }],
-      });
-      expect(r.ok, `twistDrill=${JSON.stringify(bad)}`).toBe(false);
-      if (!r.ok) expect(r.reason, `twistDrill=${JSON.stringify(bad)}`).toMatch(pattern);
-    }
-  });
-
-  it('accepts an opt-in twistCycle config and round-trips its fields', () => {
-    const r = validateMenuConfig({
-      version: MENU_CONFIG_VERSION,
-      twistCycle: { enabled: true, threshold: 100, priority: 'twist' },
-      sectors: [{ label: 'x' }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.config.twistCycle).toEqual({ enabled: true, threshold: 100, priority: 'twist' });
-    }
-  });
-
-  it('rejects malformed twistCycle shapes with field-specific messages', () => {
-    const cases: Array<[unknown, RegExp]> = [
-      ['not-an-object', /"twistCycle".*must be an object/],
-      [{ enabled: 'yes', threshold: 100, priority: 'lateral' }, /"twistCycle\.enabled".*boolean/],
-      [
-        { enabled: true, threshold: 0, priority: 'lateral' },
-        /"twistCycle\.threshold".*positive finite number/,
-      ],
-      [
-        { enabled: true, threshold: 100, priority: 'sideways' },
-        /"twistCycle\.priority" must be one of/,
-      ],
-      [{ enabled: true, threshold: 100 }, /"twistCycle\.priority" must be one of/], // missing
-    ];
-    for (const [bad, pattern] of cases) {
-      const r = validateMenuConfig({
-        version: MENU_CONFIG_VERSION,
-        twistCycle: bad,
-        sectors: [{ label: 'x' }],
-      });
-      expect(r.ok, `twistCycle=${JSON.stringify(bad)}`).toBe(false);
-      if (!r.ok) expect(r.reason, `twistCycle=${JSON.stringify(bad)}`).toMatch(pattern);
-    }
-  });
-
-  it('accepts all three auto-drill fields concurrently', () => {
-    // Lateral, tilt, and twist can all be enabled — any gesture
-    // triggers drill. Pin so a future "exclusive" tweak fails here.
-    const r = validateMenuConfig({
-      version: MENU_CONFIG_VERSION,
-      magnitudeDrill: { enabled: true, threshold: 250 },
-      tiltDrill: { enabled: true, threshold: 200 },
-      twistDrill: { enabled: true, threshold: 180 },
-      sectors: [{ label: 'x' }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.config.magnitudeDrill).toEqual({ enabled: true, threshold: 250 });
-      expect(r.config.tiltDrill).toEqual({ enabled: true, threshold: 200 });
-      expect(r.config.twistDrill).toEqual({ enabled: true, threshold: 180 });
     }
   });
 
@@ -602,46 +413,6 @@ describe('validateMenuConfig — centerField', () => {
       });
       expect(r.ok, `centerField=${JSON.stringify(bad)}`).toBe(false);
       if (!r.ok) expect(r.reason, `centerField=${JSON.stringify(bad)}`).toMatch(pattern);
-    }
-  });
-
-  it('accepts a center activation and round-trips axis/direction/threshold', () => {
-    const r = validateMenuConfig({
-      version: MENU_CONFIG_VERSION,
-      centerField: {
-        binding: { action: builtinAction(BUILTIN_ACTION.CANCEL) },
-        activation: { axis: 'tz', direction: 'positive', threshold: 200 },
-      },
-      sectors: [{ label: 'x' }],
-    });
-    expect(r.ok).toBe(true);
-    if (r.ok) {
-      expect(r.config.centerField?.activation).toEqual({
-        axis: 'tz',
-        direction: 'positive',
-        threshold: 200,
-      });
-    }
-  });
-
-  it('rejects malformed center activation shapes', () => {
-    const cases: Array<[unknown, RegExp]> = [
-      ['not-an-object', /activation must be an object/],
-      [{ axis: 'zz', direction: 'positive', threshold: 200 }, /"axis" must be one of/],
-      [{ axis: 'tz', direction: 'sideways', threshold: 200 }, /"direction" must be one of/],
-      [{ axis: 'tz', direction: 'positive', threshold: 0 }, /"threshold".*positive finite number/],
-      [{ axis: 'tz', direction: 'positive', threshold: -1 }, /"threshold".*positive finite number/],
-      [{ axis: 'tz', direction: 'positive' }, /"threshold".*positive finite number/],
-      [{ direction: 'positive', threshold: 200 }, /"axis" must be one of/],
-    ];
-    for (const [bad, pattern] of cases) {
-      const r = validateMenuConfig({
-        version: MENU_CONFIG_VERSION,
-        centerField: { activation: bad },
-        sectors: [{ label: 'x' }],
-      });
-      expect(r.ok, `activation=${JSON.stringify(bad)}`).toBe(false);
-      if (!r.ok) expect(r.reason, `activation=${JSON.stringify(bad)}`).toMatch(pattern);
     }
   });
 });
@@ -954,11 +725,6 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
       version: MENU_CONFIG_VERSION,
       triggerButton: 0,
       axisInvert: { x: false, y: false },
-      tzDeadzone: 100,
-      magnitudeDrill: { enabled: false, threshold: 250 },
-      tiltDrill: { enabled: false, threshold: 200 },
-      twistDrill: { enabled: false, threshold: 180 },
-      twistCycle: { enabled: false, threshold: 100, priority: 'lateral' },
       sectors: [
         {
           label: 'leaf',

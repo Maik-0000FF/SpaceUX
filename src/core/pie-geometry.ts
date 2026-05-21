@@ -21,7 +21,6 @@
 
 import type {
   ActivationDirection,
-  AxisActivation,
   GestureBinding,
   InputBinding,
   MenuAxisName,
@@ -273,19 +272,34 @@ export function twistCycleStep(rz: number, threshold: number): -1 | 0 | 1 {
   return 0;
 }
 
-export function tzBackEngaged(
-  tz: number,
-  tzDeadzone: number,
-  activation: AxisActivation | undefined,
-): boolean {
-  // Delegate the magnitude test so the strict-greater contract lives in
-  // exactly one place and the "identical to shouldCancelOnZ when no TZ
-  // activation is configured" promise stays self-enforcing.
-  if (!shouldCancelOnZ(tz, tzDeadzone)) return false;
-  if (!activation || activation.axis !== 'tz') return true;
-  if (activation.direction === 'positive') return tz < 0;
-  if (activation.direction === 'negative') return tz > 0;
-  return false; // 'both' → whole TZ axis reserved for the activation
+/**
+ * The twist-cycle step for a frame, derived from a gesture's inputs:
+ * the first axis input whose deflection passes its threshold decides the
+ * direction (+1 next / -1 previous) via :func:`twistCycleStep`. Non-axis
+ * inputs (button/magnitude) carry no direction and are skipped. `0` when
+ * nothing steps. Rising-edge gating stays at the call site.
+ */
+export function cycleStepFromInputs(inputs: readonly InputBinding[], axes: SixAxes): -1 | 0 | 1 {
+  for (const input of inputs) {
+    if (input.kind !== 'axis') continue;
+    const step = twistCycleStep(axisValue(axes, input.axis), input.threshold);
+    if (step !== 0) return step;
+  }
+  return 0;
+}
+
+/**
+ * Whether the back gesture's axis is deflected enough to suppress the
+ * lateral selection this frame — the generalised cross-talk guard.
+ * Direction-agnostic (uses |value|, like the old TZ guard) so a back
+ * deflection in *either* sense quiets lateral hover/drill, even the half
+ * ceded to a split. Only `axis` inputs participate; button/magnitude
+ * back bindings don't induce lateral cross-talk.
+ */
+export function backAxisEngaged(back: GestureBinding, axes: SixAxes): boolean {
+  return back.inputs.some(
+    (input) => input.kind === 'axis' && Math.abs(axisValue(axes, input.axis)) > input.threshold,
+  );
 }
 
 /**

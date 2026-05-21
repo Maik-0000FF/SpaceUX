@@ -7,7 +7,6 @@ import { useMenuSettings } from '../state/menu-settings';
 
 import { CenterFieldSettings } from './CenterFieldSettings';
 import { Row } from './Row';
-import { TwistCycleSettings } from './TwistCycleSettings';
 import styles from './Properties.module.scss';
 
 /**
@@ -49,7 +48,6 @@ export function MenuSettings() {
         />
       </Row>
       <CenterFieldSettings />
-      <TwistCycleSettings />
     </>
   );
 }

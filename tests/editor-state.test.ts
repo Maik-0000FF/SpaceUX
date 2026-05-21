@@ -407,51 +407,14 @@ describe('menu-settings center field', () => {
     expect(center()).toBeUndefined();
   });
 
-  it('setCenterActivation sets the gesture; null clears it', () => {
+  it('keeps the centerField while a field remains, prunes only when fully empty', () => {
     load();
-    const act = { axis: 'tz', direction: 'positive', threshold: 200 } as const;
-    useMenuSettings.getState().setCenterActivation(act);
-    expect(center()?.activation).toEqual(act);
-    useMenuSettings.getState().setCenterActivation(null);
-    expect(center()).toBeUndefined(); // pruned once empty
-  });
-
-  it('keeps the centerField while any field remains, prunes only when fully empty', () => {
-    load();
-    useMenuSettings
-      .getState()
-      .setCenterActivation({ axis: 'rz', direction: 'both', threshold: 150 });
-    useMenuSettings.getState().setCenterLabel('Twist');
-    useMenuSettings.getState().setCenterLabel(''); // clears label, activation remains
-    expect(center()).toEqual({ activation: { axis: 'rz', direction: 'both', threshold: 150 } });
-    useMenuSettings.getState().setCenterActivation(null); // now empty → pruned
+    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.CANCEL));
+    useMenuSettings.getState().setCenterLabel('Close');
+    useMenuSettings.getState().setCenterLabel(''); // clears label, binding remains
+    expect(center()?.binding).toEqual({ action: builtinAction(BUILTIN_ACTION.CANCEL) });
+    useMenuSettings.getState().setCenterBinding(null); // now empty → pruned
     expect(center()).toBeUndefined();
-  });
-});
-
-describe('menu-settings twist cycle', () => {
-  const load = () =>
-    useMenuSettings.getState().setConfig({
-      config: { version: DEFAULT_MENU_CONFIG.version, sectors: [{ label: 'A' }] },
-      mtime: 1,
-    });
-
-  it('setTwistCycle sets the config and flags local/dirty', () => {
-    load();
-    useMenuSettings.getState().setTwistCycle({ enabled: true, threshold: 100, priority: 'twist' });
-    const state = useMenuSettings.getState();
-    expect(state.config?.twistCycle).toEqual({ enabled: true, threshold: 100, priority: 'twist' });
-    expect(state.origin).toBe('local');
-    expect(state.dirty).toBe(true);
-  });
-
-  it('setTwistCycle(null) removes the field', () => {
-    load();
-    useMenuSettings
-      .getState()
-      .setTwistCycle({ enabled: true, threshold: 100, priority: 'lateral' });
-    useMenuSettings.getState().setTwistCycle(null);
-    expect(useMenuSettings.getState().config?.twistCycle).toBeUndefined();
   });
 });
 
