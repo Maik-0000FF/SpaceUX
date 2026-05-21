@@ -42,10 +42,24 @@ export type ButtonEvent = {
 export type DeviceEvent = {
   event: 'device';
   /** The connected puck's discovered button count, or 0 when none is
-   *  attached. Emitted whenever the count changes (hotplug swap) so a
+   *  attached. Emitted whenever the device changes (hotplug swap) so a
    *  long-lived client can re-clamp without reconnecting — the count is
    *  also in the `hello` every fresh connection already receives. */
   buttons: number;
+} & DeviceIdentity;
+
+/**
+ * Device identity carried in both `hello` and `device` events (#113):
+ * the USB VID/PID key the matching per-device profile, and the model
+ * name labels the active device in the editor. All optional — daemons
+ * predating #113 omit them; treat missing vendor/product as 0 (no
+ * device / unknown) and a missing name as empty. The name is sanitized
+ * daemon-side to printable ASCII before it hits the wire.
+ */
+export type DeviceIdentity = {
+  vendor?: number;
+  product?: number;
+  name?: string;
 };
 
 export type HelloEvent = {
@@ -87,7 +101,7 @@ export type HelloEvent = {
    * Upgrading the daemon is the path forward.
    */
   token?: string;
-};
+} & DeviceIdentity;
 
 export type DaemonEvent = AxesEvent | ButtonEvent | HelloEvent | DeviceEvent;
 

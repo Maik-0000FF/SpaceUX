@@ -104,7 +104,8 @@ int sock_init(struct sock_state *s)
 		s->clients[i].fd = -1;
 	s->inject_fd = -1;
 	s->led_fd = -1;
-	s->button_count = 0;
+	/* s->device left zeroed by the memset above: no device advertised
+	 * until the daemon opens one and calls sock_set_device. */
 	return ipc_listener_open(&s->listener);
 }
 
@@ -118,18 +119,25 @@ void sock_set_led_fd(struct sock_state *s, int fd)
 	s->led_fd = fd;
 }
 
-void sock_set_button_count(struct sock_state *s, int count)
+static int device_equal(const struct input_device_info *a, const struct input_device_info *b)
+{
+	return a->vendor == b->vendor && a->product == b->product && a->buttons == b->buttons &&
+	       strcmp(a->name, b->name) == 0;
+}
+
+void sock_set_device(struct sock_state *s, const struct input_device_info *info)
 {
 	/* Only act on an actual change. A new client always learns the
-	 * current count from the hello on connect, so the broadcast here
+	 * current device from the hello on connect, so the broadcast here
 	 * just covers the delta for clients already connected when a puck
 	 * is swapped/(un)plugged — that's what lets an open editor re-clamp
-	 * its pickers live (#66 PR 2b). The startup set runs before any
-	 * client connects, so it broadcasts to nobody, which is correct. */
-	if (s->button_count == count)
+	 * its pickers and re-pick its profile live (#66 PR 2b, #113). The
+	 * startup set runs before any client connects, so it broadcasts to
+	 * nobody, which is correct. */
+	if (device_equal(&s->device, info))
 		return;
-	s->button_count = count;
-	sock_broadcast_device(s, count);
+	s->device = *info;
+	sock_broadcast_device(s);
 }
 
 void sock_close(struct sock_state *s)
@@ -249,7 +257,7 @@ int sock_accept(struct sock_state *s)
 		fprintf(stderr, "[sock] accept slot=%d pid=%d uid=%d\n", slot, peer.pid, peer.uid);
 
 	char hello[SPACEUX_EVENT_BUF_SIZE];
-	int hlen = protocol_format_hello(hello, sizeof(hello), SPACEUX_AXIS_COUNT, s->button_count,
+	int hlen = protocol_format_hello(hello, sizeof(hello), SPACEUX_AXIS_COUNT, &s->device,
 					 s->inject_fd >= 0, s->led_fd >= 0, c->auth_token);
 	if (hlen > 0)
 		(void)ipc_write(fd, hello, hlen);
@@ -476,13 +484,13 @@ void sock_broadcast_button(struct sock_state *s, int bnum, int pressed)
 	}
 }
 
-void sock_broadcast_device(struct sock_state *s, int button_count)
+void sock_broadcast_device(struct sock_state *s)
 {
 	char buf[SPACEUX_EVENT_BUF_SIZE];
-	int len = protocol_format_device(buf, sizeof(buf), button_count);
+	int len = protocol_format_device(buf, sizeof(buf), &s->device);
 	if (len <= 0)
 		return;
-	/* No subscription gate: the button count is connection-level
+	/* No subscription gate: the device identity is connection-level
 	 * capability info (like the hello event), not a stream a client
 	 * opts into. Every connected client gets it. */
 	for (int i = 0; i < SPACEUX_MAX_CLIENTS; i++) {

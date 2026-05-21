@@ -24,6 +24,14 @@
  * the bitfield/array sizing comfortable. */
 #define SPACEUX_MAX_BUTTONS 32
 
+/* Bytes (including NUL) for the device's EVIOCGNAME model string, used
+ * to key per-device profiles (#113) and label the active device in the
+ * editor. Real names ("3Dconnexion SpaceMouse Pro") sit well under
+ * this; a longer kernel name is truncated. The string is pre-sanitized
+ * to JSON-safe printable ASCII before it goes on the wire (see
+ * input_linux.c), so the event emitter can embed it without escaping. */
+#define SPACEUX_DEVICE_NAME_LEN 80
+
 /* ── Socket / protocol ──────────────────────────────────────────────── */
 
 /* UNIX socket path template under /run/user/<UID>/. Single-user

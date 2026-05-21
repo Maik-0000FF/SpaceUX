@@ -21,8 +21,10 @@
  *
  *   {"event":"axes","values":[tx,ty,tz,rx,ry,rz]}
  *   {"event":"button","bnum":N,"pressed":true|false}
- *   {"event":"hello","axes":N,"buttons":N}   — sent on connect
- *   {"event":"device","buttons":N}           — sent when the count changes
+ *   {"event":"hello","axes":N,"buttons":N,"vendor":V,"product":P,"name":"..."}
+ *                                            — sent on connect
+ *   {"event":"device","buttons":N,"vendor":V,"product":P,"name":"..."}
+ *                                            — sent when the device changes
  *
  * No JSON parsing on the daemon side; the emitter writes bytes
  * directly so we don't depend on json-c.
@@ -31,6 +33,11 @@
 #define SPACEUX_PROTOCOL_H
 
 #include "config.h"
+
+/* Device identity carried in the hello + device events. Defined in
+ * input.h; only used here through a pointer, so a forward declaration
+ * keeps the wire-format layer from depending on the input backend. */
+struct input_device_info;
 
 /* Per-client subscription state. The daemon multiplexes input over
  * every connected client; each client decides which event types it
@@ -102,11 +109,13 @@ int protocol_format_axes(char *buf, int buf_size, const int *values, int n_value
 /* Format a single button transition into *buf. Same return contract. */
 int protocol_format_button(char *buf, int buf_size, int bnum, int pressed);
 
-/* Format a device button-count change into *buf. Emitted when the
- * connected puck's discovered count changes (hotplug swap), so an
- * already-connected client can re-clamp without reconnecting. Same
- * return contract as the others. */
-int protocol_format_device(char *buf, int buf_size, int button_count);
+/* Format a device-changed event into *buf from the device's identity
+ * (button count + VID/PID/name). Emitted when the connected puck
+ * changes (hotplug swap / (un)plug), so an already-connected client can
+ * re-clamp and re-pick its profile without reconnecting. `dev->name`
+ * must be pre-sanitized (see input_linux.c) — it is embedded unescaped.
+ * Same return contract as the others. */
+int protocol_format_device(char *buf, int buf_size, const struct input_device_info *dev);
 
 /* Format the welcome hello message sent on connect.
  *
@@ -118,8 +127,14 @@ int protocol_format_device(char *buf, int buf_size, int button_count);
  * `led_available` is the same idea for LED control: 0/1 depending on
  * whether the daemon found a SpaceMouse hidraw node it can write to.
  * Clients use it to gate the pie-open/close LED toggle so they don't
- * waste round-trips sending SET_LED to a daemon that can't honour it. */
-int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons,
-			  int inject_available, int led_available, const char *token);
+ * waste round-trips sending SET_LED to a daemon that can't honour it.
+ *
+ * `dev` carries the connected device's button count + VID/PID/name
+ * (all-zero/empty when none). `dev->name` must be pre-sanitized — it is
+ * embedded unescaped, as is `token` (CSPRNG hex). Never widen either to
+ * an unsanitized string without first adding JSON-string escaping. */
+int protocol_format_hello(char *buf, int buf_size, int axes_count,
+			  const struct input_device_info *dev, int inject_available,
+			  int led_available, const char *token);
 
 #endif /* SPACEUX_PROTOCOL_H */

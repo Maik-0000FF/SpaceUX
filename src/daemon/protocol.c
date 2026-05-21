@@ -11,6 +11,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "input.h" /* struct input_device_info — embedded in hello/device */
+
 /* Parse "INJECT_CHORD <token> <c1> <c2> ... <cN>" into the caller's
  * chord struct. The first whitespace-delimited word after the
  * command verb is the capability token (32 hex chars); the
@@ -186,31 +188,37 @@ int protocol_format_button(char *buf, int buf_size, int bnum, int pressed)
 	return n;
 }
 
-int protocol_format_device(char *buf, int buf_size, int button_count)
+int protocol_format_device(char *buf, int buf_size, const struct input_device_info *dev)
 {
-	if (!buf || buf_size <= 0)
+	if (!buf || buf_size <= 0 || !dev)
 		return -1;
-	int n = snprintf(buf, buf_size, "{\"event\":\"device\",\"buttons\":%d}\n", button_count);
+	int n = snprintf(buf, buf_size,
+			 "{\"event\":\"device\",\"buttons\":%d,\"vendor\":%u,\"product\":%u,"
+			 "\"name\":\"%s\"}\n",
+			 dev->buttons, dev->vendor, dev->product, dev->name);
 	if (n < 0 || n >= buf_size)
 		return -1;
 	return n;
 }
 
-/* Precondition: `token` is hex-only (output of `generate_token` in
- * socket.c, which builds it from the OS CSPRNG and a fixed hex
- * alphabet). The JSON serialisation embeds the token unescaped on
- * that basis — never widen this without first re-introducing proper
- * JSON-string escaping for backslash, quote, and control bytes. */
-int protocol_format_hello(char *buf, int buf_size, int axes_count, int max_buttons,
-			  int inject_available, int led_available, const char *token)
+/* Precondition: both `token` (hex-only, from `generate_token` in
+ * socket.c via the OS CSPRNG) and `dev->name` (sanitized to printable
+ * ASCII in input_linux.c) are JSON-safe. The serialisation embeds both
+ * unescaped on that basis — never widen either to an unsanitized string
+ * without first re-introducing proper JSON-string escaping for
+ * backslash, quote, and control bytes. */
+int protocol_format_hello(char *buf, int buf_size, int axes_count,
+			  const struct input_device_info *dev, int inject_available,
+			  int led_available, const char *token)
 {
-	if (!buf || buf_size <= 0)
+	if (!buf || buf_size <= 0 || !dev)
 		return -1;
 	int n = snprintf(buf, buf_size,
 			 "{\"event\":\"hello\",\"axes\":%d,\"buttons\":%d,\"inject\":%s,\"led\":%s,"
-			 "\"token\":\"%s\"}\n",
-			 axes_count, max_buttons, inject_available ? "true" : "false",
-			 led_available ? "true" : "false", token ? token : "");
+			 "\"vendor\":%u,\"product\":%u,\"name\":\"%s\",\"token\":\"%s\"}\n",
+			 axes_count, dev->buttons, inject_available ? "true" : "false",
+			 led_available ? "true" : "false", dev->vendor, dev->product, dev->name,
+			 token ? token : "");
 	if (n < 0 || n >= buf_size)
 		return -1;
 	return n;

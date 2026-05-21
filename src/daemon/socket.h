@@ -18,6 +18,7 @@
 #define SPACEUX_SOCKET_H
 
 #include "config.h"
+#include "input.h" /* struct input_device_info — the advertised device */
 #include "ipc.h"
 
 struct sock_client {
@@ -76,11 +77,13 @@ struct sock_state {
 	 * no-ops; the client side checks the hello event's "led" flag
 	 * to suppress the round-trip entirely when it's known dead. */
 	int led_fd;
-	/* Button count reported in the `hello` event, kept in sync by the
-	 * daemon with the open device's discovered count (0 when none).
-	 * Lets a client (the editor) constrain its button pickers to what
-	 * the puck actually has. */
-	int button_count;
+	/* Identity of the device advertised to clients (button count +
+	 * VID/PID/name), kept in sync by the daemon with the open puck
+	 * (all-zero/empty when none). Reported in the `hello` event and
+	 * re-broadcast as a `device` event on change, so a client can
+	 * constrain its button pickers (#66) and pick the matching
+	 * per-device profile (#113). */
+	struct input_device_info device;
 };
 
 /* Bind a UNIX socket at /run/user/<uid>/spaceux.sock and start
@@ -108,10 +111,10 @@ void sock_broadcast_axes(struct sock_state *s, const int *values, int n_values);
 /* Push a single button transition to every subscribed client. */
 void sock_broadcast_button(struct sock_state *s, int bnum, int pressed);
 
-/* Push a device button-count change to every connected client,
- * regardless of subscription (capability info, like hello). Called by
- * sock_set_button_count on an actual change. */
-void sock_broadcast_device(struct sock_state *s, int button_count);
+/* Push the advertised device (button count + VID/PID/name) to every
+ * connected client, regardless of subscription (capability info, like
+ * hello). Called by sock_set_device on an actual change. */
+void sock_broadcast_device(struct sock_state *s);
 
 /* Wire the daemon's inject layer fd into the dispatch state. Called
  * once at startup after inject_open(); -1 disables INJECT_CHORD
@@ -122,12 +125,13 @@ void sock_set_inject_fd(struct sock_state *s, int fd);
  * -1 disables SET_LED handling. */
 void sock_set_led_fd(struct sock_state *s, int fd);
 
-/* Set the button count advertised to clients in `hello`. The daemon
- * calls this whenever the input device opens or closes (the discovered
- * count, or 0 when no device is attached). On an actual change it also
- * broadcasts a `device` event to connected clients so an open editor
- * re-clamps live (#66 PR 2b). */
-void sock_set_button_count(struct sock_state *s, int count);
+/* Set the device advertised to clients (button count + VID/PID/name).
+ * The daemon calls this whenever the input device opens or closes (the
+ * discovered identity, or all-zero/empty when none is attached). On an
+ * actual change it also broadcasts a `device` event to connected
+ * clients so an open editor re-clamps and re-picks its profile live
+ * (#66 PR 2b, #113). */
+void sock_set_device(struct sock_state *s, const struct input_device_info *info);
 
 /* Returns 1 if any client currently holds the GRAB. */
 int sock_any_grabbed(const struct sock_state *s);

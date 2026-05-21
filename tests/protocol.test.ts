@@ -85,6 +85,30 @@ describe('isDaemonEvent', () => {
     expect(isDaemonEvent({ event: 'device', buttons: 0 })).toBe(true);
   });
 
+  it('accepts device identity fields on hello and device events (#113)', () => {
+    // VID/PID/name key the per-device profile and label the active
+    // device. Both events carry them; absent (older daemon) is also fine.
+    expect(
+      isDaemonEvent({
+        event: 'device',
+        buttons: 15,
+        vendor: 1133,
+        product: 50741,
+        name: '3Dconnexion SpaceMouse Pro',
+      }),
+    ).toBe(true);
+    expect(
+      isDaemonEvent({
+        event: 'hello',
+        axes: 6,
+        buttons: 2,
+        vendor: 1133,
+        product: 50726,
+        name: '',
+      }),
+    ).toBe(true);
+  });
+
   it('accepts hello with the injection capability flag', () => {
     // New daemons (post-#6) include "inject" in hello so the renderer
     // can show "injection unavailable" instead of silently dropping

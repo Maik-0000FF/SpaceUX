@@ -42,6 +42,13 @@ static int g_axis_dirty;
  * model, present and future, with no per-model table to maintain
  * (see #66). */
 static int g_button_count;
+/* Identity of the currently-open device (0 / "" when none). Captured at
+ * open alongside the button count so clients can key per-device profiles
+ * and label the active puck (#113). g_name is pre-sanitized to JSON-safe
+ * printable ASCII so the event emitter can embed it without escaping. */
+static unsigned short g_vendor;
+static unsigned short g_product;
+static char g_name[SPACEUX_DEVICE_NAME_LEN];
 
 static int vid_matches(unsigned short vid)
 {
@@ -76,6 +83,31 @@ static int discover_button_count(int fd)
 		if (keybits[code / wb] & (1UL << (code % wb)))
 			count++;
 	return count > SPACEUX_MAX_BUTTONS ? SPACEUX_MAX_BUTTONS : count;
+}
+
+/* Capture the open device's VID/PID (EVIOCGID) and model name
+ * (EVIOCGNAME) into the g_* identity globals. The name is the only
+ * field that reaches the wire as a string, and the kernel sources it
+ * from the device's USB descriptor — untrusted input. Rather than teach
+ * the JSON emitter to escape, we sanitize here: any byte outside
+ * printable ASCII, or a quote/backslash, becomes '?'. That keeps the
+ * emitter trivial and the name safe to embed verbatim. A failed ioctl
+ * leaves the corresponding field at its zeroed/empty default. */
+static void capture_identity(int fd)
+{
+	struct input_id id;
+	if (ioctl(fd, EVIOCGID, &id) == 0) {
+		g_vendor = id.vendor;
+		g_product = id.product;
+	}
+	if (ioctl(fd, EVIOCGNAME(sizeof(g_name)), g_name) < 0)
+		g_name[0] = '\0';
+	g_name[sizeof(g_name) - 1] = '\0';
+	for (char *p = g_name; *p; p++) {
+		unsigned char c = (unsigned char)*p;
+		if (c < 0x20 || c > 0x7e || c == '"' || c == '\\')
+			*p = '?';
+	}
 }
 
 static int looks_like_spacemouse(int fd)
@@ -128,7 +160,15 @@ int input_open(void)
 
 	memset(g_axis_state, 0, sizeof(g_axis_state));
 	g_axis_dirty = 0;
-	g_button_count = found_fd >= 0 ? discover_button_count(found_fd) : 0;
+	g_vendor = 0;
+	g_product = 0;
+	g_name[0] = '\0';
+	if (found_fd >= 0) {
+		g_button_count = discover_button_count(found_fd);
+		capture_identity(found_fd);
+	} else {
+		g_button_count = 0;
+	}
 	return found_fd;
 }
 
@@ -139,11 +179,17 @@ void input_close(int fd)
 	memset(g_axis_state, 0, sizeof(g_axis_state));
 	g_axis_dirty = 0;
 	g_button_count = 0;
+	g_vendor = 0;
+	g_product = 0;
+	g_name[0] = '\0';
 }
 
-int input_button_count(void)
+void input_device_info(struct input_device_info *out)
 {
-	return g_button_count;
+	out->vendor = g_vendor;
+	out->product = g_product;
+	out->buttons = g_button_count;
+	memcpy(out->name, g_name, sizeof(out->name));
 }
 
 /* Map a Linux EV_KEY code to a 0-based bnum. Buttons 1..10 live in
