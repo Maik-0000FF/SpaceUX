@@ -55,7 +55,7 @@ import {
 import { resolveAxisInvert, type MenuAutoDrill, type MenuConfig } from '@/shared/menu';
 
 /** Per-frame edge detector for the auto-drill gestures (lateral
- *  magnitude, tilt). Returns `true` once when `value` crosses
+ *  magnitude, tilt, twist). Returns `true` once when `value` crosses
  *  `threshold` from below, then stays `false` until it dips back
  *  under. Mutates `prevRef` so each call hands the next frame the
  *  "was over" memory it needs.
@@ -122,8 +122,9 @@ export function useDrillNavigation(opts: {
   const drillStateRef = useRef<DrillState>(drillState);
   drillStateRef.current = drillState;
 
-  // Three rising-edge memories, one per gesture. All start `true`
-  // so the first frame after MENU_OPEN is never treated as a rising
+  // One rising-edge memory per gesture (center activation, TZ back,
+  // lateral / tilt / twist drill). All start `true` so the first frame
+  // after MENU_OPEN is never treated as a rising
   // edge: if the puck is already past the threshold at open time
   // (the user was mid-gesture when they triggered the menu), the
   // gesture has to physically dip back under the threshold and
@@ -135,6 +136,7 @@ export function useDrillNavigation(opts: {
   const wasActivatingRef = useRef<boolean>(true);
   const wasMagnitudeOverRef = useRef<boolean>(true);
   const wasTiltOverRef = useRef<boolean>(true);
+  const wasTwistOverRef = useRef<boolean>(true);
 
   useEffect(() => {
     if (!menuOpen || !menuConfig) return;
@@ -225,10 +227,11 @@ export function useDrillNavigation(opts: {
     // Clamp out so sticky always lands on an existing sector.
     const sec = rawSec === null ? null : rawSec % current.length;
 
-    // Two auto-drill gestures, same rising-edge semantics: lateral
-    // magnitude (TX/TY push) and tilt magnitude (RX/RY rotation).
-    // Whichever rises first fires the drill; both run unconditionally
-    // each frame so a user with both enabled can use either.
+    // Three auto-drill gestures, same rising-edge semantics: lateral
+    // magnitude (TX/TY push), tilt magnitude (RX/RY rotation), and
+    // twist (RZ rotation, direction-agnostic via |rz|). Whichever rises
+    // first fires the drill; all run unconditionally each frame so a
+    // user with any combination enabled can use whichever they prefer.
     const lateralRising = detectRisingEdge(
       autoDrillEnabled(menuConfig.magnitudeDrill),
       axesMagnitude({ tx: axes.tx, ty: axes.ty }),
@@ -241,8 +244,14 @@ export function useDrillNavigation(opts: {
       menuConfig.tiltDrill?.threshold ?? Infinity,
       wasTiltOverRef,
     );
+    const twistRising = detectRisingEdge(
+      autoDrillEnabled(menuConfig.twistDrill),
+      Math.abs(axes.rz),
+      menuConfig.twistDrill?.threshold ?? Infinity,
+      wasTwistOverRef,
+    );
 
-    if ((lateralRising || tiltRising) && sec !== null) {
+    if ((lateralRising || tiltRising || twistRising) && sec !== null) {
       const hovered = current[sec];
       if (hovered?.children) {
         // child[0] aligns with the parent sector's angle thanks to
@@ -275,6 +284,7 @@ export function useDrillNavigation(opts: {
       wasActivatingRef.current = true;
       wasMagnitudeOverRef.current = true;
       wasTiltOverRef.current = true;
+      wasTwistOverRef.current = true;
     },
   };
 }
