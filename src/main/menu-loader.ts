@@ -12,6 +12,7 @@ import {
   migrateMenuConfig,
   validateMenuConfig,
   type MenuConfig,
+  type MenuConfigValidation,
 } from '../shared/menu.js';
 import { dedupPreserveOrder } from '../shared/util.js';
 
@@ -51,6 +52,30 @@ export type MenuLoadResult = {
   /** Human-readable reason for the fallback, or null on success. */
   fallbackReason: string | null;
 };
+
+/**
+ * Migrate (if the file declares an older/newer schema version) and then
+ * validate an already-parsed config object. Shared by {@link loadMenuConfig}
+ * and the per-device profile loader (#113) so both run the exact same
+ * version-migration + validation pipeline. Does NOT do JSON parsing or
+ * path-prefixing — callers own the file read and error wording.
+ */
+export function migrateAndValidateMenuConfig(parsed: unknown): MenuConfigValidation {
+  let toValidate: unknown = parsed;
+  if (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    typeof (parsed as { version?: unknown }).version === 'number'
+  ) {
+    const version = (parsed as { version: number }).version;
+    if (version !== MENU_CONFIG_VERSION) {
+      const migrated = migrateMenuConfig(parsed as Record<string, unknown>, version);
+      if (!migrated.ok) return { ok: false, reason: migrated.reason };
+      toValidate = migrated.raw;
+    }
+  }
+  return validateMenuConfig(toValidate);
+}
 
 /** Build the ordered list of paths the loader will probe. Exposed
  *  so tests can substitute fake locations. */
@@ -100,28 +125,7 @@ export async function loadMenuConfig(
     // Migrate an older schema version up to the current one before
     // validating, so a future MENU_CONFIG_VERSION bump doesn't make
     // every existing config fail validation and fall back to default.
-    let toValidate: unknown = parsed;
-    if (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      typeof (parsed as { version?: unknown }).version === 'number'
-    ) {
-      const version = (parsed as { version: number }).version;
-      if (version !== MENU_CONFIG_VERSION) {
-        const migrated = migrateMenuConfig(parsed as Record<string, unknown>, version);
-        if (!migrated.ok) {
-          return {
-            config: DEFAULT_MENU_CONFIG,
-            source: candidate,
-            mtime,
-            fallbackReason: `${candidate}: ${migrated.reason}`,
-          };
-        }
-        toValidate = migrated.raw;
-      }
-    }
-
-    const result = validateMenuConfig(toValidate);
+    const result = migrateAndValidateMenuConfig(parsed);
     if (!result.ok) {
       return {
         config: DEFAULT_MENU_CONFIG,

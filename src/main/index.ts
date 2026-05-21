@@ -13,7 +13,7 @@ import {
   type MenuOpenPayload,
   type PieAppearance,
 } from '../shared/ipc.js';
-import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
+import { DEFAULT_MENU_CONFIG, DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
 import { DEFAULT_PIE_APPEARANCE } from '../shared/pie-appearance.js';
 import type { DaemonEvent } from '../shared/protocol.js';
 
@@ -29,8 +29,9 @@ import {
   setAppQuitting,
 } from './editor-window.js';
 import { KWinCursorService } from './kwin-cursor.js';
-import { loadMenuConfig, menuConfigSearchPaths } from './menu-loader.js';
+import { loadMenuConfig, menuConfigSearchPaths, type MenuLoadResult } from './menu-loader.js';
 import { watchMenuConfig } from './menu-watcher.js';
+import { deviceProfileId, loadDeviceProfile } from './profile-loader.js';
 import {
   indexActions,
   loadPlugins,
@@ -76,32 +77,116 @@ let mainWindow: BrowserWindow | null = null;
 let kwinCursor: KWinCursorService | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
+// The *active* menu config — either the global menu.json (fallback) or
+// the connected device's profile (#113). Conflict-detection + write-back
+// state for the editor: `mtime` is the on-disk mtime the active config
+// was last read/written at; `source` is the file it came from (null =
+// running on defaults, never saved). `searchPaths` is captured at startup
+// so a write can fall back to the preferred XDG path when nothing's saved.
 let menuConfig: MenuConfig | null = null;
-// Conflict-detection + write-back state for the editor. `mtime` is the
-// on-disk mtime the live config was last read/written at; `source` is
-// the file it came from (null = running on defaults, never saved).
-// `searchPaths` is captured at startup so a write can fall back to the
-// preferred XDG path when nothing has been saved yet.
 let menuConfigMtime: number | null = null;
 let menuConfigSource: string | null = null;
 let menuSearchPaths: string[] = [];
 let stopMenuWatcher: (() => void) | null = null;
 
-// The pie appearance (theme + opacity) — own app setting, broadcast to both
-// renderers on change. Defaults until loadPieAppearance() resolves at startup.
-// Latest button count the daemon reported (0 when no device / not yet
-// connected). Pulled by the editor on mount so its button pickers only
-// offer buttons that exist (#66), and pushed live on every change so an
-// open editor re-clamps on a hotplug swap (PR 2b).
-let deviceButtonCount = 0;
+// The global fallback config (the menu.json load result), kept live by the
+// watcher. The active `menuConfig` above is this whenever no device profile
+// applies; when a profile is active we keep this cached so disconnecting the
+// device restores it without a re-read. Set at startup.
+let fallbackMenu: MenuLoadResult | null = null;
+// Id of the profile currently driving the active config, or null when the
+// fallback is active (#113).
+let activeProfileId: string | null = null;
 
-// Single point that mutates the count: keep it in sync with the editor by
-// pushing every change over EDITOR_DEVICE (idempotent — same-value pushes
-// no-op in the renderer). Mirrors the daemon's broadcast-on-change setter.
-function setDeviceButtonCount(count: number): void {
-  if (deviceButtonCount === count) return;
-  deviceButtonCount = count;
-  sendToEditor(IpcChannel.EDITOR_DEVICE, count);
+// Latest device the daemon reported (0 / "" when none). `buttons` is pulled
+// by the editor on mount so its pickers only offer existing buttons (#66)
+// and pushed live on a hotplug swap (PR 2b); `vendor`/`product` key the
+// per-device profile and a change of identity triggers a profile switch
+// (#113); `name` labels the active device (surfaced in the editor in PR 3).
+let deviceButtonCount = 0;
+let deviceVendor = 0;
+let deviceProduct = 0;
+let deviceName = '';
+
+// Single point that latches the reported device. Pushes the button count to
+// the editor on change (idempotent — same-value pushes no-op in the
+// renderer), and re-resolves the active profile whenever the device
+// *identity* (VID:PID) changes — connect, swap, or disconnect.
+function setDeviceInfo(buttons: number, vendor: number, product: number, name: string): void {
+  if (buttons !== deviceButtonCount) {
+    deviceButtonCount = buttons;
+    sendToEditor(IpcChannel.EDITOR_DEVICE, buttons);
+  }
+  const idChanged = vendor !== deviceVendor || product !== deviceProduct;
+  deviceVendor = vendor;
+  deviceProduct = product;
+  deviceName = name;
+  if (idChanged) void applyActiveProfile();
+}
+
+/**
+ * Resolve and apply the active menu config from the connected device:
+ * the device's profile when one exists, else the global fallback. Called
+ * on every device-identity change. Pushes the new config to both
+ * renderers (same channels as a hot-reload) only when the active source
+ * actually changes, so a swap between two unprofiled devices is a no-op.
+ */
+async function applyActiveProfile(): Promise<void> {
+  const vendor = deviceVendor;
+  const product = deviceProduct;
+  const id = deviceProfileId(vendor, product);
+
+  let next: {
+    config: MenuConfig;
+    mtime: number | null;
+    source: string | null;
+    profileId: string | null;
+  };
+  if (id) {
+    const prof = await loadDeviceProfile(id);
+    // A newer device change landed while we were reading: that call owns
+    // the result now, so drop this stale one.
+    if (deviceVendor !== vendor || deviceProduct !== product) return;
+    if (prof.status === 'loaded') {
+      next = { config: prof.config, mtime: prof.mtime, source: prof.path, profileId: id };
+    } else {
+      if (prof.status === 'invalid')
+        // eslint-disable-next-line no-console
+        console.warn(`[profile] ${id}: ${prof.reason} — using fallback`);
+      next = fallbackActive();
+    }
+  } else {
+    next = fallbackActive();
+  }
+
+  const changed = next.profileId !== activeProfileId;
+  activeProfileId = next.profileId;
+  menuConfig = next.config;
+  menuConfigMtime = next.mtime;
+  menuConfigSource = next.source;
+  if (changed) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[profile] active config: ${next.profileId ?? 'fallback (menu.json)'}` +
+        (deviceName ? ` — ${deviceName}` : ''),
+    );
+    mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, next.config);
+    sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
+      config: next.config,
+      mtime: next.mtime,
+    } satisfies MenuConfigSnapshot);
+  }
+}
+
+/** The fallback (global menu.json) as an active-config tuple. */
+function fallbackActive(): {
+  config: MenuConfig;
+  mtime: number | null;
+  source: string | null;
+  profileId: string | null;
+} {
+  const fb = fallbackMenu ?? { config: DEFAULT_MENU_CONFIG, mtime: null, source: null };
+  return { config: fb.config, mtime: fb.mtime, source: fb.source, profileId: null };
 }
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // Debounce the disk write: dragging the opacity slider fires a change per
@@ -316,13 +401,14 @@ function wireDaemonEvents(): void {
   });
 
   daemon.on('event', (ev: DaemonEvent) => {
-    // Latch the device's button count before the window gate so the
-    // editor's pull always reflects reality — mirrors the disconnect
-    // reset, which is also ungated. A `hello` (fresh connect) and a
-    // `device` (live hotplug change) both carry the count; setting it
-    // here, before the early return, means a count update is never
-    // dropped just because mainWindow is momentarily null.
-    if (ev.event === 'hello' || ev.event === 'device') setDeviceButtonCount(ev.buttons);
+    // Latch the device before the window gate so the editor's pull always
+    // reflects reality — mirrors the disconnect reset, which is also
+    // ungated. A `hello` (fresh connect) and a `device` (live hotplug
+    // change) both carry the count + identity; setting it here, before the
+    // early return, means an update is never dropped just because
+    // mainWindow is momentarily null.
+    if (ev.event === 'hello' || ev.event === 'device')
+      setDeviceInfo(ev.buttons, ev.vendor ?? 0, ev.product ?? 0, ev.name ?? '');
     if (!mainWindow) return;
     switch (ev.event) {
       case 'axes':
@@ -358,7 +444,7 @@ function wireDaemonEvents(): void {
   });
 
   daemon.on('disconnected', () => {
-    setDeviceButtonCount(0);
+    setDeviceInfo(0, 0, 0, '');
     if (!mainWindow) return;
     const payload: DaemonStatusPayload = { state: 'disconnected', reason: 'socket closed' };
     mainWindow.webContents.send(IpcChannel.DAEMON_STATUS, payload);
@@ -456,6 +542,10 @@ app.whenReady().then(async () => {
     // eslint-disable-next-line no-console
     console.warn(`[menu-config] using defaults: ${menuResult.fallbackReason}`);
   }
+  // The global menu.json is the fallback and the initial active config;
+  // a device profile (if any) takes over once the daemon reports the
+  // connected device's identity (#113, via applyActiveProfile).
+  fallbackMenu = menuResult;
   menuConfig = menuResult.config;
   menuConfigMtime = menuResult.mtime;
   menuConfigSource = menuResult.source;
@@ -477,6 +567,12 @@ app.whenReady().then(async () => {
       // eslint-disable-next-line no-console
       console.info(`[menu-config] reloaded from ${result.source}`);
     }
+    fallbackMenu = result;
+    // A menu.json edit only touches the live config when the fallback is
+    // the active source. While a device profile is active, the reload just
+    // refreshes the cached fallback so a later disconnect restores the
+    // up-to-date global config — without clobbering the profile (#113).
+    if (activeProfileId !== null) return;
     menuConfig = result.config;
     menuConfigMtime = result.mtime;
     menuConfigSource = result.source;
@@ -496,6 +592,13 @@ app.whenReady().then(async () => {
       menuConfig = config;
       menuConfigMtime = mtime;
       menuConfigSource = target;
+      // The editor writes to whatever source is active: the profile file
+      // when a profile drives the config, else menu.json. Keep the cached
+      // fallback in sync only in the latter case so a later device
+      // disconnect restores the just-saved global config (#113).
+      if (activeProfileId === null) {
+        fallbackMenu = { config, mtime, source: target, fallbackReason: null };
+      }
       // Hot-reload the live pie so an editor save takes effect at once.
       mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, config);
     },
