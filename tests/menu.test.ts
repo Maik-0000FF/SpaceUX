@@ -646,6 +646,135 @@ describe('validateMenuConfig — centerField', () => {
   });
 });
 
+describe('validateMenuConfig — navigation (issue #105)', () => {
+  it('accepts a full navigation block and round-trips every gesture', () => {
+    const navigation = {
+      drillIn: { inputs: [{ kind: 'magnitude', source: 'lateral', threshold: 250 }] },
+      back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
+      cycle: {
+        inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
+        priority: 'twist',
+      },
+      commitCenter: { inputs: [{ kind: 'button', button: 2 }] },
+    };
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation,
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.navigation).toEqual(navigation);
+  });
+
+  it('defaults omitted gestures to unbound (empty inputs)', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: { drillIn: { inputs: [{ kind: 'none' }] } },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.navigation).toEqual({
+        drillIn: { inputs: [{ kind: 'none' }] },
+        back: { inputs: [] },
+        cycle: { inputs: [], priority: 'lateral' },
+        commitCenter: { inputs: [] },
+      });
+    }
+  });
+
+  it('rejects malformed input bindings (structural errors are hard rejections)', () => {
+    const cases: Array<[unknown, RegExp]> = [
+      [{ drillIn: { inputs: [{ kind: 'wat' }] } }, /"kind" must be one of/],
+      [
+        { back: { inputs: [{ kind: 'axis', axis: 'zz', direction: 'both', threshold: 1 }] } },
+        /"axis" must be one of/,
+      ],
+      [
+        { commitCenter: { inputs: [{ kind: 'button', button: -1 }] } },
+        /"button".*non-negative integer/,
+      ],
+      [
+        { drillIn: { inputs: [{ kind: 'magnitude', source: 'nope', threshold: 1 }] } },
+        /"source" must be one of/,
+      ],
+      [
+        { drillIn: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 0 }] } },
+        /"threshold".*positive finite number/,
+      ],
+      [{ cycle: { inputs: [], priority: 'sideways' } }, /"priority" must be one of/],
+      [{ drillIn: { inputs: 'not-an-array' } }, /"inputs" must be an array/],
+      // A present-but-null gesture is rejected (not silently coerced to
+      // unbound) — only an *omitted* gesture defaults to empty.
+      [{ drillIn: null }, /drillIn must be an object/],
+    ];
+    for (const [nav, pattern] of cases) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        navigation: nav,
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `navigation=${JSON.stringify(nav)}`).toBe(false);
+      if (!r.ok) expect(r.reason, `navigation=${JSON.stringify(nav)}`).toMatch(pattern);
+    }
+  });
+
+  it('warns (but accepts) when two gestures bind the same axis half', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        drillIn: { inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }] },
+        commitCenter: {
+          inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }],
+        },
+      },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true); // permissive: a conflict never rejects
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind axis:rz:positive'));
+    warnSpy.mockRestore();
+  });
+
+  it('warns when a both-axis binding overlaps a directional one on the same axis', () => {
+    // `both` occupies the whole axis, so it collides with a positive
+    // binding even though their direction strings differ.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        drillIn: { inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 200 }] },
+        commitCenter: {
+          inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }],
+        },
+      },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind axis:rz:positive'));
+    warnSpy.mockRestore();
+  });
+
+  it('does NOT warn for a legitimate direction split on one axis', () => {
+    // RZ-up on one gesture, RZ-down on another can never both be active,
+    // so the split-axis setups the feature encourages stay quiet.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        drillIn: { inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }] },
+        commitCenter: {
+          inputs: [{ kind: 'axis', axis: 'rz', direction: 'negative', threshold: 200 }],
+        },
+      },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('both bind'));
+    warnSpy.mockRestore();
+  });
+});
+
 describe('DEFAULT_MENU_CONFIG', () => {
   it('pins triggerButton to DEFAULT_TRIGGER_BUTTON', () => {
     // The shipped default exposes the trigger explicitly so users

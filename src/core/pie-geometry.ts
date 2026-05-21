@@ -19,7 +19,13 @@
  *   - Sectors are numbered clockwise starting from 0 at top.
  */
 
-import type { ActivationDirection, AxisActivation, MenuAxisName } from '../shared/menu';
+import type {
+  ActivationDirection,
+  AxisActivation,
+  GestureBinding,
+  InputBinding,
+  MenuAxisName,
+} from '../shared/menu';
 
 export type PieAxes = {
   tx: number;
@@ -318,4 +324,50 @@ export function clampPieAnchor(
       ? Math.max(radius, Math.min(viewport.height - radius, point.y))
       : viewport.height / 2;
   return { x, y };
+}
+
+// ── Navigation input resolver (issue #105) ──────────────────────────
+
+/** A single puck frame for resolving navigation input bindings: the
+ *  six axes plus the current button states (indexed by button number). */
+export type GestureFrame = {
+  axes: SixAxes;
+  /** `buttons[i]` is true while device button `i` is held. */
+  buttons: readonly boolean[];
+};
+
+/**
+ * Whether a single :type:`InputBinding` is satisfied this frame. Pure —
+ * the rising-edge gating that turns "satisfied" into "fires once" stays
+ * at the call site (the renderer hook), exactly like the existing
+ * gesture detectors.
+ *
+ *   - `button`: the device button is held.
+ *   - `axis`: the named axis is past the threshold on the chosen side
+ *     (reuses :func:`meetsActivation`).
+ *   - `magnitude`: the lateral (TX/TY) or tilt (RX/RY) magnitude is past
+ *     the threshold. Strict-greater throughout, matching the axis path.
+ *   - `none`: never.
+ */
+export function inputActive(input: InputBinding, frame: GestureFrame): boolean {
+  switch (input.kind) {
+    case 'button':
+      return frame.buttons[input.button] === true;
+    case 'axis':
+      return meetsActivation(axisValue(frame.axes, input.axis), input.direction, input.threshold);
+    case 'magnitude': {
+      const { tx, ty, rx, ry } = frame.axes;
+      const magnitude = input.source === 'lateral' ? Math.hypot(tx, ty) : Math.hypot(rx, ry);
+      return magnitude > input.threshold;
+    }
+    case 'none':
+      return false;
+  }
+}
+
+/** Whether a gesture is active this frame — true if ANY of its inputs
+ *  is satisfied (matches today's "any drill gesture drills"). A gesture
+ *  with no inputs is never active. */
+export function gestureActive(gesture: GestureBinding, frame: GestureFrame): boolean {
+  return gesture.inputs.some((input) => inputActive(input, frame));
 }

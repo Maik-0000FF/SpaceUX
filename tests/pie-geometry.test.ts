@@ -9,6 +9,8 @@ import {
   axesToSector,
   axisValue,
   clampPieAnchor,
+  gestureActive,
+  inputActive,
   meetsActivation,
   resolveTzDeadzone,
   rotateAxes,
@@ -16,10 +18,11 @@ import {
   shouldCancelOnZ,
   twistCycleStep,
   tzBackEngaged,
+  type GestureFrame,
   type PieGeometryConfig,
   type SixAxes,
 } from '../src/core/pie-geometry';
-import type { AxisActivation } from '../src/shared/menu';
+import type { AxisActivation, InputBinding } from '../src/shared/menu';
 
 describe('axesToSector', () => {
   const eight: PieGeometryConfig = { sectorCount: 8, deadzone: 50, invertX: false, invertY: true };
@@ -374,5 +377,64 @@ describe('twistCycleStep', () => {
     expect(twistCycleStep(T, T)).toBe(0); // exactly on → no step
     expect(twistCycleStep(-T, T)).toBe(0);
     expect(twistCycleStep(50, T)).toBe(0);
+  });
+});
+
+describe('inputActive', () => {
+  const ZERO: SixAxes = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+  const frame = (axes: Partial<SixAxes>, buttons: boolean[] = []): GestureFrame => ({
+    axes: { ...ZERO, ...axes },
+    buttons,
+  });
+
+  it('button: active only while the indexed button is held', () => {
+    const b: InputBinding = { kind: 'button', button: 2 };
+    expect(inputActive(b, frame({}, [false, false, true]))).toBe(true);
+    expect(inputActive(b, frame({}, [false, false, false]))).toBe(false);
+    expect(inputActive(b, frame({}, []))).toBe(false); // out of range
+  });
+
+  it('axis: respects direction + threshold (reuses meetsActivation)', () => {
+    const up: InputBinding = { kind: 'axis', axis: 'tz', direction: 'positive', threshold: 100 };
+    expect(inputActive(up, frame({ tz: 150 }))).toBe(true);
+    expect(inputActive(up, frame({ tz: -150 }))).toBe(false); // wrong side
+    expect(inputActive(up, frame({ tz: 50 }))).toBe(false); // under threshold
+  });
+
+  it('magnitude: lateral = hypot(tx,ty), tilt = hypot(rx,ry)', () => {
+    const lateral: InputBinding = { kind: 'magnitude', source: 'lateral', threshold: 100 };
+    const tilt: InputBinding = { kind: 'magnitude', source: 'tilt', threshold: 100 };
+    expect(inputActive(lateral, frame({ tx: 80, ty: 80 }))).toBe(true); // hypot ≈ 113
+    expect(inputActive(lateral, frame({ rx: 80, ry: 80 }))).toBe(false); // tilt doesn't drive lateral
+    expect(inputActive(tilt, frame({ rx: 80, ry: 80 }))).toBe(true);
+    expect(inputActive(tilt, frame({ tx: 80, ty: 80 }))).toBe(false);
+  });
+
+  it('none: never active', () => {
+    expect(inputActive({ kind: 'none' }, frame({ tz: 999 }, [true]))).toBe(false);
+  });
+});
+
+describe('gestureActive', () => {
+  const ZERO: SixAxes = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+  const frame = (axes: Partial<SixAxes>): GestureFrame => ({
+    axes: { ...ZERO, ...axes },
+    buttons: [],
+  });
+
+  it('is true when ANY input is satisfied', () => {
+    const gesture = {
+      inputs: [
+        { kind: 'magnitude', source: 'lateral', threshold: 100 },
+        { kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 },
+      ] as InputBinding[],
+    };
+    expect(gestureActive(gesture, frame({ rz: 150 }))).toBe(true); // second input
+    expect(gestureActive(gesture, frame({ tx: 200 }))).toBe(true); // first input
+    expect(gestureActive(gesture, frame({ rz: 50 }))).toBe(false); // neither
+  });
+
+  it('a gesture with no inputs is never active', () => {
+    expect(gestureActive({ inputs: [] }, frame({ tz: 999 }))).toBe(false);
   });
 });

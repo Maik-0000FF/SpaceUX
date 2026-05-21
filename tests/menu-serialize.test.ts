@@ -64,6 +64,26 @@ describe('serializeMenuConfig', () => {
     if (result.ok) expect(result.config).toEqual(cfg);
   });
 
+  it('round-trips a navigation block through the validator', () => {
+    const cfg: MenuConfig = {
+      version: 1,
+      navigation: {
+        drillIn: { inputs: [{ kind: 'magnitude', source: 'tilt', threshold: 200 }] },
+        back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 60 }] },
+        cycle: {
+          inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
+          priority: 'lateral',
+        },
+        commitCenter: { inputs: [{ kind: 'button', button: 1 }] },
+      },
+      sectors: [{ label: 'Solo' }],
+    };
+    const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
+    const result = validateMenuConfig(parsed);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.config).toEqual(cfg);
+  });
+
   it('round-trips a twistCycle through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,
