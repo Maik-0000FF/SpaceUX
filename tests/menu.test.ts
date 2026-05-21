@@ -406,6 +406,43 @@ describe('validateMenuConfig — nested submenus', () => {
     }
   });
 
+  it('accepts an opt-in twistCycle config and round-trips its fields', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      twistCycle: { enabled: true, threshold: 100, priority: 'twist' },
+      sectors: [{ label: 'x' }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.twistCycle).toEqual({ enabled: true, threshold: 100, priority: 'twist' });
+    }
+  });
+
+  it('rejects malformed twistCycle shapes with field-specific messages', () => {
+    const cases: Array<[unknown, RegExp]> = [
+      ['not-an-object', /"twistCycle".*must be an object/],
+      [{ enabled: 'yes', threshold: 100, priority: 'lateral' }, /"twistCycle\.enabled".*boolean/],
+      [
+        { enabled: true, threshold: 0, priority: 'lateral' },
+        /"twistCycle\.threshold".*positive finite number/,
+      ],
+      [
+        { enabled: true, threshold: 100, priority: 'sideways' },
+        /"twistCycle\.priority" must be one of/,
+      ],
+      [{ enabled: true, threshold: 100 }, /"twistCycle\.priority" must be one of/], // missing
+    ];
+    for (const [bad, pattern] of cases) {
+      const r = validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        twistCycle: bad,
+        sectors: [{ label: 'x' }],
+      });
+      expect(r.ok, `twistCycle=${JSON.stringify(bad)}`).toBe(false);
+      if (!r.ok) expect(r.reason, `twistCycle=${JSON.stringify(bad)}`).toMatch(pattern);
+    }
+  });
+
   it('accepts all three auto-drill fields concurrently', () => {
     // Lateral, tilt, and twist can all be enabled — any gesture
     // triggers drill. Pin so a future "exclusive" tweak fails here.
@@ -792,6 +829,7 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
       magnitudeDrill: { enabled: false, threshold: 250 },
       tiltDrill: { enabled: false, threshold: 200 },
       twistDrill: { enabled: false, threshold: 180 },
+      twistCycle: { enabled: false, threshold: 100, priority: 'lateral' },
       sectors: [
         {
           label: 'leaf',

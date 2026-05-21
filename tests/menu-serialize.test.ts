@@ -64,6 +64,18 @@ describe('serializeMenuConfig', () => {
     if (result.ok) expect(result.config).toEqual(cfg);
   });
 
+  it('round-trips a twistCycle through the validator', () => {
+    const cfg: MenuConfig = {
+      version: 1,
+      twistCycle: { enabled: true, threshold: 100, priority: 'twist' },
+      sectors: [{ label: 'Solo' }],
+    };
+    const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
+    const result = validateMenuConfig(parsed);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.config).toEqual(cfg);
+  });
+
   it('round-trips a centerField (label + binding) through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,

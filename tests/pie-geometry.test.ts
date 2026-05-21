@@ -14,6 +14,7 @@ import {
   rotateAxes,
   sectorCenterAngle,
   shouldCancelOnZ,
+  twistCycleStep,
   tzBackEngaged,
   type PieGeometryConfig,
   type SixAxes,
@@ -356,5 +357,22 @@ describe('tzBackEngaged', () => {
     expect(tzBackEngaged(tz, DZ, onTz('positive'))).toBe(false); // back declines the ceded half
     expect(meetsActivation(tz, 'positive', 200)).toBe(false); // not committing yet
     expect(shouldCancelOnZ(tz, DZ)).toBe(true); // but lateral stays suppressed
+  });
+});
+
+describe('twistCycleStep', () => {
+  const T = 100;
+  it('returns +1 for a positive twist past the threshold (next, clockwise)', () => {
+    expect(twistCycleStep(101, T)).toBe(1);
+    expect(twistCycleStep(500, T)).toBe(1);
+  });
+  it('returns -1 for a negative twist past the threshold (previous)', () => {
+    expect(twistCycleStep(-101, T)).toBe(-1);
+  });
+  it('returns 0 within the threshold band (strict-greater, like the other twist gestures)', () => {
+    expect(twistCycleStep(0, T)).toBe(0);
+    expect(twistCycleStep(T, T)).toBe(0); // exactly on → no step
+    expect(twistCycleStep(-T, T)).toBe(0);
+    expect(twistCycleStep(50, T)).toBe(0);
   });
 });

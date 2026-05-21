@@ -6,9 +6,11 @@ import { describe, expect, it } from 'vitest';
 import {
   INITIAL_DRILL_STATE,
   currentSectors,
+  cycleSectorIndex,
   drillReducer,
   navigationRingRotation,
   previewChildren,
+  resolveTwistFrame,
   type DrillState,
 } from '../src/core/menu-nav';
 import { MENU_CONFIG_VERSION, builtinAction, type MenuConfig } from '../src/shared/menu';
@@ -276,5 +278,78 @@ describe('previewChildren', () => {
     const result = previewChildren(deep, { navigation: [0], stickyChildIndex: 0 });
     expect(result).toHaveLength(1);
     expect(result?.[0]?.label).toBe('leaf');
+  });
+});
+
+describe('cycleSectorIndex', () => {
+  it('steps forward and backward with wrap-around', () => {
+    expect(cycleSectorIndex(0, 1, 4)).toBe(1);
+    expect(cycleSectorIndex(3, 1, 4)).toBe(0); // wrap forward
+    expect(cycleSectorIndex(0, -1, 4)).toBe(3); // wrap backward
+    expect(cycleSectorIndex(2, -1, 4)).toBe(1);
+  });
+
+  it('enters the ring at the natural end from no selection', () => {
+    expect(cycleSectorIndex(null, 1, 4)).toBe(0); // forward → first
+    expect(cycleSectorIndex(null, -1, 4)).toBe(3); // backward → last
+  });
+
+  it('keeps the current selection on a zero step', () => {
+    expect(cycleSectorIndex(2, 0, 4)).toBe(2);
+    expect(cycleSectorIndex(null, 0, 4)).toBe(0);
+  });
+
+  it('is defensive against a degenerate ring', () => {
+    expect(cycleSectorIndex(0, 1, 0)).toBe(0);
+  });
+});
+
+describe('resolveTwistFrame', () => {
+  const frame = (o: Partial<Parameters<typeof resolveTwistFrame>[0]>) =>
+    resolveTwistFrame({
+      sec: null,
+      sticky: null,
+      cycleStep: 0,
+      priority: 'lateral',
+      count: 4,
+      cycleEnabled: true,
+      ...o,
+    });
+
+  it('priority "lateral": a cycle step applies only when not aiming', () => {
+    // Centred (sec null): the step cycles from sticky.
+    expect(frame({ sec: null, sticky: 1, cycleStep: 1 }).hoverIndex).toBe(2);
+    // Aiming (sec set): lateral wins, the step is dropped.
+    expect(frame({ sec: 0, sticky: 1, cycleStep: 1 }).hoverIndex).toBe(0);
+  });
+
+  it('priority "twist": a cycle step overrides lateral aiming', () => {
+    expect(frame({ sec: 0, sticky: 1, cycleStep: 1, priority: 'twist' }).hoverIndex).toBe(2);
+  });
+
+  it('no step + centred leaves the selection unchanged (hoverIndex null)', () => {
+    expect(frame({ sec: null, sticky: 2, cycleStep: 0 }).hoverIndex).toBeNull();
+  });
+
+  it('lateral aiming sets hover when no step applies', () => {
+    expect(frame({ sec: 3, sticky: 1, cycleStep: 0 }).hoverIndex).toBe(3);
+  });
+
+  it('drillTarget falls back to sticky only when twist-cycle is enabled', () => {
+    // Enabled: a centred puck with a leftover sticky can be drilled.
+    expect(frame({ sec: null, sticky: 2, cycleStep: 0, cycleEnabled: true }).drillTarget).toBe(2);
+    // Disabled: preserves the historical "drill needs a laterally-aimed
+    // sector" rule — no fallback to the stale sticky.
+    expect(
+      frame({ sec: null, sticky: 2, cycleStep: 0, cycleEnabled: false }).drillTarget,
+    ).toBeNull();
+  });
+
+  it('drillTarget is the just-cycled sector on a step (so a firm twist drills it)', () => {
+    expect(frame({ sec: null, sticky: 0, cycleStep: 1 }).drillTarget).toBe(1);
+  });
+
+  it('drillTarget is the laterally-aimed sector when aiming', () => {
+    expect(frame({ sec: 3, sticky: 1, cycleStep: 0, cycleEnabled: false }).drillTarget).toBe(3);
   });
 });

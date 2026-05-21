@@ -10,10 +10,10 @@
  *  - `drillReducer` state (`navigation`, `stickyChildIndex`)
  *  - A ref mirror so the commit listener can read the latest state
  *    without re-subscribing on every frame
- *  - Edge-trigger refs for the four gestures that need rising-only
- *    semantics — center activation, TZ back/pop, lateral magnitude
- *    drill, tilt drill — so a sustained deflection fires once per
- *    gesture rather than cascading through nested levels
+ *  - Edge-trigger refs for the gestures that need rising-only
+ *    semantics — center activation, TZ back/pop, the lateral / tilt /
+ *    twist drills, and the twist cycle — so a sustained deflection
+ *    fires once per gesture rather than cascading through nested levels
  *
  * The puck never fires actions itself: when a gesture commits the
  * center or dismisses the menu, the hook calls back into App.tsx
@@ -38,6 +38,7 @@ import {
   currentSectors,
   drillReducer,
   navigationRingRotation,
+  resolveTwistFrame,
   type DrillAction,
   type DrillState,
 } from '@/core/menu-nav';
@@ -50,6 +51,7 @@ import {
   resolveTzDeadzone,
   rotateAxes,
   shouldCancelOnZ,
+  twistCycleStep,
   tzBackEngaged,
 } from '@/core/pie-geometry';
 import { resolveAxisInvert, type MenuAutoDrill, type MenuConfig } from '@/shared/menu';
@@ -137,6 +139,7 @@ export function useDrillNavigation(opts: {
   const wasMagnitudeOverRef = useRef<boolean>(true);
   const wasTiltOverRef = useRef<boolean>(true);
   const wasTwistOverRef = useRef<boolean>(true);
+  const wasCycleOverRef = useRef<boolean>(true);
 
   useEffect(() => {
     if (!menuOpen || !menuConfig) return;
@@ -251,18 +254,47 @@ export function useDrillNavigation(opts: {
       wasTwistOverRef,
     );
 
-    if ((lateralRising || tiltRising || twistRising) && sec !== null) {
-      const hovered = current[sec];
+    // Twist-cycle: a directional twist steps the selection one sector
+    // (rising-edge, so a held twist steps once). Shares RZ with
+    // twist-drill via a threshold split — keep the cycle threshold
+    // below the drill threshold so a gentle twist steps and a firmer
+    // one drills (a fast twist past both does step then drill, landing
+    // the drill on the just-stepped sector via `drillTarget` below).
+    const twistCycle = menuConfig.twistCycle;
+    const cycleStepRaw = twistCycle?.enabled ? twistCycleStep(axes.rz, twistCycle.threshold) : 0;
+    const cycleOver = cycleStepRaw !== 0;
+    const cycleStep = cycleOver && !wasCycleOverRef.current ? cycleStepRaw : 0;
+    // Mark the edge consumed every frame the twist is over the threshold —
+    // even one made while aiming laterally under `priority: 'lateral'`,
+    // where `resolveTwistFrame` drops the step. So re-centring mid-twist
+    // won't step until RZ first dips back under the threshold (the
+    // gesture began during aiming and has to be re-engaged).
+    wasCycleOverRef.current = cycleOver;
+
+    // Resolve this frame's hover + drill target from the pure helper, so
+    // the priority and sticky-drill-fallback rules stay unit-tested.
+    const sticky = drillStateRef.current.stickyChildIndex;
+    const { hoverIndex, drillTarget } = resolveTwistFrame({
+      sec,
+      sticky,
+      cycleStep,
+      priority: twistCycle?.priority ?? 'lateral',
+      count: current.length,
+      cycleEnabled: twistCycle?.enabled === true,
+    });
+
+    if ((lateralRising || tiltRising || twistRising) && drillTarget !== null) {
+      const hovered = current[drillTarget];
       if (hovered?.children) {
         // child[0] aligns with the parent sector's angle thanks to
         // the outer-ring rotation, so landing sticky on 0 matches
         // the user's puck direction.
-        dispatch({ type: 'drill', index: sec, nextSticky: 0 });
+        dispatch({ type: 'drill', index: drillTarget, nextSticky: 0 });
         return;
       }
     }
 
-    if (sec !== null) dispatch({ type: 'hover', index: sec });
+    if (hoverIndex !== null) dispatch({ type: 'hover', index: hoverIndex });
     // `drillState.navigation` is read via `drillStateRef`, not the
     // dep array. axes ticks frequently enough that the next frame
     // picks up any post-drill navigation; adding drillState here
@@ -285,6 +317,7 @@ export function useDrillNavigation(opts: {
       wasMagnitudeOverRef.current = true;
       wasTiltOverRef.current = true;
       wasTwistOverRef.current = true;
+      wasCycleOverRef.current = true;
     },
   };
 }

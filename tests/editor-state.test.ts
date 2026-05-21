@@ -429,6 +429,32 @@ describe('menu-settings center field', () => {
   });
 });
 
+describe('menu-settings twist cycle', () => {
+  const load = () =>
+    useMenuSettings.getState().setConfig({
+      config: { version: DEFAULT_MENU_CONFIG.version, sectors: [{ label: 'A' }] },
+      mtime: 1,
+    });
+
+  it('setTwistCycle sets the config and flags local/dirty', () => {
+    load();
+    useMenuSettings.getState().setTwistCycle({ enabled: true, threshold: 100, priority: 'twist' });
+    const state = useMenuSettings.getState();
+    expect(state.config?.twistCycle).toEqual({ enabled: true, threshold: 100, priority: 'twist' });
+    expect(state.origin).toBe('local');
+    expect(state.dirty).toBe(true);
+  });
+
+  it('setTwistCycle(null) removes the field', () => {
+    load();
+    useMenuSettings
+      .getState()
+      .setTwistCycle({ enabled: true, threshold: 100, priority: 'lateral' });
+    useMenuSettings.getState().setTwistCycle(null);
+    expect(useMenuSettings.getState().config?.twistCycle).toBeUndefined();
+  });
+});
+
 describe('moveSectorBetween', () => {
   // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
   const nested = (): MenuConfig => ({

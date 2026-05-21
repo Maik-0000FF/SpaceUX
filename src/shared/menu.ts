@@ -155,6 +155,40 @@ export type MenuAutoDrill = {
   threshold: number;
 };
 
+/** Which gesture wins when the puck is both twisted (cycling) and
+ *  pushed laterally (aiming) in the same frame. `lateral` keeps aiming
+ *  authoritative — twist only steps while the puck is laterally
+ *  centred; `twist` lets a cycle step override the lateral hover for
+ *  that frame. */
+export const TWIST_CYCLE_PRIORITIES = ['lateral', 'twist'] as const;
+export type TwistCyclePriority = (typeof TWIST_CYCLE_PRIORITIES)[number];
+
+/** Opt-in: twisting the puck around its vertical axis (RZ) steps the
+ *  highlighted sector one at a time instead of aiming at it — a
+ *  discrete alternative to lateral aiming, handy for precise selection.
+ *  Direction-aware: a positive twist steps to the next sector
+ *  (clockwise), negative to the previous, wrapping at the ends.
+ *  Rising-edge per step (one step per crossing; the twist must dip back
+ *  under the threshold to step again).
+ *
+ *  Shares the RZ axis with :data:`MenuConfig.twistDrill` via a
+ *  threshold split: keep `threshold` below the twist-drill threshold so
+ *  a gentle twist steps while a firmer twist drills. `priority`
+ *  resolves the overlap with lateral aiming (see
+ *  :type:`TwistCyclePriority`). */
+export type MenuTwistCycle = {
+  enabled: boolean;
+  /** Twist magnitude that steps one sector. Positive finite. */
+  threshold: number;
+  priority: TwistCyclePriority;
+};
+
+/** Threshold the editor seeds a fresh twist-cycle with. Sits above the
+ *  lateral deadzone (50) yet below the auto-drill range (~200) so the
+ *  threshold split with :data:`MenuConfig.twistDrill` — gentle twist
+ *  steps, firmer twist drills — works out of the box. */
+export const DEFAULT_TWIST_CYCLE_THRESHOLD = 100;
+
 /** Shipped default for :type:`MenuAxisInvert` — both axes raw
  *  (correct for the SpaceNavigator we tested on). Used as the
  *  explicit setting in :data:`DEFAULT_MENU_CONFIG` *and* as the
@@ -288,6 +322,11 @@ export type MenuConfig = {
    *  `Math.abs(rz)` so a twist either way drills in. Can run alongside
    *  the other two — any gesture crossing its threshold drills. */
   twistDrill?: MenuAutoDrill;
+  /** Optional twist-to-cycle gesture: twisting the puck (RZ) steps the
+   *  highlighted sector instead of aiming at it. See
+   *  :type:`MenuTwistCycle` (incl. how it shares RZ with `twistDrill`
+   *  and resolves against lateral aiming). */
+  twistCycle?: MenuTwistCycle;
   /** Overall pie size multiplier. 1 = the default size; the renderer
    *  multiplies the base radius by this (and divides by the window's
    *  devicePixelRatio so the on-screen size is consistent across monitor
@@ -378,10 +417,12 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'magnitudeDrill',
   'tiltDrill',
   'twistDrill',
+  'twistCycle',
   'scale',
   'centerField',
   'sectors',
 ];
+const KNOWN_TWIST_CYCLE_FIELDS: readonly string[] = ['enabled', 'threshold', 'priority'];
 const KNOWN_CENTER_FIELDS: readonly string[] = ['label', 'icon', 'binding', 'activation'];
 const KNOWN_ACTIVATION_FIELDS: readonly string[] = ['axis', 'direction', 'threshold'];
 // 'id' is the editor-only stable identity (see MenuSector.id). The
@@ -535,6 +576,10 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
   if (!twistResult.ok) return { ok: false, reason: twistResult.reason };
   if (twistResult.value !== undefined) result.twistDrill = twistResult.value;
 
+  const twistCycleResult = validateTwistCycle(obj.twistCycle, 'twistCycle');
+  if (!twistCycleResult.ok) return { ok: false, reason: twistCycleResult.reason };
+  if (twistCycleResult.value !== undefined) result.twistCycle = twistCycleResult.value;
+
   if (obj.centerField !== undefined) {
     const centerResult = validateCenter(obj.centerField, 'centerField');
     if (!centerResult.ok) return { ok: false, reason: centerResult.reason };
@@ -582,6 +627,48 @@ function validateAutoDrill(raw: unknown, fieldName: string): AutoDrillValidation
   }
   warnUnknownFields(md, KNOWN_AUTO_DRILL_FIELDS, fieldName);
   return { ok: true, value: { enabled: md.enabled, threshold: md.threshold } };
+}
+
+type TwistCycleValidation =
+  | { ok: true; value: MenuTwistCycle | undefined }
+  | { ok: false; reason: string };
+
+/** Validate the optional `twistCycle` field. Like the auto-drill
+ *  shape (boolean `enabled`, positive-finite `threshold`) plus a
+ *  `priority` enum. Returns `value: undefined` when omitted. */
+function validateTwistCycle(raw: unknown, fieldName: string): TwistCycleValidation {
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return { ok: false, reason: `menu config field "${fieldName}" must be an object when present` };
+  }
+  const c = raw as Record<string, unknown>;
+  if (typeof c.enabled !== 'boolean') {
+    return { ok: false, reason: `menu config field "${fieldName}.enabled" must be a boolean` };
+  }
+  if (typeof c.threshold !== 'number' || !Number.isFinite(c.threshold) || c.threshold <= 0) {
+    return {
+      ok: false,
+      reason: `menu config field "${fieldName}.threshold" must be a positive finite number`,
+    };
+  }
+  if (
+    typeof c.priority !== 'string' ||
+    !TWIST_CYCLE_PRIORITIES.includes(c.priority as TwistCyclePriority)
+  ) {
+    return {
+      ok: false,
+      reason: `menu config field "${fieldName}.priority" must be one of ${TWIST_CYCLE_PRIORITIES.join(', ')}`,
+    };
+  }
+  warnUnknownFields(c, KNOWN_TWIST_CYCLE_FIELDS, fieldName);
+  return {
+    ok: true,
+    value: {
+      enabled: c.enabled,
+      threshold: c.threshold,
+      priority: c.priority as TwistCyclePriority,
+    },
+  };
 }
 
 type SectorValidation = { ok: true; value: MenuSector } | { ok: false; reason: string };
@@ -829,6 +916,13 @@ export function serializeMenuConfig(config: MenuConfig): string {
   if (config.magnitudeDrill !== undefined) out.magnitudeDrill = config.magnitudeDrill;
   if (config.tiltDrill !== undefined) out.tiltDrill = config.tiltDrill;
   if (config.twistDrill !== undefined) out.twistDrill = config.twistDrill;
+  if (config.twistCycle !== undefined) {
+    out.twistCycle = {
+      enabled: config.twistCycle.enabled,
+      threshold: config.twistCycle.threshold,
+      priority: config.twistCycle.priority,
+    };
+  }
   if (config.centerField !== undefined) out.centerField = orderCenter(config.centerField);
   out.sectors = config.sectors.map(orderSector);
   return JSON.stringify(out, null, 2) + '\n';

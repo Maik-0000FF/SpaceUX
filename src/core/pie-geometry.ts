@@ -250,6 +250,23 @@ export function meetsActivation(
  * historical direction-agnostic TZ back intact, identical to
  * :func:`shouldCancelOnZ`.
  */
+/**
+ * Direction of a twist-to-cycle step from the raw RZ value: `+1` for a
+ * positive twist (step to the next sector, clockwise), `-1` for a
+ * negative twist (previous), `0` while within the threshold. Strict-
+ * greater on the magnitude, mirroring the other twist gestures.
+ *
+ * Pure and direction-aware (unlike the direction-agnostic twist-*drill*
+ * test, which only cares about magnitude) so the cycle knows which way
+ * to step. The rising-edge gating that turns a sustained twist into a
+ * single step lives at the call site.
+ */
+export function twistCycleStep(rz: number, threshold: number): -1 | 0 | 1 {
+  if (rz > threshold) return 1;
+  if (rz < -threshold) return -1;
+  return 0;
+}
+
 export function tzBackEngaged(
   tz: number,
   tzDeadzone: number,

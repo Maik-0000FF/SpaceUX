@@ -26,7 +26,7 @@
 // tsconfig.electron.json (which doesn't). Sticking to relative keeps
 // this module buildable under both without duplicating the alias.
 import { sectorCenterAngle } from './pie-geometry';
-import type { MenuConfig, MenuSector } from '../shared/menu';
+import type { MenuConfig, MenuSector, TwistCyclePriority } from '../shared/menu';
 
 export type DrillState = {
   navigation: number[];
@@ -121,6 +121,75 @@ export function currentSectors(config: MenuConfig, navigation: readonly number[]
     level = next;
   }
   return level;
+}
+
+/**
+ * Step the highlighted sector index by `step` (+1 = next/clockwise,
+ * -1 = previous), wrapping at the ring's ends — the index maths behind
+ * the twist-cycle gesture.
+ *
+ * From "nothing selected" (`current === null`) a forward step lands on
+ * the first sector and a backward step on the last, so the user enters
+ * the ring at the natural end for their twist direction. `step === 0`
+ * is a no-op that keeps the current selection. `count < 1` yields 0
+ * (defensive — the validator forbids empty rings, but in-memory configs
+ * can bypass that).
+ */
+export function cycleSectorIndex(current: number | null, step: -1 | 0 | 1, count: number): number {
+  if (count < 1) return 0;
+  if (step === 0) return current ?? 0;
+  if (current === null) return step > 0 ? 0 : count - 1;
+  return (((current + step) % count) + count) % count;
+}
+
+/** What a single puck frame resolves to for the twist-cycle gesture:
+ *  which sector to highlight, and which one an auto-drill would commit. */
+export type TwistFrame = {
+  /** Sector to hover this frame, or `null` for "no change" (the sticky
+   *  selection persists). */
+  hoverIndex: number | null;
+  /** Sector an auto-drill (lateral / tilt / twist) commits this frame,
+   *  or `null` for "nothing to drill". */
+  drillTarget: number | null;
+};
+
+/**
+ * Resolve one puck frame's selection for the twist-cycle gesture,
+ * factored out of the renderer hook so the priority and drill-target
+ * rules are unit-testable without a DOM. The rising-edge gating that
+ * turns a sustained twist into a single `cycleStep` stays at the call
+ * site (it needs a ref); everything downstream of that is pure.
+ *
+ *   - A cycle step applies when it fired AND either the puck isn't
+ *     aimed laterally (`priority: 'lateral'`) or twist is configured to
+ *     win (`priority: 'twist'`); it steps from the current sticky.
+ *     Otherwise lateral aiming sets the hover, and a centred puck with
+ *     no step leaves the selection unchanged (`hoverIndex = null`).
+ *   - `drillTarget` is the live selection, falling back to the sticky
+ *     **only when twist-cycle is enabled** — so configs without it keep
+ *     the historical "a drill needs a laterally-aimed sector" behaviour
+ *     and don't silently start drilling a stale sticky from centre.
+ */
+export function resolveTwistFrame(opts: {
+  /** Laterally-aimed sector this frame, or `null` (in the deadzone). */
+  sec: number | null;
+  /** Current sticky selection. */
+  sticky: number | null;
+  /** Twist-cycle step this frame: `+1`/`-1` after the rising edge, else `0`. */
+  cycleStep: -1 | 0 | 1;
+  /** Resolves a step that collides with lateral aiming. Only consulted
+   *  when `cycleStep !== 0`. */
+  priority: TwistCyclePriority;
+  /** Active ring size, for the wrap. */
+  count: number;
+  /** Whether `twistCycle` is enabled — gates the sticky drill fallback. */
+  cycleEnabled: boolean;
+}): TwistFrame {
+  const { sec, sticky, cycleStep, priority, count, cycleEnabled } = opts;
+  const cycleApplies = cycleStep !== 0 && (priority === 'twist' || sec === null);
+  const hoverIndex = cycleApplies ? cycleSectorIndex(sticky, cycleStep, count) : sec;
+  const drillTarget = hoverIndex ?? (cycleEnabled ? sticky : null);
+  return { hoverIndex, drillTarget };
 }
 
 /**
