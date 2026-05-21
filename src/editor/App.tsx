@@ -6,6 +6,7 @@ import { PIE_OPACITY_MAX, PIE_OPACITY_MIN, PIE_OPACITY_STEP } from '@/shared/pie
 
 import { DeviceStatus } from './components/DeviceStatus';
 import { LiveToggle } from './components/LiveToggle';
+import { ProfileControls } from './components/ProfileControls';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
 import { PreviewHeader } from './components/PreviewHeader';
@@ -70,6 +71,7 @@ export function App() {
           <DeviceStatus />
         </div>
         <div className={styles.toolbarControls}>
+          <ProfileControls />
           <label className={styles.themeControl}>
             <span className={styles.themeLabel}>Pie</span>
             <select

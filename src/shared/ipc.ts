@@ -101,6 +101,21 @@ export const IpcChannel = {
    *  and updates the active-device/profile display (#113). Pairs with the
    *  EDITOR_GET_DEVICE pull for the initial value. */
   EDITOR_DEVICE: 'spaceux:editor:device',
+  /** Editor pulls the per-device profile list + the manual override on
+   *  mount ({@link ProfilesState}, #113). */
+  EDITOR_GET_PROFILES: 'spaceux:editor:profiles:get',
+  /** Main pushes {@link ProfilesState} when the list or the override
+   *  changes (create / delete / override set). */
+  EDITOR_PROFILES_CHANGED: 'spaceux:editor:profiles:changed',
+  /** Editor sets the manual profile override (a profile id, or null for
+   *  "Auto" = device auto-detect). invoke; resolves after re-resolution. */
+  EDITOR_SET_PROFILE_OVERRIDE: 'spaceux:editor:profiles:override',
+  /** Editor saves the current active config as the connected device's
+   *  profile. invoke → {@link ProfileActionResult} (fails when no device
+   *  is connected). */
+  EDITOR_SAVE_PROFILE: 'spaceux:editor:profiles:save',
+  /** Editor deletes a profile by id. invoke → {@link ProfileActionResult}. */
+  EDITOR_DELETE_PROFILE: 'spaceux:editor:profiles:delete',
 
   // ── Pie appearance (own app setting, separate from menu.json and the
   //    editor UI theme; consumed by both the live pie and the editor
@@ -129,6 +144,18 @@ export type EditorDeviceInfo = {
   name: string;
   profileId: string | null;
 };
+
+/** The per-device profiles the editor knows about (#113): the ids of the
+ *  saved profile files, and the manual override (a profile id force-loaded
+ *  by the user, or null = "Auto" device auto-detect). The *active* profile
+ *  id is carried separately on {@link EditorDeviceInfo}. */
+export type ProfilesState = {
+  ids: string[];
+  override: string | null;
+};
+
+/** Result of a profile save/delete action. */
+export type ProfileActionResult = { ok: true } | { ok: false; reason: string };
 
 /** Editor colour theme. `system` follows the OS light/dark preference;
  *  `spaceux` is the branded palette. Persisted in editor-settings.json. */

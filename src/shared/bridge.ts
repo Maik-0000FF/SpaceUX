@@ -24,6 +24,8 @@ import type {
   MenuOpenPayload,
   MenuWriteResult,
   PieAppearance,
+  ProfileActionResult,
+  ProfilesState,
   ThemeChoice,
 } from './ipc';
 import type { MenuConfig } from './menu';
@@ -105,6 +107,19 @@ export type EditorBridge = {
    *  (re)connect, or a profile switch) so the pickers re-clamp and the
    *  active-device display tracks live. Returns an unsubscribe fn. */
   onDeviceInfo(handler: (info: EditorDeviceInfo) => void): () => void;
+  /** Pull the per-device profile list + manual override on mount (#113). */
+  getProfiles(): Promise<ProfilesState>;
+  /** Subscribe to profile-list / override changes (create / delete /
+   *  override set). Returns an unsubscribe fn. */
+  onProfilesChanged(handler: (state: ProfilesState) => void): () => void;
+  /** Set the manual profile override (a profile id, or null for "Auto"
+   *  device auto-detect). Resolves once the active config has re-resolved. */
+  setProfileOverride(id: string | null): Promise<void>;
+  /** Save the current active config as the connected device's profile.
+   *  Fails when no device is connected. */
+  saveProfile(): Promise<ProfileActionResult>;
+  /** Delete a profile by id. */
+  deleteProfile(id: string): Promise<ProfileActionResult>;
   /** Pull the current pie appearance (theme + opacity) on mount. */
   getPieAppearance(): Promise<PieAppearance>;
   /** Push a partial appearance change (theme and/or opacity). Main

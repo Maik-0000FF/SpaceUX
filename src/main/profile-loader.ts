@@ -5,9 +5,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { describeError } from '../shared/errors.js';
+import type { MenuWriteResult } from '../shared/ipc.js';
 import { type MenuConfig } from '../shared/menu.js';
 
 import { migrateAndValidateMenuConfig, spaceuxConfigDirs } from './menu-loader.js';
+import { writeMenuConfig } from './menu-writer.js';
 
 /**
  * Per-device config profiles (#113).
@@ -134,4 +136,71 @@ export function resolveActiveConfig(
     return { config: profile.config, mtime: profile.mtime, source: profile.path, profileId };
   }
   return { ...fallback, profileId: null };
+}
+
+/** A profile id filename: `<vid>-<pid>` in 4-digit lowercase hex. */
+const PROFILE_ID_RE = /^[0-9a-f]{4}-[0-9a-f]{4}$/;
+
+/** Whether `id` is a well-formed profile id (`046d-c62b`). Guards against
+ *  stray files in the profiles dir and untrusted ids over IPC. */
+export function isProfileId(id: string): boolean {
+  return PROFILE_ID_RE.test(id);
+}
+
+/**
+ * List the ids of existing profile files in `dir`, sorted. Ignores
+ * anything that isn't a `<vid>-<pid>.json`. A missing dir (no profile
+ * ever created) is simply an empty list.
+ */
+export async function listDeviceProfiles(dir: string = deviceProfilesDir()): Promise<string[]> {
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((f) => f.endsWith('.json'))
+    .map((f) => f.slice(0, -'.json'.length))
+    .filter(isProfileId)
+    .sort();
+}
+
+/**
+ * Write `config` as the profile for `id` (an explicit user "save current
+ * config as this device's profile"). Validates + atomic-writes via the
+ * shared menu writer, overwriting any existing file for the device — no
+ * conflict check (this is a deliberate overwrite, not the editor's
+ * background write-back).
+ */
+export async function writeDeviceProfile(
+  id: string,
+  config: MenuConfig,
+  dir: string = deviceProfilesDir(),
+): Promise<MenuWriteResult> {
+  const file = deviceProfilePath(id, dir);
+  // Pass the current on-disk mtime so the writer's conflict check always
+  // agrees (force overwrite); null when the file doesn't exist yet.
+  let mtime: number | null = null;
+  try {
+    mtime = (await fs.stat(file)).mtimeMs;
+  } catch {
+    mtime = null;
+  }
+  return writeMenuConfig(file, config, mtime);
+}
+
+/** Delete the profile file for `id`. A missing file is success (the end
+ *  state — no profile — is already reached). */
+export async function deleteDeviceProfile(
+  id: string,
+  dir: string = deviceProfilesDir(),
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    await fs.unlink(deviceProfilePath(id, dir));
+    return { ok: true };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { ok: true };
+    return { ok: false, reason: describeError(err) };
+  }
 }

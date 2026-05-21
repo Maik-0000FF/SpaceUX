@@ -10,10 +10,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_MENU_CONFIG, MENU_CONFIG_VERSION } from '@/shared/menu';
 
 import {
+  deleteDeviceProfile,
   deviceProfileId,
   deviceProfilePath,
+  isProfileId,
+  listDeviceProfiles,
   loadDeviceProfile,
   resolveActiveConfig,
+  writeDeviceProfile,
   type FallbackMenu,
   type ProfileLoadResult,
 } from '../src/main/profile-loader';
@@ -115,5 +119,65 @@ describe('resolveActiveConfig', () => {
   it('falls back when there is no device (null id / null profile)', () => {
     const active = resolveActiveConfig(null, null, fallback);
     expect(active).toEqual({ ...fallback, profileId: null });
+  });
+});
+
+describe('isProfileId', () => {
+  it('accepts a 4-4 lowercase hex id and rejects anything else', () => {
+    expect(isProfileId('046d-c62b')).toBe(true);
+    expect(isProfileId('0001-0002')).toBe(true);
+    expect(isProfileId('046D-C62B')).toBe(false); // uppercase
+    expect(isProfileId('46d-c62b')).toBe(false); // not padded
+    expect(isProfileId('../etc/passwd')).toBe(false); // path traversal
+    expect(isProfileId('046dc62b')).toBe(false); // no separator
+  });
+});
+
+describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => {
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await fs.mkdtemp(path.join(os.tmpdir(), 'spaceux-profiles-'));
+  });
+
+  afterEach(async () => {
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+
+  it('lists only well-formed profile ids, sorted, ignoring stray files', async () => {
+    await fs.writeFile(path.join(dir, '046d-c62b.json'), '{}', 'utf8');
+    await fs.writeFile(path.join(dir, '0001-0002.json'), '{}', 'utf8');
+    await fs.writeFile(path.join(dir, 'notes.txt'), 'x', 'utf8'); // not .json
+    await fs.writeFile(path.join(dir, 'garbage.json'), '{}', 'utf8'); // not an id
+    expect(await listDeviceProfiles(dir)).toEqual(['0001-0002', '046d-c62b']);
+  });
+
+  it('returns an empty list when the profiles dir does not exist', async () => {
+    expect(await listDeviceProfiles(path.join(dir, 'nope'))).toEqual([]);
+  });
+
+  it('writes a profile that loads back, and round-trips via the loader', async () => {
+    const result = await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, dir);
+    expect(result.ok).toBe(true);
+    const loaded = await loadDeviceProfile('046d-c62b', dir);
+    expect(loaded.status).toBe('loaded');
+    if (loaded.status === 'loaded') expect(loaded.config).toEqual(DEFAULT_MENU_CONFIG);
+  });
+
+  it('overwrites an existing profile without a conflict (deliberate save)', async () => {
+    await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, dir);
+    const changed = { ...DEFAULT_MENU_CONFIG, triggerButton: 4 };
+    const result = await writeDeviceProfile('046d-c62b', changed, dir);
+    expect(result.ok).toBe(true);
+    const loaded = await loadDeviceProfile('046d-c62b', dir);
+    if (loaded.status === 'loaded') expect(loaded.config.triggerButton).toBe(4);
+  });
+
+  it('deletes a profile, and treats a missing file as success', async () => {
+    await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, dir);
+    expect(await deleteDeviceProfile('046d-c62b', dir)).toEqual({ ok: true });
+    expect((await loadDeviceProfile('046d-c62b', dir)).status).toBe('absent');
+    // Idempotent: deleting again still succeeds.
+    expect(await deleteDeviceProfile('046d-c62b', dir)).toEqual({ ok: true });
   });
 });

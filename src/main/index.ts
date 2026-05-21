@@ -13,6 +13,8 @@ import {
   type MenuConfigSnapshot,
   type MenuOpenPayload,
   type PieAppearance,
+  type ProfileActionResult,
+  type ProfilesState,
 } from '../shared/ipc.js';
 import { DEFAULT_MENU_CONFIG, DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
 import { DEFAULT_PIE_APPEARANCE } from '../shared/pie-appearance.js';
@@ -33,9 +35,13 @@ import { KWinCursorService } from './kwin-cursor.js';
 import { loadMenuConfig, menuConfigSearchPaths, type MenuLoadResult } from './menu-loader.js';
 import { watchMenuConfig } from './menu-watcher.js';
 import {
+  deleteDeviceProfile,
   deviceProfileId,
+  isProfileId,
+  listDeviceProfiles,
   loadDeviceProfile,
   resolveActiveConfig,
+  writeDeviceProfile,
   type ProfileLoadResult,
 } from './profile-loader.js';
 import {
@@ -103,6 +109,11 @@ let fallbackMenu: MenuLoadResult | null = null;
 // Id of the profile currently driving the active config, or null when the
 // fallback is active (#113).
 let activeProfileId: string | null = null;
+// Manual override set from the editor: a profile id force-loaded by the
+// user, taking priority over the connected device's auto-detected profile.
+// null = "Auto" (auto-detect). The resolution priority is:
+//   override → connected device's profile → global menu.json fallback.
+let overrideProfileId: string | null = null;
 
 // Latest device the daemon reported (0 / "" when none). `buttons` is pulled
 // by the editor on mount so its pickers only offer existing buttons (#66)
@@ -144,24 +155,28 @@ function setDeviceInfo(buttons: number, vendor: number, product: number, name: s
   else if (countChanged) pushEditorDevice();
 }
 
+/** The profile id to load: a manual override wins over the connected
+ *  device's auto-detected id (#113). null when neither applies. */
+function resolveProfileId(): string | null {
+  return overrideProfileId ?? deviceProfileId(deviceVendor, deviceProduct);
+}
+
 /**
- * Resolve and apply the active menu config from the connected device:
- * the device's profile when one exists, else the global fallback. Called
- * on every device-identity change. Pushes the new config to both
- * renderers (same channels as a hot-reload) only when the active source
- * actually changes, so a swap between two unprofiled devices is a no-op.
+ * Resolve and apply the active menu config: the manual override profile,
+ * else the connected device's profile, else the global fallback. Called
+ * on every device-identity change and on every override / save / delete.
+ * Pushes the new config to both renderers (same channels as a hot-reload)
+ * only when the active source actually changes.
  */
 async function applyActiveProfile(): Promise<void> {
-  const vendor = deviceVendor;
-  const product = deviceProduct;
-  const id = deviceProfileId(vendor, product);
+  const id = resolveProfileId();
 
   let profile: ProfileLoadResult | null = null;
   if (id) {
     profile = await loadDeviceProfile(id);
-    // A newer device change landed while we were reading: that call owns
-    // the result now, so drop this stale one.
-    if (deviceVendor !== vendor || deviceProduct !== product) return;
+    // A newer device change or override landed while we were reading: that
+    // call owns the result now, so drop this stale one.
+    if (resolveProfileId() !== id) return;
     if (profile.status === 'invalid')
       // eslint-disable-next-line no-console
       console.warn(`[profile] ${id}: ${profile.reason} — using fallback`);
@@ -194,6 +209,15 @@ async function applyActiveProfile(): Promise<void> {
   // profileId may have changed even when the active menu source did not
   // (e.g. a swap between two unprofiled devices, both → fallback).
   pushEditorDevice();
+}
+
+/** Push the profile list + current override to the editor (#113), after a
+ *  create / delete / override change so its dropdown stays in sync. */
+async function pushEditorProfiles(): Promise<void> {
+  sendToEditor(IpcChannel.EDITOR_PROFILES_CHANGED, {
+    ids: await listDeviceProfiles(),
+    override: overrideProfileId,
+  } satisfies ProfilesState);
 }
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // Debounce the disk write: dragging the opacity slider fires a change per
@@ -500,6 +524,56 @@ function wireActionDispatch(): void {
       name: deviceName,
       profileId: activeProfileId,
     }),
+  );
+
+  // ── Per-device profile management (#113, PR 3b) ──────────────────────
+  // Editor pulls the saved profile list + current override on mount.
+  ipcMain.handle(
+    IpcChannel.EDITOR_GET_PROFILES,
+    async (): Promise<ProfilesState> => ({
+      ids: await listDeviceProfiles(),
+      override: overrideProfileId,
+    }),
+  );
+
+  // Manual override: a profile id force-loaded by the user, or null for
+  // "Auto" (device auto-detect). Re-resolves the active config + syncs the
+  // editor dropdown. A non-null id is validated; a bogus one is ignored.
+  ipcMain.handle(IpcChannel.EDITOR_SET_PROFILE_OVERRIDE, async (_evt, id: unknown) => {
+    if (id !== null && (typeof id !== 'string' || !isProfileId(id))) return;
+    overrideProfileId = id;
+    await applyActiveProfile();
+    await pushEditorProfiles();
+  });
+
+  // Save the current active config as the connected device's profile.
+  ipcMain.handle(IpcChannel.EDITOR_SAVE_PROFILE, async (): Promise<ProfileActionResult> => {
+    const id = deviceProfileId(deviceVendor, deviceProduct);
+    if (!id) return { ok: false, reason: 'no device connected' };
+    if (!menuConfig) return { ok: false, reason: 'no config loaded' };
+    const result = await writeDeviceProfile(id, menuConfig);
+    if (result.ok !== true) {
+      return { ok: false, reason: result.ok === 'conflict' ? 'write conflict' : result.reason };
+    }
+    // The new file may now be the active source (device match, no override).
+    await applyActiveProfile();
+    await pushEditorProfiles();
+    return { ok: true };
+  });
+
+  // Delete a profile. If it was the override, drop back to auto-detect.
+  ipcMain.handle(
+    IpcChannel.EDITOR_DELETE_PROFILE,
+    async (_evt, id: unknown): Promise<ProfileActionResult> => {
+      if (typeof id !== 'string' || !isProfileId(id)) return { ok: false, reason: 'invalid id' };
+      const result = await deleteDeviceProfile(id);
+      if (!result.ok) return result;
+      if (overrideProfileId === id) overrideProfileId = null;
+      // The active source may have been the deleted profile → re-resolve.
+      await applyActiveProfile();
+      await pushEditorProfiles();
+      return { ok: true };
+    },
   );
 
   // Renderer requests a real close (leaf-commit or silent dismiss).

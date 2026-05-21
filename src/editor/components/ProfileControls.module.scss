@@ -1,0 +1,62 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Toolbar per-device profile controls (#113): override dropdown + save/delete.
+
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--editor-fg-dim);
+}
+
+.select {
+  padding: 4px 8px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 12px;
+  max-width: 140px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--editor-accent);
+  }
+}
+
+.button {
+  padding: 4px 10px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--editor-hover);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.error {
+  font-size: 11px;
+  color: rgba(255, 120, 120, 0.95);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
