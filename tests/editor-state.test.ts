@@ -8,6 +8,7 @@ import {
   DEFAULT_MENU_CONFIG,
   builtinAction,
   type MenuConfig,
+  type MenuNavigation,
   type MenuSector,
 } from '@/shared/menu';
 
@@ -415,6 +416,26 @@ describe('menu-settings center field', () => {
     expect(center()?.binding).toEqual({ action: builtinAction(BUILTIN_ACTION.CANCEL) });
     useMenuSettings.getState().setCenterBinding(null); // now empty → pruned
     expect(center()).toBeUndefined();
+  });
+});
+
+describe('menu-settings navigation', () => {
+  it('setNavigation replaces the block and flags local/dirty', () => {
+    useMenuSettings.getState().setConfig({
+      config: { version: DEFAULT_MENU_CONFIG.version, sectors: [{ label: 'A' }] },
+      mtime: 1,
+    });
+    const nav: MenuNavigation = {
+      drillIn: { inputs: [{ kind: 'magnitude', source: 'lateral', threshold: 250 }] },
+      back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
+      cycle: { inputs: [], priority: 'lateral' },
+      commitCenter: { inputs: [{ kind: 'button', button: 2 }] },
+    };
+    useMenuSettings.getState().setNavigation(nav);
+    const state = useMenuSettings.getState();
+    expect(state.config?.navigation).toEqual(nav);
+    expect(state.origin).toBe('local');
+    expect(state.dirty).toBe(true);
   });
 });
 

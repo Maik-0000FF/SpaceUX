@@ -17,6 +17,16 @@
   margin-bottom: 10px;
 }
 
+// A gesture sub-heading nested under a section heading (e.g. the four
+// gestures under "Navigation"): slightly indented + spaced above so the
+// blocks read as one feature rather than peers.
+.subheading {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--editor-fg-dim);
+  margin: 14px 0 8px 8px;
+}
+
 .fields {
   display: flex;
   flex-direction: column;
@@ -113,5 +123,40 @@
   &:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+}
+
+// One navigation input row: the input dropdown, an optional threshold,
+// and a remove button laid out inline.
+.navInputRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.navThreshold {
+  width: 64px;
+  padding: 5px 6px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+
+.navRemove {
+  flex: none;
+  padding: 4px 8px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--editor-hover);
   }
 }

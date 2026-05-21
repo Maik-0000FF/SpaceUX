@@ -6,6 +6,7 @@ import { DEFAULT_TRIGGER_BUTTON, MAX_PIE_SCALE, MIN_PIE_SCALE } from '@/shared/m
 import { useMenuSettings } from '../state/menu-settings';
 
 import { CenterFieldSettings } from './CenterFieldSettings';
+import { NavigationSettings } from './NavigationSettings';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
@@ -48,6 +49,7 @@ export function MenuSettings() {
         />
       </Row>
       <CenterFieldSettings />
+      <NavigationSettings />
     </>
   );
 }

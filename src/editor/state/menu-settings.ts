@@ -14,6 +14,7 @@ import {
   MIN_PIE_SCALE,
   type MenuCenter,
   type MenuConfig,
+  type MenuNavigation,
   type MenuSector,
 } from '@/shared/menu';
 
@@ -96,6 +97,9 @@ type MenuSettingsState = {
   /** Set (or clear, with `undefined`) the center binding's per-action
    *  config. No-op when the center has no binding. */
   setCenterActionConfig: (config: Record<string, unknown> | undefined) => void;
+  /** Replace the whole navigation block (gesture↔input bindings). The
+   *  editor builds the new value immutably and hands it in. */
+  setNavigation: (navigation: MenuNavigation) => void;
 };
 
 /** Return a copy of `config` with an editor-only stable id (see
@@ -311,6 +315,13 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (!binding) return; // config is meaningless without a binding
           if (config === undefined) delete binding.config;
           else binding.config = config;
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setNavigation: (navigation) =>
+        set((state) => {
+          if (!state.config) return;
+          state.config.navigation = navigation;
           state.origin = 'local';
           state.dirty = true;
         }),
