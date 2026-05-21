@@ -22,6 +22,7 @@
  *   {"event":"axes","values":[tx,ty,tz,rx,ry,rz]}
  *   {"event":"button","bnum":N,"pressed":true|false}
  *   {"event":"hello","axes":N,"buttons":N}   — sent on connect
+ *   {"event":"device","buttons":N}           — sent when the count changes
  *
  * No JSON parsing on the daemon side; the emitter writes bytes
  * directly so we don't depend on json-c.
@@ -100,6 +101,12 @@ int protocol_format_axes(char *buf, int buf_size, const int *values, int n_value
 
 /* Format a single button transition into *buf. Same return contract. */
 int protocol_format_button(char *buf, int buf_size, int bnum, int pressed);
+
+/* Format a device button-count change into *buf. Emitted when the
+ * connected puck's discovered count changes (hotplug swap), so an
+ * already-connected client can re-clamp without reconnecting. Same
+ * return contract as the others. */
+int protocol_format_device(char *buf, int buf_size, int button_count);
 
 /* Format the welcome hello message sent on connect.
  *

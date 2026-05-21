@@ -4,10 +4,11 @@
 import { useEffect, useState } from 'react';
 
 /**
- * The connected device's button count, pulled from main on mount (#66).
- * `0` means no device / unknown, in which case the caller falls back to
- * a default range. Pull-only for now; a live update on a hotplug swap
- * arrives with the daemon's device-changed push (#66 PR 2b).
+ * The connected device's button count (#66). Pulled from main on mount
+ * for the initial value, then kept live via the EDITOR_DEVICE push so a
+ * hotplug swap / (un)plug re-clamps the pickers without reopening the
+ * editor (PR 2b). `0` means no device / unknown — the caller falls back
+ * to a default range then.
  */
 export function useDeviceButtonCount(): number {
   const [count, setCount] = useState(0);
@@ -22,8 +23,13 @@ export function useDeviceButtonCount(): number {
       .catch(() => {
         // No device / pull failed → keep 0; caller falls back.
       });
+    // Live updates: main pushes on every count change (hotplug, daemon
+    // (re)connect). A late push overrides the mount-time pull, so the
+    // editor tracks the current device even if it changed mid-session.
+    const off = window.editor.onDeviceButtonCount((n) => setCount(n));
     return () => {
       cancelled = true;
+      off();
     };
   }, []);
 

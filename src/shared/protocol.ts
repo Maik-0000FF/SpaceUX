@@ -39,6 +39,15 @@ export type ButtonEvent = {
   pressed: boolean;
 };
 
+export type DeviceEvent = {
+  event: 'device';
+  /** The connected puck's discovered button count, or 0 when none is
+   *  attached. Emitted whenever the count changes (hotplug swap) so a
+   *  long-lived client can re-clamp without reconnecting — the count is
+   *  also in the `hello` every fresh connection already receives. */
+  buttons: number;
+};
+
 export type HelloEvent = {
   event: 'hello';
   axes: number;
@@ -80,13 +89,18 @@ export type HelloEvent = {
   token?: string;
 };
 
-export type DaemonEvent = AxesEvent | ButtonEvent | HelloEvent;
+export type DaemonEvent = AxesEvent | ButtonEvent | HelloEvent | DeviceEvent;
 
 /** Type predicate so the renderer can switch over the discriminant safely. */
 export function isDaemonEvent(value: unknown): value is DaemonEvent {
   if (typeof value !== 'object' || value === null) return false;
   const obj = value as Record<string, unknown>;
-  return obj.event === 'axes' || obj.event === 'button' || obj.event === 'hello';
+  return (
+    obj.event === 'axes' ||
+    obj.event === 'button' ||
+    obj.event === 'hello' ||
+    obj.event === 'device'
+  );
 }
 
 // ── Commands: client → daemon ─────────────────────────────────────────

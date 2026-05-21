@@ -52,6 +52,11 @@ const bridge: EditorBridge = {
   },
   setLive: (on: boolean) => ipcRenderer.send(IpcChannel.EDITOR_LIVE, on),
   getDeviceButtonCount: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_DEVICE) as Promise<number>,
+  onDeviceButtonCount: (handler) => {
+    const listener = (_evt: IpcRendererEvent, count: number) => handler(count);
+    ipcRenderer.on(IpcChannel.EDITOR_DEVICE, listener);
+    return () => ipcRenderer.off(IpcChannel.EDITOR_DEVICE, listener);
+  },
   getPieAppearance: () =>
     ipcRenderer.invoke(IpcChannel.GET_PIE_APPEARANCE) as Promise<PieAppearance>,
   setPieAppearance: (patch) => ipcRenderer.send(IpcChannel.SET_PIE_APPEARANCE, patch),

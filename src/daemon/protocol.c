@@ -186,6 +186,16 @@ int protocol_format_button(char *buf, int buf_size, int bnum, int pressed)
 	return n;
 }
 
+int protocol_format_device(char *buf, int buf_size, int button_count)
+{
+	if (!buf || buf_size <= 0)
+		return -1;
+	int n = snprintf(buf, buf_size, "{\"event\":\"device\",\"buttons\":%d}\n", button_count);
+	if (n < 0 || n >= buf_size)
+		return -1;
+	return n;
+}
+
 /* Precondition: `token` is hex-only (output of `generate_token` in
  * socket.c, which builds it from the OS CSPRNG and a fixed hex
  * alphabet). The JSON serialisation embeds the token unescaped on

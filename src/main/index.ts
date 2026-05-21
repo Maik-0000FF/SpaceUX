@@ -89,10 +89,20 @@ let stopMenuWatcher: (() => void) | null = null;
 
 // The pie appearance (theme + opacity) — own app setting, broadcast to both
 // renderers on change. Defaults until loadPieAppearance() resolves at startup.
-// Latest button count the daemon reported in its hello event (0 when no
-// device / not yet connected). Pulled by the editor so its button pickers
-// only offer buttons that exist (#66); a live hotplug push follows (PR 2b).
+// Latest button count the daemon reported (0 when no device / not yet
+// connected). Pulled by the editor on mount so its button pickers only
+// offer buttons that exist (#66), and pushed live on every change so an
+// open editor re-clamps on a hotplug swap (PR 2b).
 let deviceButtonCount = 0;
+
+// Single point that mutates the count: keep it in sync with the editor by
+// pushing every change over EDITOR_DEVICE (idempotent — same-value pushes
+// no-op in the renderer). Mirrors the daemon's broadcast-on-change setter.
+function setDeviceButtonCount(count: number): void {
+  if (deviceButtonCount === count) return;
+  deviceButtonCount = count;
+  sendToEditor(IpcChannel.EDITOR_DEVICE, count);
+}
 let pieAppearance: PieAppearance = DEFAULT_PIE_APPEARANCE;
 // Debounce the disk write: dragging the opacity slider fires a change per
 // step (~16 across the range), but the broadcast stays live so the pie
@@ -308,9 +318,11 @@ function wireDaemonEvents(): void {
   daemon.on('event', (ev: DaemonEvent) => {
     // Latch the device's button count before the window gate so the
     // editor's pull always reflects reality — mirrors the disconnect
-    // reset, which is also ungated. A `hello` arriving while mainWindow
-    // is momentarily null (e.g. window recreation) must not be dropped.
-    if (ev.event === 'hello') deviceButtonCount = ev.buttons;
+    // reset, which is also ungated. A `hello` (fresh connect) and a
+    // `device` (live hotplug change) both carry the count; setting it
+    // here, before the early return, means a count update is never
+    // dropped just because mainWindow is momentarily null.
+    if (ev.event === 'hello' || ev.event === 'device') setDeviceButtonCount(ev.buttons);
     if (!mainWindow) return;
     switch (ev.event) {
       case 'axes':
@@ -346,7 +358,7 @@ function wireDaemonEvents(): void {
   });
 
   daemon.on('disconnected', () => {
-    deviceButtonCount = 0;
+    setDeviceButtonCount(0);
     if (!mainWindow) return;
     const payload: DaemonStatusPayload = { state: 'disconnected', reason: 'socket closed' };
     mainWindow.webContents.send(IpcChannel.DAEMON_STATUS, payload);
