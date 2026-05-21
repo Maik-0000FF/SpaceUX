@@ -36,9 +36,9 @@ import { useEffect, useReducer, useRef, type Dispatch, type RefObject } from 're
 import {
   INITIAL_DRILL_STATE,
   currentSectors,
-  cycleSectorIndex,
   drillReducer,
   navigationRingRotation,
+  resolveTwistFrame,
   type DrillAction,
   type DrillState,
 } from '@/core/menu-nav';
@@ -264,26 +264,25 @@ export function useDrillNavigation(opts: {
     const cycleStepRaw = twistCycle?.enabled ? twistCycleStep(axes.rz, twistCycle.threshold) : 0;
     const cycleOver = cycleStepRaw !== 0;
     const cycleStep = cycleOver && !wasCycleOverRef.current ? cycleStepRaw : 0;
+    // Mark the edge consumed every frame the twist is over the threshold —
+    // even one made while aiming laterally under `priority: 'lateral'`,
+    // where `resolveTwistFrame` drops the step. So re-centring mid-twist
+    // won't step until RZ first dips back under the threshold (the
+    // gesture began during aiming and has to be re-engaged).
     wasCycleOverRef.current = cycleOver;
 
-    // Resolve this frame's selection. A cycle step applies when it
-    // fires AND either the user isn't aiming laterally (priority
-    // `lateral`) or twist is configured to win (priority `twist`);
-    // otherwise lateral aiming sets the hover. `null` means "no new
-    // selection this frame" — the sticky persists.
+    // Resolve this frame's hover + drill target from the pure helper, so
+    // the priority and sticky-drill-fallback rules stay unit-tested.
     const sticky = drillStateRef.current.stickyChildIndex;
-    // `cycleStep !== 0` already implies `twistCycle` is defined and
-    // enabled, so the optional chain never short-circuits here.
-    const cycleApplies = cycleStep !== 0 && (twistCycle?.priority === 'twist' || sec === null);
-    let hoverIndex: number | null = null;
-    if (cycleApplies) hoverIndex = cycleSectorIndex(sticky, cycleStep, current.length);
-    else if (sec !== null) hoverIndex = sec;
+    const { hoverIndex, drillTarget } = resolveTwistFrame({
+      sec,
+      sticky,
+      cycleStep,
+      priority: twistCycle?.priority ?? 'lateral',
+      count: current.length,
+      cycleEnabled: twistCycle?.enabled === true,
+    });
 
-    // Drill into the live selection: the laterally-aimed sector, the
-    // just-cycled one, or — when neither moved this frame — the sticky,
-    // so a twist-drill commits the cycled selection even with the puck
-    // laterally centred.
-    const drillTarget = hoverIndex ?? sticky;
     if ((lateralRising || tiltRising || twistRising) && drillTarget !== null) {
       const hovered = current[drillTarget];
       if (hovered?.children) {
