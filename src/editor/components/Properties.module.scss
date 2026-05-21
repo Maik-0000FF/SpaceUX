@@ -115,3 +115,38 @@
     cursor: not-allowed;
   }
 }
+
+// One navigation input row: the input dropdown, an optional threshold,
+// and a remove button laid out inline.
+.navInputRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.navThreshold {
+  width: 64px;
+  padding: 5px 6px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+
+.navRemove {
+  flex: none;
+  padding: 4px 8px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--editor-hover);
+  }
+}
