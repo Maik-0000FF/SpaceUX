@@ -57,6 +57,8 @@ export function MenuPreview() {
   const selectedIndex = useAppState((s) => s.selectedIndex);
   const selectSector = useAppState((s) => s.selectSector);
   const selectPath = useAppState((s) => s.selectPath);
+  const selectCenter = useAppState((s) => s.selectCenter);
+  const centerSelected = useAppState((s) => s.centerSelected);
   const drillInto = useAppState((s) => s.drillInto);
   const livePreview = useAppState((s) => s.livePreview);
   const liveAxes = useEditorSpaceMouse(livePreview);
@@ -277,19 +279,39 @@ export function MenuPreview() {
       })}
 
       {/* Centre target — mirrors the live pie (PieMenu.tsx): the
-          configurable center field's label, falling back to the ✕
-          glyph when unset. Editing controls for the field land in the
-          editor's properties panel (PR 3). */}
-      <circle className={styles.cancelCenter} cx={0} cy={0} r={INNER_RADIUS} />
-      <text
-        className={styles.cancelLabel}
-        x={0}
-        y={0}
-        textAnchor="middle"
-        dominantBaseline="central"
+          configurable center field's label, falling back to the ✕ glyph
+          when unset. Clickable here so its config opens in the Properties
+          panel (the live pie's centre is non-interactive). */}
+      <g
+        className={styles.centerGroup}
+        role="button"
+        tabIndex={0}
+        aria-label="Edit center field"
+        aria-pressed={centerSelected}
+        onClick={selectCenter}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            selectCenter();
+          }
+        }}
       >
-        {config.centerField?.label ?? '✕'}
-      </text>
+        <circle
+          className={`${styles.cancelCenter} ${centerSelected ? styles.cancelCenterSelected : ''}`}
+          cx={0}
+          cy={0}
+          r={INNER_RADIUS}
+        />
+        <text
+          className={styles.cancelLabel}
+          x={0}
+          y={0}
+          textAnchor="middle"
+          dominantBaseline="central"
+        >
+          {config.centerField?.label ?? '✕'}
+        </text>
+      </g>
     </svg>
   );
 }
