@@ -208,7 +208,13 @@ export function MenuPreview() {
             >
               <path
                 d={d}
-                className={`${styles.wedgeBreadcrumb} ${
+                className={`${styles.wedgeBreadcrumb} ${styles.fillOnly} ${
+                  i === drilledIntoIndex ? styles.wedgeDrilledInto : ''
+                }`}
+              />
+              <path
+                d={d}
+                className={`${styles.wedgeBreadcrumb} ${styles.strokeOnly} ${
                   i === drilledIntoIndex ? styles.wedgeDrilledInto : ''
                 }`}
               />
@@ -259,9 +265,15 @@ export function MenuPreview() {
           >
             <path
               d={d}
-              className={`${styles.wedge} ${selected ? styles.wedgeSelected : ''} ${
-                isDropTarget ? styles.wedgeDropTarget : ''
-              }`}
+              className={`${styles.wedge} ${styles.fillOnly} ${
+                selected ? styles.wedgeSelected : ''
+              } ${isDropTarget ? styles.wedgeDropTarget : ''}`}
+            />
+            <path
+              d={d}
+              className={`${styles.wedge} ${styles.strokeOnly} ${
+                selected ? styles.wedgeSelected : ''
+              } ${isDropTarget ? styles.wedgeDropTarget : ''}`}
             />
             <text
               x={lx}
@@ -280,7 +292,18 @@ export function MenuPreview() {
           configurable center field's label, falling back to the ✕
           glyph when unset. Editing controls for the field land in the
           editor's properties panel (PR 3). */}
-      <circle className={styles.cancelCenter} cx={0} cy={0} r={INNER_RADIUS} />
+      <circle
+        className={`${styles.cancelCenter} ${styles.fillOnly}`}
+        cx={0}
+        cy={0}
+        r={INNER_RADIUS}
+      />
+      <circle
+        className={`${styles.cancelCenter} ${styles.strokeOnly}`}
+        cx={0}
+        cy={0}
+        r={INNER_RADIUS}
+      />
       <text
         className={styles.cancelLabel}
         x={0}

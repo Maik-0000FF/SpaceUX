@@ -246,7 +246,13 @@ export function PieMenu({
           />
         ))}
         <circle
-          className={`pie-cancel-center${cancelActive ? ' is-active' : ''}`}
+          className={`pie-cancel-center pie-fill${cancelActive ? ' is-active' : ''}`}
+          cx={0}
+          cy={0}
+          r={innerRadius}
+        />
+        <circle
+          className={`pie-cancel-center pie-stroke${cancelActive ? ' is-active' : ''}`}
           cx={0}
           cy={0}
           r={innerRadius}
@@ -352,7 +358,14 @@ function SectorWedge({
   ]
     .filter(Boolean)
     .join(' ');
-  return <path className={className} d={d} />;
+  // Two overlaid paths: the blurred fill behind, the crisp stroke on top, so
+  // the blur slider softens only the fills (see .pie-fill/.pie-stroke).
+  return (
+    <>
+      <path className={`${className} pie-fill`} d={d} />
+      <path className={`${className} pie-stroke`} d={d} />
+    </>
+  );
 }
 
 function SectorLabel({

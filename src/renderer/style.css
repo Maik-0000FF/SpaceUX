@@ -74,13 +74,25 @@ body {
    * (sectorCount=1). For multi-sector wedges the path is simply
    * connected, so fill-rule is a no-op there. */
   fill-rule: evenodd;
-  /* The appearance blur slider (--pie-blur, set on <html> by
-   * usePieAppearance) softens the wedge graphics only — labels are
-   * separate <text> elements and stay crisp. 0px (default) is a no-op. */
-  filter: blur(var(--pie-blur, 0px));
   transition:
     fill var(--transition-fast),
     stroke var(--transition-fast);
+}
+
+/* The blur slider must soften only the translucent *fills*, not the crisp
+ * outlines. So each wedge/cancel shape is drawn as two overlaid paths with
+ * the same geometry: a fill-only path (blurred) behind, and a stroke-only
+ * path (crisp) on top. These two modifiers strip the opposite paint so the
+ * shared .pie-wedge / .pie-cancel-center colour + state rules still apply to
+ * each. --pie-blur is a ready filter value set on <html> by usePieAppearance
+ * (`none` at the default, so no filter / composited layer then). */
+.pie-fill {
+  stroke: none !important;
+  filter: var(--pie-blur, none);
+}
+
+.pie-stroke {
+  fill: none !important;
 }
 
 .pie-wedge.is-active {
@@ -143,7 +155,6 @@ body {
   fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
-  filter: blur(var(--pie-blur, 0px));
   transition:
     fill var(--transition-fast),
     stroke var(--transition-fast);

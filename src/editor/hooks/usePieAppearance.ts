@@ -37,7 +37,12 @@ export function usePieAppearance(): {
     const root = document.documentElement;
     root.dataset.pieTheme = appearance.theme;
     root.style.setProperty('--pie-opacity', String(appearance.opacity));
-    root.style.setProperty('--pie-blur', `${appearance.blur}px`);
+    // A ready filter value (`none` when off) — see the renderer hook: a
+    // constant blur(0px) would still force a composited layer at the default.
+    root.style.setProperty(
+      '--pie-blur',
+      appearance.blur > 0 ? `blur(${appearance.blur}px)` : 'none',
+    );
   }, [appearance]);
 
   const setTheme = useCallback((theme: PieThemeChoice) => {
