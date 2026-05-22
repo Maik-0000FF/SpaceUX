@@ -160,8 +160,14 @@ body {
 
 /* Central cancel target — highlighted whenever the selection clears
  * (puck back in deadzone). Commit in that state is a silent dismiss. */
+/* The centre shares the wedge fill contract (--wedge-bg / --wedge-bg-active),
+ * so it dims/brightens with focus and swaps blue↔red exactly like a wedge —
+ * one mechanism, nothing centre-specific to drift. Idle = neutral, active =
+ * blue; a cancel centre re-points the pair to the red family below. */
 .pie-cancel-center {
-  fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
+  --wedge-bg: var(--pie-bg);
+  --wedge-bg-active: var(--pie-bg-active);
+  fill: rgb(from var(--wedge-bg) r g b / var(--pie-opacity, 0.6));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   transition:
@@ -170,20 +176,14 @@ body {
 }
 
 .pie-cancel-center.is-active {
-  /* The active centre fills with the active *blue* — same as a selected
-   * wedge and the editor preview's .cancelCenterSelected. The red is only
-   * for a centre actually bound to cancel (.is-cancel below, listed after
-   * so it wins for a cancel root). Previously this used the cancel red, so
-   * a non-cancel centre wrongly showed red whenever it was the active
-   * commit target — diverging from the preview. */
-  fill: rgb(from var(--pie-bg-active) r g b / var(--pie-opacity, 0.6));
+  fill: rgb(from var(--wedge-bg-active) r g b / var(--pie-opacity, 0.6));
 }
 
-/* Root bound to the built-in cancel action → the centre is a red abort
- * target persistently (not just while it's the active commit target),
- * matching a cancel wedge. --pie-opacity-scaled like every fill. */
+/* Root bound to the built-in cancel action → the red family: idle = dim red,
+ * active = bright red. Same as a cancel wedge (.pie-wedge.is-cancel). */
 .pie-cancel-center.is-cancel {
-  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+  --wedge-bg: var(--pie-cancel-bg);
+  --wedge-bg-active: var(--pie-cancel-bg-active);
 }
 
 .pie-cancel-label {
