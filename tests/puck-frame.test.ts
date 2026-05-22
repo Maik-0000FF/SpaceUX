@@ -133,15 +133,51 @@ describe('resolvePuckFrame — back / pop / dismiss', () => {
     expect(r.edges.back).toBe(true);
   });
 
-  it('dismisses at the top level', () => {
+  it('walks to the centre from a hovered sector at the top level (#147)', () => {
     const r = resolvePuckFrame({
       menuConfig: config(nav({})),
       axes: axes({ tz: -100 }),
       navigation: [],
-      sticky: null,
+      sticky: 0, // a sector is focused → back focuses the centre, pie open
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'exitToCenter' });
+    expect(r.edges.back).toBe(true);
+  });
+
+  it('dismisses from the centre at the top level (escape hatch)', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(nav({})),
+      axes: axes({ tz: -100 }),
+      navigation: [],
+      sticky: null, // already at the centre → back dismisses
       edges: FRESH,
     });
     expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
+  });
+
+  it('keeps the pie open the frame after walking to the centre while held (#147)', () => {
+    // Frame 1 focuses the centre from a hovered sector and folds the
+    // globals' activity into the edges; frame 2 (held, sticky now null)
+    // must not phantom-dismiss.
+    const cfg = config(nav({}));
+    const f1 = resolvePuckFrame({
+      menuConfig: cfg,
+      axes: axes({ tz: -100 }),
+      navigation: [],
+      sticky: 0,
+      edges: FRESH,
+    });
+    expect(f1.outcome).toEqual({ kind: 'exitToCenter' });
+    expect(f1.edges.back).toBe(true);
+    const f2 = resolvePuckFrame({
+      menuConfig: cfg,
+      axes: axes({ tz: -100 }),
+      navigation: [],
+      sticky: null,
+      edges: f1.edges,
+    });
+    expect(f2.outcome).toEqual({ kind: 'none' }); // not back/dismiss
   });
 
   it('does not re-fire while back stays held', () => {
@@ -286,7 +322,7 @@ describe('resolvePuckFrame — per-item activation (#130 R2)', () => {
     expect(r.edges.activate).toBe(true);
   });
 
-  it('leaves the other half of the axis free: TZ up still backs', () => {
+  it('leaves the other half of the axis free: TZ up still backs (to the centre)', () => {
     const r = resolvePuckFrame({
       menuConfig: actConfig(nav({})),
       axes: axes({ tz: 100 }), // activation is TZ−, so this doesn't activate
@@ -294,7 +330,9 @@ describe('resolvePuckFrame — per-item activation (#130 R2)', () => {
       sticky: 1,
       edges: FRESH,
     });
-    expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
+    // Top level with a hovered sector → back walks to the centre (#147),
+    // it no longer dismisses outright.
+    expect(r.outcome).toEqual({ kind: 'exitToCenter' });
     expect(r.edges.activate).toBe(false);
   });
 
@@ -353,7 +391,7 @@ describe('resolvePuckFrame — per-item exit (#130 R3)', () => {
     expect(r.edges.exit).toBe(true);
   });
 
-  it('leaves the other half of the axis free: TZ down still backs', () => {
+  it('leaves the other half of the axis free: TZ down still backs (to the centre)', () => {
     const r = resolvePuckFrame({
       menuConfig: exitConfig(nav({})),
       axes: axes({ tz: -100 }), // exit is TZ+, so this doesn't exit
@@ -361,7 +399,8 @@ describe('resolvePuckFrame — per-item exit (#130 R3)', () => {
       sticky: 1,
       edges: FRESH,
     });
-    expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
+    // Top level with a hovered sector → back walks to the centre (#147).
+    expect(r.outcome).toEqual({ kind: 'exitToCenter' });
     expect(r.edges.exit).toBe(false);
   });
 

@@ -376,21 +376,32 @@ export function resolvePuckFrame(args: {
     return { outcome: commitRising ? { kind: 'commitCenter' } : { kind: 'none' }, edges };
   }
 
-  // Back/pop next: a deliberate back gesture short-circuits the lateral
-  // gestures so it isn't mistaken for "drill harder". Top level dismisses
-  // (never firing the centre binding — back stays a pure escape hatch);
-  // drilled in it pops one level.
+  // Back next: a deliberate back gesture short-circuits the lateral
+  // gestures so it isn't mistaken for "drill harder". Drilled in, it pops
+  // one level. At the top level it walks INTO the centre (the tree root)
+  // rather than dismissing outright (#147): from a hovered sector it
+  // focuses the centre (pie stays open, like a per-item exit); from the
+  // centre itself (nothing hovered) it dismisses — the escape hatch,
+  // preserved so the default config (only `back` bound) can always close.
+  // Firing the centre's own action (e.g. cancel) is the separate,
+  // configurable commitCenter gesture.
   const backing = gestureActive(nav.back, frame);
   const backRising = backing && !edges.back;
   edges.back = backing;
   if (backing) {
-    if (backRising) {
-      return {
-        outcome: { kind: 'back', mode: navigation.length > 0 ? 'pop' : 'dismiss' },
-        edges,
-      };
+    if (!backRising) return { outcome: { kind: 'none' }, edges };
+    if (navigation.length > 0) return { outcome: { kind: 'back', mode: 'pop' }, edges };
+    if (sticky !== null) {
+      // Focus the centre, pie stays open. Like the per-item exit this nulls
+      // sticky, so next frame the short-circuit is gone and a still-held
+      // back would fall through to dismiss — fold the globals' current
+      // activity into the edges so a sustained back claims no rising edge.
+      edges.commit = gestureActive(nav.commitCenter, frame);
+      edges.drill = gestureActive(nav.drillIn, frame);
+      edges.cycle = cycleStepFromInputs(nav.cycle.inputs, axes) !== 0;
+      return { outcome: { kind: 'exitToCenter' }, edges };
     }
-    return { outcome: { kind: 'none' }, edges };
+    return { outcome: { kind: 'back', mode: 'dismiss' }, edges };
   }
 
   // Cross-talk guard: a deflection on the back axis (either sense)
