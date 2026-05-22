@@ -7,6 +7,12 @@
 // Only the stroke widths, font sizes, opacities and the editor-only hover/
 // drag affordances live here.
 
+// Single definition of a themed wedge/center fill (relative-colour alpha via
+// --pie-opacity). Shared by the nodes and the centre so they can't drift.
+@mixin pieFill($color) {
+  fill: rgb(from #{$color} r g b / var(--pie-opacity, 0.6));
+}
+
 .pie {
   // Size is set inline (config.scale / devicePixelRatio) so the preview
   // matches the live pie's on-screen size and tracks the size slider.
@@ -28,7 +34,7 @@
 // and labels read the opaque tokens, so they stay full-opacity at any slider
 // value — mirrors the live pie (src/renderer/style.css).
 .wedge {
-  fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
+  @include pieFill(var(--pie-bg));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
@@ -39,16 +45,18 @@
   // The live pie has no hover (it's axis-driven); a faint lift gives the
   // mouse-driven editor some feedback. Themed via --pie-bg-hover.
   .wedgeGroup:hover & {
-    fill: rgb(from var(--pie-bg-hover) r g b / var(--pie-opacity, 0.6));
+    @include pieFill(var(--pie-bg-hover));
   }
 }
 
 .wedgeSelected {
-  fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
-  stroke: var(--pie-border-active);
+  // The active fill alone signals selection — no white border highlight
+  // (it read as redundant). The base wedge border stays.
+  @include pieFill(var(--sector-color, var(--pie-bg-active)));
 
+  // Hover lift parallel to the cancel hover (--pie-cancel-bg-hover).
   .wedgeGroup:hover & {
-    fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
+    @include pieFill(var(--sector-color, var(--pie-bg-active-hover)));
   }
 }
 
@@ -56,10 +64,11 @@
 // cancel wedge and the centre ✕ (reuses --pie-cancel-bg-active). After
 // .wedgeSelected so a selected/hovered cancel wedge stays red.
 .wedgeCancel {
-  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+  @include pieFill(var(--pie-cancel-bg-active));
 
+  // Hover lift parallel to the blue --pie-bg-hover, in red.
   .wedgeGroup:hover & {
-    fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+    @include pieFill(var(--pie-cancel-bg-hover));
   }
 }
 
@@ -96,21 +105,37 @@
 }
 
 .cancelCenter {
-  fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
+  @include pieFill(var(--pie-bg));
   stroke: var(--pie-border);
   stroke-width: 1.5;
 }
 
-// Selected for editing — bright outline, mirrors .wedgeSelected.
+// Selected for editing — signalled by the active fill, exactly like
+// .wedgeSelected (no white border; the fill alone signals selection).
+// A cancel root still wins (red) via .cancelCenterCancel below.
 .cancelCenterSelected {
-  stroke: var(--pie-border-active);
-  stroke-width: 2.5;
+  @include pieFill(var(--pie-bg-active));
+
+  // Hover lift parallel to the cancel hover.
+  .centerGroup:hover & {
+    @include pieFill(var(--pie-bg-active-hover));
+  }
+}
+
+// Root bound to the built-in cancel action → red abort target, like a
+// cancel wedge and the live pie's centre. Hover lifts to the red hover.
+.cancelCenterCancel {
+  @include pieFill(var(--pie-cancel-bg-active));
+
+  .centerGroup:hover & {
+    @include pieFill(var(--pie-cancel-bg-hover));
+  }
 }
 
 .cancelLabel {
   fill: var(--pie-cancel-label);
-  font-size: 28px;
-  font-weight: bold;
+  font-size: 18px;
+  font-weight: 600;
   pointer-events: none;
 }
 
@@ -128,7 +153,7 @@
 }
 
 .wedgeBreadcrumb {
-  fill: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
+  @include pieFill(var(--pie-bg));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
@@ -143,7 +168,7 @@
 // from here" anchor. Mirrors .pie-wedge.is-breadcrumb.is-drilled-into.
 .wedgeDrilledInto {
   opacity: 0.7;
-  fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
+  @include pieFill(var(--sector-color, var(--pie-bg-active)));
   stroke: var(--pie-border-active);
 }
 

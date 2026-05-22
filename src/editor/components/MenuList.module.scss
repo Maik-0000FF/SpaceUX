@@ -13,7 +13,6 @@
 .headingRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   margin-bottom: 10px;
 }
 
@@ -23,25 +22,6 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--editor-fg-dim);
-}
-
-.headingAdd {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border: 1px dashed var(--editor-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--editor-fg-dim);
-  font: inherit;
-  font-size: 12px;
-  line-height: 1;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--editor-hover);
-    color: var(--editor-fg);
-  }
 }
 
 .list {
@@ -132,6 +112,19 @@
 .chevronSpacer {
   flex: none;
   width: 18px;
+}
+
+// Static caret on the (non-collapsible) root row — same footprint as
+// .chevron but not interactive (no pointer cursor / hover), so the root
+// doesn't look falsely clickable.
+.rootCaret {
+  flex: none;
+  width: 18px;
+  padding: 7px 0;
+  color: var(--editor-fg-dim);
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
 }
 
 .itemSelected {

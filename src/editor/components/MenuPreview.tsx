@@ -297,7 +297,9 @@ export function MenuPreview() {
         }}
       >
         <circle
-          className={`${styles.cancelCenter} ${centerSelected ? styles.cancelCenterSelected : ''}`}
+          className={`${styles.cancelCenter} ${centerSelected ? styles.cancelCenterSelected : ''} ${
+            isCancelNode(config.root) ? styles.cancelCenterCancel : ''
+          }`}
           cx={0}
           cy={0}
           r={INNER_RADIUS}

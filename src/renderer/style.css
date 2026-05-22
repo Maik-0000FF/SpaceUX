@@ -81,20 +81,17 @@ body {
 
 .pie-wedge.is-active {
   /* --sector-color is unset today; a future per-sector colour (#94 PR 3)
-   * overrides the theme's active fill by setting it on the wedge element. */
+   * overrides the theme's active fill by setting it on the wedge element.
+   * The fill alone signals the active sector — no border highlight (the
+   * white active stroke read as redundant). The base border stays. */
   fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
-  stroke: var(--pie-border-active);
 }
 
 /* A sector bound to the built-in cancel action: the abort target, red
  * like the centre ✕ (reuses --pie-cancel-bg-active). Listed after
- * .is-active (equal specificity) so a hovered cancel wedge stays red;
- * the active stroke still applies via the rule below. */
+ * .is-active (equal specificity) so a hovered cancel wedge stays red. */
 .pie-wedge.is-cancel {
   fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
-}
-.pie-wedge.is-cancel.is-active {
-  stroke: var(--pie-border-active);
 }
 
 /* Preview wedges (outer ring around a hovered branch). Dimmed so the
@@ -160,10 +157,17 @@ body {
   stroke: var(--pie-border-active);
 }
 
+/* Root bound to the built-in cancel action → the centre is a red abort
+ * target persistently (not just while it's the active commit target),
+ * matching a cancel wedge. */
+.pie-cancel-center.is-cancel {
+  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+}
+
 .pie-cancel-label {
   fill: var(--pie-cancel-label);
-  font-size: 28px;
-  font-weight: bold;
+  font-size: 18px;
+  font-weight: 600;
   pointer-events: none;
   transition: fill var(--transition-fast);
 }

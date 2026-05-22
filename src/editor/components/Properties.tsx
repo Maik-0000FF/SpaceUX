@@ -19,7 +19,7 @@ import { ringBranches, nodeAtPath, selectedPath } from '../state/selectors';
 import { nextNodeId } from '../state/node-keys';
 
 import { ActionField } from './ActionField';
-import { CenterFieldSettings } from './CenterFieldSettings';
+import { RootSettings } from './RootSettings';
 import { ConfigEditor } from './ConfigEditor';
 import { MenuSettings } from './MenuSettings';
 import { NavInputRow } from './NavInputRow';
@@ -120,9 +120,9 @@ export function Properties() {
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Properties</div>
       {config && centerSelected ? (
-        // Centre field clicked in the preview → focus just its editor.
+        // Root row / preview centre selected → edit the root node.
         <div className={styles.fields}>
-          <CenterFieldSettings />
+          <RootSettings />
         </div>
       ) : !node || !path ? (
         <div className={styles.fields}>
