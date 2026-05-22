@@ -443,3 +443,43 @@ describe('resolvePuckFrame — per-item exit (#130 R3)', () => {
     expect(f2.outcome).toEqual({ kind: 'none' }); // not back/dismiss
   });
 });
+
+describe('resolvePuckFrame — button-bound inputs (#151)', () => {
+  const btnCommit = config(nav({ commitCenter: { inputs: [{ kind: 'button', button: 1 }] } }));
+
+  it('fires a gesture bound to a button when that button is held', () => {
+    const r = resolvePuckFrame({
+      menuConfig: btnCommit,
+      axes: ZERO,
+      buttons: [false, true],
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'commitCenter' });
+    expect(r.edges.commit).toBe(true);
+  });
+
+  it('stays inert when no button state is passed (axis-only callers)', () => {
+    const r = resolvePuckFrame({
+      menuConfig: btnCommit,
+      axes: ZERO,
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+  });
+
+  it('does not re-fire while the button stays held', () => {
+    const r = resolvePuckFrame({
+      menuConfig: btnCommit,
+      axes: ZERO,
+      buttons: [false, true],
+      navigation: [],
+      sticky: null,
+      edges: { ...FRESH, commit: true },
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+  });
+});

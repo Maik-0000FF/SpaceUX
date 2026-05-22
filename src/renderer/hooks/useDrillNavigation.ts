@@ -61,6 +61,10 @@ export type UseDrillNavigation = {
 
 export function useDrillNavigation(opts: {
   axes: { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number };
+  /** Currently-held device buttons (`buttons[i]` true while button i is
+   *  down), so button-bound gesture inputs fire. A change re-runs the
+   *  frame even when the puck is idle. */
+  buttons: readonly boolean[];
   menuConfig: MenuConfig | null;
   /** Whether the menu is currently visible. The hook short-circuits
    *  when closed so the puck doesn't dispatch into nothing. */
@@ -82,7 +86,7 @@ export function useDrillNavigation(opts: {
    *  `onCommitCenter`. */
   onActivate: (node: MenuNode | undefined) => void;
 }): UseDrillNavigation {
-  const { axes, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate } = opts;
+  const { axes, buttons, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate } = opts;
 
   const [drillState, dispatch] = useReducer(drillReducer, INITIAL_DRILL_STATE);
 
@@ -120,6 +124,7 @@ export function useDrillNavigation(opts: {
     const { outcome, edges } = resolvePuckFrame({
       menuConfig,
       axes,
+      buttons,
       navigation,
       sticky: stickyChildIndex,
       edges: {
@@ -186,7 +191,7 @@ export function useDrillNavigation(opts: {
       case 'none':
         break;
     }
-  }, [axes, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate]);
+  }, [axes, buttons, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate]);
 
   return {
     drillState,

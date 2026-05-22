@@ -302,6 +302,9 @@ export function resolvePuckFrame(args: {
   navigation: readonly number[];
   /** Current sticky selection (`drillState.stickyChildIndex`). */
   sticky: number | null;
+  /** Currently-held device buttons (`buttons[i]` true while button i is
+   *  down). Drives button-bound inputs; omit for axis-only callers. */
+  buttons?: readonly boolean[];
   /** Rising-edge memory from the previous frame. */
   edges: PuckEdges;
 }): { outcome: PuckOutcome; edges: PuckEdges } {
@@ -309,10 +312,7 @@ export function resolvePuckFrame(args: {
   // Copy so the caller's memory is only updated via the returned value.
   const edges: PuckEdges = { ...args.edges };
   const nav = resolveNavigation(menuConfig);
-  // Buttons aren't plumbed to the renderer yet, so button-bound inputs
-  // are inert (no migrated config uses them); axis + magnitude inputs
-  // drive everything. A later PR feeds real button state here.
-  const frame: GestureFrame = { axes, buttons: [] };
+  const frame: GestureFrame = { axes, buttons: args.buttons ?? [] };
 
   const current = currentBranches(menuConfig, navigation);
 

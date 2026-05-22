@@ -35,6 +35,10 @@ const ZERO_AXES: SpaceMouseAxes = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
 
 export function useSpaceMouse() {
   const [axes, setAxes] = useState<SpaceMouseAxes>(ZERO_AXES);
+  // Currently-held buttons, indexed by bnum (`buttons[i]` true while down).
+  // A button event re-renders, so a press registers a navigation frame even
+  // when the puck is idle and axes aren't ticking.
+  const [buttons, setButtons] = useState<readonly boolean[]>([]);
   const [daemonStatus, setDaemonStatus] = useState<DaemonState>('connecting');
 
   useEffect(() => {
@@ -48,14 +52,27 @@ export function useSpaceMouse() {
         rz: values[5],
       });
     });
+    const offButton = window.spaceux.onButton(({ bnum, pressed }) => {
+      setButtons((prev) => {
+        if (prev[bnum] === pressed) return prev; // ignore no-op repeats
+        const next = prev.slice();
+        next[bnum] = pressed;
+        return next;
+      });
+    });
     const offStatus = window.spaceux.onDaemonStatus((payload: DaemonStatusPayload) => {
-      setDaemonStatus(payload.state === 'connected' ? 'connected' : 'disconnected');
+      const connected = payload.state === 'connected';
+      setDaemonStatus(connected ? 'connected' : 'disconnected');
+      // Drop held-button state on disconnect so a stale press can't linger
+      // as "down" across a reconnect.
+      if (!connected) setButtons([]);
     });
     return () => {
       offAxes();
+      offButton();
       offStatus();
     };
   }, []);
 
-  return { axes, daemonStatus };
+  return { axes, buttons, daemonStatus };
 }
