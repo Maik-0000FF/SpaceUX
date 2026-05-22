@@ -42,20 +42,20 @@ function quoteCommandPath(p: string): string {
 /**
  * Right sidebar: editable properties of the selected node (at any
  * depth — the selection is the current ring's index, combined with the
- * view path). A node is a leaf (action binding) or a branch (submenu);
+ * view path). A node is a leaf (action) or a branch (submenu);
  * the Type dropdown converts between them. A branch offers "Open
  * submenu" to drill in; Delete removes it from the current ring.
  */
 export function Properties() {
   const config = useMenuSettings((s) => s.config);
   const updateNodeAt = useMenuSettings((s) => s.updateNodeAt);
-  const deleteSector = useMenuSettings((s) => s.deleteSector);
-  const moveSectorBetween = useMenuSettings((s) => s.moveSectorBetween);
+  const deleteNode = useMenuSettings((s) => s.deleteNode);
+  const moveNodeBetween = useMenuSettings((s) => s.moveNodeBetween);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
   const centerSelected = useAppState((s) => s.centerSelected);
-  const selectSector = useAppState((s) => s.selectSector);
+  const selectNode = useAppState((s) => s.selectNode);
   const selectPath = useAppState((s) => s.selectPath);
   const clearSelection = useAppState((s) => s.clearSelection);
   const drillInto = useAppState((s) => s.drillInto);
@@ -85,7 +85,7 @@ export function Properties() {
     // when the source splice reindexes a shared ancestor ring, so re-select
     // the moved node by id rather than by its pre-move target path.
     const movedId = nodeAtPath(config, path)?.id;
-    moveSectorBetween(path, toRingPath);
+    moveNodeBetween(path, toRingPath);
     const current = useMenuSettings.getState().config;
     const newPath = current && movedId !== undefined ? pathOfNodeId(current, movedId) : null;
     if (newPath) selectPath(newPath);
@@ -108,11 +108,11 @@ export function Properties() {
     selectedIndex !== null && (config ? ringBranches(config, viewPath).length : 0) > 1;
   const handleDelete = (): void => {
     if (selectedIndex === null) return;
-    deleteSector(viewPath, selectedIndex);
+    deleteNode(viewPath, selectedIndex);
     const current = useMenuSettings.getState().config;
     const remaining = current ? ringBranches(current, viewPath).length : 0;
     // Keep the editing flow: select a neighbour rather than nothing.
-    if (remaining > 0) selectSector(Math.min(selectedIndex, remaining - 1));
+    if (remaining > 0) selectNode(Math.min(selectedIndex, remaining - 1));
     else clearSelection();
   };
 

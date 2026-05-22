@@ -55,7 +55,7 @@ export const BUILTIN_ACTION = {
   /** Dismiss the menu without doing anything else. A no-op at
    *  dispatch time (the renderer already hides the menu on commit);
    *  exists as a named, assignable action so the user can place an
-   *  explicit Cancel on a sector or the center field — with its own
+   *  explicit Cancel on a node, including the root/centre — with its own
    *  label/icon — rather than relying on the implicit "leave the puck
    *  centered" gesture. */
   CANCEL: 'cancel',
@@ -186,7 +186,7 @@ export const DEFAULT_TWIST_CYCLE_THRESHOLD = 100;
 //
 // A unified way to bind a navigation *gesture* (drill in, back/pop,
 // cycle, commit-center) to an *input* — a device button, a split axis,
-// or a 2D magnitude — configurable globally and (later) per sector.
+// or a 2D magnitude — configurable globally and (later) per node.
 // This is the runtime driver: the renderer hook resolves gestures from
 // `navigation` (see resolveNavigation + the pie-geometry resolver). It
 // replaced the scattered legacy fields (tzDeadzone, the *Drill knobs,
@@ -1032,7 +1032,7 @@ function orderNode(node: MenuNode): Record<string, unknown> {
  * Serialize a MenuConfig to the canonical on-disk JSON string.
  *
  * The editor writes back through this so saves are *stable*: the
- * top-level keys, each sector's keys, and each binding's keys are
+ * top-level keys, each node's keys, and each action's keys are
  * emitted in a fixed order, and absent optional fields are omitted.
  * That keeps diffs of `menu.json` minimal — a label edit changes one
  * line, not the whole file from a reshuffled key order.

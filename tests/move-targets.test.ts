@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MenuConfig } from '@/shared/menu';
 
-import { moveTargets, pathOfNodeId, sectorHeight } from '../src/editor/state/move-targets';
+import { moveTargets, pathOfNodeId, nodeHeight } from '../src/editor/state/move-targets';
 
 // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
 const cfg: MenuConfig = {
@@ -25,10 +25,10 @@ const cfg: MenuConfig = {
   },
 };
 
-describe('sectorHeight', () => {
+describe('nodeHeight', () => {
   it('is 0 for a leaf and counts the deepest descendant otherwise', () => {
-    expect(sectorHeight(cfg.root.branches![0]!)).toBe(0); // A
-    expect(sectorHeight(cfg.root.branches![1]!)).toBe(2); // B → B1 → B1a
+    expect(nodeHeight(cfg.root.branches![0]!)).toBe(0); // A
+    expect(nodeHeight(cfg.root.branches![1]!)).toBe(2); // B → B1 → B1a
   });
 });
 

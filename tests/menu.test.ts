@@ -44,7 +44,7 @@ describe('validateMenuConfig', () => {
     ).toBe(false);
   });
 
-  it('rejects an empty sectors array', () => {
+  it('rejects a root with no branches', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       root: { label: '', branches: [] },
@@ -79,13 +79,13 @@ describe('validateMenuConfig', () => {
       });
       expect(r.ok, `label=${JSON.stringify(label)}`).toBe(true);
       if (r.ok) {
-        const sector = r.config.root.branches![0];
-        expect(sector?.label).toBe(label);
+        const node = r.config.root.branches![0];
+        expect(node?.label).toBe(label);
       }
     }
   });
 
-  it('rejects a sector with no label', () => {
+  it('rejects a node with no label', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       root: { label: '', branches: [{}] },
@@ -93,7 +93,7 @@ describe('validateMenuConfig', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('rejects a sector with a blank label', () => {
+  it('rejects a node with a blank label', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       root: { label: '', branches: [{ label: '   ' }] },
@@ -101,7 +101,7 @@ describe('validateMenuConfig', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('accepts a sector without a binding (label-only)', () => {
+  it('accepts a node without a binding (label-only)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       root: { label: '', branches: [{ label: 'Just a label' }] },
@@ -133,7 +133,7 @@ describe('validateMenuConfig', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('drops sector.icon when it is not a string', () => {
+  it('drops node.icon when it is not a string', () => {
     // Strictly the validator rejects the wrong type rather than
     // silently dropping; pin that contract.
     const r = validateMenuConfig({
@@ -212,7 +212,7 @@ describe('isCancelNode', () => {
 });
 
 describe('validateMenuConfig — nested submenus', () => {
-  it('accepts a sector whose only role is to host children (branch)', () => {
+  it('accepts a node whose only role is to host children (branch)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       root: {
@@ -266,7 +266,7 @@ describe('validateMenuConfig — nested submenus', () => {
     if (!r.ok) expect(r.reason).toMatch(/"branches" must not be empty/);
   });
 
-  it('keeps keepOpen=true on a leaf sector', () => {
+  it('keeps keepOpen=true on a leaf node', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       root: {
@@ -375,7 +375,7 @@ describe('validateMenuConfig — nested submenus', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('keeps a per-item exit on any sector (leaf or branch) with inputs', () => {
+  it('keeps a per-item exit on any node (leaf or branch) with inputs', () => {
     const exit = {
       inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }],
     };
@@ -799,12 +799,10 @@ describe('builtinAction key composition', () => {
       builtinAction(BUILTIN_ACTION.KEY_COMBO),
       builtinAction(BUILTIN_ACTION.EXEC),
     ]);
-    for (const sector of DEFAULT_MENU_CONFIG.root.branches ?? []) {
-      const action = sector.action?.id;
-      expect(action, `sector "${sector.label}" has no action`).toBeDefined();
-      expect(known, `sector "${sector.label}" references unknown action ${action}`).toContain(
-        action,
-      );
+    for (const node of DEFAULT_MENU_CONFIG.root.branches ?? []) {
+      const action = node.action?.id;
+      expect(action, `node "${node.label}" has no action`).toBeDefined();
+      expect(known, `node "${node.label}" references unknown action ${action}`).toContain(action);
     }
   });
 });
@@ -916,9 +914,9 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
     // Negative-space pin: every known field at every level is set
     // exactly once. If a future refactor accidentally drops a name
     // from any KNOWN_*_FIELDS list, this test catches the resulting
-    // false-positive warn from that level. Two sectors cover both
-    // sector shapes — a leaf with icon + binding, and a branch
-    // with children (the XOR with binding is enforced upstream).
+    // false-positive warn from that level. Two nodes cover both
+    // node shapes — a leaf with icon + action, and a branch
+    // with branches (the XOR with action is enforced upstream).
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       triggerButton: 0,

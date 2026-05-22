@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INITIAL_DRILL_STATE,
   currentBranches,
-  cycleSectorIndex,
+  cycleNodeIndex,
   drillReducer,
   navigationRingRotation,
   previewBranches,
@@ -148,7 +148,7 @@ describe('drillReducer', () => {
 });
 
 describe('currentBranches', () => {
-  it('returns the top-level sectors when navigation is empty', () => {
+  it('returns the top-level nodes when navigation is empty', () => {
     expect(currentBranches(NESTED_CONFIG, [])).toBe(NESTED_CONFIG.root.branches);
   });
 
@@ -293,26 +293,26 @@ describe('previewBranches', () => {
   });
 });
 
-describe('cycleSectorIndex', () => {
+describe('cycleNodeIndex', () => {
   it('steps forward and backward with wrap-around', () => {
-    expect(cycleSectorIndex(0, 1, 4)).toBe(1);
-    expect(cycleSectorIndex(3, 1, 4)).toBe(0); // wrap forward
-    expect(cycleSectorIndex(0, -1, 4)).toBe(3); // wrap backward
-    expect(cycleSectorIndex(2, -1, 4)).toBe(1);
+    expect(cycleNodeIndex(0, 1, 4)).toBe(1);
+    expect(cycleNodeIndex(3, 1, 4)).toBe(0); // wrap forward
+    expect(cycleNodeIndex(0, -1, 4)).toBe(3); // wrap backward
+    expect(cycleNodeIndex(2, -1, 4)).toBe(1);
   });
 
   it('enters the ring at the natural end from no selection', () => {
-    expect(cycleSectorIndex(null, 1, 4)).toBe(0); // forward → first
-    expect(cycleSectorIndex(null, -1, 4)).toBe(3); // backward → last
+    expect(cycleNodeIndex(null, 1, 4)).toBe(0); // forward → first
+    expect(cycleNodeIndex(null, -1, 4)).toBe(3); // backward → last
   });
 
   it('keeps the current selection on a zero step', () => {
-    expect(cycleSectorIndex(2, 0, 4)).toBe(2);
-    expect(cycleSectorIndex(null, 0, 4)).toBe(0);
+    expect(cycleNodeIndex(2, 0, 4)).toBe(2);
+    expect(cycleNodeIndex(null, 0, 4)).toBe(0);
   });
 
   it('is defensive against a degenerate ring', () => {
-    expect(cycleSectorIndex(0, 1, 0)).toBe(0);
+    expect(cycleNodeIndex(0, 1, 0)).toBe(0);
   });
 });
 

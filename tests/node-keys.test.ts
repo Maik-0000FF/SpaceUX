@@ -25,7 +25,7 @@ describe('nodeKey', () => {
     const ring: MenuNode[] = [{ label: 'A' }, { label: 'B' }, { label: 'C' }];
     const before = ring.map(nodeKey);
 
-    // Mirror the store's moveSector: splice the same object references.
+    // Mirror the store's moveNode: splice the same object references.
     const [moved] = ring.splice(0, 1);
     ring.splice(2, 0, moved!);
 

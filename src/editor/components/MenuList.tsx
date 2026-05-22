@@ -33,9 +33,9 @@ function eqPath(a: readonly number[], b: readonly number[]): boolean {
  */
 export function MenuList() {
   const config = useMenuSettings((s) => s.config);
-  const addSector = useMenuSettings((s) => s.addSector);
-  const moveSector = useMenuSettings((s) => s.moveSector);
-  const deleteSector = useMenuSettings((s) => s.deleteSector);
+  const addNode = useMenuSettings((s) => s.addNode);
+  const moveNode = useMenuSettings((s) => s.moveNode);
+  const deleteNode = useMenuSettings((s) => s.deleteNode);
   const updateNodeAt = useMenuSettings((s) => s.updateNodeAt);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
@@ -97,7 +97,7 @@ export function MenuList() {
 
   const moveWithin = (ring: number[], from: number, to: number, ringLen: number): void => {
     if (to < 0 || to >= ringLen || to === from) return;
-    moveSector(ring, from, to);
+    moveNode(ring, from, to);
     selectPath([...ring, to]);
   };
 
@@ -105,7 +105,7 @@ export function MenuList() {
     if (drag && dropIndex !== null) {
       const to = moveTarget(drag.index, dropIndex);
       if (to !== null) {
-        moveSector(drag.ring, drag.index, to);
+        moveNode(drag.ring, drag.index, to);
         selectPath([...drag.ring, to]);
       }
     }
@@ -118,7 +118,7 @@ export function MenuList() {
   // ＋ (or the header ＋ for a top-level item).
   const addItem = (path: number[], isBranch: boolean, key: string): void => {
     if (isBranch) {
-      addSector(path);
+      addNode(path);
     } else {
       updateNodeAt(path, (s) => {
         delete s.action;
@@ -145,14 +145,14 @@ export function MenuList() {
       selectPath(ring);
       return;
     }
-    deleteSector(ring, index);
+    deleteNode(ring, index);
     const after = useMenuSettings.getState().config;
     const remaining = after ? ringBranches(after, ring).length : 0;
     selectPath(remaining > 0 ? [...ring, Math.min(index, remaining - 1)] : []);
   };
 
   const addTopLevel = (): void => {
-    addSector([]);
+    addNode([]);
     const after = useMenuSettings.getState().config;
     if (after) selectPath([(after.root.branches?.length ?? 0) - 1]);
   };

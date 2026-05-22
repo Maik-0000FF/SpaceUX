@@ -10,7 +10,7 @@ import { MENU_CONFIG_VERSION, migrateMenuConfig } from '@/shared/menu';
 // register migrations without changing how the loader calls this.
 describe('migrateMenuConfig', () => {
   it('is a no-op at the current version, returning the same object', () => {
-    const raw = { version: MENU_CONFIG_VERSION, sectors: [] };
+    const raw = { version: MENU_CONFIG_VERSION, root: { branches: [] } };
     const result = migrateMenuConfig(raw, MENU_CONFIG_VERSION);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.raw).toBe(raw);

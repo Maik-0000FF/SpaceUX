@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { moveTarget } from '../src/editor/state/reorder';
 
-// moveTarget maps a drop-line insertion index to moveSector's `to`
+// moveTarget maps a drop-line insertion index to moveNode's `to`
 // argument, accounting for the splice-out shift. Pure, so tested here.
 describe('moveTarget', () => {
   it('is a no-op when dropping into the item own slot or the gap after it', () => {

@@ -111,7 +111,7 @@ export type EditorBridge = {
    *  active-device display tracks live. Returns an unsubscribe fn. */
   onDeviceInfo(handler: (info: EditorDeviceInfo) => void): () => void;
   /** Pull the list of available actions (builtins + loaded plugins) on
-   *  mount, to populate the sector Action dropdown. Id = the composite
+   *  mount, to populate the Action dropdown. Id = the composite
    *  `pluginId/actionName` key; label/description for display. */
   getAvailableActions(): Promise<EditorAction[]>;
   /** Pull the per-device profile list + manual override on mount (#113). */

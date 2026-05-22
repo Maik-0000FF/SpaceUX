@@ -12,8 +12,8 @@ import styles from './Properties.module.scss';
  * the field reports `undefined` so the caller can remove the config.
  *
  * Caller-agnostic: it owns no store reference, just `value` in and an
- * `onChange` out, so it serves both a leaf node's binding and the
- * center field's binding. Remount it (via `key`) on a selection change
+ * `onChange` out, so it serves both a leaf node's action and the
+ * center field's action. Remount it (via `key`) on a selection change
  * or external adoption so the field reloads cleanly rather than
  * mid-typing.
  */

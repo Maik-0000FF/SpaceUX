@@ -27,7 +27,7 @@ type AppState = {
    *  rather than having to deselect everything. */
   centerSelected: boolean;
   /** Select the node at `index` within the current ring. */
-  selectSector: (index: number) => void;
+  selectNode: (index: number) => void;
   /** Select the node at a full index path: its parent ring becomes the
    *  view and the last segment the in-ring selection. Lets the tree jump
    *  to any depth in one click. Empty path clears the selection. */
@@ -54,7 +54,7 @@ export const useAppState = create<AppState>()(
     viewPath: [],
     selectedIndex: null,
     centerSelected: false,
-    selectSector: (index) =>
+    selectNode: (index) =>
       set((state) => {
         state.selectedIndex = index;
         state.centerSelected = false;

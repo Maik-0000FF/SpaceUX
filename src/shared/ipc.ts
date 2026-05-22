@@ -118,7 +118,7 @@ export const IpcChannel = {
   EDITOR_DELETE_PROFILE: 'spaceux:editor:profiles:delete',
 
   /** Editor pulls the list of available actions on mount, to populate the
-   *  sector Action dropdown ({@link EditorAction}[], builtins + loaded
+   *  Action dropdown ({@link EditorAction}[], builtins + loaded
    *  plugins). invoke. */
   EDITOR_GET_ACTIONS: 'spaceux:editor:actions:get',
 

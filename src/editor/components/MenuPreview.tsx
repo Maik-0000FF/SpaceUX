@@ -52,10 +52,10 @@ const VIEW = OUTER_OUTER_RADIUS; // viewBox half-extent (reserves the outer ring
  */
 export function MenuPreview() {
   const config = useMenuSettings((s) => s.config);
-  const moveSector = useMenuSettings((s) => s.moveSector);
+  const moveNode = useMenuSettings((s) => s.moveNode);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
-  const selectSector = useAppState((s) => s.selectSector);
+  const selectNode = useAppState((s) => s.selectNode);
   const selectPath = useAppState((s) => s.selectPath);
   const selectCenter = useAppState((s) => s.selectCenter);
   const centerSelected = useAppState((s) => s.centerSelected);
@@ -89,9 +89,9 @@ export function MenuPreview() {
       // same guard the live pie uses (useDrillNavigation: rawSec % length).
       const idx = sector % ring.length;
       if (ring[idx]?.branches?.length) drillInto(idx);
-      else selectSector(idx);
+      else selectNode(idx);
     });
-  }, [livePreview, drillInto, selectSector]);
+  }, [livePreview, drillInto, selectNode]);
 
   const currentRing = config ? ringBranches(config, viewPath) : [];
   if (!config || currentRing.length === 0) {
@@ -173,12 +173,12 @@ export function MenuPreview() {
         const to = dropTo;
         endDrag();
         if (to !== null && to !== from) {
-          moveSector(viewPath, from, to);
-          selectSector(to);
+          moveNode(viewPath, from, to);
+          selectNode(to);
         } else if (currentRing[from]?.branches?.length) {
           drillInto(from); // click a branch → go in (it becomes the outer ring)
         } else {
-          selectSector(from); // click a leaf → select for editing
+          selectNode(from); // click a leaf → select for editing
         }
       }}
       onPointerCancel={endDrag}
@@ -251,7 +251,7 @@ export function MenuPreview() {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 if (currentRing[i]?.branches?.length) drillInto(i);
-                else selectSector(i);
+                else selectNode(i);
               }
             }}
             role="button"

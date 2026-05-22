@@ -17,7 +17,7 @@ import { useSpaceMouse } from './hooks/useSpaceMouse';
  *  absent (label-only node, or a centre set to plain dismiss).
  *  Module-level so both the commit listener and the puck-gesture
  *  callbacks share one implementation. */
-function invokeBinding(action: ActionRef | undefined): void {
+function fireAction(action: ActionRef | undefined): void {
   if (!action) return;
   const { id, config } = action;
   window.spaceux.invokeAction(id, config ?? {}).catch((err: unknown) => {
@@ -33,8 +33,8 @@ function invokeBinding(action: ActionRef | undefined): void {
  * button events first and captures the cursor position). This
  * component listens for the resulting MENU_OPEN / MENU_COMMIT IPC
  * events and renders accordingly. On commit it resolves the
- * highlighted sector against the supplied menu config and asks main
- * to invoke the bound action.
+ * highlighted node against the supplied menu config and asks main
+ * to invoke its action.
  *
  * Trigger logic does not live here — the renderer stays purely
  * presentational. Action dispatch is also delegated to main; the
@@ -68,21 +68,21 @@ export function App() {
   const commitCenter = useCallback(() => {
     setMenuAnchor(null);
     window.spaceux.closeMenu();
-    invokeBinding(configRef.current?.root.action);
+    fireAction(configRef.current?.root.action);
   }, []);
 
   // Fire the hovered leaf via its per-item activation gesture (#130 R2).
-  // Mirrors the leaf-commit path: close the window unless the sector is
+  // Mirrors the leaf-commit path: close the window unless the node is
   // keepOpen (so a continuous action can re-fire), then invoke its
-  // binding. The drill-state reset is the hook's job (like commitCenter),
+  // action. The drill-state reset is the hook's job (like commitCenter),
   // so this stays a stable, dep-free callback. The hook only emits this
-  // for a leaf with a binding, but the optional access stays defensive.
-  const activateSector = useCallback((node: MenuNode | undefined) => {
+  // for a leaf with an action, but the optional access stays defensive.
+  const activateNode = useCallback((node: MenuNode | undefined) => {
     if (!node?.keepOpen) {
       setMenuAnchor(null);
       window.spaceux.closeMenu();
     }
-    invokeBinding(node?.action);
+    fireAction(node?.action);
   }, []);
 
   // All puck-driven state (navigation, sticky, rising-edge refs for the
@@ -96,7 +96,7 @@ export function App() {
     menuOpen: menuAnchor !== null,
     onDismiss: dismissMenu,
     onCommitCenter: commitCenter,
-    onActivate: activateSector,
+    onActivate: activateNode,
   });
 
   useEffect(() => {
@@ -129,7 +129,7 @@ export function App() {
       const cfg = configRef.current;
       const { navigation, stickyChildIndex } = drillStateRef.current;
       if (!cfg || stickyChildIndex === null) {
-        // No sector selected (puck centered, or TZ-cancelled) → the
+        // No node selected (puck centered, or TZ-cancelled) → the
         // centre (root) wins. Hide the window first so a second commit
         // can't double-fire, reset local state for a clean next open,
         // then invoke the root's action if it has one. No action
@@ -137,16 +137,16 @@ export function App() {
         setMenuAnchor(null);
         dispatch({ type: 'reset' });
         window.spaceux.closeMenu();
-        invokeBinding(cfg?.root.action);
+        fireAction(cfg?.root.action);
         return;
       }
       const current = currentBranches(cfg, navigation);
-      const sector = current[stickyChildIndex];
-      if (sector?.branches) {
+      const node = current[stickyChildIndex];
+      if (node?.branches) {
         // Branch → drill in. Menu stays visible; main wasn't going
         // to hide it (commit no longer auto-hides post-PR-C), so we
         // just update local state. The next axes frame will start
-        // picking sectors from the new (deeper) ring.
+        // picking nodes from the new (deeper) ring.
         //
         // Land sticky on child[0]: with the outer-ring rotation
         // alignment, sector 0 of the new ring sits at the parent
@@ -157,19 +157,19 @@ export function App() {
         dispatch({ type: 'drill', index: stickyChildIndex, nextSticky: 0 });
         return;
       }
-      // Leaf (or label-only sector with no binding): close the menu
+      // Leaf (or label-only node with no action): close the menu
       // first so the user can't accidentally commit twice, then
-      // fire the action if there is one. A keepOpen sector stays
+      // fire the action if there is one. A keepOpen node stays
       // visible after firing — for continuous actions (e.g. nudging
       // volume via twist) where re-committing without reopening is
       // the point; the sticky selection is left intact so the next
-      // commit re-fires the same sector.
-      if (!sector?.keepOpen) {
+      // commit re-fires the same node.
+      if (!node?.keepOpen) {
         setMenuAnchor(null);
         dispatch({ type: 'reset' });
         window.spaceux.closeMenu();
       }
-      invokeBinding(sector?.action);
+      fireAction(node?.action);
     });
 
     return () => {
@@ -238,7 +238,7 @@ function DebugPanel({
       </div>
       <div className="debug-row">
         <strong>menu:</strong> {menuOpen ? 'OPEN' : 'closed'}{' '}
-        {ring ? `(${ring.length} sectors)` : '(no config)'}
+        {ring ? `(${ring.length} nodes)` : '(no config)'}
       </div>
       <div className="debug-row">
         <strong>nav:</strong> {navLabel}
