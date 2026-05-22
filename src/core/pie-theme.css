@@ -25,6 +25,9 @@
   /* Editor-only hover lift (the live pie is axis-driven, no hover). */
   --pie-bg-hover: rgb(45, 52, 68);
   --pie-bg-active: rgb(80, 110, 180);
+  /* Editor-only hover lift for a selected wedge/centre, parallel to
+     --pie-cancel-bg-hover. */
+  --pie-bg-active-hover: rgb(100, 132, 200);
   --pie-border: rgb(255, 255, 255);
   --pie-border-active: rgb(255, 255, 255);
   --pie-label: rgb(240, 240, 240);
@@ -46,6 +49,7 @@
   --pie-bg: rgb(245, 246, 249);
   --pie-bg-hover: rgb(220, 224, 232);
   --pie-bg-active: rgb(60, 95, 200);
+  --pie-bg-active-hover: rgb(88, 120, 220);
   --pie-border: rgb(40, 44, 54);
   --pie-border-active: rgb(255, 255, 255);
   --pie-label: rgb(20, 22, 28);
@@ -61,6 +65,7 @@
   --pie-bg: rgb(13, 20, 36);
   --pie-bg-hover: rgb(30, 46, 82);
   --pie-bg-active: rgb(0, 120, 170);
+  --pie-bg-active-hover: rgb(34, 148, 196);
   --pie-border: rgb(124, 211, 255);
   --pie-border-active: rgb(124, 211, 255);
   --pie-label: rgb(226, 240, 255);

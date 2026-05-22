@@ -54,8 +54,9 @@
   // (it read as redundant). The base wedge border stays.
   @include pieFill(var(--sector-color, var(--pie-bg-active)));
 
+  // Hover lift parallel to the cancel hover (--pie-cancel-bg-hover).
   .wedgeGroup:hover & {
-    @include pieFill(var(--sector-color, var(--pie-bg-active)));
+    @include pieFill(var(--sector-color, var(--pie-bg-active-hover)));
   }
 }
 
@@ -114,6 +115,11 @@
 // A cancel root still wins (red) via .cancelCenterCancel below.
 .cancelCenterSelected {
   @include pieFill(var(--pie-bg-active));
+
+  // Hover lift parallel to the cancel hover.
+  .centerGroup:hover & {
+    @include pieFill(var(--pie-bg-active-hover));
+  }
 }
 
 // Root bound to the built-in cancel action → red abort target, like a
