@@ -30,19 +30,19 @@ const MAGNITUDE_LABEL: Record<MagnitudeSource, string> = {
 // Plain-language motion per axis so the dropdown reads as physical
 // gestures, not raw axis codes. `base` is the direction-agnostic verb
 // (used for the `both` split); positive/negative add a direction. The
-// sign→direction mapping is a best-effort default — every SpaceMouse
-// model wires its signs differently and KDE's sense varies (see the
-// MenuAxisInvert note in shared/menu.ts), so the raw axis + sign always
-// stays in parentheses as the ground truth. This includes TZ: on this
-// dev's device pushing down is TZ+ (positive), so press/lift are mapped
-// to match it; the proper per-device fix is learn-axis (#111).
+// lateral/tilt sign→direction mapping is a best-effort default — every
+// SpaceMouse model wires TX/TY/RX/RY signs differently and KDE's sense
+// varies (see the MenuAxisInvert note in shared/menu.ts), so the raw axis
+// + sign always stays in parentheses as the ground truth. TZ follows the
+// coordinate convention TZ− = down/press, TZ+ = up/lift; a daemon-level
+// sign inversion that breaks that on real hardware is tracked in #153.
 const AXIS_MOTION: Record<MenuAxisName, { base: string; positive: string; negative: string }> = {
   tx: { base: 'Slide', positive: 'Slide right', negative: 'Slide left' },
   ty: { base: 'Slide', positive: 'Slide forward', negative: 'Slide back' },
   // `base` (the ± split) stays direction-neutral: TZ both is the shipped
   // default back gesture, so "Press / lift (TZ±)" must read as either way,
   // not just one half.
-  tz: { base: 'Press / lift', positive: 'Press down', negative: 'Lift up' },
+  tz: { base: 'Press / lift', positive: 'Lift up', negative: 'Press down' },
   rx: { base: 'Tilt', positive: 'Tilt forward', negative: 'Tilt back' },
   ry: { base: 'Tilt', positive: 'Tilt right', negative: 'Tilt left' },
   rz: { base: 'Twist', positive: 'Twist right', negative: 'Twist left' },
