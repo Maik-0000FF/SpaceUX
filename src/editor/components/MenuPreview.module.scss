@@ -64,11 +64,14 @@
 // cancel wedge and the centre ✕ (reuses --pie-cancel-bg-active). After
 // .wedgeSelected so a selected/hovered cancel wedge stays red.
 .wedgeCancel {
-  @include pieFill(var(--pie-cancel-bg-active));
+  // Full opacity (not pieFill's --pie-opacity alpha) so the cancel reads as
+  // a fixed abort zone, not a perpetually half-active sector while cycling
+  // — mirrors .pie-wedge.is-cancel in the live pie.
+  fill: var(--pie-cancel-bg-active);
 
   // Hover lift parallel to the blue --pie-bg-hover, in red.
   .wedgeGroup:hover & {
-    @include pieFill(var(--pie-cancel-bg-hover));
+    fill: var(--pie-cancel-bg-hover);
   }
 }
 
@@ -125,10 +128,11 @@
 // Root bound to the built-in cancel action → red abort target, like a
 // cancel wedge and the live pie's centre. Hover lifts to the red hover.
 .cancelCenterCancel {
-  @include pieFill(var(--pie-cancel-bg-active));
+  // Full opacity to match .wedgeCancel / the live pie's cancel surfaces.
+  fill: var(--pie-cancel-bg-active);
 
   .centerGroup:hover & {
-    @include pieFill(var(--pie-cancel-bg-hover));
+    fill: var(--pie-cancel-bg-hover);
   }
 }
 
