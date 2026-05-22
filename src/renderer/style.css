@@ -96,7 +96,15 @@ body {
  * wedge behaviour, red instead of blue — just re-point the colour family,
  * so idle = dim red and active = bright red, both scaled by --pie-opacity
  * exactly like a normal wedge (no longer a flat full-opacity "always
- * active" red). The red marks it as the abort target. */
+ * active" red). The red marks it as the abort target.
+ *
+ * Future-proofing (contract for per-sector colour, #94 PR3): the active
+ * fill is re-pointed to var(--pie-cancel-bg-active) WITHOUT the
+ * var(--sector-color, …) fallback the blue default carries, so a cancel
+ * sector can never be tinted — it stays red. Per-sector colour MUST be
+ * driven through --sector-color (which only the blue default reads), never
+ * by setting --wedge-bg-active directly on the element, or it would
+ * override this and break the cancel identity. */
 .pie-wedge.is-cancel {
   --wedge-bg: var(--pie-cancel-bg);
   --wedge-bg-active: var(--pie-cancel-bg-active);
