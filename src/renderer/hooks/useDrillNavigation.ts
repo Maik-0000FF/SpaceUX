@@ -17,10 +17,12 @@
  *
  * The puck never fires actions itself: when a gesture commits the
  * center or dismisses the menu, the hook calls back into App.tsx
- * (`onCommitCenter` / `onDismiss`), which owns the IPC. The back/pop
- * gesture always dismisses at the top level and never fires a bound
- * center action — that stays reserved for the activation gesture and
- * the trigger-button commit, keeping "abort" and "center action" as
+ * (`onCommitCenter` / `onDismiss`), which owns the IPC. The back gesture
+ * walks toward the centre (#147): drilled in it pops a level; at the top
+ * level it focuses the centre (a soft "exit to centre", pie stays open);
+ * only from the centre itself does it dismiss. It never fires the bound
+ * centre action — that stays reserved for the commitCenter gesture and
+ * the trigger-button commit, keeping "navigate" and "centre action" as
  * separate intents.
  *
  * App.tsx calls `useDrillNavigation` once and gets back the React
