@@ -25,7 +25,18 @@
 // (which has the `@/shared/*` path alias) and the main-process
 // tsconfig.electron.json (which doesn't). Sticking to relative keeps
 // this module buildable under both without duplicating the alias.
-import { sectorCenterAngle } from './pie-geometry';
+import {
+  axesToSector,
+  backAxisEngaged,
+  cycleStepFromInputs,
+  DEFAULT_PIE_GEOMETRY,
+  gestureActive,
+  rotateAxes,
+  sectorCenterAngle,
+  type GestureFrame,
+  type SixAxes,
+} from './pie-geometry';
+import { resolveAxisInvert, resolveNavigation } from '../shared/menu';
 import type { MenuConfig, MenuSector, TwistCyclePriority } from '../shared/menu';
 
 export type DrillState = {
@@ -229,4 +240,157 @@ export function previewChildren(
   if (drillState.stickyChildIndex === null) return undefined;
   const ring = currentSectors(config, drillState.navigation);
   return ring[drillState.stickyChildIndex]?.children;
+}
+
+/** Rising-edge memory for the gestures that fire once per engagement
+ *  (commit-center, back/pop, drill, twist-cycle). `true` means the
+ *  gesture was active on the previous frame, so a still-held deflection
+ *  doesn't re-fire. Mirrors the four refs the renderer hook used to
+ *  hold; carried in and out of {@link resolvePuckFrame} so the decision
+ *  logic is pure and the hook only stores the result. */
+export type PuckEdges = {
+  commit: boolean;
+  back: boolean;
+  drill: boolean;
+  cycle: boolean;
+};
+
+/** What one puck frame resolves to — the single side-effecting action
+ *  the renderer should take this frame. Mirrors the dispatches/callbacks
+ *  the hook performed inline:
+ *   - `commitCenter`: reset state + fire the centre binding (or dismiss).
+ *   - `back`: `pop` one level, or `dismiss` at the top.
+ *   - `drill`: drill into the branch at `index`.
+ *   - `hover`: set the sticky selection to `index`.
+ *   - `none`: do nothing this frame. */
+export type PuckOutcome =
+  | { kind: 'commitCenter' }
+  | { kind: 'back'; mode: 'pop' | 'dismiss' }
+  | { kind: 'drill'; index: number }
+  | { kind: 'hover'; index: number }
+  | { kind: 'none' };
+
+/**
+ * Resolve one puck frame to an outcome + the next rising-edge memory —
+ * the whole per-frame navigation decision, lifted out of the renderer's
+ * `useDrillNavigation` effect so it is pure and unit-testable (the
+ * effect now just applies the outcome). Behaviour is a verbatim
+ * extraction of the previous inline logic: same gesture priority
+ * (commit-center → back → lateral/drill/cycle), same cross-talk guard,
+ * and the same partial edge-update on early return — a gesture that
+ * short-circuits the frame leaves the later gestures' memory untouched,
+ * exactly as the separate refs did.
+ *
+ * Pure: no React, no DOM. The caller owns the IPC side effects the
+ * outcome describes; this function only decides.
+ */
+export function resolvePuckFrame(args: {
+  menuConfig: MenuConfig;
+  axes: SixAxes;
+  /** Current drill path (`drillState.navigation`). */
+  navigation: readonly number[];
+  /** Current sticky selection (`drillState.stickyChildIndex`). */
+  sticky: number | null;
+  /** Rising-edge memory from the previous frame. */
+  edges: PuckEdges;
+}): { outcome: PuckOutcome; edges: PuckEdges } {
+  const { menuConfig, axes, navigation, sticky } = args;
+  // Copy so the caller's memory is only updated via the returned value.
+  const edges: PuckEdges = { ...args.edges };
+  const nav = resolveNavigation(menuConfig);
+  // Buttons aren't plumbed to the renderer yet, so button-bound inputs
+  // are inert (no migrated config uses them); axis + magnitude inputs
+  // drive everything. A later PR feeds real button state here.
+  const frame: GestureFrame = { axes, buttons: [] };
+
+  // Commit-center first: checked ahead of back so a shared axis resolves
+  // to commit when its half is engaged. Rising-edge → a sustained
+  // deflection fires once.
+  const committing = gestureActive(nav.commitCenter, frame);
+  const commitRising = committing && !edges.commit;
+  edges.commit = committing;
+  if (committing) {
+    return { outcome: commitRising ? { kind: 'commitCenter' } : { kind: 'none' }, edges };
+  }
+
+  // Back/pop next: a deliberate back gesture short-circuits the lateral
+  // gestures so it isn't mistaken for "drill harder". Top level dismisses
+  // (never firing the centre binding — back stays a pure escape hatch);
+  // drilled in it pops one level.
+  const backing = gestureActive(nav.back, frame);
+  const backRising = backing && !edges.back;
+  edges.back = backing;
+  if (backing) {
+    if (backRising) {
+      return {
+        outcome: { kind: 'back', mode: navigation.length > 0 ? 'pop' : 'dismiss' },
+        edges,
+      };
+    }
+    return { outcome: { kind: 'none' }, edges };
+  }
+
+  // Cross-talk guard: a deflection on the back axis (either sense)
+  // suppresses lateral selection, even the half a split cedes to commit
+  // that hasn't reached its threshold yet.
+  if (backAxisEngaged(nav.back, axes)) {
+    return { outcome: { kind: 'none' }, edges };
+  }
+
+  const current = currentSectors(menuConfig, navigation);
+  const invert = resolveAxisInvert(menuConfig);
+
+  // Rotate the lateral axes so the puck-to-sector mapping respects the
+  // visual rotation of the drilled-in outer ring (0 at the top level).
+  const ringRotation = navigationRingRotation(menuConfig, navigation);
+  const rotated = rotateAxes({ tx: axes.tx, ty: axes.ty }, -ringRotation);
+  const rawSec = axesToSector(rotated, {
+    ...DEFAULT_PIE_GEOMETRY,
+    sectorCount: current.length,
+    invertX: invert.x,
+    invertY: invert.y,
+  });
+  // axesToSector clamps internal sectorCount to a minimum of 2, so a
+  // 1-child ring can return index 1 — clamp out so sticky always lands
+  // on an existing sector.
+  const sec = rawSec === null ? null : rawSec % current.length;
+
+  // Drill: any of its inputs firing drills into the hovered branch. One
+  // rising-edge over the combined gesture — a held drill fires once.
+  const drillActive = gestureActive(nav.drillIn, frame);
+  const drillRising = drillActive && !edges.drill;
+  edges.drill = drillActive;
+
+  // Cycle: a directional axis input steps the selection one sector.
+  // Rising-edge so a held twist steps once. Mark the edge consumed every
+  // frame the cycle axis is over its threshold — even one made while
+  // aiming laterally under `priority: 'lateral'`, where resolveTwistFrame
+  // drops the step.
+  const cycleStepRaw = cycleStepFromInputs(nav.cycle.inputs, axes);
+  const cycleOver = cycleStepRaw !== 0;
+  const cycleStep = cycleOver && !edges.cycle ? cycleStepRaw : 0;
+  edges.cycle = cycleOver;
+
+  const { hoverIndex, drillTarget } = resolveTwistFrame({
+    sec,
+    sticky,
+    cycleStep,
+    priority: nav.cycle.priority,
+    count: current.length,
+    // Only axis inputs can actually step; a button/magnitude-only cycle
+    // binding mustn't gate the sticky-drill fallback.
+    cycleEnabled: nav.cycle.inputs.some((input) => input.kind === 'axis'),
+  });
+
+  if (drillRising && drillTarget !== null) {
+    const hovered = current[drillTarget];
+    if (hovered?.children) {
+      return { outcome: { kind: 'drill', index: drillTarget }, edges };
+    }
+  }
+
+  if (hoverIndex !== null) {
+    return { outcome: { kind: 'hover', index: hoverIndex }, edges };
+  }
+  return { outcome: { kind: 'none' }, edges };
 }
