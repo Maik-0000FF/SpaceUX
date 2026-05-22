@@ -1,7 +1,13 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react';
 
 import type { MenuNode } from '@/shared/menu';
 
@@ -17,6 +23,21 @@ import styles from './MenuList.module.scss';
 function eqPath(a: readonly number[], b: readonly number[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
+
+/** Stable key for the root row (the centre). The root has no node id. */
+const ROOT_KEY = '__root__';
+
+/** One visible row in tree order — drives arrow-key navigation. */
+type VisRow = {
+  key: string;
+  isRoot: boolean;
+  /** This row's index path (root: []). */
+  path: number[];
+  /** The ring this row lives in (root + top-level rows: []). */
+  ringPath: number[];
+  isBranch: boolean;
+  isOpen: boolean;
+};
 
 /**
  * Left sidebar: the whole menu as an expandable tree. Each row is one
@@ -40,6 +61,7 @@ export function MenuList() {
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
   const selectPath = useAppState((s) => s.selectPath);
+  const openNode = useAppState((s) => s.openNode);
   const selectCenter = useAppState((s) => s.selectCenter);
   const centerSelected = useAppState((s) => s.centerSelected);
 
@@ -127,11 +149,10 @@ export function MenuList() {
         s.branches = [{ label: 'New item', id: nextNodeId() }];
       });
     }
-    // Keep the *branch* selected (not the new child) so repeated ＋ adds
-    // more children into the same ring — and the preview shows them as the
-    // segmented outer ring — instead of selecting a leaf (no ring) or
-    // nesting one level deeper on the next ＋.
-    selectPath(path);
+    // Dive into the node so the preview shows its children (the active
+    // ring) — like the overlay drilling in — and a repeated ＋ adds more
+    // siblings into the same ring.
+    openNode(path);
     setExpanded((prev) => new Set(prev).add(key));
   };
 
@@ -172,6 +193,60 @@ export function MenuList() {
     setRenaming(null);
   };
 
+  // ── Keyboard tree navigation (WAI-ARIA tree pattern) ───────────────
+  // `visible` is the flat list of rows in tree order (root first, then the
+  // expanded branches), filled alongside the row JSX below. Arrow keys move
+  // focus through it; reorder stays on Alt+↑/↓, and the per-row buttons stay
+  // in the tab order so add/rename/delete remain keyboard-reachable.
+  const visible: VisRow[] = [];
+  const rowRefs = useRef(new Map<string, HTMLButtonElement>());
+  const setRowRef = (key: string) => (el: HTMLButtonElement | null) => {
+    if (el) rowRefs.current.set(key, el);
+    else rowRefs.current.delete(key);
+  };
+  const focusKey = (key: string | undefined): void => {
+    if (key !== undefined) rowRefs.current.get(key)?.focus();
+  };
+  const parentRow = (r: VisRow): VisRow | undefined =>
+    r.ringPath.length === 0
+      ? visible.find((p) => p.isRoot)
+      : visible.find((p) => !p.isRoot && eqPath(p.path, r.ringPath));
+  // Returns true if it handled the key (caller then prevents default).
+  const treeNav = (e: ReactKeyboardEvent, key: string): boolean => {
+    const vi = visible.findIndex((r) => r.key === key);
+    if (vi < 0) return false;
+    const r = visible[vi]!;
+    switch (e.key) {
+      case 'ArrowDown':
+        focusKey(visible[Math.min(vi + 1, visible.length - 1)]?.key);
+        return true;
+      case 'ArrowUp':
+        focusKey(visible[Math.max(vi - 1, 0)]?.key);
+        return true;
+      case 'Home':
+        focusKey(visible[0]?.key);
+        return true;
+      case 'End':
+        focusKey(visible[visible.length - 1]?.key);
+        return true;
+      case 'ArrowRight':
+        // Collapsed branch → expand; open branch (incl. root) → first child.
+        if (r.isBranch && !r.isOpen && !r.isRoot) toggle(r.key);
+        else if (r.isBranch) {
+          const child = visible[vi + 1];
+          if (child && eqPath(child.ringPath, r.path)) focusKey(child.key);
+        }
+        return true;
+      case 'ArrowLeft':
+        // Open branch → collapse; otherwise → focus the parent row.
+        if (r.isBranch && r.isOpen && !r.isRoot) toggle(r.key);
+        else focusKey(parentRow(r)?.key);
+        return true;
+      default:
+        return false;
+    }
+  };
+
   const rows: ReactNode[] = [];
   const walk = (nodes: readonly MenuNode[], ringPath: number[], depth: number): void => {
     const ringLen = nodes.length;
@@ -180,16 +255,22 @@ export function MenuList() {
       const key = nodeKey(node);
       const isBranch = node.branches !== undefined && node.branches.length > 0;
       const isOpen = expanded.has(key);
-      const selected = eqPath(ringPath, viewPath) && selectedIndex === i;
+      // Highlighted when it's the in-ring selection, or when it's the
+      // branch we've drilled into (its own path == the view path).
+      const selected =
+        (eqPath(ringPath, viewPath) && selectedIndex === i) ||
+        (selectedIndex === null && eqPath(path, viewPath));
       const inDragRing = drag !== null && eqPath(drag.ring, ringPath);
       const dragging = inDragRing && drag.index === i;
       const showDrop =
         inDragRing && dropIndex !== null && moveTarget(drag.index, dropIndex) !== null;
       const isRenaming = renaming === key;
+      visible.push({ key, isRoot: false, path, ringPath, isBranch, isOpen });
 
       rows.push(
         <li
           key={key}
+          role="none"
           draggable={!isRenaming}
           onDragStart={() => setDrag({ ring: ringPath, index: i })}
           onDragOver={(e) => {
@@ -252,15 +333,23 @@ export function MenuList() {
             <>
               <button
                 type="button"
+                ref={setRowRef(key)}
+                role="treeitem"
+                aria-level={depth + 1}
+                aria-expanded={isBranch ? isOpen : undefined}
+                aria-selected={selected}
+                aria-setsize={ringLen}
+                aria-posinset={i + 1}
                 className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
-                aria-current={selected ? 'true' : undefined}
-                aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+                aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Alt+ArrowUp Alt+ArrowDown"
                 title={node.label}
-                onClick={() => selectPath(path)}
+                onClick={() => (isBranch ? openNode(path) : selectPath(path))}
                 onKeyDown={(e) => {
                   if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                     e.preventDefault();
                     moveWithin(ringPath, i, e.key === 'ArrowUp' ? i - 1 : i + 1, ringLen);
+                  } else if (treeNav(e, key)) {
+                    e.preventDefault();
                   }
                 }}
               >
@@ -314,8 +403,18 @@ export function MenuList() {
       if (isBranch && isOpen) walk(node.branches!, path, depth + 1);
     });
   };
-  // Branches render one level in, as children of the root row below.
-  if (config) walk(config.root.branches ?? [], [], 1);
+  // Root row first (tree order), then its branches one level in.
+  if (config) {
+    visible.push({
+      key: ROOT_KEY,
+      isRoot: true,
+      path: [],
+      ringPath: [],
+      isBranch: true,
+      isOpen: true,
+    });
+    walk(config.root.branches ?? [], [], 1);
+  }
   const rootLabel = config?.root.label?.trim() ? config.root.label : 'Center';
 
   return (
@@ -326,12 +425,13 @@ export function MenuList() {
       {!config ? (
         <p className={styles.empty}>Loading…</p>
       ) : (
-        <ul className={styles.list}>
+        <ul className={styles.list} role="tree" aria-label="Menu">
           {/* Root row = the centre of the pie; the top-level ring is its
               children, indented below. Selecting it edits the root
               (label + action); ＋ adds a top-level node. Not draggable,
               renamable, or deletable — the menu always has a root. */}
           <li
+            role="none"
             style={{ paddingLeft: 8 }}
             className={[styles.row, centerSelected ? styles.rowSelected : '']
               .filter(Boolean)
@@ -342,10 +442,18 @@ export function MenuList() {
             </span>
             <button
               type="button"
+              ref={setRowRef(ROOT_KEY)}
+              role="treeitem"
+              aria-level={1}
+              aria-expanded={true}
+              aria-selected={centerSelected}
               className={`${styles.item} ${centerSelected ? styles.itemSelected : ''}`}
-              aria-current={centerSelected ? 'true' : undefined}
+              aria-keyshortcuts="ArrowUp ArrowDown ArrowRight"
               title="Center (root) — the pie's centre"
               onClick={selectCenter}
+              onKeyDown={(e) => {
+                if (treeNav(e, ROOT_KEY)) e.preventDefault();
+              }}
             >
               {rootLabel}
             </button>

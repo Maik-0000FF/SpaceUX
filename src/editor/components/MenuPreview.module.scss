@@ -167,9 +167,11 @@
 // The single inner-pie sector the user drilled into — a brighter "you came
 // from here" anchor. Mirrors .pie-wedge.is-breadcrumb.is-drilled-into.
 .wedgeDrilledInto {
+  // Brighter fill + opacity signal the "you came from here" anchor — no
+  // white border (consistent with the selection: fill signals, base
+  // border stays).
   opacity: 0.7;
   @include pieFill(var(--sector-color, var(--pie-bg-active)));
-  stroke: var(--pie-border-active);
 }
 
 .labelBreadcrumb {

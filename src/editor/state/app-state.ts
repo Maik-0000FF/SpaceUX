@@ -42,6 +42,12 @@ type AppState = {
   /** Breadcrumb navigation: truncate the view path to `depth` levels
    *  (0 = top-level). Clears the selection. */
   drillTo: (depth: number) => void;
+  /** View a node at a full index path as the drilled-in ring — its
+   *  children become the active ring (like the overlay diving into a
+   *  branch), at any depth. Used when a branch is picked in the tree.
+   *  Clears the in-ring selection; Properties then edits the drilled-in
+   *  node itself. */
+  openNode: (path: readonly number[]) => void;
   /** When true, the preview highlights the node under the live
    *  SpaceMouse puck (axes streamed from main) instead of just the click
    *  selection — lets the author feel the menu while building it. */
@@ -84,6 +90,12 @@ export const useAppState = create<AppState>()(
     drillTo: (depth) =>
       set((state) => {
         state.viewPath = state.viewPath.slice(0, depth);
+        state.selectedIndex = null;
+        state.centerSelected = false;
+      }),
+    openNode: (path) =>
+      set((state) => {
+        state.viewPath = [...path];
         state.selectedIndex = null;
         state.centerSelected = false;
       }),
