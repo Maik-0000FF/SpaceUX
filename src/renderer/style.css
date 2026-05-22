@@ -170,10 +170,13 @@ body {
 }
 
 .pie-cancel-center.is-active {
-  /* Fill alone signals the active centre — no white border, matching the
-   * active/selected wedges and the editor preview's .cancelCenterSelected
-   * (the base border stays). */
-  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+  /* The active centre fills with the active *blue* — same as a selected
+   * wedge and the editor preview's .cancelCenterSelected. The red is only
+   * for a centre actually bound to cancel (.is-cancel below, listed after
+   * so it wins for a cancel root). Previously this used the cancel red, so
+   * a non-cancel centre wrongly showed red whenever it was the active
+   * commit target — diverging from the preview. */
+  fill: rgb(from var(--pie-bg-active) r g b / var(--pie-opacity, 0.6));
 }
 
 /* Root bound to the built-in cancel action → the centre is a red abort
