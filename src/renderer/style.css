@@ -154,8 +154,10 @@ body {
 }
 
 .pie-cancel-center.is-active {
+  /* Fill alone signals the active centre — no white border, matching the
+   * active/selected wedges and the editor preview's .cancelCenterSelected
+   * (the base border stays). */
   fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
-  stroke: var(--pie-border-active);
 }
 
 /* Root bound to the built-in cancel action → the centre is a red abort
