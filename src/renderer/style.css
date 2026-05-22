@@ -115,9 +115,10 @@ body {
  * touch brighter than the rest of the breadcrumb so it acts as a
  * visual anchor — "you came from this sector". */
 .pie-wedge.is-breadcrumb.is-drilled-into {
+  /* Brighter fill + opacity signal the anchor — no white border, matching
+   * the active/selected wedges (the base border stays). */
   opacity: 0.7;
   fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
-  stroke: var(--pie-border-active);
 }
 
 .pie-label {
