@@ -33,10 +33,12 @@
   --pie-label: rgb(240, 240, 240);
   --pie-label-active: rgb(255, 255, 255);
 
-  /* Central cancel target. Fill is intentionally red-orange so it visually
-     distinguishes "no action" from the active sector state — at a glance the
-     user can tell which target the pie commit would fire. Kept red across
-     all themes for the same reason. */
+  /* Cancel sectors mirror the blue wedge states, one hue over: an idle
+     (dim) red and an active (bright) red, both scaled by --pie-opacity so
+     they dim/brighten with the slider exactly like a normal wedge — the
+     red just marks them as the abort target. --pie-cancel-bg is the idle
+     red (parallel to --pie-bg). Kept red across all themes. */
+  --pie-cancel-bg: rgb(40, 22, 24);
   --pie-cancel-bg-active: rgb(180, 80, 80);
   /* Editor-only hover lift for a cancel target, parallel to --pie-bg-hover. */
   --pie-cancel-bg-hover: rgb(205, 105, 105);
@@ -54,6 +56,7 @@
   --pie-border-active: rgb(255, 255, 255);
   --pie-label: rgb(20, 22, 28);
   --pie-label-active: rgb(255, 255, 255);
+  --pie-cancel-bg: rgb(248, 226, 226);
   --pie-cancel-bg-active: rgb(200, 70, 70);
   --pie-cancel-bg-hover: rgb(216, 96, 96);
   --pie-cancel-label: rgb(20, 22, 28);
@@ -70,6 +73,7 @@
   --pie-border-active: rgb(124, 211, 255);
   --pie-label: rgb(226, 240, 255);
   --pie-label-active: rgb(255, 255, 255);
+  --pie-cancel-bg: rgb(40, 18, 22);
   --pie-cancel-bg-active: rgb(200, 70, 70);
   --pie-cancel-bg-hover: rgb(216, 96, 96);
   --pie-cancel-label: rgb(160, 190, 220);

@@ -34,7 +34,15 @@
 // and labels read the opaque tokens, so they stay full-opacity at any slider
 // value — mirrors the live pie (src/renderer/style.css).
 .wedge {
-  @include pieFill(var(--pie-bg));
+  // Wedge fill colour family — defined once, here. Idle / hover / active /
+  // active-hover all flow through these variables; a cancel sector
+  // (.wedgeCancel below) only re-points them to the red family, so blue and
+  // red can't drift. Mirrors the live pie's .pie-wedge variables.
+  --wedge-bg: var(--pie-bg);
+  --wedge-bg-hover: var(--pie-bg-hover);
+  --wedge-bg-active: var(--sector-color, var(--pie-bg-active));
+  --wedge-bg-active-hover: var(--sector-color, var(--pie-bg-active-hover));
+  @include pieFill(var(--wedge-bg));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   fill-rule: evenodd;
@@ -43,43 +51,38 @@
     stroke 80ms ease-out;
 
   // The live pie has no hover (it's axis-driven); a faint lift gives the
-  // mouse-driven editor some feedback. Themed via --pie-bg-hover.
+  // mouse-driven editor some feedback.
   .wedgeGroup:hover & {
-    @include pieFill(var(--pie-bg-hover));
+    @include pieFill(var(--wedge-bg-hover));
   }
 }
 
 .wedgeSelected {
   // The active fill alone signals selection — no white border highlight
   // (it read as redundant). The base wedge border stays.
-  @include pieFill(var(--sector-color, var(--pie-bg-active)));
+  @include pieFill(var(--wedge-bg-active));
 
-  // Hover lift parallel to the cancel hover (--pie-cancel-bg-hover).
   .wedgeGroup:hover & {
-    @include pieFill(var(--sector-color, var(--pie-bg-active-hover)));
+    @include pieFill(var(--wedge-bg-active-hover));
   }
 }
 
-// A sector bound to the built-in cancel action: red, like the live pie's
-// cancel wedge and the centre ✕ (reuses --pie-cancel-bg-active). After
-// .wedgeSelected so a selected/hovered cancel wedge stays red.
+// A sector bound to the built-in cancel action: same wedge behaviour, red
+// instead of blue. Just re-point the colour family — idle = dim red,
+// active = bright red, both scaled by --pie-opacity exactly like a normal
+// wedge (no longer a flat full-opacity "always active" red). After
+// .wedgeSelected so its variable overrides win for a selected cancel.
+//
+// Future-proofing (contract for per-sector colour, #94 PR3): the active
+// fill is re-pointed without the var(--sector-color, …) fallback the blue
+// default carries, so a cancel sector can never be tinted — it stays red.
+// Per-sector colour MUST go through --sector-color (read only by the blue
+// default), never by setting --wedge-bg-active directly on the element.
 .wedgeCancel {
-  // Full opacity (not pieFill's --pie-opacity alpha) so the cancel reads as
-  // a fixed abort zone, not a perpetually half-active sector while cycling
-  // — mirrors .pie-wedge.is-cancel in the live pie.
-  fill: var(--pie-cancel-bg-active);
-
-  // Selected (the active commit target) → the lifted red, so the cancel
-  // shows it's the current selection while keeping its red identity.
-  // Mirrors .pie-wedge.is-cancel.is-active in the live pie.
-  &.wedgeSelected {
-    fill: var(--pie-cancel-bg-hover);
-  }
-
-  // Hover lift parallel to the blue --pie-bg-hover, in red.
-  .wedgeGroup:hover & {
-    fill: var(--pie-cancel-bg-hover);
-  }
+  --wedge-bg: var(--pie-cancel-bg);
+  --wedge-bg-hover: var(--pie-cancel-bg-hover);
+  --wedge-bg-active: var(--pie-cancel-bg-active);
+  --wedge-bg-active-hover: var(--pie-cancel-bg-hover);
 }
 
 // Source wedge while it's being dragged to a new slot (editor-only).
@@ -133,13 +136,13 @@
 }
 
 // Root bound to the built-in cancel action → red abort target, like a
-// cancel wedge and the live pie's centre. Hover lifts to the red hover.
+// cancel wedge and the live pie's centre. --pie-opacity-scaled like every
+// fill; hover lifts to the red hover.
 .cancelCenterCancel {
-  // Full opacity to match .wedgeCancel / the live pie's cancel surfaces.
-  fill: var(--pie-cancel-bg-active);
+  @include pieFill(var(--pie-cancel-bg-active));
 
   .centerGroup:hover & {
-    fill: var(--pie-cancel-bg-hover);
+    @include pieFill(var(--pie-cancel-bg-hover));
   }
 }
 
