@@ -33,6 +33,36 @@
   gap: 12px;
 }
 
+// Always-present menu-wide settings (trigger + global navigation), shown
+// above the contextual editor for whatever is selected. Collapsible so it
+// can fold out of the way while editing items; a bottom rule separates it
+// from the selection editor below.
+.globalSection {
+  border-bottom: 1px solid var(--editor-border);
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
+// The <summary> doubles as the section heading — same look as .heading,
+// plus the disclosure affordance and a hover lift.
+.globalSummary {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--editor-fg-dim);
+  cursor: pointer;
+  user-select: none;
+
+  .globalSection[open] & {
+    margin-bottom: 12px;
+  }
+
+  &:hover {
+    color: var(--editor-fg);
+  }
+}
+
 // One stage of the item flow (Entry / Behavior / Exit, plus the
 // management footer). A top border + extra lead separates the stages
 // so the panel reads as three steps rather than one long list.

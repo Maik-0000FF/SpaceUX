@@ -4,7 +4,7 @@
 import { Fragment } from 'react';
 
 import {
-  DEFAULT_ACTIVATION_THRESHOLD,
+  DEFAULT_GESTURE_THRESHOLD,
   DEFAULT_TWIST_CYCLE_THRESHOLD,
   TWIST_CYCLE_PRIORITIES,
   resolveNavigation,
@@ -33,18 +33,20 @@ import styles from './Properties.module.scss';
 
 const GESTURE_KEYS = ['drillIn', 'back', 'cycle', 'commitCenter'] as const;
 type GestureKey = (typeof GESTURE_KEYS)[number];
+// Plain-language labels, matching the per-item Entry/Exit wording rather
+// than the internal gesture keys (drillIn/back/…).
 const GESTURE_LABELS: Record<GestureKey, string> = {
-  drillIn: 'Drill in',
-  back: 'Back / dismiss',
-  cycle: 'Cycle nodes',
-  commitCenter: 'Commit center',
+  drillIn: 'Open submenu',
+  back: 'Go back / close',
+  cycle: 'Step through items',
+  commitCenter: 'Activate center',
 };
 
 /** Default threshold to seed a fresh analog input with, per gesture:
  *  cycle sits below the drill range (gentle twist steps, firm twist
- *  drills), the rest use the activation default. */
+ *  drills), the rest use the shared gesture default. */
 function defaultThresholdFor(key: GestureKey): number {
-  return key === 'cycle' ? DEFAULT_TWIST_CYCLE_THRESHOLD : DEFAULT_ACTIVATION_THRESHOLD;
+  return key === 'cycle' ? DEFAULT_TWIST_CYCLE_THRESHOLD : DEFAULT_GESTURE_THRESHOLD;
 }
 
 /** @param buttonCount Connected device's button count, or 0 when none —

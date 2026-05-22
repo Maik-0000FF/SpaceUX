@@ -1,16 +1,11 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import {
-  BUILTIN_ACTION,
-  DEFAULT_ACTIVATION_THRESHOLD,
-  builtinAction,
-  resolveNavigation,
-} from '@/shared/menu';
+import { BUILTIN_ACTION, builtinAction, resolveNavigation } from '@/shared/menu';
 
 import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
-import { activationCollisions } from '../state/activation-collision';
+import { gestureShadows } from '../state/gesture-collision';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTargets, pathOfNodeId } from '../state/move-targets';
@@ -21,8 +16,8 @@ import { nextNodeId } from '../state/node-keys';
 import { ActionField } from './ActionField';
 import { RootSettings } from './RootSettings';
 import { ConfigEditor } from './ConfigEditor';
+import { GestureInputList } from './GestureInputList';
 import { MenuSettings } from './MenuSettings';
-import { NavInputRow } from './NavInputRow';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
@@ -73,12 +68,13 @@ export function Properties() {
     selectedPath(viewPath, selectedIndex) ?? (viewPath.length > 0 ? [...viewPath] : null);
   const node = config && path ? nodeAtPath(config, path) : null;
   const isExec = node?.action?.id === builtinAction(BUILTIN_ACTION.EXEC);
-  // Global gestures this node's activation shadows — it wins for this
-  // item, so flag the override rather than block it. Empty without one.
+  // Global gestures this node's activation / exit shadow — the per-item
+  // binding wins for this item, so flag the override rather than block it.
+  // Empty without one. The navigation is resolved once and shared.
+  const navigation = config ? resolveNavigation(config) : null;
   const activationShadows =
-    config && node?.activation
-      ? activationCollisions(node.activation, resolveNavigation(config))
-      : [];
+    navigation && node?.activation ? gestureShadows(node.activation, navigation) : [];
+  const exitShadows = navigation && node?.exit ? gestureShadows(node.exit, navigation) : [];
 
   // Rings the selected node can be moved into (excludes its own ring, its
   // subtree, and too-deep targets). Picked from the "Move to…" dropdown.
@@ -123,16 +119,25 @@ export function Properties() {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Properties</div>
+      {/* Menu-wide settings — the trigger button and the global navigation
+          gestures (open submenu, go back, …). Always present (collapsible)
+          so they're reachable whatever is selected, not only when nothing
+          is. The contextual editor for the selection follows below. */}
+      {config && (
+        <details className={styles.globalSection} open>
+          <summary className={styles.globalSummary}>Menu settings</summary>
+          <div className={styles.fields}>
+            <MenuSettings />
+          </div>
+        </details>
+      )}
       {config && centerSelected ? (
         // Root row / preview centre selected → edit the root node.
         <div className={styles.fields}>
           <RootSettings />
         </div>
       ) : !node || !path ? (
-        <div className={styles.fields}>
-          <p className={styles.empty}>Select a node to edit it.</p>
-          {config && <MenuSettings />}
-        </div>
+        <p className={styles.empty}>Select a node to edit it.</p>
       ) : (
         <div className={styles.fields}>
           {/* The item is edited along the flow you run with the puck:
@@ -276,46 +281,30 @@ export function Properties() {
                         binding while it's hovered, on top of the global
                         trigger. Resolved ahead of the global gestures, so it
                         wins on a shared input (flagged below). */}
-                    <div className={styles.subheading}>Activate with</div>
-                    {(node.activation?.inputs ?? []).map((input, i) => (
-                      <Row key={i} label={`Input ${i + 1}`}>
-                        <NavInputRow
-                          input={input}
-                          offeredButtons={offeredButtons}
-                          defaultThreshold={DEFAULT_ACTIVATION_THRESHOLD}
-                          onChange={(next) =>
-                            updateNodeAt(path, (s) => {
-                              if (s.activation) s.activation.inputs[i] = next;
-                            })
-                          }
-                          onRemove={() =>
-                            updateNodeAt(path, (s) => {
-                              s.activation?.inputs.splice(i, 1);
-                              if (s.activation && s.activation.inputs.length === 0)
-                                delete s.activation;
-                            })
-                          }
-                        />
-                      </Row>
-                    ))}
-                    <button
-                      type="button"
-                      className={styles.openButton}
-                      onClick={() =>
+                    <GestureInputList
+                      heading="Activate with"
+                      binding={node.activation}
+                      offeredButtons={offeredButtons}
+                      shadows={activationShadows}
+                      verb="activation"
+                      onChangeInput={(i, next) =>
+                        updateNodeAt(path, (s) => {
+                          if (s.activation) s.activation.inputs[i] = next;
+                        })
+                      }
+                      onRemoveInput={(i) =>
+                        updateNodeAt(path, (s) => {
+                          s.activation?.inputs.splice(i, 1);
+                          if (s.activation && s.activation.inputs.length === 0) delete s.activation;
+                        })
+                      }
+                      onAddInput={() =>
                         updateNodeAt(path, (s) => {
                           if (!s.activation) s.activation = { inputs: [] };
                           s.activation.inputs.push({ kind: 'none' });
                         })
                       }
-                    >
-                      + Add input
-                    </button>
-                    {activationShadows.length > 0 && (
-                      <span className={styles.warning}>
-                        ⚠ Shares an input with global {activationShadows.join(', ')} — this item’s
-                        activation wins here.
-                      </span>
-                    )}
+                    />
                   </>
                 )}
               </>
@@ -325,9 +314,38 @@ export function Properties() {
           <section className={styles.flowSection}>
             <div className={styles.flowHeading}>↱ Exit</div>
             <p className={styles.sectionNote}>
-              Left with the global Back gesture — pops to the parent ring, or dismisses at the top
-              level. A per-item exit gesture lands later.
+              The global “Go back” gesture pops to the parent ring (or dismisses at the top level).
+              A per-item exit input instead returns focus to the centre — deselects, the menu stays
+              open — useful as the alternative way out when an activation has shadowed Go back here.
             </p>
+            {/* Per-item exit: an input that, while this node is hovered,
+                deselects to the centre. Applies to any node (leaf or
+                submenu); resolved ahead of the global gestures, so it wins
+                on a shared input (flagged below). */}
+            <GestureInputList
+              heading="Exit with"
+              binding={node.exit}
+              offeredButtons={offeredButtons}
+              shadows={exitShadows}
+              verb="exit"
+              onChangeInput={(i, next) =>
+                updateNodeAt(path, (s) => {
+                  if (s.exit) s.exit.inputs[i] = next;
+                })
+              }
+              onRemoveInput={(i) =>
+                updateNodeAt(path, (s) => {
+                  s.exit?.inputs.splice(i, 1);
+                  if (s.exit && s.exit.inputs.length === 0) delete s.exit;
+                })
+              }
+              onAddInput={() =>
+                updateNodeAt(path, (s) => {
+                  if (!s.exit) s.exit = { inputs: [] };
+                  s.exit.inputs.push({ kind: 'none' });
+                })
+              }
+            />
           </section>
 
           <section className={styles.flowSection}>
