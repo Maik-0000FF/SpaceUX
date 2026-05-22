@@ -40,6 +40,8 @@ export function MenuList() {
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
   const selectPath = useAppState((s) => s.selectPath);
+  const selectCenter = useAppState((s) => s.selectCenter);
+  const centerSelected = useAppState((s) => s.centerSelected);
 
   // Expand/collapse keyed on node identity (nodeKey → stable id) so the
   // state survives reorder and edit.
@@ -312,30 +314,55 @@ export function MenuList() {
       if (isBranch && isOpen) walk(node.branches!, path, depth + 1);
     });
   };
-  if (config) walk(config.root.branches ?? [], [], 0);
+  // Branches render one level in, as children of the root row below.
+  if (config) walk(config.root.branches ?? [], [], 1);
+  const rootLabel = config?.root.label?.trim() ? config.root.label : 'Center';
 
   return (
     <aside className={styles.sidebar}>
       <div className={styles.headingRow}>
         <span className={styles.heading}>Menu</span>
-        {config !== null && (
-          <button
-            type="button"
-            className={styles.headingAdd}
-            title="Add top-level item"
-            aria-label="Add top-level item"
-            onClick={addTopLevel}
-          >
-            ＋
-          </button>
-        )}
       </div>
       {!config ? (
         <p className={styles.empty}>Loading…</p>
-      ) : (config.root.branches?.length ?? 0) === 0 ? (
-        <p className={styles.empty}>No nodes configured.</p>
       ) : (
-        <ul className={styles.list}>{rows}</ul>
+        <ul className={styles.list}>
+          {/* Root row = the centre of the pie; the top-level ring is its
+              children, indented below. Selecting it edits the root
+              (label + action); ＋ adds a top-level node. Not draggable,
+              renamable, or deletable — the menu always has a root. */}
+          <li
+            style={{ paddingLeft: 8 }}
+            className={[styles.row, centerSelected ? styles.rowSelected : '']
+              .filter(Boolean)
+              .join(' ')}
+          >
+            <span className={styles.chevron} aria-hidden="true">
+              ▾
+            </span>
+            <button
+              type="button"
+              className={`${styles.item} ${centerSelected ? styles.itemSelected : ''}`}
+              aria-current={centerSelected ? 'true' : undefined}
+              title="Center (root) — the pie's centre"
+              onClick={selectCenter}
+            >
+              {rootLabel}
+            </button>
+            <span className={styles.actions}>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                title="Add top-level node"
+                aria-label="Add top-level node"
+                onClick={addTopLevel}
+              >
+                ＋
+              </button>
+            </span>
+          </li>
+          {rows}
+        </ul>
       )}
     </aside>
   );
