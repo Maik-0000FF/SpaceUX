@@ -1,7 +1,12 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { DEFAULT_TRIGGER_BUTTON } from '@/shared/menu';
+import {
+  DEFAULT_TRIGGER_BUTTON,
+  DEFAULT_TRIGGER_MODE,
+  TRIGGER_MODES,
+  type TriggerMode,
+} from '@/shared/menu';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useMenuSettings } from '../state/menu-settings';
@@ -9,6 +14,11 @@ import { useMenuSettings } from '../state/menu-settings';
 import { NavigationSettings } from './NavigationSettings';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
+
+const TRIGGER_MODE_LABELS: Record<TriggerMode, string> = {
+  toggle: 'Toggle (open, then commit / close)',
+  open: 'Open only',
+};
 
 /**
  * Menu-level settings: the trigger button that opens this pie and the
@@ -22,6 +32,9 @@ import styles from './Properties.module.scss';
 export function MenuSettings() {
   const triggerButton = useMenuSettings((s) => s.config?.triggerButton);
   const setTriggerButton = useMenuSettings((s) => s.setTriggerButton);
+  const triggerMode = useMenuSettings((s) => s.config?.triggerMode);
+  const setTriggerMode = useMenuSettings((s) => s.setTriggerMode);
+  const effectiveMode = triggerMode ?? DEFAULT_TRIGGER_MODE;
   // Connected device's button count (0 = none/unknown). Constrains the
   // button pickers to buttons that exist (#66).
   const { buttons: buttonCount } = useDeviceInfo();
@@ -54,6 +67,24 @@ export function MenuSettings() {
             This device has {buttonCount} buttons (0–{maxButton}). Pick a lower button.
           </span>
         )}
+      </Row>
+      <Row label="Trigger behavior">
+        <select
+          className={styles.select}
+          value={effectiveMode}
+          onChange={(e) => setTriggerMode(e.target.value as TriggerMode)}
+        >
+          {TRIGGER_MODES.map((mode) => (
+            <option key={mode} value={mode}>
+              {TRIGGER_MODE_LABELS[mode]}
+            </option>
+          ))}
+        </select>
+        <span className={styles.sectionNote}>
+          {effectiveMode === 'toggle'
+            ? 'Press to open; press again to commit the highlighted item (centred = your cancel / close).'
+            : 'The button only opens the menu — commit items and close with your SpaceMouse gestures (the trigger button is then free to bind as an input).'}
+        </span>
       </Row>
       <NavigationSettings buttonCount={buttonCount} />
     </>

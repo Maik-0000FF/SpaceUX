@@ -164,6 +164,29 @@ describe('validateMenuConfig', () => {
     }
   });
 
+  it('accepts a valid triggerMode and rejects an unknown one', () => {
+    const at = (triggerMode: unknown) =>
+      validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        triggerMode,
+        root: { label: '', branches: [{ label: 'x' }] },
+      });
+    for (const v of ['toggle', 'open']) {
+      const r = at(v);
+      expect(r.ok, `triggerMode=${v}`).toBe(true);
+      if (r.ok) expect(r.config.triggerMode).toBe(v);
+    }
+    expect(at('sometimes').ok).toBe(false);
+    expect(at(1).ok).toBe(false);
+    // Optional: omitting it is fine.
+    const none = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(none.ok).toBe(true);
+    if (none.ok) expect(none.config.triggerMode).toBeUndefined();
+  });
+
   it('accepts and clamps the pie size scale; rejects a non-number', () => {
     const at = (scale: unknown) =>
       validateMenuConfig({

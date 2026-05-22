@@ -67,6 +67,16 @@ export const BUILTIN_ACTION = {
  *  install always has *something* to react to. */
 export const DEFAULT_TRIGGER_BUTTON = 0;
 
+/** What the trigger button does once the pie is open.
+ *  - `toggle`: a second press commits the highlighted selection (centred
+ *    = the centre's action / dismiss) — the historical click-to-toggle.
+ *  - `open`: the button only opens the pie; committing and closing are
+ *    left entirely to the SpaceMouse gestures, freeing the button to be
+ *    bound like any other input. */
+export const TRIGGER_MODES = ['toggle', 'open'] as const;
+export type TriggerMode = (typeof TRIGGER_MODES)[number];
+export const DEFAULT_TRIGGER_MODE: TriggerMode = 'toggle';
+
 // ── Schema types ────────────────────────────────────────────────────
 
 /** Reference to an action, including the per-instance config the
@@ -342,6 +352,9 @@ export type MenuConfig = {
    *  button mappings (or wanting a non-primary button to trigger)
    *  set this. */
   triggerButton?: number;
+  /** What the trigger button does once the pie is open. Omitting falls
+   *  back to :data:`DEFAULT_TRIGGER_MODE` (`toggle`). See `TriggerMode`. */
+  triggerMode?: TriggerMode;
   /** Optional per-axis sign overrides. Omitting the field (or one
    *  side of it) falls back to :data:`DEFAULT_AXIS_INVERT`. */
   axisInvert?: MenuAxisInvert;
@@ -450,6 +463,7 @@ export const DEFAULT_MENU_CONFIG: MenuConfig = {
 const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'version',
   'triggerButton',
+  'triggerMode',
   'axisInvert',
   'scale',
   'navigation',
@@ -544,6 +558,15 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
       };
     }
     result.triggerButton = obj.triggerButton;
+  }
+  if (obj.triggerMode !== undefined) {
+    if (!TRIGGER_MODES.includes(obj.triggerMode as TriggerMode)) {
+      return {
+        ok: false,
+        reason: `menu config field "triggerMode" must be one of ${TRIGGER_MODES.join(', ')} when present`,
+      };
+    }
+    result.triggerMode = obj.triggerMode as TriggerMode;
   }
   if (obj.scale !== undefined) {
     if (typeof obj.scale !== 'number' || !Number.isFinite(obj.scale)) {
@@ -1048,6 +1071,10 @@ function orderNode(node: MenuNode): Record<string, unknown> {
 export function serializeMenuConfig(config: MenuConfig): string {
   const out: Record<string, unknown> = { version: config.version };
   if (config.triggerButton !== undefined) out.triggerButton = config.triggerButton;
+  // Omit the default 'toggle' so existing/default configs don't gain the
+  // field — only a non-default 'open' is written.
+  if (config.triggerMode !== undefined && config.triggerMode !== DEFAULT_TRIGGER_MODE)
+    out.triggerMode = config.triggerMode;
   if (config.axisInvert !== undefined) out.axisInvert = config.axisInvert;
   if (config.navigation !== undefined) out.navigation = orderNavigation(config.navigation);
   out.root = orderNode(config.root);

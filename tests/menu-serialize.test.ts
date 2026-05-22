@@ -51,6 +51,20 @@ describe('serializeMenuConfig', () => {
     expect(json).not.toContain('action');
   });
 
+  it('omits the default triggerMode but serializes a non-default one', () => {
+    const root = { label: '', branches: [{ label: 'Solo' }] };
+    // Default 'toggle' is omitted so existing/default configs don't gain it.
+    expect(serializeMenuConfig({ version: 1, triggerMode: 'toggle', root })).not.toContain(
+      'triggerMode',
+    );
+    // 'open' is written, and round-trips through the validator.
+    const json = serializeMenuConfig({ version: 1, triggerMode: 'open', root });
+    expect(json).toContain('"triggerMode": "open"');
+    const r = validateMenuConfig(JSON.parse(json));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.triggerMode).toBe('open');
+  });
+
   it('round-trips a navigation block through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,

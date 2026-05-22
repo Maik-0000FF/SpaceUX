@@ -15,6 +15,7 @@ import {
   type MenuConfig,
   type MenuNavigation,
   type MenuNode,
+  type TriggerMode,
 } from '@/shared/menu';
 
 import { eqPath, isPrefix, nodeHeight } from './move-targets';
@@ -86,6 +87,8 @@ type MenuSettingsState = {
   moveNodeBetween: (fromPath: readonly number[], toRingPath: readonly number[]) => void;
   /** Set the puck button (zero-based) that opens the pie. */
   setTriggerButton: (button: number) => void;
+  /** Set what the trigger button does once the pie is open (toggle/open). */
+  setTriggerMode: (mode: TriggerMode) => void;
   /** Set the pie size multiplier (clamped to [MIN_PIE_SCALE, MAX_PIE_SCALE]). */
   setScale: (scale: number) => void;
   /** Set the root (centre) label; an empty/blank value clears it (the
@@ -271,6 +274,13 @@ export const useMenuSettings = create<MenuSettingsState>()(
         set((state) => {
           if (!state.config) return;
           state.config.triggerButton = button;
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setTriggerMode: (mode) =>
+        set((state) => {
+          if (!state.config) return;
+          state.config.triggerMode = mode;
           state.origin = 'local';
           state.dirty = true;
         }),
