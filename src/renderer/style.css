@@ -160,6 +160,13 @@ body {
   stroke: var(--pie-border-active);
 }
 
+/* Root bound to the built-in cancel action → the centre is a red abort
+ * target persistently (not just while it's the active commit target),
+ * matching a cancel wedge. */
+.pie-cancel-center.is-cancel {
+  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+}
+
 .pie-cancel-label {
   fill: var(--pie-cancel-label);
   font-size: 28px;

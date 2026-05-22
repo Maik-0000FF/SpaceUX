@@ -115,6 +115,19 @@
   width: 18px;
 }
 
+// Static caret on the (non-collapsible) root row — same footprint as
+// .chevron but not interactive (no pointer cursor / hover), so the root
+// doesn't look falsely clickable.
+.rootCaret {
+  flex: none;
+  width: 18px;
+  padding: 7px 0;
+  color: var(--editor-fg-dim);
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+}
+
 .itemSelected {
   background: var(--editor-accent);
 

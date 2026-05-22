@@ -337,7 +337,7 @@ export function MenuList() {
               .filter(Boolean)
               .join(' ')}
           >
-            <span className={styles.chevron} aria-hidden="true">
+            <span className={styles.rootCaret} aria-hidden="true">
               ▾
             </span>
             <button

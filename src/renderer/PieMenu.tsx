@@ -195,6 +195,9 @@ export function PieMenu({
   // to the historical ✕ glyph when it's empty/unset (icon parallels
   // sector icons and is ignored by the v0 renderer).
   const cancelActive = activeSector === null;
+  // The centre itself is a cancel target when the root's action is the
+  // built-in cancel → render it red persistently, like a cancel wedge.
+  const rootCancel = isCancelNode(config.root);
   const centerLabel = config.root.label || '✕';
 
   // Mid-radius of the outer ring band, used to position outer-ring
@@ -247,7 +250,7 @@ export function PieMenu({
           />
         ))}
         <circle
-          className={`pie-cancel-center${cancelActive ? ' is-active' : ''}`}
+          className={`pie-cancel-center${cancelActive ? ' is-active' : ''}${rootCancel ? ' is-cancel' : ''}`}
           cx={0}
           cy={0}
           r={innerRadius}
