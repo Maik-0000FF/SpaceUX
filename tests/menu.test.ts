@@ -320,6 +320,33 @@ describe('validateMenuConfig — nested submenus', () => {
     expect(r.ok).toBe(false);
   });
 
+  it('keeps a per-item exit on any sector (leaf or branch) with inputs', () => {
+    const exit = {
+      inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }],
+    };
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        { label: 'Leaf', binding: { action: builtinAction('exec') }, exit },
+        { label: 'Branch', children: [{ label: 'C' }], exit },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.sectors[0]?.exit?.inputs).toHaveLength(1);
+      expect(r.config.sectors[1]?.exit?.inputs).toHaveLength(1);
+    }
+  });
+
+  it('drops an exit with no inputs', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [{ label: 'x', exit: { inputs: [] } }],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.sectors[0]?.exit).toBeUndefined();
+  });
+
   it('rejects a non-array children field with a distinct message', () => {
     // The "not an array" and "empty array" cases produce different
     // reasons so a user staring at the error knows whether to add

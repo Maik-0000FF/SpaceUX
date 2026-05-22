@@ -29,6 +29,7 @@ const axes = (p: Partial<SixAxes>): SixAxes => ({ ...ZERO, ...p });
  *  clean `false` baseline is clearer. */
 const FRESH: PuckEdges = {
   activate: false,
+  exit: false,
   commit: false,
   back: false,
   drill: false,
@@ -105,11 +106,12 @@ describe('resolvePuckFrame — commit center', () => {
       axes: axes({ tz: 100 }),
       navigation: [],
       sticky: null,
-      edges: { activate: false, commit: false, back: true, drill: true, cycle: true },
+      edges: { activate: false, exit: false, commit: false, back: true, drill: true, cycle: true },
     });
     expect(r.outcome).toEqual({ kind: 'commitCenter' });
     expect(r.edges).toEqual({
       activate: false,
+      exit: false,
       commit: true,
       back: true,
       drill: true,
@@ -169,11 +171,12 @@ describe('resolvePuckFrame — cross-talk guard', () => {
       axes: axes({ tz: -100, ty: 100 }),
       navigation: [],
       sticky: null,
-      edges: { activate: false, commit: false, back: false, drill: true, cycle: true },
+      edges: { activate: false, exit: false, commit: false, back: false, drill: true, cycle: true },
     });
     expect(r.outcome).toEqual({ kind: 'none' });
     expect(r.edges).toEqual({
       activate: false,
+      exit: false,
       commit: false,
       back: false,
       drill: true,
@@ -304,6 +307,73 @@ describe('resolvePuckFrame — per-item activation (#130 R2)', () => {
       edges: FRESH,
     });
     // No hovered leaf → activation can't fire; falls through to global back.
+    expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
+  });
+});
+
+describe('resolvePuckFrame — per-item exit (#130 R3)', () => {
+  // The hovered sector (index 1) binds TZ+ as its own way back to centre.
+  // Global back is TZ both — so TZ up collides, and the per-item exit wins;
+  // TZ down still backs (direction-aware).
+  const EXIT_SECTORS: MenuSector[] = [
+    { label: 'Branch', children: [{ label: 'C0' }, { label: 'C1' }] },
+    {
+      label: 'Item',
+      binding: { action: builtinAction('exec'), config: { command: 'x' } },
+      exit: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }] },
+    },
+  ];
+  const exitConfig = (navigation: MenuNavigation): MenuConfig => ({
+    version: MENU_CONFIG_VERSION,
+    navigation,
+    sectors: EXIT_SECTORS,
+  });
+
+  it('deselects to centre and wins over the colliding global back', () => {
+    const r = resolvePuckFrame({
+      menuConfig: exitConfig(nav({})),
+      axes: axes({ tz: 100 }), // also satisfies global back (TZ both)
+      navigation: [],
+      sticky: 1,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'exitToCenter' });
+    expect(r.edges.exit).toBe(true);
+  });
+
+  it('does not re-fire while the exit input stays held', () => {
+    const r = resolvePuckFrame({
+      menuConfig: exitConfig(nav({})),
+      axes: axes({ tz: 100 }),
+      navigation: [],
+      sticky: 1,
+      edges: { ...FRESH, exit: true },
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+    expect(r.edges.exit).toBe(true);
+  });
+
+  it('leaves the other half of the axis free: TZ down still backs', () => {
+    const r = resolvePuckFrame({
+      menuConfig: exitConfig(nav({})),
+      axes: axes({ tz: -100 }), // exit is TZ+, so this doesn't exit
+      navigation: [],
+      sticky: 1,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
+    expect(r.edges.exit).toBe(false);
+  });
+
+  it('ignores exit when no sector is hovered (sticky null)', () => {
+    const r = resolvePuckFrame({
+      menuConfig: exitConfig(nav({})),
+      axes: axes({ tz: 100 }),
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    // No hovered sector → exit can't fire; TZ+ falls through to global back.
     expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
   });
 });

@@ -133,6 +133,13 @@ export type MenuSector = {
    *  back) for this item (#130 R2). The validator drops it on a branch
    *  or a binding-less leaf. */
   activation?: GestureBinding;
+  /** A per-item *exit* input that returns focus to the centre (deselect,
+   *  pie stays open) while this sector is hovered — the per-item way back
+   *  alongside the global back, e.g. when an `activation` has shadowed the
+   *  global back's input on this item. Applies to any sector (leaf or
+   *  branch); checked ahead of the global gestures so it wins on a shared
+   *  input. The validator drops it when it binds no inputs (#130 R3). */
+  exit?: GestureBinding;
   /** Editor-only stable identity. Assigned by the editor when a config
    *  is adopted (and to newly-added sectors); used for React keys and
    *  the tree's expand state. Because it lives on the object, immer
@@ -470,6 +477,7 @@ const KNOWN_MENU_SECTOR_FIELDS: readonly string[] = [
   'children',
   'keepOpen',
   'activation',
+  'exit',
   'id',
 ];
 const KNOWN_ACTION_REF_FIELDS: readonly string[] = ['action', 'config'];
@@ -929,6 +937,14 @@ function validateSector(raw: unknown, where: string, depth = 0): SectorValidatio
     )
       sector.activation = result.value;
   }
+  if (s.exit !== undefined) {
+    const result = validateGestureBinding(s.exit, `${where} exit`);
+    if (!result.ok) return { ok: false, reason: result.reason };
+    // Any sector (leaf or branch) can carry an exit, but only when it
+    // actually binds an input — drop an empty one so it never persists
+    // as a no-op.
+    if (result.value.inputs.length > 0) sector.exit = result.value;
+  }
   warnUnknownFields(s, KNOWN_MENU_SECTOR_FIELDS, where);
   return { ok: true, value: sector };
 }
@@ -1049,6 +1065,7 @@ function orderSector(sector: MenuSector): Record<string, unknown> {
   if (sector.keepOpen) out.keepOpen = true;
   if (sector.activation !== undefined)
     out.activation = { inputs: sector.activation.inputs.map(orderInput) };
+  if (sector.exit !== undefined) out.exit = { inputs: sector.exit.inputs.map(orderInput) };
   if (sector.children !== undefined) out.children = sector.children.map(orderSector);
   return out;
 }
