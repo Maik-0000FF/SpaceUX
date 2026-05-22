@@ -23,22 +23,22 @@ const CUSTOM = '__custom__';
  * selection so the local "custom mode" resets when you switch sectors.
  */
 export function ActionField({
-  binding,
+  action,
   actions,
   onPick,
   onCustomChange,
   onClear,
 }: {
-  binding: ActionRef | undefined;
+  action: ActionRef | undefined;
   actions: EditorAction[];
   /** A known action id was chosen. */
   onPick: (id: string) => void;
   /** The raw-text action id changed (Custom mode). */
   onCustomChange: (text: string) => void;
-  /** "No action" chosen → drop the binding (label-only leaf). */
+  /** "No action" chosen → drop the action (label-only leaf). */
   onClear: () => void;
 }) {
-  const current = binding?.action ?? '';
+  const current = action?.id ?? '';
   const isKnown = actions.some((a) => a.id === current);
   // Sticky once chosen, so picking Custom with an empty/known value keeps
   // the raw field open. A non-empty value that isn't a known action is

@@ -3,7 +3,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 
-import { currentSectors, navigationRingRotation } from '@/core/menu-nav';
+import { currentBranches, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
   DEFAULT_PIE_GEOMETRY,
@@ -16,7 +16,7 @@ import {
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import { isCancelSector, resolveAxisInvert, type MenuConfig, type MenuSector } from '@/shared/menu';
+import { isCancelNode, resolveAxisInvert, type MenuConfig, type MenuNode } from '@/shared/menu';
 
 const TAU = Math.PI * 2;
 
@@ -32,7 +32,7 @@ export type PieMenuProps = {
    *  commit time by App.tsx, not here. */
   config: MenuConfig;
   /** Drill path through the config tree. Empty at top level.
-   *  `[i]` means the user has drilled into `config.sectors[i]`,
+   *  `[i]` means the user has drilled into `config.root.branches[i]`,
    *  `[i, j]` into its grandchild, and so on. Determines which ring
    *  is the active selection target and which is the breadcrumb. */
   navigation?: readonly number[];
@@ -58,8 +58,8 @@ export type PieMenuProps = {
  *
  * Pure presentational: takes the current axes plus the menu config
  * and renders the wheel with the appropriate sector highlighted.
- * The sector count is derived from config.sectors.length — there is
- * no separate count knob. Selection maths live in
+ * The sector count is derived from config.root.branches.length —
+ * there is no separate count knob. Selection maths live in
  * core/pie-geometry so the same code can be unit-tested without a
  * DOM; what *happens* on selection lives in App.tsx (it looks up
  * the binding and asks main to invoke the action).
@@ -78,12 +78,12 @@ export function PieMenu({
   // roles swap so the outer (larger) ring becomes active and the
   // inner pie demotes to a breadcrumb showing where the user came
   // from. The actual sector arrays are derived through the shared
-  // `currentSectors` walker so App.tsx and PieMenu can't disagree
+  // `currentBranches` walker so App.tsx and PieMenu can't disagree
   // about which ring is which.
-  const activeRing = useMemo(() => currentSectors(config, navigation), [config, navigation]);
+  const activeRing = useMemo(() => currentBranches(config, navigation), [config, navigation]);
   const isDrilled = navigation.length > 0;
   const parentRing = useMemo(
-    () => (isDrilled ? currentSectors(config, navigation.slice(0, -1)) : null),
+    () => (isDrilled ? currentBranches(config, navigation.slice(0, -1)) : null),
     [config, navigation, isDrilled],
   );
   const drilledIntoIndex = isDrilled ? navigation[navigation.length - 1]! : null;
@@ -128,13 +128,13 @@ export function PieMenu({
   // possible without a third ring (deferred follow-up).
   const previewSectors =
     !isDrilled && activeSector !== null && activeSector !== undefined
-      ? activeRing[activeSector]?.children
+      ? activeRing[activeSector]?.branches
       : undefined;
 
   // Pick which sectors fill the inner/outer visual slots based on
   // drill state. Variables read top-to-bottom in JSX below.
-  const innerSectors: readonly MenuSector[] = isDrilled ? parentRing! : activeRing;
-  const outerSectors: readonly MenuSector[] | undefined = isDrilled ? activeRing : previewSectors;
+  const innerSectors: readonly MenuNode[] = isDrilled ? parentRing! : activeRing;
+  const outerSectors: readonly MenuNode[] | undefined = isDrilled ? activeRing : previewSectors;
   // SVG viewport sizing is based on the *outermost* possible ring
   // even when the preview ring is currently invisible — that keeps
   // `clampPieAnchor` deterministic and prevents the menu from
@@ -191,11 +191,11 @@ export function PieMenu({
   // binding, or silently dismisses when it has none. Highlighting the
   // centre tells the user "release now and the center wins". The
   // radius is a visual cue, not a hit-test — the selection logic is in
-  // App.tsx. The label comes from `config.centerField`, falling back
-  // to the historical ✕ glyph when the field is unset (icon parallels
+  // App.tsx. The label comes from `config.root.label`, falling back
+  // to the historical ✕ glyph when it's empty/unset (icon parallels
   // sector icons and is ignored by the v0 renderer).
   const cancelActive = activeSector === null;
-  const centerLabel = config.centerField?.label ?? '✕';
+  const centerLabel = config.root.label || '✕';
 
   // Mid-radius of the outer ring band, used to position outer-ring
   // labels in the visual centre of each wedge. Pre-computed because
@@ -241,7 +241,7 @@ export function PieMenu({
             outerRadius={radius}
             innerRadius={innerRadius}
             active={!isDrilled && activeSector === i}
-            cancel={isCancelSector(sector)}
+            cancel={isCancelNode(sector)}
             breadcrumb={isDrilled}
             drilledInto={isDrilled && drilledIntoIndex === i}
           />
@@ -285,7 +285,7 @@ export function PieMenu({
                 outerRadius={outerRingOuterRadius}
                 innerRadius={outerRingInnerRadius}
                 active={isDrilled && activeSector === i}
-                cancel={isCancelSector(sector)}
+                cancel={isCancelNode(sector)}
                 preview={!isDrilled}
                 rotation={outerRingRotation}
               />
@@ -374,7 +374,7 @@ function SectorLabel({
   index: number;
   sectorCount: number;
   radius: number;
-  sector: MenuSector;
+  sector: MenuNode;
   /** Match the wedge it belongs to. */
   preview?: boolean;
   /** Match the wedge it belongs to. */

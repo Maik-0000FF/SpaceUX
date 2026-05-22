@@ -35,8 +35,8 @@ describe('writeMenuConfig', () => {
   });
 
   it('rejects an invalid config without touching disk', async () => {
-    // Empty sectors fails validation.
-    const bad = { version: 1, sectors: [] } as unknown as MenuConfig;
+    // A missing root fails validation.
+    const bad = { version: 1 } as unknown as MenuConfig;
     const result = await writeMenuConfig(target, bad, null);
     expect(result.ok).toBe(false);
     await expect(fs.access(target)).rejects.toBeDefined();

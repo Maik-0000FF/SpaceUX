@@ -3,26 +3,26 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { currentSectors, type DrillState } from '@/core/menu-nav';
-import { type ActionRef, type MenuConfig, type MenuSector } from '@/shared/menu';
+import { currentBranches, type DrillState } from '@/core/menu-nav';
+import { type ActionRef, type MenuConfig, type MenuNode } from '@/shared/menu';
 
 import { PieMenu } from './PieMenu';
 import { useDrillNavigation } from './hooks/useDrillNavigation';
 import { usePieAppearance } from './hooks/usePieAppearance';
 import { useSpaceMouse } from './hooks/useSpaceMouse';
 
-/** Fire an action binding through main, swallowing nothing — dispatch
+/** Fire a node's action through main, swallowing nothing — dispatch
  *  failures surface on the renderer console so a user with devtools
- *  open can see why an action did nothing. A no-op when the binding is
- *  absent (label-only sector, or a center field set to plain dismiss).
+ *  open can see why an action did nothing. A no-op when the action is
+ *  absent (label-only node, or a centre set to plain dismiss).
  *  Module-level so both the commit listener and the puck-gesture
  *  callbacks share one implementation. */
-function invokeBinding(binding: ActionRef | undefined): void {
-  if (!binding) return;
-  const { action, config } = binding;
-  window.spaceux.invokeAction(action, config ?? {}).catch((err: unknown) => {
+function invokeBinding(action: ActionRef | undefined): void {
+  if (!action) return;
+  const { id, config } = action;
+  window.spaceux.invokeAction(id, config ?? {}).catch((err: unknown) => {
     // eslint-disable-next-line no-console
-    console.warn(`[action] ${action} failed:`, err);
+    console.warn(`[action] ${id} failed:`, err);
   });
 }
 
@@ -68,7 +68,7 @@ export function App() {
   const commitCenter = useCallback(() => {
     setMenuAnchor(null);
     window.spaceux.closeMenu();
-    invokeBinding(configRef.current?.centerField?.binding);
+    invokeBinding(configRef.current?.root.action);
   }, []);
 
   // Fire the hovered leaf via its per-item activation gesture (#130 R2).
@@ -77,12 +77,12 @@ export function App() {
   // binding. The drill-state reset is the hook's job (like commitCenter),
   // so this stays a stable, dep-free callback. The hook only emits this
   // for a leaf with a binding, but the optional access stays defensive.
-  const activateSector = useCallback((sector: MenuSector | undefined) => {
-    if (!sector?.keepOpen) {
+  const activateSector = useCallback((node: MenuNode | undefined) => {
+    if (!node?.keepOpen) {
       setMenuAnchor(null);
       window.spaceux.closeMenu();
     }
-    invokeBinding(sector?.binding);
+    invokeBinding(node?.action);
   }, []);
 
   // All puck-driven state (navigation, sticky, rising-edge refs for the
@@ -130,19 +130,19 @@ export function App() {
       const { navigation, stickyChildIndex } = drillStateRef.current;
       if (!cfg || stickyChildIndex === null) {
         // No sector selected (puck centered, or TZ-cancelled) → the
-        // center field wins. Hide the window first so a second commit
+        // centre (root) wins. Hide the window first so a second commit
         // can't double-fire, reset local state for a clean next open,
-        // then invoke the center's binding if it has one. No binding
+        // then invoke the root's action if it has one. No action
         // (or no config) → silent dismiss, the historical cancel.
         setMenuAnchor(null);
         dispatch({ type: 'reset' });
         window.spaceux.closeMenu();
-        invokeBinding(cfg?.centerField?.binding);
+        invokeBinding(cfg?.root.action);
         return;
       }
-      const current = currentSectors(cfg, navigation);
+      const current = currentBranches(cfg, navigation);
       const sector = current[stickyChildIndex];
-      if (sector?.children) {
+      if (sector?.branches) {
         // Branch → drill in. Menu stays visible; main wasn't going
         // to hide it (commit no longer auto-hides post-PR-C), so we
         // just update local state. The next axes frame will start
@@ -169,7 +169,7 @@ export function App() {
         dispatch({ type: 'reset' });
         window.spaceux.closeMenu();
       }
-      invokeBinding(sector?.binding);
+      invokeBinding(sector?.action);
     });
 
     return () => {
@@ -223,7 +223,7 @@ function DebugPanel({
   drillState: DrillState;
 }) {
   const fmt = (n: number) => n.toString().padStart(5, ' ');
-  const ring = menuConfig ? currentSectors(menuConfig, drillState.navigation) : null;
+  const ring = menuConfig ? currentBranches(menuConfig, drillState.navigation) : null;
   const selectedLabel =
     ring && drillState.stickyChildIndex !== null
       ? (ring[drillState.stickyChildIndex]?.label ?? '?')

@@ -23,8 +23,8 @@
  *  change). */
 export const MENU_CONFIG_VERSION = 1;
 
-/** Hard cap on how deeply menus can nest. Each level inside a
- *  branch's `children` array counts as +1; the top-level pie is
+/** Hard cap on how deeply menus can nest. Each level inside a node's
+ *  `branches` array counts as +1; the top-level pie (root.branches) is
  *  depth 0. The validator refuses configs that go past this and
  *  surfaces a clear reason rather than crashing the loader with a
  *  recursion-stack overflow on pathological inputs.
@@ -75,23 +75,27 @@ export type ActionRef = {
   /** Composite "pluginId/actionName" key. Built-in actions use
    *  :data:`BUILTIN_PLUGIN_ID`; plugins use whatever they declare in
    *  their manifest. */
-  action: string;
+  id: string;
   /** Optional per-instance config. Shape depends on the action; the
    *  menu loader doesn't validate it because each action owns its
    *  own schema (see PluginManifest.actions.config). */
   config?: Record<string, unknown>;
 };
 
-/** One sector in the pie. A sector is either a *leaf* (no children,
- *  optional binding fires on commit) or a *branch* (carries a
- *  non-empty `children` array which becomes the next-level submenu
- *  when the user commits on this sector). The two are mutually
- *  exclusive — the validator rejects sectors that declare both
- *  `binding` and `children` so the renderer doesn't have to guess
- *  which one wins on commit. */
-export type MenuSector = {
-  /** Short display string for the sector. The renderer puts this
-   *  inside the wedge — keep it 1–2 words so the label fits.
+/** One node in the menu tree. A node is either a *leaf* (no branches,
+ *  optional action fires on commit) or a *submenu* (carries a non-empty
+ *  `branches` array which becomes the next-level ring when the user
+ *  commits on this node). For non-root nodes the two are mutually
+ *  exclusive — the validator rejects nodes that declare both `action`
+ *  and `branches` so the renderer doesn't have to guess which one wins
+ *  on commit. The single exception is the config's `root` node, which
+ *  may carry both (its `branches` are the top-level ring and its
+ *  optional `action` is the centre's commit target). */
+export type MenuNode = {
+  /** Short display string for the node. The renderer puts this inside
+   *  the wedge — keep it 1–2 words so the label fits. On the root this
+   *  is the centre label and may be empty/absent (renderer falls back
+   *  to the ✕ glyph).
    *
    *  Any non-empty Unicode string is accepted: ASCII, Latin-1
    *  accented characters, CJK, RTL scripts, and Emojis (including
@@ -106,46 +110,49 @@ export type MenuSector = {
   /** Optional icon name resolved by the renderer's theme. v0
    *  ignores this — labels are enough to demo the dispatch path. */
   icon?: string;
-  /** Action invoked when this sector wins on MENU_COMMIT. Omitted
-   *  bindings render a label but commit silently — useful for
-   *  visual-only sectors or as the placeholder state on a sector
-   *  being authored. Mutually exclusive with `children`. */
-  binding?: ActionRef;
-  /** Nested sectors that become the next-level submenu when the
-   *  user commits on this sector. The schema is recursive: a child
-   *  can itself carry further children for arbitrary depth.
-   *  Mutually exclusive with `binding`. */
-  children?: MenuSector[];
-  /** Leaf-with-binding only: keep the menu open after this sector's
+  /** Action invoked when this node wins on MENU_COMMIT. Omitted
+   *  actions render a label but commit silently — useful for
+   *  visual-only nodes or as the placeholder state on a node
+   *  being authored. Mutually exclusive with `branches` on non-root
+   *  nodes; on the root, the optional centre-commit action that may
+   *  coexist with the top-level `branches`. */
+  action?: ActionRef;
+  /** Nested nodes that become the next-level ring when the user
+   *  commits on this node. The schema is recursive: a branch can
+   *  itself carry further branches for arbitrary depth. Mutually
+   *  exclusive with `action` on non-root nodes; on the root these are
+   *  the always-present top-level ring. */
+  branches?: MenuNode[];
+  /** Leaf-with-action only: keep the menu open after this node's
    *  action fires instead of dismissing. Lets a continuous action (e.g.
    *  nudging volume via twist) be re-committed without reopening the
-   *  pie. The validator drops it on a branch (committing a branch
-   *  drills in, never dismisses) and on a binding-less label-only leaf
+   *  pie. The validator drops it on a submenu (committing a submenu
+   *  drills in, never dismisses) and on an action-less label-only leaf
    *  (which commits to nothing). Omitted/false → historical
    *  close-on-commit. */
   keepOpen?: boolean;
-  /** Leaf-with-binding only: a per-item *activation* input that fires
-   *  this sector's `binding` while it is the hovered selection — e.g.
+  /** Leaf-with-action only: a per-item *activation* input that fires
+   *  this node's `action` while it is the hovered selection — e.g.
    *  bind TZ− so pushing the puck down on this item runs its action,
    *  on top of the global trigger/commit. Resolved relative to the
    *  hovered item and checked ahead of the global gestures, so a
    *  per-item activation wins over a colliding global gesture (e.g.
-   *  back) for this item (#130 R2). The validator drops it on a branch
-   *  or a binding-less leaf. */
+   *  back) for this item (#130 R2). The validator drops it on a submenu
+   *  or an action-less leaf. */
   activation?: GestureBinding;
   /** A per-item *exit* input that returns focus to the centre (deselect,
-   *  pie stays open) while this sector is hovered — the per-item way back
+   *  pie stays open) while this node is hovered — the per-item way back
    *  alongside the global back, e.g. when an `activation` has shadowed the
-   *  global back's input on this item. Applies to any sector (leaf or
-   *  branch); checked ahead of the global gestures so it wins on a shared
+   *  global back's input on this item. Applies to any node (leaf or
+   *  submenu); checked ahead of the global gestures so it wins on a shared
    *  input. The validator drops it when it binds no inputs (#130 R3). */
   exit?: GestureBinding;
   /** Editor-only stable identity. Assigned by the editor when a config
-   *  is adopted (and to newly-added sectors); used for React keys and
+   *  is adopted (and to newly-added nodes); used for React keys and
    *  the tree's expand state. Because it lives on the object, immer
    *  copies it across edits/reorders, so identity survives where an
    *  object-identity WeakMap would not. **Never persisted** — the
-   *  validator reconstructs sectors from the structural fields and
+   *  validator reconstructs nodes from the structural fields and
    *  drops it, so it never reaches `menu.json`. */
   id?: string;
 };
@@ -324,29 +331,6 @@ export type ActivationDirection = (typeof ACTIVATION_DIRECTIONS)[number];
  *  it from there. */
 export const DEFAULT_ACTIVATION_THRESHOLD = 200;
 
-/** The pie's center field. Historically a hardcoded cancel target
- *  (the ✕ glyph that dismisses the menu when committed with nothing
- *  selected); this type makes it a configurable target like a sector.
- *
- *  No `binding` → committing the center is a silent dismiss, i.e. the
- *  historical cancel behavior. With a `binding` it fires that action
- *  on center-commit instead — assign :data:`BUILTIN_ACTION.CANCEL` to
- *  keep "cancel" semantics with a custom label/icon, or any other
- *  action to repurpose the center entirely. */
-export type MenuCenter = {
-  /** Display label for the center. Omitted → the renderer falls back
-   *  to the ✕ glyph (historical look). */
-  label?: string;
-  /** Icon name resolved by the renderer's theme. Parallels
-   *  :type:`MenuSector.icon` and is likewise ignored by the v0
-   *  renderer — labels are enough to drive the dispatch path. */
-  icon?: string;
-  /** Action invoked when the center wins on commit. Omitted → silent
-   *  dismiss (historical cancel). The center is always a leaf — it
-   *  never carries children. */
-  binding?: ActionRef;
-};
-
 /** Top-level menu config. */
 export type MenuConfig = {
   /** Schema version this config was written against. Compared against
@@ -367,20 +351,21 @@ export type MenuConfig = {
    *  scalings). Clamped to [:data:`MIN_PIE_SCALE`, :data:`MAX_PIE_SCALE`].
    *  Omitting falls back to 1. */
   scale?: number;
-  /** Optional configurable center field. Omitting it keeps the
-   *  historical hardcoded cancel target (✕ glyph, silent dismiss on
-   *  commit). See :type:`MenuCenter`. */
-  centerField?: MenuCenter;
   /** Unified navigation-gesture input bindings (issue #105). Optional
    *  and additive: omitting it falls back to :data:`DEFAULT_NAVIGATION`
    *  via :func:`resolveNavigation`. The legacy gesture fields still
    *  drive the runtime; a later PR migrates onto this block and removes
    *  them. */
   navigation?: MenuNavigation;
-  /** Sectors in clockwise order starting at 12 o'clock. The pie's
-   *  sector count = sectors.length — there is no separate "count"
-   *  knob and there cannot be one. */
-  sectors: MenuSector[];
+  /** The rooted menu tree. `root.branches` is the top-level ring
+   *  (clockwise from 12 o'clock; the pie's sector count =
+   *  `root.branches.length`, with no separate "count" knob). The root
+   *  itself is the pie's centre: its `label` is the centre label
+   *  (omitted → the renderer's ✕ glyph) and its optional `action` fires
+   *  when the centre wins on commit (omitted → silent dismiss, the
+   *  historical cancel). The root is the one node where an `action` and
+   *  `branches` coexist. */
+  root: MenuNode;
 };
 
 // ── Built-in action keys helper ─────────────────────────────────────
@@ -392,11 +377,11 @@ export function builtinAction(name: (typeof BUILTIN_ACTION)[keyof typeof BUILTIN
   return `${BUILTIN_PLUGIN_ID}/${name}`;
 }
 
-/** Whether a sector is bound to the built-in cancel action — i.e. an
+/** Whether a node is bound to the built-in cancel action — i.e. an
  *  explicit "dismiss the menu" field. The live pie and the editor preview
  *  render it red (the abort target), matching the centre ✕. */
-export function isCancelSector(sector: Pick<MenuSector, 'binding'>): boolean {
-  return sector.binding?.action === builtinAction(BUILTIN_ACTION.CANCEL);
+export function isCancelNode(node: Pick<MenuNode, 'action'>): boolean {
+  return node.action?.id === builtinAction(BUILTIN_ACTION.CANCEL);
 }
 
 // ── Factory default ─────────────────────────────────────────────────
@@ -409,43 +394,49 @@ export const DEFAULT_MENU_CONFIG: MenuConfig = {
   version: MENU_CONFIG_VERSION,
   triggerButton: DEFAULT_TRIGGER_BUTTON,
   axisInvert: DEFAULT_AXIS_INVERT,
-  sectors: [
-    {
-      label: 'Switch Window',
-      binding: { action: builtinAction('key-combo'), config: { keys: 'alt+Tab' } },
-    },
-    {
-      label: 'Files',
-      binding: { action: builtinAction('exec'), config: { command: 'xdg-open .' } },
-    },
-    {
-      label: 'Volume +',
-      binding: { action: builtinAction('key-combo'), config: { keys: 'XF86AudioRaiseVolume' } },
-    },
-    {
-      label: 'Show Desktop',
-      binding: { action: builtinAction('key-combo'), config: { keys: 'super+d' } },
-    },
-    {
-      label: 'Volume −',
-      binding: { action: builtinAction('key-combo'), config: { keys: 'XF86AudioLowerVolume' } },
-    },
-    {
-      label: 'Terminal',
-      binding: { action: builtinAction('exec'), config: { command: 'xdg-terminal-exec' } },
-    },
-    {
-      label: 'Mute',
-      binding: { action: builtinAction('key-combo'), config: { keys: 'XF86AudioMute' } },
-    },
-    {
-      label: 'Browser',
-      binding: {
-        action: builtinAction('exec'),
-        config: { command: 'xdg-open https://example.com' },
+  root: {
+    // The historical default had no configurable centre, so the root
+    // carries an empty label (renderer falls back to ✕) and no action
+    // (silent dismiss on centre-commit).
+    label: '',
+    branches: [
+      {
+        label: 'Switch Window',
+        action: { id: builtinAction('key-combo'), config: { keys: 'alt+Tab' } },
       },
-    },
-  ],
+      {
+        label: 'Files',
+        action: { id: builtinAction('exec'), config: { command: 'xdg-open .' } },
+      },
+      {
+        label: 'Volume +',
+        action: { id: builtinAction('key-combo'), config: { keys: 'XF86AudioRaiseVolume' } },
+      },
+      {
+        label: 'Show Desktop',
+        action: { id: builtinAction('key-combo'), config: { keys: 'super+d' } },
+      },
+      {
+        label: 'Volume −',
+        action: { id: builtinAction('key-combo'), config: { keys: 'XF86AudioLowerVolume' } },
+      },
+      {
+        label: 'Terminal',
+        action: { id: builtinAction('exec'), config: { command: 'xdg-terminal-exec' } },
+      },
+      {
+        label: 'Mute',
+        action: { id: builtinAction('key-combo'), config: { keys: 'XF86AudioMute' } },
+      },
+      {
+        label: 'Browser',
+        action: {
+          id: builtinAction('exec'),
+          config: { command: 'xdg-open https://example.com' },
+        },
+      },
+    ],
+  },
 };
 
 // ── Validation ──────────────────────────────────────────────────────
@@ -461,9 +452,8 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'triggerButton',
   'axisInvert',
   'scale',
-  'centerField',
   'navigation',
-  'sectors',
+  'root',
 ];
 const KNOWN_NAVIGATION_FIELDS: readonly string[] = ['drillIn', 'back', 'cycle', 'commitCenter'];
 const KNOWN_GESTURE_FIELDS: readonly string[] = ['inputs'];
@@ -472,22 +462,21 @@ const KNOWN_BUTTON_INPUT_FIELDS: readonly string[] = ['kind', 'button'];
 const KNOWN_AXIS_INPUT_FIELDS: readonly string[] = ['kind', 'axis', 'direction', 'threshold'];
 const KNOWN_MAGNITUDE_INPUT_FIELDS: readonly string[] = ['kind', 'source', 'threshold'];
 const KNOWN_NONE_INPUT_FIELDS: readonly string[] = ['kind'];
-const KNOWN_CENTER_FIELDS: readonly string[] = ['label', 'icon', 'binding'];
-// 'id' is the editor-only stable identity (see MenuSector.id). The
+// 'id' is the editor-only stable identity (see MenuNode.id). The
 // validator never copies it into its reconstructed output, so it's
 // stripped on write; listing it here just keeps warnUnknownFields quiet
 // when the editor sends an id-bearing config back to main to save.
-const KNOWN_MENU_SECTOR_FIELDS: readonly string[] = [
+const KNOWN_MENU_NODE_FIELDS: readonly string[] = [
   'label',
   'icon',
-  'binding',
-  'children',
+  'action',
+  'branches',
   'keepOpen',
   'activation',
   'exit',
   'id',
 ];
-const KNOWN_ACTION_REF_FIELDS: readonly string[] = ['action', 'config'];
+const KNOWN_ACTION_REF_FIELDS: readonly string[] = ['id', 'config'];
 const KNOWN_AXIS_INVERT_FIELDS: readonly string[] = ['x', 'y'];
 
 /** Walk an object's keys and warn (without failing validation) for
@@ -539,18 +528,10 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     };
   }
 
-  if (!Array.isArray(obj.sectors) || obj.sectors.length === 0) {
-    return { ok: false, reason: 'menu config field "sectors" must be a non-empty array' };
-  }
+  const rootResult = validateNode(obj.root, 'root', 0, true);
+  if (!rootResult.ok) return { ok: false, reason: rootResult.reason };
 
-  const sectors: MenuSector[] = [];
-  for (let i = 0; i < obj.sectors.length; i++) {
-    const result = validateSector(obj.sectors[i], `sector ${i}`);
-    if (!result.ok) return { ok: false, reason: result.reason };
-    sectors.push(result.value);
-  }
-
-  const result: MenuConfig = { version: MENU_CONFIG_VERSION, sectors };
+  const result: MenuConfig = { version: MENU_CONFIG_VERSION, root: rootResult.value };
   if (obj.triggerButton !== undefined) {
     if (
       typeof obj.triggerButton !== 'number' ||
@@ -599,17 +580,6 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     warnUnknownFields(inv, KNOWN_AXIS_INVERT_FIELDS, 'axisInvert');
     result.axisInvert = axisInvert;
   }
-  if (obj.centerField !== undefined) {
-    const centerResult = validateCenter(obj.centerField, 'centerField');
-    if (!centerResult.ok) return { ok: false, reason: centerResult.reason };
-    // An empty center (`{}`, or all fields absent) is semantically
-    // identical to omitting `centerField` entirely — drop it so it
-    // never round-trips to disk as a meaningless `"centerField": {}`.
-    if (Object.keys(centerResult.value).length > 0) {
-      result.centerField = centerResult.value;
-    }
-  }
-
   if (obj.navigation !== undefined) {
     const navResult = validateNavigation(obj.navigation, 'navigation');
     if (!navResult.ok) return { ok: false, reason: navResult.reason };
@@ -845,23 +815,32 @@ function warnNavigationConflicts(nav: MenuNavigation): void {
   }
 }
 
-type SectorValidation = { ok: true; value: MenuSector } | { ok: false; reason: string };
+type NodeValidation = { ok: true; value: MenuNode } | { ok: false; reason: string };
 
-/** Strict structural validator for one sector. Recursive: a sector
- *  with `children` validates each child through the same path, so
+/** Strict structural validator for one menu node. Recursive: a node
+ *  with `branches` validates each branch through the same path, so
  *  arbitrarily nested submenus are checked uniformly up to
  *  :data:`MAX_MENU_DEPTH` levels deep; configs that go past the
  *  cap are rejected with a clear reason instead of overflowing
  *  the recursion stack. `where` is the human-readable path prefix
  *  the caller has built up so error reasons stay traceable across
- *  depths (e.g. `sector 2 child 1 child 0 field "label" must be ...`). */
-function validateSector(raw: unknown, where: string, depth = 0): SectorValidation {
+ *  depths (e.g. `root branch 2 branch 1 branch 0 field "label" must be ...`).
+ *
+ *  `isRoot` relaxes/tightens the rules for the config's root node:
+ *   - the root's `label` is optional (renderer falls back to ✕) and may
+ *     be empty, where a non-root label must be a non-empty string;
+ *   - the root must carry a non-empty `branches` array (the top-level
+ *     ring), and it MAY also carry an `action` (the centre-commit
+ *     target) — the one node where the two coexist;
+ *   - a non-root node keeps the historical mutual exclusivity: either an
+ *     `action` (leaf) or `branches` (submenu), never both. */
+function validateNode(raw: unknown, where: string, depth = 0, isRoot = false): NodeValidation {
   // Reject pathologically nested configs before the recursion
   // walks far enough to overflow the call stack. The cap leaves
   // plenty of headroom over realistic menus and surfaces as a
   // normal validator error instead of a crash on load. The reason
   // names the actual offending depth so a config author can see
-  // how far over the cap they went without counting `child` tokens
+  // how far over the cap they went without counting `branch` tokens
   // in the path prefix.
   if (depth > MAX_MENU_DEPTH) {
     return {
@@ -873,124 +852,106 @@ function validateSector(raw: unknown, where: string, depth = 0): SectorValidatio
     return { ok: false, reason: `${where} is not an object` };
   }
   const s = raw as Record<string, unknown>;
-  if (typeof s.label !== 'string' || s.label.trim() === '') {
-    return { ok: false, reason: `${where} field "label" must be a non-empty string` };
+  // Label: the root's is optional (omitted → ✕ glyph) and so may be
+  // empty/absent; a non-root node must name itself.
+  let label = '';
+  if (isRoot) {
+    if (s.label !== undefined) {
+      if (typeof s.label !== 'string') {
+        return { ok: false, reason: `${where} field "label" must be a string when present` };
+      }
+      label = s.label;
+    }
+  } else {
+    if (typeof s.label !== 'string' || s.label.trim() === '') {
+      return { ok: false, reason: `${where} field "label" must be a non-empty string` };
+    }
+    label = s.label;
   }
-  const sector: MenuSector = { label: s.label };
+  const node: MenuNode = { label };
   if (s.icon !== undefined) {
     if (typeof s.icon !== 'string')
       return { ok: false, reason: `${where} field "icon" must be a string when present` };
-    sector.icon = s.icon;
+    node.icon = s.icon;
   }
-  // Branch (children) and leaf (binding) are mutually exclusive so
-  // the renderer doesn't have to disambiguate which one wins on
-  // commit. Rejecting up front means a misconfigured menu fails to
-  // load with a clear reason rather than silently behaving as one or
-  // the other depending on the renderer's resolution order.
-  if (s.binding !== undefined && s.children !== undefined) {
+  // On a non-root node, submenu (branches) and leaf (action) are
+  // mutually exclusive so the renderer doesn't have to disambiguate
+  // which one wins on commit. The root is exempt: its branches are the
+  // top-level ring and its optional action is the centre-commit target,
+  // so the two legitimately coexist there.
+  if (!isRoot && s.action !== undefined && s.branches !== undefined) {
     return {
       ok: false,
-      reason: `${where} must declare either "binding" or "children", not both`,
+      reason: `${where} must declare either "action" or "branches", not both`,
     };
   }
-  if (s.binding !== undefined) {
-    const result = validateActionRef(s.binding, `${where} binding`);
-    if (!result.ok) return { ok: false, reason: result.reason };
-    sector.binding = result.value;
+  // The root must always be a submenu (a non-empty top-level ring).
+  if (isRoot && s.branches === undefined) {
+    return { ok: false, reason: `${where} field "branches" must be a non-empty array` };
   }
-  if (s.children !== undefined) {
-    if (!Array.isArray(s.children)) {
+  if (s.action !== undefined) {
+    const result = validateActionRef(s.action, `${where} action`);
+    if (!result.ok) return { ok: false, reason: result.reason };
+    node.action = result.value;
+  }
+  if (s.branches !== undefined) {
+    if (!Array.isArray(s.branches)) {
       return {
         ok: false,
-        reason: `${where} field "children" must be an array when present`,
+        reason: `${where} field "branches" must be an array when present`,
       };
     }
-    if (s.children.length === 0) {
+    if (s.branches.length === 0) {
       return {
         ok: false,
-        reason: `${where} field "children" must not be empty`,
+        reason: `${where} field "branches" must not be empty`,
       };
     }
-    const children: MenuSector[] = [];
-    for (let i = 0; i < s.children.length; i++) {
-      const result = validateSector(s.children[i], `${where} child ${i}`, depth + 1);
+    // The root's branches are the top-level ring — depth 0, the same
+    // level the pre-root-model top-level sectors sat at. A non-root
+    // submenu's branches are one level deeper. Keeping the root
+    // transparent to the depth count preserves the MAX_MENU_DEPTH
+    // boundary exactly (behaviour-neutral).
+    const childDepth = isRoot ? depth : depth + 1;
+    const branches: MenuNode[] = [];
+    for (let i = 0; i < s.branches.length; i++) {
+      const result = validateNode(s.branches[i], `${where} branch ${i}`, childDepth);
       if (!result.ok) return { ok: false, reason: result.reason };
-      children.push(result.value);
+      branches.push(result.value);
     }
-    sector.children = children;
+    node.branches = branches;
   }
   if (s.keepOpen !== undefined) {
     if (typeof s.keepOpen !== 'boolean') {
       return { ok: false, reason: `${where} field "keepOpen" must be a boolean when present` };
     }
-    // Leaf-with-binding only, and only meaningful when true: drop it on a
-    // branch, a binding-less (label-only) leaf, or when false so it never
-    // persists as a no-op flag. A label-only sector commits to nothing, so
+    // Leaf-with-action only, and only meaningful when true: drop it on a
+    // submenu, an action-less (label-only) leaf, or when false so it never
+    // persists as a no-op flag. A label-only node commits to nothing, so
     // keeping the menu open there would strand the user on the Back gesture.
-    if (s.keepOpen && sector.children === undefined && sector.binding !== undefined)
-      sector.keepOpen = true;
+    if (s.keepOpen && node.branches === undefined && node.action !== undefined)
+      node.keepOpen = true;
   }
   if (s.activation !== undefined) {
     const result = validateGestureBinding(s.activation, `${where} activation`);
     if (!result.ok) return { ok: false, reason: result.reason };
-    // Leaf-with-binding only, and only when it actually binds an input:
-    // a branch drills (no binding to fire) and a label-only leaf commits
+    // Leaf-with-action only, and only when it actually binds an input:
+    // a submenu drills (no action to fire) and a label-only leaf commits
     // to nothing, so an activation there would be a no-op. Drop it
     // otherwise so it never persists where it can't fire.
-    if (
-      result.value.inputs.length > 0 &&
-      sector.children === undefined &&
-      sector.binding !== undefined
-    )
-      sector.activation = result.value;
+    if (result.value.inputs.length > 0 && node.branches === undefined && node.action !== undefined)
+      node.activation = result.value;
   }
   if (s.exit !== undefined) {
     const result = validateGestureBinding(s.exit, `${where} exit`);
     if (!result.ok) return { ok: false, reason: result.reason };
-    // Any sector (leaf or branch) can carry an exit, but only when it
+    // Any node (leaf or submenu) can carry an exit, but only when it
     // actually binds an input — drop an empty one so it never persists
     // as a no-op.
-    if (result.value.inputs.length > 0) sector.exit = result.value;
+    if (result.value.inputs.length > 0) node.exit = result.value;
   }
-  warnUnknownFields(s, KNOWN_MENU_SECTOR_FIELDS, where);
-  return { ok: true, value: sector };
-}
-
-type CenterValidation = { ok: true; value: MenuCenter } | { ok: false; reason: string };
-
-/** Strict structural validator for the optional center field. Mirrors
- *  the leaf-sector rules (non-empty label, string icon, valid binding)
- *  minus `children` — the center is always a leaf. `label` is optional
- *  here (unlike a sector): omitting it lets the renderer fall back to
- *  the ✕ glyph rather than forcing the user to name the cancel target. */
-function validateCenter(raw: unknown, where: string): CenterValidation {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return { ok: false, reason: `${where} must be an object when present` };
-  }
-  const c = raw as Record<string, unknown>;
-  const center: MenuCenter = {};
-  if (c.label !== undefined) {
-    if (typeof c.label !== 'string' || c.label.trim() === '') {
-      return {
-        ok: false,
-        reason: `${where} field "label" must be a non-empty string when present`,
-      };
-    }
-    center.label = c.label;
-  }
-  if (c.icon !== undefined) {
-    if (typeof c.icon !== 'string') {
-      return { ok: false, reason: `${where} field "icon" must be a string when present` };
-    }
-    center.icon = c.icon;
-  }
-  if (c.binding !== undefined) {
-    const result = validateActionRef(c.binding, `${where} binding`);
-    if (!result.ok) return { ok: false, reason: result.reason };
-    center.binding = result.value;
-  }
-  warnUnknownFields(c, KNOWN_CENTER_FIELDS, where);
-  return { ok: true, value: center };
+  warnUnknownFields(s, KNOWN_MENU_NODE_FIELDS, where);
+  return { ok: true, value: node };
 }
 
 type ActionRefValidation = { ok: true; value: ActionRef } | { ok: false; reason: string };
@@ -1000,10 +961,10 @@ function validateActionRef(raw: unknown, where: string): ActionRefValidation {
     return { ok: false, reason: `${where} must be an object` };
   }
   const obj = raw as Record<string, unknown>;
-  if (typeof obj.action !== 'string' || obj.action.trim() === '') {
-    return { ok: false, reason: `${where} field "action" must be a non-empty string` };
+  if (typeof obj.id !== 'string' || obj.id.trim() === '') {
+    return { ok: false, reason: `${where} field "id" must be a non-empty string` };
   }
-  const out: ActionRef = { action: obj.action };
+  const out: ActionRef = { id: obj.id };
   if (obj.config !== undefined) {
     if (typeof obj.config !== 'object' || obj.config === null || Array.isArray(obj.config)) {
       return { ok: false, reason: `${where} field "config" must be an object when present` };
@@ -1018,18 +979,8 @@ function validateActionRef(raw: unknown, where: string): ActionRefValidation {
 
 /** Build a plain object for one action ref with a fixed key order. */
 function orderActionRef(ref: ActionRef): Record<string, unknown> {
-  const out: Record<string, unknown> = { action: ref.action };
+  const out: Record<string, unknown> = { id: ref.id };
   if (ref.config !== undefined) out.config = ref.config;
-  return out;
-}
-
-/** Build a plain object for the center field with a fixed key order,
- *  omitting absent optional fields. */
-function orderCenter(center: MenuCenter): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  if (center.label !== undefined) out.label = center.label;
-  if (center.icon !== undefined) out.icon = center.icon;
-  if (center.binding !== undefined) out.binding = orderActionRef(center.binding);
   return out;
 }
 
@@ -1063,17 +1014,17 @@ function orderNavigation(nav: MenuNavigation): Record<string, unknown> {
   };
 }
 
-/** Build a plain object for one sector with a fixed key order, omitting
- *  absent optional fields. Recursive for nested children. */
-function orderSector(sector: MenuSector): Record<string, unknown> {
-  const out: Record<string, unknown> = { label: sector.label };
-  if (sector.icon !== undefined) out.icon = sector.icon;
-  if (sector.binding !== undefined) out.binding = orderActionRef(sector.binding);
-  if (sector.keepOpen) out.keepOpen = true;
-  if (sector.activation !== undefined)
-    out.activation = { inputs: sector.activation.inputs.map(orderInput) };
-  if (sector.exit !== undefined) out.exit = { inputs: sector.exit.inputs.map(orderInput) };
-  if (sector.children !== undefined) out.children = sector.children.map(orderSector);
+/** Build a plain object for one menu node with a fixed key order,
+ *  omitting absent optional fields. Recursive for nested branches. */
+function orderNode(node: MenuNode): Record<string, unknown> {
+  const out: Record<string, unknown> = { label: node.label };
+  if (node.icon !== undefined) out.icon = node.icon;
+  if (node.action !== undefined) out.action = orderActionRef(node.action);
+  if (node.keepOpen) out.keepOpen = true;
+  if (node.activation !== undefined)
+    out.activation = { inputs: node.activation.inputs.map(orderInput) };
+  if (node.exit !== undefined) out.exit = { inputs: node.exit.inputs.map(orderInput) };
+  if (node.branches !== undefined) out.branches = node.branches.map(orderNode);
   return out;
 }
 
@@ -1098,9 +1049,8 @@ export function serializeMenuConfig(config: MenuConfig): string {
   const out: Record<string, unknown> = { version: config.version };
   if (config.triggerButton !== undefined) out.triggerButton = config.triggerButton;
   if (config.axisInvert !== undefined) out.axisInvert = config.axisInvert;
-  if (config.centerField !== undefined) out.centerField = orderCenter(config.centerField);
   if (config.navigation !== undefined) out.navigation = orderNavigation(config.navigation);
-  out.sectors = config.sectors.map(orderSector);
+  out.root = orderNode(config.root);
   return JSON.stringify(out, null, 2) + '\n';
 }
 

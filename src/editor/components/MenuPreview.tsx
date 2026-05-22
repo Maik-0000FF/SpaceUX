@@ -15,13 +15,13 @@ import {
   sectorCenterAngle,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import { DEFAULT_TRIGGER_BUTTON, isCancelSector, resolveAxisInvert } from '@/shared/menu';
+import { DEFAULT_TRIGGER_BUTTON, isCancelNode, resolveAxisInvert } from '@/shared/menu';
 
 import { useEditorSpaceMouse } from '../hooks/useEditorSpaceMouse';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { sectorKey } from '../state/sector-keys';
-import { ringSectors } from '../state/selectors';
+import { ringBranches } from '../state/selectors';
 
 import styles from './MenuPreview.module.scss';
 
@@ -82,24 +82,24 @@ export function MenuPreview() {
       if (bnum !== (cfg.triggerButton ?? DEFAULT_TRIGGER_BUTTON)) return;
       const sector = liveSectorRef.current;
       if (sector === null) return;
-      const ring = ringSectors(cfg, useAppState.getState().viewPath);
+      const ring = ringBranches(cfg, useAppState.getState().viewPath);
       if (ring.length === 0) return;
       // axesToSector clamps its internal sectorCount to a minimum of 2, so a
       // 1-child ring can yield index 1 → out of bounds. Wrap into range, the
       // same guard the live pie uses (useDrillNavigation: rawSec % length).
       const idx = sector % ring.length;
-      if (ring[idx]?.children?.length) drillInto(idx);
+      if (ring[idx]?.branches?.length) drillInto(idx);
       else selectSector(idx);
     });
   }, [livePreview, drillInto, selectSector]);
 
-  const currentRing = config ? ringSectors(config, viewPath) : [];
+  const currentRing = config ? ringBranches(config, viewPath) : [];
   if (!config || currentRing.length === 0) {
     return <p className={styles.empty}>{config ? 'No sectors to preview.' : ''}</p>;
   }
 
   const isDrilled = viewPath.length > 0;
-  const parentRing = isDrilled ? ringSectors(config, viewPath.slice(0, -1)) : [];
+  const parentRing = isDrilled ? ringBranches(config, viewPath.slice(0, -1)) : [];
   const drilledIntoIndex = isDrilled ? viewPath[viewPath.length - 1]! : -1;
 
   // Same size formula as the live pie so the preview matches its on-screen
@@ -175,7 +175,7 @@ export function MenuPreview() {
         if (to !== null && to !== from) {
           moveSector(viewPath, from, to);
           selectSector(to);
-        } else if (currentRing[from]?.children?.length) {
+        } else if (currentRing[from]?.branches?.length) {
           drillInto(from); // click a branch → go in (it becomes the outer ring)
         } else {
           selectSector(from); // click a leaf → select for editing
@@ -250,20 +250,20 @@ export function MenuPreview() {
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
-                if (currentRing[i]?.children?.length) drillInto(i);
+                if (currentRing[i]?.branches?.length) drillInto(i);
                 else selectSector(i);
               }
             }}
             role="button"
             tabIndex={0}
-            aria-label={`${sector.children?.length ? 'Open' : 'Select'} ${sector.label}`}
+            aria-label={`${sector.branches?.length ? 'Open' : 'Select'} ${sector.label}`}
             aria-pressed={selected}
           >
             <path
               d={d}
               className={`${styles.wedge} ${selected ? styles.wedgeSelected : ''} ${
                 isDropTarget ? styles.wedgeDropTarget : ''
-              } ${isCancelSector(sector) ? styles.wedgeCancel : ''}`}
+              } ${isCancelNode(sector) ? styles.wedgeCancel : ''}`}
             />
             <text
               x={lx}
@@ -309,7 +309,7 @@ export function MenuPreview() {
           textAnchor="middle"
           dominantBaseline="central"
         >
-          {config.centerField?.label ?? '✕'}
+          {config.root.label || '✕'}
         </text>
       </g>
     </svg>

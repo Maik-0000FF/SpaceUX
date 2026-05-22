@@ -12,10 +12,9 @@ import {
   MAX_MENU_DEPTH,
   MAX_PIE_SCALE,
   MIN_PIE_SCALE,
-  type MenuCenter,
   type MenuConfig,
   type MenuNavigation,
-  type MenuSector,
+  type MenuNode,
 } from '@/shared/menu';
 
 import { eqPath, isPrefix, sectorHeight } from './move-targets';
@@ -66,13 +65,13 @@ type MenuSettingsState = {
   setConflict: (external: MenuConfigSnapshot, cause: ConfigChangeCause) => void;
   clearConflict: () => void;
   setSaveError: (saveError: string | null) => void;
-  /** Mutate the sector at `path` in place (immer). Tags the change
+  /** Mutate the node at `path` in place (immer). Tags the change
    *  `local` and dirty so it is written back. No-op on a stale path. */
-  updateSectorAt: (path: readonly number[], updater: (sector: Draft<MenuSector>) => void) => void;
-  /** Append a new default leaf sector to the ring at `ringPath`
+  updateNodeAt: (path: readonly number[], updater: (node: Draft<MenuNode>) => void) => void;
+  /** Append a new default leaf node to the ring at `ringPath`
    *  (`[]` = top level). No-op if the path is stale. */
   addSector: (ringPath: readonly number[]) => void;
-  /** Remove the sector at `index` within the ring at `ringPath`. No-op
+  /** Remove the node at `index` within the ring at `ringPath`. No-op
    *  if it would empty the ring (the validator requires a non-empty
    *  menu / non-empty submenu) or the index/path is invalid. */
   deleteSector: (ringPath: readonly number[], index: number) => void;
@@ -89,75 +88,61 @@ type MenuSettingsState = {
   setTriggerButton: (button: number) => void;
   /** Set the pie size multiplier (clamped to [MIN_PIE_SCALE, MAX_PIE_SCALE]). */
   setScale: (scale: number) => void;
-  /** Set the center field's label; an empty/blank value clears it (the
-   *  renderer falls back to ✕). Prunes an emptied centerField. */
-  setCenterLabel: (label: string) => void;
-  /** Set the center field's binding. `null` removes it (commit becomes
-   *  a silent dismiss) and prunes an emptied centerField; a string sets
-   *  (or creates) `binding.action`, preserving any existing per-action
-   *  config. An empty string is kept as `{ action: '' }` — distinct
-   *  from `null` — so the editor's "action mode" stays mounted while
-   *  the user retypes, mirroring the sector editor. */
-  setCenterBinding: (action: string | null) => void;
-  /** Set (or clear, with `undefined`) the center binding's per-action
-   *  config. No-op when the center has no binding. */
-  setCenterActionConfig: (config: Record<string, unknown> | undefined) => void;
+  /** Set the root (centre) label; an empty/blank value clears it (the
+   *  renderer falls back to ✕). */
+  setRootLabel: (label: string) => void;
+  /** Set the root's (centre's) commit action. `null` removes it (commit
+   *  becomes a silent dismiss); a string sets (or creates) `action.id`,
+   *  preserving any existing per-action config. An empty string is kept
+   *  as `{ id: '' }` — distinct from `null` — so the editor's "action
+   *  mode" stays mounted while the user retypes, mirroring the sector
+   *  editor. */
+  setRootAction: (id: string | null) => void;
+  /** Set (or clear, with `undefined`) the root action's per-action
+   *  config. No-op when the root has no action. */
+  setRootActionConfig: (config: Record<string, unknown> | undefined) => void;
   /** Replace the whole navigation block (gesture↔input bindings). The
    *  editor builds the new value immutably and hands it in. */
   setNavigation: (navigation: MenuNavigation) => void;
 };
 
 /** Return a copy of `config` with an editor-only stable id (see
- *  MenuSector.id) on every sector, recursively. Adopted configs arrive
- *  without ids; this gives the tree/list a reorder- and edit-stable
- *  identity. Pure — never mutates the input (the adopted snapshot may be
- *  a shared object, e.g. DEFAULT_MENU_CONFIG). */
+ *  MenuNode.id) on every node under the root, recursively. Adopted
+ *  configs arrive without ids; this gives the tree/list a reorder- and
+ *  edit-stable identity. Pure — never mutates the input (the adopted
+ *  snapshot may be a shared object, e.g. DEFAULT_MENU_CONFIG). The root
+ *  node itself is not assigned an id (it isn't a list/tree row). */
 function withSectorIds(config: MenuConfig): MenuConfig {
-  const tag = (sector: MenuSector): MenuSector => ({
-    ...sector,
-    id: sector.id ?? nextSectorId(),
-    ...(sector.children ? { children: sector.children.map(tag) } : {}),
+  const tag = (node: MenuNode): MenuNode => ({
+    ...node,
+    id: node.id ?? nextSectorId(),
+    ...(node.branches ? { branches: node.branches.map(tag) } : {}),
   });
-  return { ...config, sectors: config.sectors.map(tag) };
+  return {
+    ...config,
+    root: { ...config.root, branches: (config.root.branches ?? []).map(tag) },
+  };
 }
 
-/** Navigate to the children array (ring) at `ringPath` within an immer
- *  draft, or null if any segment isn't a branch. */
+/** Navigate to the branches array (ring) at `ringPath` within an immer
+ *  draft, or null if any segment isn't a submenu. */
 function draftRingAt(
   config: Draft<MenuConfig>,
   ringPath: readonly number[],
-): Draft<MenuSector>[] | null {
-  let ring: Draft<MenuSector>[] = config.sectors;
+): Draft<MenuNode>[] | null {
+  const top = config.root.branches;
+  if (!top) return null;
+  let ring: Draft<MenuNode>[] = top;
   for (const i of ringPath) {
-    const next = ring[i]?.children;
+    const next = ring[i]?.branches;
     if (!next) return null;
     ring = next;
   }
   return ring;
 }
 
-/** Ensure a `centerField` object exists on the draft and return it. */
-function ensureCenter(config: Draft<MenuConfig>): Draft<MenuCenter> {
-  if (!config.centerField) config.centerField = {};
-  return config.centerField;
-}
-
-/** Drop an all-empty `centerField` (no label/icon/binding) from the
- *  draft, so the working copy matches what the validator persists — it
- *  normalises `{}` to "no center field". Keeps undo history and the
- *  on-disk diff free of meaningless empty objects. */
-function pruneCenter(config: Draft<MenuConfig>): void {
-  const c = config.centerField;
-  if (c && c.label === undefined && c.icon === undefined && c.binding === undefined) {
-    delete config.centerField;
-  }
-}
-
-/** Navigate to the sector at a full index path within an immer draft. */
-function draftSectorAt(
-  config: Draft<MenuConfig>,
-  path: readonly number[],
-): Draft<MenuSector> | null {
+/** Navigate to the node at a full index path within an immer draft. */
+function draftSectorAt(config: Draft<MenuConfig>, path: readonly number[]): Draft<MenuNode> | null {
   if (path.length === 0) return null;
   const ring = draftRingAt(config, path.slice(0, -1));
   return ring?.[path[path.length - 1]!] ?? null;
@@ -205,14 +190,16 @@ export const useMenuSettings = create<MenuSettingsState>()(
         set((state) => {
           state.saveError = saveError;
         }),
-      updateSectorAt: (path, updater) =>
+      updateNodeAt: (path, updater) =>
         set((state) => {
           if (!state.config || path.length === 0) return;
-          let ring: Draft<MenuSector>[] = state.config.sectors;
+          const top = state.config.root.branches;
+          if (!top) return;
+          let ring: Draft<MenuNode>[] = top;
           for (let k = 0; k < path.length - 1; k++) {
-            const children = ring[path[k]!]?.children;
-            if (!children) return; // stale path — nothing to update
-            ring = children;
+            const branches = ring[path[k]!]?.branches;
+            if (!branches) return; // stale path — nothing to update
+            ring = branches;
           }
           const target = ring[path[path.length - 1]!];
           if (!target) return;
@@ -267,10 +254,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (fromIndex < 0 || fromIndex >= fromRing.length) return;
           if (fromRingPath.length === 0 && fromRing.length <= 1) return; // don't empty root
           // Don't let the moved subtree exceed the nesting cap at its new home.
-          if (
-            toRingPath.length + sectorHeight(fromRing[fromIndex] as MenuSector) >
-            MAX_MENU_DEPTH
-          ) {
+          if (toRingPath.length + sectorHeight(fromRing[fromIndex] as MenuNode) > MAX_MENU_DEPTH) {
             return;
           }
           const [moved] = fromRing.splice(fromIndex, 1);
@@ -278,7 +262,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
           // A submenu emptied by the move drops its level: parent → leaf.
           if (fromRing.length === 0 && fromRingPath.length > 0) {
             const parent = draftSectorAt(state.config, fromRingPath);
-            if (parent) delete parent.children;
+            if (parent) delete parent.branches;
           }
           state.origin = 'local';
           state.dirty = true;
@@ -297,33 +281,31 @@ export const useMenuSettings = create<MenuSettingsState>()(
           state.origin = 'local';
           state.dirty = true;
         }),
-      setCenterLabel: (label) =>
+      setRootLabel: (label) =>
         set((state) => {
           if (!state.config) return;
-          const center = ensureCenter(state.config);
-          if (label.trim() === '') delete center.label;
-          else center.label = label;
-          pruneCenter(state.config);
+          // The root label is required by the type but may be empty; an
+          // empty/blank value normalises to '' (renderer falls back to ✕).
+          state.config.root.label = label.trim() === '' ? '' : label;
           state.origin = 'local';
           state.dirty = true;
         }),
-      setCenterBinding: (action) =>
+      setRootAction: (id) =>
         set((state) => {
           if (!state.config) return;
-          const center = ensureCenter(state.config);
-          if (action === null) delete center.binding;
-          else if (center.binding) center.binding.action = action;
-          else center.binding = { action };
-          pruneCenter(state.config);
+          const root = state.config.root;
+          if (id === null) delete root.action;
+          else if (root.action) root.action.id = id;
+          else root.action = { id };
           state.origin = 'local';
           state.dirty = true;
         }),
-      setCenterActionConfig: (config) =>
+      setRootActionConfig: (config) =>
         set((state) => {
-          const binding = state.config?.centerField?.binding;
-          if (!binding) return; // config is meaningless without a binding
-          if (config === undefined) delete binding.config;
-          else binding.config = config;
+          const action = state.config?.root.action;
+          if (!action) return; // config is meaningless without an action
+          if (config === undefined) delete action.config;
+          else action.config = config;
           state.origin = 'local';
           state.dirty = true;
         }),

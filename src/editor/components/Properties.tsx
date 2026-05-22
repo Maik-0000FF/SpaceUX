@@ -15,7 +15,7 @@ import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTargets, pathOfSectorId } from '../state/move-targets';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
-import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
+import { ringBranches, nodeAtPath, selectedPath } from '../state/selectors';
 import { nextSectorId } from '../state/sector-keys';
 
 import { ActionField } from './ActionField';
@@ -48,7 +48,7 @@ function quoteCommandPath(p: string): string {
  */
 export function Properties() {
   const config = useMenuSettings((s) => s.config);
-  const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
+  const updateNodeAt = useMenuSettings((s) => s.updateNodeAt);
   const deleteSector = useMenuSettings((s) => s.deleteSector);
   const moveSectorBetween = useMenuSettings((s) => s.moveSectorBetween);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
@@ -67,8 +67,8 @@ export function Properties() {
   const availableActions = useAvailableActions();
 
   const path = selectedPath(viewPath, selectedIndex);
-  const sector = config && path ? sectorAtPath(config, path) : null;
-  const isExec = sector?.binding?.action === builtinAction(BUILTIN_ACTION.EXEC);
+  const sector = config && path ? nodeAtPath(config, path) : null;
+  const isExec = sector?.action?.id === builtinAction(BUILTIN_ACTION.EXEC);
   // Global gestures this sector's activation shadows — it wins for this
   // item, so flag the override rather than block it. Empty without one.
   const activationShadows =
@@ -84,7 +84,7 @@ export function Properties() {
     // Capture the stable id first: index paths (incl. toRingPath) can shift
     // when the source splice reindexes a shared ancestor ring, so re-select
     // the moved sector by id rather than by its pre-move target path.
-    const movedId = sectorAtPath(config, path)?.id;
+    const movedId = nodeAtPath(config, path)?.id;
     moveSectorBetween(path, toRingPath);
     const current = useMenuSettings.getState().config;
     const newPath = current && movedId !== undefined ? pathOfSectorId(current, movedId) : null;
@@ -96,21 +96,21 @@ export function Properties() {
     if (!path) return;
     void window.editor.pickFile().then((file) => {
       if (!file) return;
-      updateSectorAt(path, (s) => {
-        if (s.binding) {
-          s.binding.config = { ...(s.binding.config ?? {}), command: quoteCommandPath(file) };
+      updateNodeAt(path, (s) => {
+        if (s.action) {
+          s.action.config = { ...(s.action.config ?? {}), command: quoteCommandPath(file) };
         }
       });
     });
   };
 
   const canDelete =
-    selectedIndex !== null && (config ? ringSectors(config, viewPath).length : 0) > 1;
+    selectedIndex !== null && (config ? ringBranches(config, viewPath).length : 0) > 1;
   const handleDelete = (): void => {
     if (selectedIndex === null) return;
     deleteSector(viewPath, selectedIndex);
     const current = useMenuSettings.getState().config;
-    const remaining = current ? ringSectors(current, viewPath).length : 0;
+    const remaining = current ? ringBranches(current, viewPath).length : 0;
     // Keep the editing flow: select a neighbour rather than nothing.
     if (remaining > 0) selectSector(Math.min(selectedIndex, remaining - 1));
     else clearSelection();
@@ -150,7 +150,7 @@ export function Properties() {
                 className={styles.input}
                 value={sector.label}
                 onChange={(e) =>
-                  updateSectorAt(path, (s) => {
+                  updateNodeAt(path, (s) => {
                     s.label = e.target.value;
                   })
                 }
@@ -159,24 +159,24 @@ export function Properties() {
             <Row label="Type">
               <select
                 className={styles.select}
-                value={sector.children !== undefined ? 'submenu' : 'action'}
+                value={sector.branches !== undefined ? 'submenu' : 'action'}
                 title={
-                  sector.children !== undefined
+                  sector.branches !== undefined
                     ? 'Switching to Action discards this submenu and its items'
                     : undefined
                 }
                 onChange={(e) =>
-                  updateSectorAt(path, (s) => {
+                  updateNodeAt(path, (s) => {
                     if (e.target.value === 'submenu') {
-                      if (s.children === undefined) {
-                        s.children = [{ label: 'New item', id: nextSectorId() }];
-                        delete s.binding;
+                      if (s.branches === undefined) {
+                        s.branches = [{ label: 'New item', id: nextSectorId() }];
+                        delete s.action;
                         // keepOpen is a leaf-only flag — a branch always
                         // stays open (it drills), so drop a stale one.
                         delete s.keepOpen;
                       }
                     } else {
-                      delete s.children;
+                      delete s.branches;
                     }
                   })
                 }
@@ -185,12 +185,12 @@ export function Properties() {
                 <option value="submenu">Submenu</option>
               </select>
             </Row>
-            {sector.children !== undefined && (
+            {sector.branches !== undefined && (
               <>
                 <Row label="Submenu items">
-                  <span className={styles.readonly}>{sector.children.length}</span>
+                  <span className={styles.readonly}>{sector.branches.length}</span>
                 </Row>
-                {sector.children.length > 0 && (
+                {sector.branches.length > 0 && (
                   <button
                     type="button"
                     className={styles.openButton}
@@ -203,29 +203,29 @@ export function Properties() {
                 )}
               </>
             )}
-            {sector.children === undefined && (
+            {sector.branches === undefined && (
               <>
                 {/* Keyed on the selection so ActionField's local "custom
                     mode" resets when you switch to another sector. */}
                 <ActionField
                   key={path.join('.')}
-                  binding={sector.binding}
+                  action={sector.action}
                   actions={availableActions}
                   onPick={(id) =>
-                    updateSectorAt(path, (s) => {
-                      if (s.binding) s.binding.action = id;
-                      else s.binding = { action: id };
+                    updateNodeAt(path, (s) => {
+                      if (s.action) s.action.id = id;
+                      else s.action = { id };
                     })
                   }
                   onCustomChange={(text) =>
-                    updateSectorAt(path, (s) => {
-                      if (s.binding) s.binding.action = text;
-                      else s.binding = { action: text };
+                    updateNodeAt(path, (s) => {
+                      if (s.action) s.action.id = text;
+                      else s.action = { id: text };
                     })
                   }
                   onClear={() =>
-                    updateSectorAt(path, (s) => {
-                      delete s.binding;
+                    updateNodeAt(path, (s) => {
+                      delete s.action;
                     })
                   }
                 />
@@ -234,18 +234,18 @@ export function Properties() {
                     Browse for file…
                   </button>
                 )}
-                {sector.binding !== undefined && (
+                {sector.action !== undefined && (
                   <>
                     {/* Keyed on the selection + remoteRev so the local JSON
                         text remounts on an external adoption, not while typing. */}
                     <ConfigEditor
                       key={`${path.join('.')}-${remoteRev}`}
-                      value={sector.binding.config}
+                      value={sector.action.config}
                       onChange={(cfg) =>
-                        updateSectorAt(path, (s) => {
-                          if (!s.binding) return;
-                          if (cfg === undefined) delete s.binding.config;
-                          else s.binding.config = cfg;
+                        updateNodeAt(path, (s) => {
+                          if (!s.action) return;
+                          if (cfg === undefined) delete s.action.config;
+                          else s.action.config = cfg;
                         })
                       }
                     />
@@ -258,7 +258,7 @@ export function Properties() {
                         value={sector.keepOpen ? 'keep' : 'close'}
                         title="Keep the menu open after this action fires — e.g. to nudge volume repeatedly with the same gesture"
                         onChange={(e) =>
-                          updateSectorAt(path, (s) => {
+                          updateNodeAt(path, (s) => {
                             if (e.target.value === 'keep') s.keepOpen = true;
                             else delete s.keepOpen;
                           })
@@ -280,12 +280,12 @@ export function Properties() {
                           offeredButtons={offeredButtons}
                           defaultThreshold={DEFAULT_ACTIVATION_THRESHOLD}
                           onChange={(next) =>
-                            updateSectorAt(path, (s) => {
+                            updateNodeAt(path, (s) => {
                               if (s.activation) s.activation.inputs[i] = next;
                             })
                           }
                           onRemove={() =>
-                            updateSectorAt(path, (s) => {
+                            updateNodeAt(path, (s) => {
                               s.activation?.inputs.splice(i, 1);
                               if (s.activation && s.activation.inputs.length === 0)
                                 delete s.activation;
@@ -298,7 +298,7 @@ export function Properties() {
                       type="button"
                       className={styles.openButton}
                       onClick={() =>
-                        updateSectorAt(path, (s) => {
+                        updateNodeAt(path, (s) => {
                           if (!s.activation) s.activation = { inputs: [] };
                           s.activation.inputs.push({ kind: 'none' });
                         })

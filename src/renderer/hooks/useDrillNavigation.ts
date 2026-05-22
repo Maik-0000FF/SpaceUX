@@ -34,14 +34,14 @@
 import { useEffect, useReducer, useRef, type Dispatch, type RefObject } from 'react';
 
 import {
-  currentSectors,
+  currentBranches,
   INITIAL_DRILL_STATE,
   drillReducer,
   resolvePuckFrame,
   type DrillAction,
   type DrillState,
 } from '@/core/menu-nav';
-import { type MenuConfig, type MenuSector } from '@/shared/menu';
+import { type MenuConfig, type MenuNode } from '@/shared/menu';
 
 export type UseDrillNavigation = {
   drillState: DrillState;
@@ -78,7 +78,7 @@ export function useDrillNavigation(opts: {
    *  leaf-commit path (close unless the sector is keepOpen, then invoke
    *  its binding). The drill-state reset stays the hook's job, like
    *  `onCommitCenter`. */
-  onActivate: (sector: MenuSector | undefined) => void;
+  onActivate: (node: MenuNode | undefined) => void;
 }): UseDrillNavigation {
   const { axes, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate } = opts;
 
@@ -146,9 +146,9 @@ export function useDrillNavigation(opts: {
         // (so a continuous action re-fires without reopening), mirroring
         // the keepOpen logic on MENU_COMMIT; App.tsx owns the window
         // hide + invoke.
-        const sector = currentSectors(menuConfig, navigation)[outcome.index];
-        if (!sector?.keepOpen) dispatch({ type: 'reset' });
-        onActivate(sector);
+        const node = currentBranches(menuConfig, navigation)[outcome.index];
+        if (!node?.keepOpen) dispatch({ type: 'reset' });
+        onActivate(node);
         break;
       }
       case 'exitToCenter':

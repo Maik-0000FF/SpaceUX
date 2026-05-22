@@ -10,7 +10,7 @@ import {
   builtinAction,
   type MenuConfig,
   type MenuNavigation,
-  type MenuSector,
+  type MenuNode,
 } from '../src/shared/menu';
 
 /**
@@ -47,14 +47,14 @@ const nav = (over: Partial<MenuNavigation>): MenuNavigation => ({
 });
 
 const SECTORS = [
-  { label: 'Branch', children: [{ label: 'C0' }, { label: 'C1' }] },
-  { label: 'Leaf', binding: { action: builtinAction('exec'), config: { command: 'x' } } },
+  { label: 'Branch', branches: [{ label: 'C0' }, { label: 'C1' }] },
+  { label: 'Leaf', action: { id: builtinAction('exec'), config: { command: 'x' } } },
 ];
 
 const config = (navigation: MenuNavigation): MenuConfig => ({
   version: MENU_CONFIG_VERSION,
   navigation,
-  sectors: SECTORS,
+  root: { label: '', branches: SECTORS },
 });
 
 describe('resolvePuckFrame — commit center', () => {
@@ -248,18 +248,18 @@ describe('resolvePuckFrame — per-item activation (#130 R2)', () => {
   // The hovered leaf (index 1) binds TZ− to fire its own binding. The
   // default global back is TZ both — so TZ down collides, and the per-item
   // activation must win for this item; TZ up still backs (direction-aware).
-  const ACT_SECTORS: MenuSector[] = [
-    { label: 'Branch', children: [{ label: 'C0' }, { label: 'C1' }] },
+  const ACT_SECTORS: MenuNode[] = [
+    { label: 'Branch', branches: [{ label: 'C0' }, { label: 'C1' }] },
     {
       label: 'Vol',
-      binding: { action: builtinAction('exec'), config: { command: 'x' } },
+      action: { id: builtinAction('exec'), config: { command: 'x' } },
       activation: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }] },
     },
   ];
   const actConfig = (navigation: MenuNavigation): MenuConfig => ({
     version: MENU_CONFIG_VERSION,
     navigation,
-    sectors: ACT_SECTORS,
+    root: { label: '', branches: ACT_SECTORS },
   });
 
   it('fires the hovered leaf and wins over the colliding global back', () => {
@@ -315,18 +315,18 @@ describe('resolvePuckFrame — per-item exit (#130 R3)', () => {
   // The hovered sector (index 1) binds TZ+ as its own way back to centre.
   // Global back is TZ both — so TZ up collides, and the per-item exit wins;
   // TZ down still backs (direction-aware).
-  const EXIT_SECTORS: MenuSector[] = [
-    { label: 'Branch', children: [{ label: 'C0' }, { label: 'C1' }] },
+  const EXIT_SECTORS: MenuNode[] = [
+    { label: 'Branch', branches: [{ label: 'C0' }, { label: 'C1' }] },
     {
       label: 'Item',
-      binding: { action: builtinAction('exec'), config: { command: 'x' } },
+      action: { id: builtinAction('exec'), config: { command: 'x' } },
       exit: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }] },
     },
   ];
   const exitConfig = (navigation: MenuNavigation): MenuConfig => ({
     version: MENU_CONFIG_VERSION,
     navigation,
-    sectors: EXIT_SECTORS,
+    root: { label: '', branches: EXIT_SECTORS },
   });
 
   it('deselects to centre and wins over the colliding global back', () => {

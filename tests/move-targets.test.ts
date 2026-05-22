@@ -10,22 +10,25 @@ import { moveTargets, pathOfSectorId, sectorHeight } from '../src/editor/state/m
 // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
 const cfg: MenuConfig = {
   version: 1,
-  sectors: [
-    { label: 'A', binding: { action: 'p/a' } },
-    {
-      label: 'B',
-      children: [
-        { label: 'B0', binding: { action: 'p/a' } },
-        { label: 'B1', children: [{ label: 'B1a', binding: { action: 'p/a' } }] },
-      ],
-    },
-  ],
+  root: {
+    label: '',
+    branches: [
+      { label: 'A', action: { id: 'p/a' } },
+      {
+        label: 'B',
+        branches: [
+          { label: 'B0', action: { id: 'p/a' } },
+          { label: 'B1', branches: [{ label: 'B1a', action: { id: 'p/a' } }] },
+        ],
+      },
+    ],
+  },
 };
 
 describe('sectorHeight', () => {
   it('is 0 for a leaf and counts the deepest descendant otherwise', () => {
-    expect(sectorHeight(cfg.sectors[0]!)).toBe(0); // A
-    expect(sectorHeight(cfg.sectors[1]!)).toBe(2); // B → B1 → B1a
+    expect(sectorHeight(cfg.root.branches![0]!)).toBe(0); // A
+    expect(sectorHeight(cfg.root.branches![1]!)).toBe(2); // B → B1 → B1a
   });
 });
 
@@ -56,10 +59,13 @@ describe('pathOfSectorId', () => {
   it('finds a sector by id at any depth, or null when absent', () => {
     const c: MenuConfig = {
       version: 1,
-      sectors: [
-        { label: 'A', id: 'a', binding: { action: 'p/a' } },
-        { label: 'B', id: 'b', children: [{ label: 'C', id: 'c', binding: { action: 'p/a' } }] },
-      ],
+      root: {
+        label: '',
+        branches: [
+          { label: 'A', id: 'a', action: { id: 'p/a' } },
+          { label: 'B', id: 'b', branches: [{ label: 'C', id: 'c', action: { id: 'p/a' } }] },
+        ],
+      },
     };
     expect(pathOfSectorId(c, 'a')).toEqual([0]);
     expect(pathOfSectorId(c, 'c')).toEqual([1, 0]);
