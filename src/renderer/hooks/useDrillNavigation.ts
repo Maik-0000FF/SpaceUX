@@ -97,6 +97,7 @@ export function useDrillNavigation(opts: {
   // drill or pop. `resetTransientRefs` re-asserts this on every
   // MENU_OPEN so a previous session's tail state can't carry over.
   const wasActivateRef = useRef<boolean>(true);
+  const wasExitRef = useRef<boolean>(true);
   const wasCommitRef = useRef<boolean>(true);
   const wasBackRef = useRef<boolean>(true);
   const wasDrillRef = useRef<boolean>(true);
@@ -121,6 +122,7 @@ export function useDrillNavigation(opts: {
       sticky: stickyChildIndex,
       edges: {
         activate: wasActivateRef.current,
+        exit: wasExitRef.current,
         commit: wasCommitRef.current,
         back: wasBackRef.current,
         drill: wasDrillRef.current,
@@ -131,6 +133,7 @@ export function useDrillNavigation(opts: {
     // gesture that was active but didn't fire (held past a previous
     // edge) must still be remembered so it doesn't re-fire next frame.
     wasActivateRef.current = edges.activate;
+    wasExitRef.current = edges.exit;
     wasCommitRef.current = edges.commit;
     wasBackRef.current = edges.back;
     wasDrillRef.current = edges.drill;
@@ -148,6 +151,12 @@ export function useDrillNavigation(opts: {
         onActivate(sector);
         break;
       }
+      case 'exitToCenter':
+        // Per-item exit: deselect to the centre, pie stays open. No IPC —
+        // a local selection change, like a "soft back" that lands on the
+        // centre field instead of popping the ring.
+        dispatch({ type: 'hover', index: null });
+        break;
       case 'commitCenter':
         // Reset our own reducer state on the way out (the callback only
         // hides the window + fires the binding); the next MENU_OPEN
@@ -186,6 +195,7 @@ export function useDrillNavigation(opts: {
       // MENU_OPEN doesn't claim a phantom rising edge on frame 1.
       // See the useRef initialisation above for the full rationale.
       wasActivateRef.current = true;
+      wasExitRef.current = true;
       wasCommitRef.current = true;
       wasBackRef.current = true;
       wasDrillRef.current = true;

@@ -252,6 +252,9 @@ export type PuckEdges = {
   /** Per-item activation of the hovered leaf (#130 R2). Checked first so
    *  a per-item input wins over a colliding global gesture. */
   activate: boolean;
+  /** Per-item exit-to-centre of the hovered sector (#130 R3). Like
+   *  `activate`, checked ahead of the global gestures. */
+  exit: boolean;
   commit: boolean;
   back: boolean;
   drill: boolean;
@@ -262,6 +265,7 @@ export type PuckEdges = {
  *  the renderer should take this frame. Mirrors the dispatches/callbacks
  *  the hook performed inline:
  *   - `activate`: fire the hovered leaf's binding (per-item activation).
+ *   - `exitToCenter`: deselect to the centre (per-item exit; pie stays open).
  *   - `commitCenter`: reset state + fire the centre binding (or dismiss).
  *   - `back`: `pop` one level, or `dismiss` at the top.
  *   - `drill`: drill into the branch at `index`.
@@ -269,6 +273,7 @@ export type PuckEdges = {
  *   - `none`: do nothing this frame. */
 export type PuckOutcome =
   | { kind: 'activate'; index: number }
+  | { kind: 'exitToCenter' }
   | { kind: 'commitCenter' }
   | { kind: 'back'; mode: 'pop' | 'dismiss' }
   | { kind: 'drill'; index: number }
@@ -333,6 +338,31 @@ export function resolvePuckFrame(args: {
       outcome: activateRising ? { kind: 'activate', index: sticky! } : { kind: 'none' },
       edges,
     };
+  }
+
+  // Per-item exit next (#130 R3): the hovered sector's own way back to the
+  // centre (deselect, pie stays open). Like activation, checked ahead of
+  // the global gestures so a per-item input wins on a shared one — e.g. the
+  // alternative way out when an activation has shadowed the global back.
+  const exiting = hovered?.exit !== undefined && gestureActive(hovered.exit, frame);
+  const exitRising = exiting && !edges.exit;
+  edges.exit = exiting;
+  if (exiting) {
+    // Exit deselects (nulls sticky), so next frame this short-circuit is
+    // gone — no hovered sector — and a still-held input would fall through
+    // to the lower-priority globals, whose edge memory this early return
+    // never touched (the R1 partial-update). With the default TZ-both back,
+    // that dismisses the menu one frame after the deselect — the opposite
+    // of "pie stays open". So fold the globals' current activity into the
+    // returned edges: a sustained input then claims no rising edge next
+    // frame; a real release + re-press is a fresh gesture. (Unlike commit
+    // and a top-level back, exit keeps the menu open, so it's the one path
+    // that must carry the held-input state forward.)
+    edges.commit = gestureActive(nav.commitCenter, frame);
+    edges.back = gestureActive(nav.back, frame);
+    edges.drill = gestureActive(nav.drillIn, frame);
+    edges.cycle = cycleStepFromInputs(nav.cycle.inputs, axes) !== 0;
+    return { outcome: exitRising ? { kind: 'exitToCenter' } : { kind: 'none' }, edges };
   }
 
   // Commit-center next: checked ahead of back so a shared axis resolves

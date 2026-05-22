@@ -116,6 +116,23 @@ describe('serializeMenuConfig', () => {
     if (result.ok) expect(result.config).toEqual(cfg);
   });
 
+  it('round-trips a per-item exit binding through the validator', () => {
+    const cfg: MenuConfig = {
+      version: 1,
+      sectors: [
+        {
+          label: 'Item',
+          binding: { action: 'org.spaceux.builtins/exec' },
+          exit: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }] },
+        },
+      ],
+    };
+    const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
+    const result = validateMenuConfig(parsed);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.config).toEqual(cfg);
+  });
+
   it('emits centerField before sectors', () => {
     const cfg: MenuConfig = {
       version: 1,
