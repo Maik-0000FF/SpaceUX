@@ -1,17 +1,26 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { BUILTIN_ACTION, builtinAction } from '@/shared/menu';
+import {
+  BUILTIN_ACTION,
+  DEFAULT_ACTIVATION_THRESHOLD,
+  builtinAction,
+  resolveNavigation,
+} from '@/shared/menu';
 
+import { useDeviceInfo } from '../hooks/useDeviceInfo';
+import { activationCollisions } from '../state/activation-collision';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTargets, pathOfSectorId } from '../state/move-targets';
+import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
 import { nextSectorId } from '../state/sector-keys';
 
 import { CenterFieldSettings } from './CenterFieldSettings';
 import { ConfigEditor } from './ConfigEditor';
 import { MenuSettings } from './MenuSettings';
+import { NavInputRow } from './NavInputRow';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
@@ -49,9 +58,20 @@ export function Properties() {
   const clearSelection = useAppState((s) => s.clearSelection);
   const drillInto = useAppState((s) => s.drillInto);
 
+  // Connected device's button count (0 = none/unknown) → constrains the
+  // activation input dropdown's button options (#66).
+  const { buttons: buttonCount } = useDeviceInfo();
+  const offeredButtons = buttonCount > 0 ? buttonCount : FALLBACK_BUTTON_COUNT;
+
   const path = selectedPath(viewPath, selectedIndex);
   const sector = config && path ? sectorAtPath(config, path) : null;
   const isExec = sector?.binding?.action === builtinAction(BUILTIN_ACTION.EXEC);
+  // Global gestures this sector's activation shadows — it wins for this
+  // item, so flag the override rather than block it. Empty without one.
+  const activationShadows =
+    config && sector?.activation
+      ? activationCollisions(sector.activation, resolveNavigation(config))
+      : [];
 
   // Rings the selected sector can be moved into (excludes its own ring, its
   // subtree, and too-deep targets). Picked from the "Move to…" dropdown.
@@ -235,6 +255,50 @@ export function Properties() {
                         <option value="keep">Keep menu open</option>
                       </select>
                     </Row>
+                    {/* Per-item activation: an input that fires THIS item's
+                        binding while it's hovered, on top of the global
+                        trigger. Resolved ahead of the global gestures, so it
+                        wins on a shared input (flagged below). */}
+                    <div className={styles.subheading}>Activate with</div>
+                    {(sector.activation?.inputs ?? []).map((input, i) => (
+                      <Row key={i} label={`Input ${i + 1}`}>
+                        <NavInputRow
+                          input={input}
+                          offeredButtons={offeredButtons}
+                          defaultThreshold={DEFAULT_ACTIVATION_THRESHOLD}
+                          onChange={(next) =>
+                            updateSectorAt(path, (s) => {
+                              if (s.activation) s.activation.inputs[i] = next;
+                            })
+                          }
+                          onRemove={() =>
+                            updateSectorAt(path, (s) => {
+                              s.activation?.inputs.splice(i, 1);
+                              if (s.activation && s.activation.inputs.length === 0)
+                                delete s.activation;
+                            })
+                          }
+                        />
+                      </Row>
+                    ))}
+                    <button
+                      type="button"
+                      className={styles.openButton}
+                      onClick={() =>
+                        updateSectorAt(path, (s) => {
+                          if (!s.activation) s.activation = { inputs: [] };
+                          s.activation.inputs.push({ kind: 'none' });
+                        })
+                      }
+                    >
+                      + Add input
+                    </button>
+                    {activationShadows.length > 0 && (
+                      <span className={styles.warning}>
+                        ⚠ Shares an input with global {activationShadows.join(', ')} — this item’s
+                        activation wins here.
+                      </span>
+                    )}
                   </>
                 )}
               </>

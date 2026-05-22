@@ -115,6 +115,14 @@
   color: rgba(255, 120, 120, 0.95);
 }
 
+// Informational, not an error: a per-item override that shadows a global
+// gesture (it still works — it wins for this item). Amber rather than red.
+.warning {
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(240, 190, 110, 0.95);
+}
+
 .empty {
   color: var(--editor-fg-dim);
   font-size: 13px;
