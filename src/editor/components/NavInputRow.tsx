@@ -8,6 +8,7 @@ import {
   type ActivationDirection,
   type InputBinding,
   type MagnitudeSource,
+  type MenuAxisName,
 } from '@/shared/menu';
 
 import { inputFromValue, inputThreshold, inputValue } from '../state/nav-input';
@@ -23,6 +24,30 @@ const MAGNITUDE_LABEL: Record<MagnitudeSource, string> = {
   lateral: 'Push (TX/TY)',
   tilt: 'Tilt (RX/RY)',
 };
+
+// Plain-language motion per axis so the dropdown reads as physical
+// gestures, not raw axis codes. `base` is the direction-agnostic verb
+// (used for the `both` split); positive/negative add a direction. The
+// sign→direction mapping is a best-effort default — SpaceMouse models
+// wire their signs differently and KDE's tilt sense varies (see the
+// MenuAxisInvert note in shared/menu.ts), so the raw axis + sign always
+// stays in parentheses as the ground truth. TZ is the one the codebase
+// pins down (TZ− = pushed down, TZ+ = pulled up).
+const AXIS_MOTION: Record<MenuAxisName, { base: string; positive: string; negative: string }> = {
+  tx: { base: 'Slide', positive: 'Slide right', negative: 'Slide left' },
+  ty: { base: 'Slide', positive: 'Slide forward', negative: 'Slide back' },
+  tz: { base: 'Press', positive: 'Lift up', negative: 'Press down' },
+  rx: { base: 'Tilt', positive: 'Tilt forward', negative: 'Tilt back' },
+  ry: { base: 'Tilt', positive: 'Tilt right', negative: 'Tilt left' },
+  rz: { base: 'Twist', positive: 'Twist right', negative: 'Twist left' },
+};
+
+/** "Tilt left (RY−)" — motion phrase + the raw axis/sign in parens. */
+function axisOptionLabel(axis: MenuAxisName, dir: ActivationDirection): string {
+  const m = AXIS_MOTION[axis];
+  const phrase = dir === 'positive' ? m.positive : dir === 'negative' ? m.negative : m.base;
+  return `${phrase} (${axis.toUpperCase()}${DIRECTION_SYMBOL[dir]})`;
+}
 
 /**
  * One input-binding picker row: a dropdown listing every input the
@@ -80,7 +105,7 @@ export function NavInputRow({
           {MENU_AXES.flatMap((axis) =>
             ACTIVATION_DIRECTIONS.map((dir) => (
               <option key={`${axis}:${dir}`} value={`axis:${axis}:${dir}`}>
-                {axis.toUpperCase()} {DIRECTION_SYMBOL[dir]}
+                {axisOptionLabel(axis, dir)}
               </option>
             )),
           )}
