@@ -100,6 +100,22 @@ export function App() {
     onActivate: activateNode,
   });
 
+  // Universal escape hatch: Escape always closes the open pie, regardless of
+  // trigger mode or which gestures are bound. Guarantees closability even
+  // for a config that binds nothing to back/commit/cancel (e.g. open mode
+  // with every navigation gesture unbound) — which otherwise has no way out.
+  useEffect(() => {
+    if (menuAnchor === null) return;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      dispatch({ type: 'reset' });
+      dismissMenu();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuAnchor, dispatch, dismissMenu]);
+
   useEffect(() => {
     // Pull once on mount so we never miss the initial config to a
     // startup race; the push channel handles hot-reloads later.
