@@ -325,11 +325,11 @@ export type MenuAxisName = (typeof MENU_AXES)[number];
 export const ACTIVATION_DIRECTIONS = ['positive', 'negative', 'both'] as const;
 export type ActivationDirection = (typeof ACTIVATION_DIRECTIONS)[number];
 
-/** Starting threshold the editor seeds a fresh axis activation with.
- *  Sits comfortably above the lateral deadzone (50) so a light
- *  deflection still hovers, in the low-hundreds range. The user tunes
- *  it from there. */
-export const DEFAULT_ACTIVATION_THRESHOLD = 200;
+/** Starting threshold the editor seeds a fresh axis gesture with — used
+ *  by the per-item activation and exit controls alike. Sits comfortably
+ *  above the lateral deadzone (50) so a light deflection still hovers, in
+ *  the low-hundreds range. The user tunes it from there. */
+export const DEFAULT_GESTURE_THRESHOLD = 200;
 
 /** Top-level menu config. */
 export type MenuConfig = {

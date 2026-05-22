@@ -4,7 +4,7 @@
 import { Fragment } from 'react';
 
 import {
-  DEFAULT_ACTIVATION_THRESHOLD,
+  DEFAULT_GESTURE_THRESHOLD,
   DEFAULT_TWIST_CYCLE_THRESHOLD,
   TWIST_CYCLE_PRIORITIES,
   resolveNavigation,
@@ -42,9 +42,9 @@ const GESTURE_LABELS: Record<GestureKey, string> = {
 
 /** Default threshold to seed a fresh analog input with, per gesture:
  *  cycle sits below the drill range (gentle twist steps, firm twist
- *  drills), the rest use the activation default. */
+ *  drills), the rest use the shared gesture default. */
 function defaultThresholdFor(key: GestureKey): number {
-  return key === 'cycle' ? DEFAULT_TWIST_CYCLE_THRESHOLD : DEFAULT_ACTIVATION_THRESHOLD;
+  return key === 'cycle' ? DEFAULT_TWIST_CYCLE_THRESHOLD : DEFAULT_GESTURE_THRESHOLD;
 }
 
 /** @param buttonCount Connected device's button count, or 0 when none —
