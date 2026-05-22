@@ -103,10 +103,11 @@
   stroke-width: 1.5;
 }
 
-// Selected for editing — bright outline, mirrors .wedgeSelected.
+// Selected for editing — signalled by the active fill, exactly like
+// .wedgeSelected (no white border; the fill alone signals selection).
+// A cancel root still wins (red) via .cancelCenterCancel below.
 .cancelCenterSelected {
-  stroke: var(--pie-border-active);
-  stroke-width: 2.5;
+  fill: rgb(from var(--pie-bg-active) r g b / var(--pie-opacity, 0.6));
 }
 
 // Root bound to the built-in cancel action → red abort target, like a
