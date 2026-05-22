@@ -20,9 +20,10 @@ import { Row } from './Row';
 import styles from './Properties.module.scss';
 
 /**
- * Editor for the menu-level navigation bindings (issue #105): each
- * gesture (drill in, back, cycle, commit-center) maps to a list of
- * inputs, any of which fires it. Every input is picked from one
+ * Editor for the menu-level ring-navigation bindings (issue #105): each
+ * gesture (drill in, back, cycle) maps to a list of inputs, any of which
+ * fires it. The centre's own trigger (commitCenter) lives in the centre
+ * editor — see RootSettings. Every input is picked from one
  * dropdown listing all the possibilities — device buttons, split axes,
  * and 2D push/tilt magnitudes — plus a threshold for the analog ones.
  *
@@ -31,7 +32,10 @@ import styles from './Properties.module.scss';
  * land in a later PR.
  */
 
-const GESTURE_KEYS = ['drillIn', 'back', 'cycle', 'commitCenter'] as const;
+// commitCenter is the *centre's* trigger — it lives with the centre's
+// label + action in RootSettings now (#129 consolidation), not here, so
+// this section is purely the ring-navigation gestures.
+const GESTURE_KEYS = ['drillIn', 'back', 'cycle'] as const;
 type GestureKey = (typeof GESTURE_KEYS)[number];
 // Plain-language labels, matching the per-item Entry/Exit wording rather
 // than the internal gesture keys (drillIn/back/…).
@@ -39,7 +43,6 @@ const GESTURE_LABELS: Record<GestureKey, string> = {
   drillIn: 'Open submenu',
   back: 'Go back / close',
   cycle: 'Step through items',
-  commitCenter: 'Activate center',
 };
 
 /** Default threshold to seed a fresh analog input with, per gesture:

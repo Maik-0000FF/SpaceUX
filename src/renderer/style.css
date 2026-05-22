@@ -89,9 +89,19 @@ body {
 
 /* A sector bound to the built-in cancel action: the abort target, red
  * like the centre ✕ (reuses --pie-cancel-bg-active). Listed after
- * .is-active (equal specificity) so a hovered cancel wedge stays red. */
+ * .is-active (equal specificity) so a hovered cancel wedge stays red.
+ * Full opacity (ignores the appearance slider) so the cancel reads as a
+ * fixed abort zone, not a perpetually half-active sector while cycling. */
 .pie-wedge.is-cancel {
-  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+  fill: var(--pie-cancel-bg-active);
+}
+
+/* The active/selected cancel wedge: the lifted red, so it shows it's the
+ * current target while keeping its red identity (mirrors how a normal
+ * wedge brightens when active). Higher specificity than .is-active and
+ * .is-cancel alone, so it wins for the combined state. */
+.pie-wedge.is-cancel.is-active {
+  fill: var(--pie-cancel-bg-hover);
 }
 
 /* Preview wedges (outer ring around a hovered branch). Dimmed so the
@@ -162,9 +172,9 @@ body {
 
 /* Root bound to the built-in cancel action → the centre is a red abort
  * target persistently (not just while it's the active commit target),
- * matching a cancel wedge. */
+ * matching a cancel wedge. Full opacity to match .pie-wedge.is-cancel. */
 .pie-cancel-center.is-cancel {
-  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+  fill: var(--pie-cancel-bg-active);
 }
 
 .pie-cancel-label {
