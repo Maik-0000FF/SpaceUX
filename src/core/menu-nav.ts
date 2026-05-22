@@ -36,7 +36,7 @@ import {
   type GestureFrame,
   type SixAxes,
 } from './pie-geometry';
-import { resolveAxisInvert, resolveNavigation } from '../shared/menu';
+import { isCancelNode, resolveAxisInvert, resolveNavigation } from '../shared/menu';
 import type { MenuConfig, MenuNode, TwistCyclePriority } from '../shared/menu';
 
 export type DrillState = {
@@ -381,10 +381,11 @@ export function resolvePuckFrame(args: {
   // one level. At the top level it walks INTO the centre (the tree root)
   // rather than dismissing outright (#147): from a hovered sector it
   // focuses the centre (pie stays open, like a per-item exit); from the
-  // centre itself (nothing hovered) it dismisses — the escape hatch,
-  // preserved so the default config (only `back` bound) can always close.
-  // Firing the centre's own action (e.g. cancel) is the separate,
-  // configurable commitCenter gesture.
+  // centre itself (nothing hovered) it dismisses — but only as a *fallback*
+  // escape: when the centre is itself bound to cancel, committing it (via
+  // commitCenter, or the trigger in toggle mode) is the close path, so back
+  // doesn't double it up — it just rests on the centre. The fallback keeps
+  // the default config (no centre cancel) always closable.
   const backing = gestureActive(nav.back, frame);
   const backRising = backing && !edges.back;
   edges.back = backing;
@@ -401,6 +402,9 @@ export function resolvePuckFrame(args: {
       edges.cycle = cycleStepFromInputs(nav.cycle.inputs, axes) !== 0;
       return { outcome: { kind: 'exitToCenter' }, edges };
     }
+    // At the centre. A cancel centre has its own close path (commit it), so
+    // back is a no-op there; otherwise back dismisses (the fallback escape).
+    if (isCancelNode(menuConfig.root)) return { outcome: { kind: 'none' }, edges };
     return { outcome: { kind: 'back', mode: 'dismiss' }, edges };
   }
 

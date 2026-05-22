@@ -156,6 +156,22 @@ describe('resolvePuckFrame — back / pop / dismiss', () => {
     expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
   });
 
+  it('does not dismiss from a cancel centre — it has its own close path (fallback only)', () => {
+    const cancelRoot: MenuConfig = {
+      version: MENU_CONFIG_VERSION,
+      navigation: nav({}),
+      root: { label: 'Quit', action: { id: builtinAction('cancel') }, branches: SECTORS },
+    };
+    const r = resolvePuckFrame({
+      menuConfig: cancelRoot,
+      axes: axes({ tz: -100 }),
+      navigation: [],
+      sticky: null, // at the centre, but the centre is cancel → no fallback dismiss
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+  });
+
   it('keeps the pie open the frame after walking to the centre while held (#147)', () => {
     // Frame 1 focuses the centre from a hovered sector and folds the
     // globals' activity into the edges; frame 2 (held, sticky now null)
