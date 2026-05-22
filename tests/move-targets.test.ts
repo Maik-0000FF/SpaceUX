@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MenuConfig } from '@/shared/menu';
 
-import { moveTargets, pathOfSectorId, sectorHeight } from '../src/editor/state/move-targets';
+import { moveTargets, pathOfNodeId, sectorHeight } from '../src/editor/state/move-targets';
 
 // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
 const cfg: MenuConfig = {
@@ -42,7 +42,7 @@ describe('moveTargets', () => {
   });
 
   it('excludes the current ring and the moved subtree (no cycle)', () => {
-    // B is a root sector; root is its current ring and [1]/[1,1] are inside
+    // B is a root node; root is its current ring and [1]/[1,1] are inside
     // its own subtree, so there's nowhere valid to move it.
     expect(moveTargets(cfg, [1])).toEqual([]);
   });
@@ -55,8 +55,8 @@ describe('moveTargets', () => {
   });
 });
 
-describe('pathOfSectorId', () => {
-  it('finds a sector by id at any depth, or null when absent', () => {
+describe('pathOfNodeId', () => {
+  it('finds a node by id at any depth, or null when absent', () => {
     const c: MenuConfig = {
       version: 1,
       root: {
@@ -67,8 +67,8 @@ describe('pathOfSectorId', () => {
         ],
       },
     };
-    expect(pathOfSectorId(c, 'a')).toEqual([0]);
-    expect(pathOfSectorId(c, 'c')).toEqual([1, 0]);
-    expect(pathOfSectorId(c, 'nope')).toBeNull();
+    expect(pathOfNodeId(c, 'a')).toEqual([0]);
+    expect(pathOfNodeId(c, 'c')).toEqual([1, 0]);
+    expect(pathOfNodeId(c, 'nope')).toBeNull();
   });
 });

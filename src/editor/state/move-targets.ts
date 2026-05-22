@@ -16,17 +16,17 @@ export function eqPath(a: readonly number[], b: readonly number[]): boolean {
 }
 
 /** Nesting height of a node: 0 for a leaf, 1 + deepest branch otherwise. */
-export function sectorHeight(sector: MenuNode): number {
-  if (!sector.branches || sector.branches.length === 0) return 0;
-  return 1 + Math.max(...sector.branches.map(sectorHeight));
+export function sectorHeight(node: MenuNode): number {
+  if (!node.branches || node.branches.length === 0) return 0;
+  return 1 + Math.max(...node.branches.map(sectorHeight));
 }
 
-/** A ring the selected sector may be moved into. `path` is the ring path
+/** A ring the selected node may be moved into. `path` is the ring path
  *  (`[]` = top level); `label` is its breadcrumb for the picker. */
 export type MoveTarget = { path: number[]; label: string };
 
 /**
- * Every ring the sector at `fromPath` can be moved into: the root and each
+ * Every ring the node at `fromPath` can be moved into: the root and each
  * submenu, minus its current ring (a no-op), minus its own subtree (a
  * cycle), and minus any ring too deep to hold the moved subtree without
  * exceeding MAX_MENU_DEPTH.
@@ -39,7 +39,7 @@ export function moveTargets(config: MenuConfig, fromPath: readonly number[]): Mo
   const fromRing = fromPath.slice(0, -1);
 
   const targets: MoveTarget[] = [];
-  const visit = (sectors: readonly MenuNode[], ringPath: number[], labels: string[]): void => {
+  const visit = (nodes: readonly MenuNode[], ringPath: number[], labels: string[]): void => {
     const eligible =
       !eqPath(ringPath, fromRing) && // not the current ring (no-op)
       !isPrefix(fromPath, ringPath) && // not inside the moved subtree (cycle)
@@ -50,9 +50,9 @@ export function moveTargets(config: MenuConfig, fromPath: readonly number[]): Mo
         label: labels.length ? labels.join(' › ') : 'Top level',
       });
     }
-    sectors.forEach((sector, i) => {
-      if (sector.branches && sector.branches.length > 0) {
-        visit(sector.branches, [...ringPath, i], [...labels, sector.label]);
+    nodes.forEach((node, i) => {
+      if (node.branches && node.branches.length > 0) {
+        visit(node.branches, [...ringPath, i], [...labels, node.label]);
       }
     });
   };
@@ -61,17 +61,17 @@ export function moveTargets(config: MenuConfig, fromPath: readonly number[]): Mo
 }
 
 /**
- * Index path to the sector carrying `id`, or null. Used to re-locate a
- * sector by its stable id after a move, since index paths shift when a
+ * Index path to the node carrying `id`, or null. Used to re-locate a
+ * node by its stable id after a move, since index paths shift when a
  * shared ancestor ring is spliced.
  */
-export function pathOfSectorId(config: MenuConfig, id: string): number[] | null {
-  const search = (sectors: readonly MenuNode[], prefix: number[]): number[] | null => {
-    for (let i = 0; i < sectors.length; i++) {
-      const sector = sectors[i]!;
-      if (sector.id === id) return [...prefix, i];
-      if (sector.branches) {
-        const found = search(sector.branches, [...prefix, i]);
+export function pathOfNodeId(config: MenuConfig, id: string): number[] | null {
+  const search = (nodes: readonly MenuNode[], prefix: number[]): number[] | null => {
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i]!;
+      if (node.id === id) return [...prefix, i];
+      if (node.branches) {
+        const found = search(node.branches, [...prefix, i]);
         if (found) return found;
       }
     }

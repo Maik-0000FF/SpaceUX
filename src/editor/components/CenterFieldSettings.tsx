@@ -11,7 +11,7 @@ import styles from './Properties.module.scss';
 
 /**
  * Menu-level editor for the configurable center field, shown under the
- * other whole-menu settings when no sector is selected.
+ * other whole-menu settings when no node is selected.
  *
  * Mirrors the live pie: a label (blank → the ✕ glyph) and an optional
  * bound action committed when the center wins. "On commit" defaults a
@@ -32,7 +32,7 @@ export function CenterFieldSettings() {
   // "Action mode" is keyed on action *presence*, not on the action id
   // string being non-empty — so clearing the field to retype keeps the
   // section mounted (action stays as `{ id: '' }`) instead of
-  // collapsing back to Dismiss, mirroring the sector editor's Type
+  // collapsing back to Dismiss, mirroring the node editor's Type
   // toggle.
   const hasBinding = root?.action !== undefined;
 
@@ -73,7 +73,7 @@ export function CenterFieldSettings() {
           </Row>
           <ConfigEditor
             // Remount on external adoption (not mid-typing), like the
-            // sector config editor.
+            // node config editor.
             key={`center-${remoteRev}`}
             value={root?.action?.config}
             onChange={(cfg) => setRootActionConfig(cfg)}

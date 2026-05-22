@@ -28,7 +28,7 @@ const MAGNITUDE_LABEL: Record<MagnitudeSource, string> = {
  * One input-binding picker row: a dropdown listing every input the
  * device offers (none / buttons / split axes / 2D magnitudes) plus an
  * inline threshold for the analog kinds and a remove button. Shared by
- * the menu-level navigation editor and the per-sector activation control
+ * the menu-level navigation editor and the per-node activation control
  * so the two can't drift on the option set or the encode/decode round
  * trip. The caller owns the binding list (add/remove, where it's stored);
  * this row just edits one entry.

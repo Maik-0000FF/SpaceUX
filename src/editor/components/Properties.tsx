@@ -13,10 +13,10 @@ import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { activationCollisions } from '../state/activation-collision';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
-import { moveTargets, pathOfSectorId } from '../state/move-targets';
+import { moveTargets, pathOfNodeId } from '../state/move-targets';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 import { ringBranches, nodeAtPath, selectedPath } from '../state/selectors';
-import { nextSectorId } from '../state/sector-keys';
+import { nextNodeId } from '../state/node-keys';
 
 import { ActionField } from './ActionField';
 import { CenterFieldSettings } from './CenterFieldSettings';
@@ -40,9 +40,9 @@ function quoteCommandPath(p: string): string {
 }
 
 /**
- * Right sidebar: editable properties of the selected sector (at any
+ * Right sidebar: editable properties of the selected node (at any
  * depth — the selection is the current ring's index, combined with the
- * view path). A sector is a leaf (action binding) or a branch (submenu);
+ * view path). A node is a leaf (action binding) or a branch (submenu);
  * the Type dropdown converts between them. A branch offers "Open
  * submenu" to drill in; Delete removes it from the current ring.
  */
@@ -67,27 +67,27 @@ export function Properties() {
   const availableActions = useAvailableActions();
 
   const path = selectedPath(viewPath, selectedIndex);
-  const sector = config && path ? nodeAtPath(config, path) : null;
-  const isExec = sector?.action?.id === builtinAction(BUILTIN_ACTION.EXEC);
-  // Global gestures this sector's activation shadows — it wins for this
+  const node = config && path ? nodeAtPath(config, path) : null;
+  const isExec = node?.action?.id === builtinAction(BUILTIN_ACTION.EXEC);
+  // Global gestures this node's activation shadows — it wins for this
   // item, so flag the override rather than block it. Empty without one.
   const activationShadows =
-    config && sector?.activation
-      ? activationCollisions(sector.activation, resolveNavigation(config))
+    config && node?.activation
+      ? activationCollisions(node.activation, resolveNavigation(config))
       : [];
 
-  // Rings the selected sector can be moved into (excludes its own ring, its
+  // Rings the selected node can be moved into (excludes its own ring, its
   // subtree, and too-deep targets). Picked from the "Move to…" dropdown.
   const targets = config && path ? moveTargets(config, path) : [];
   const handleMove = (toRingPath: number[]): void => {
     if (!path || !config) return;
     // Capture the stable id first: index paths (incl. toRingPath) can shift
     // when the source splice reindexes a shared ancestor ring, so re-select
-    // the moved sector by id rather than by its pre-move target path.
+    // the moved node by id rather than by its pre-move target path.
     const movedId = nodeAtPath(config, path)?.id;
     moveSectorBetween(path, toRingPath);
     const current = useMenuSettings.getState().config;
-    const newPath = current && movedId !== undefined ? pathOfSectorId(current, movedId) : null;
+    const newPath = current && movedId !== undefined ? pathOfNodeId(current, movedId) : null;
     if (newPath) selectPath(newPath);
   };
 
@@ -124,9 +124,9 @@ export function Properties() {
         <div className={styles.fields}>
           <CenterFieldSettings />
         </div>
-      ) : !sector || !path ? (
+      ) : !node || !path ? (
         <div className={styles.fields}>
-          <p className={styles.empty}>Select a sector to edit it.</p>
+          <p className={styles.empty}>Select a node to edit it.</p>
           {config && <MenuSettings />}
         </div>
       ) : (
@@ -138,7 +138,7 @@ export function Properties() {
           <section className={styles.flowSection}>
             <div className={styles.flowHeading}>↳ Entry</div>
             <p className={styles.sectionNote}>
-              Reached with the global navigation gestures — aim the puck at this sector, or cycle to
+              Reached with the global navigation gestures — aim the puck at this node, or cycle to
               step onto it. A per-item entry gesture lands later.
             </p>
           </section>
@@ -148,7 +148,7 @@ export function Properties() {
             <Row label="Label">
               <input
                 className={styles.input}
-                value={sector.label}
+                value={node.label}
                 onChange={(e) =>
                   updateNodeAt(path, (s) => {
                     s.label = e.target.value;
@@ -159,9 +159,9 @@ export function Properties() {
             <Row label="Type">
               <select
                 className={styles.select}
-                value={sector.branches !== undefined ? 'submenu' : 'action'}
+                value={node.branches !== undefined ? 'submenu' : 'action'}
                 title={
-                  sector.branches !== undefined
+                  node.branches !== undefined
                     ? 'Switching to Action discards this submenu and its items'
                     : undefined
                 }
@@ -169,7 +169,7 @@ export function Properties() {
                   updateNodeAt(path, (s) => {
                     if (e.target.value === 'submenu') {
                       if (s.branches === undefined) {
-                        s.branches = [{ label: 'New item', id: nextSectorId() }];
+                        s.branches = [{ label: 'New item', id: nextNodeId() }];
                         delete s.action;
                         // keepOpen is a leaf-only flag — a branch always
                         // stays open (it drills), so drop a stale one.
@@ -185,12 +185,12 @@ export function Properties() {
                 <option value="submenu">Submenu</option>
               </select>
             </Row>
-            {sector.branches !== undefined && (
+            {node.branches !== undefined && (
               <>
                 <Row label="Submenu items">
-                  <span className={styles.readonly}>{sector.branches.length}</span>
+                  <span className={styles.readonly}>{node.branches.length}</span>
                 </Row>
-                {sector.branches.length > 0 && (
+                {node.branches.length > 0 && (
                   <button
                     type="button"
                     className={styles.openButton}
@@ -203,13 +203,13 @@ export function Properties() {
                 )}
               </>
             )}
-            {sector.branches === undefined && (
+            {node.branches === undefined && (
               <>
                 {/* Keyed on the selection so ActionField's local "custom
-                    mode" resets when you switch to another sector. */}
+                    mode" resets when you switch to another node. */}
                 <ActionField
                   key={path.join('.')}
-                  action={sector.action}
+                  action={node.action}
                   actions={availableActions}
                   onPick={(id) =>
                     updateNodeAt(path, (s) => {
@@ -234,13 +234,13 @@ export function Properties() {
                     Browse for file…
                   </button>
                 )}
-                {sector.action !== undefined && (
+                {node.action !== undefined && (
                   <>
                     {/* Keyed on the selection + remoteRev so the local JSON
                         text remounts on an external adoption, not while typing. */}
                     <ConfigEditor
                       key={`${path.join('.')}-${remoteRev}`}
-                      value={sector.action.config}
+                      value={node.action.config}
                       onChange={(cfg) =>
                         updateNodeAt(path, (s) => {
                           if (!s.action) return;
@@ -255,7 +255,7 @@ export function Properties() {
                     <Row label="After action">
                       <select
                         className={styles.select}
-                        value={sector.keepOpen ? 'keep' : 'close'}
+                        value={node.keepOpen ? 'keep' : 'close'}
                         title="Keep the menu open after this action fires — e.g. to nudge volume repeatedly with the same gesture"
                         onChange={(e) =>
                           updateNodeAt(path, (s) => {
@@ -273,7 +273,7 @@ export function Properties() {
                         trigger. Resolved ahead of the global gestures, so it
                         wins on a shared input (flagged below). */}
                     <div className={styles.subheading}>Activate with</div>
-                    {(sector.activation?.inputs ?? []).map((input, i) => (
+                    {(node.activation?.inputs ?? []).map((input, i) => (
                       <Row key={i} label={`Input ${i + 1}`}>
                         <NavInputRow
                           input={input}
@@ -352,9 +352,9 @@ export function Properties() {
               className={styles.deleteButton}
               onClick={handleDelete}
               disabled={!canDelete}
-              title={canDelete ? 'Delete this sector' : 'A menu must keep at least one sector'}
+              title={canDelete ? 'Delete this node' : 'A menu must keep at least one node'}
             >
-              Delete sector
+              Delete node
             </button>
           </section>
         </div>

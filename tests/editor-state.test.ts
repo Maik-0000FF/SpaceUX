@@ -14,7 +14,7 @@ import {
 
 import { useAppState } from '../src/editor/state/app-state';
 import { useMenuSettings } from '../src/editor/state/menu-settings';
-import { pathOfSectorId } from '../src/editor/state/move-targets';
+import { pathOfNodeId } from '../src/editor/state/move-targets';
 import { ringBranches, nodeAtPath, selectedPath } from '../src/editor/state/selectors';
 
 // The editor's selection store and path resolver are pure logic, so
@@ -103,7 +103,7 @@ describe('nodeAtPath', () => {
     expect(nodeAtPath(nested, [])).toBeNull();
   });
 
-  it('resolves a top-level sector', () => {
+  it('resolves a top-level node', () => {
     expect(nodeAtPath(nested, [0])?.label).toBe('Leaf');
     expect(nodeAtPath(nested, [1])?.label).toBe('Branch');
   });
@@ -303,7 +303,7 @@ describe('menu-settings CRUD', () => {
     load([{ label: 'A' }, { label: 'B' }]);
     useMenuSettings.getState().deleteSector([], 0);
     expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
-    // The last remaining sector can't be deleted (validator needs ≥1).
+    // The last remaining node can't be deleted (validator needs ≥1).
     useMenuSettings.getState().deleteSector([], 0);
     expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
   });
@@ -335,15 +335,15 @@ describe('menu-settings CRUD', () => {
       s.branches = [{ label: 'New item' }];
       delete s.action;
     });
-    let sector = useMenuSettings.getState().config?.root.branches![0];
-    expect(sector?.action).toBeUndefined();
-    expect(sector?.branches?.length).toBe(1);
+    let node = useMenuSettings.getState().config?.root.branches![0];
+    expect(node?.action).toBeUndefined();
+    expect(node?.branches?.length).toBe(1);
     // submenu → action: drop the branches.
     useMenuSettings.getState().updateNodeAt([0], (s) => {
       delete s.branches;
     });
-    sector = useMenuSettings.getState().config?.root.branches![0];
-    expect(sector?.branches).toBeUndefined();
+    node = useMenuSettings.getState().config?.root.branches![0];
+    expect(node?.branches).toBeUndefined();
   });
 
   it('CRUD are no-ops for invalid indices or a stale ring path', () => {
@@ -491,14 +491,14 @@ describe('moveSectorBetween', () => {
     expect(ringLabels([0])).toEqual(['B0', 'B1', 'A']);
   });
 
-  it('re-locating the moved sector by id survives the index shift', () => {
+  it('re-locating the moved node by id survives the index shift', () => {
     // The bug the "Move to…" picker hit: toRingPath ([1]) is stale after the
     // move (B shifts to root[0]). Looking the moved item up by its stable id
     // lands on the correct new path instead.
     const aId = nodeAtPath(useMenuSettings.getState().config!, [0])!.id!;
     useMenuSettings.getState().moveSectorBetween([0], [1]); // A → B's children
     const after = useMenuSettings.getState().config!;
-    expect(pathOfSectorId(after, aId)).toEqual([0, 2]); // B is root[0]; A is its 3rd child
+    expect(pathOfNodeId(after, aId)).toEqual([0, 2]); // B is root[0]; A is its 3rd child
   });
 
   it('is a no-op for a cycle (target inside the moved subtree)', () => {

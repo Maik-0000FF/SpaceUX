@@ -20,7 +20,7 @@ import { DEFAULT_TRIGGER_BUTTON, isCancelNode, resolveAxisInvert } from '@/share
 import { useEditorSpaceMouse } from '../hooks/useEditorSpaceMouse';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
-import { sectorKey } from '../state/sector-keys';
+import { nodeKey } from '../state/node-keys';
 import { ringBranches } from '../state/selectors';
 
 import styles from './MenuPreview.module.scss';
@@ -42,12 +42,12 @@ const VIEW = OUTER_OUTER_RADIUS; // viewBox half-extent (reserves the outer ring
  * Centre stage: the menu drawn exactly as the live pie shows it. The
  * **current** menu is the active ring — the inner band at the top level,
  * and the outer band once drilled in (the parent menu then fills the inner
- * band as a dimmed breadcrumb, with the drilled-into sector marked). The
+ * band as a dimmed breadcrumb, with the drilled-into node marked). The
  * centre is the cancel target.
  *
  * Clicking a leaf in the active ring selects it; clicking a branch drills
  * into it (its submenu becomes the new active outer ring); dragging
- * reorders within the active ring. Clicking a breadcrumb sector navigates
+ * reorders within the active ring. Clicking a breadcrumb node navigates
  * back up to it.
  */
 export function MenuPreview() {
@@ -95,7 +95,7 @@ export function MenuPreview() {
 
   const currentRing = config ? ringBranches(config, viewPath) : [];
   if (!config || currentRing.length === 0) {
-    return <p className={styles.empty}>{config ? 'No sectors to preview.' : ''}</p>;
+    return <p className={styles.empty}>{config ? 'No nodes to preview.' : ''}</p>;
   }
 
   const isDrilled = viewPath.length > 0;
@@ -184,10 +184,10 @@ export function MenuPreview() {
       onPointerCancel={endDrag}
     >
       {/* Breadcrumb ring (the parent menu) — only when drilled in. Dimmed
-          and clickable to navigate back up; the drilled-into sector is
+          and clickable to navigate back up; the drilled-into node is
           marked brighter. */}
       {isDrilled &&
-        parentRing.map((sector, i) => {
+        parentRing.map((node, i) => {
           const c = sectorCenterAngle(i, parentRing.length);
           const h = Math.PI / parentRing.length;
           const d = describeWedgePath(RADIUS, INNER_RADIUS, c - h, c + h);
@@ -195,11 +195,11 @@ export function MenuPreview() {
           const ly = -Math.cos(c) * INNER_LABEL_RADIUS;
           return (
             <g
-              key={`crumb-${sectorKey(sector)}`}
+              key={`crumb-${nodeKey(node)}`}
               className={styles.breadcrumbGroup}
               role="button"
               tabIndex={0}
-              aria-label={`Back to ${sector.label}`}
+              aria-label={`Back to ${node.label}`}
               onClick={() => selectPath([...viewPath.slice(0, -1), i])}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
@@ -221,14 +221,14 @@ export function MenuPreview() {
                 textAnchor="middle"
                 dominantBaseline="middle"
               >
-                {sector.label}
+                {node.label}
               </text>
             </g>
           );
         })}
 
       {/* Active ring (the current menu): select / drag-reorder / drill. */}
-      {currentRing.map((sector, i) => {
+      {currentRing.map((node, i) => {
         const c = sectorCenterAngle(i, count) + activeRotation;
         const d = describeWedgePath(activeOuter, activeInner, c - half, c + half);
         // While live, the highlight follows the puck (liveSector); otherwise
@@ -239,7 +239,7 @@ export function MenuPreview() {
         const ly = -Math.cos(c) * activeLabel;
         return (
           <g
-            key={sectorKey(sector)}
+            key={nodeKey(node)}
             className={`${styles.wedgeGroup} ${dragFrom === i ? styles.dragging : ''}`}
             onPointerDown={(e) => {
               if (e.button !== 0) return;
@@ -256,14 +256,14 @@ export function MenuPreview() {
             }}
             role="button"
             tabIndex={0}
-            aria-label={`${sector.branches?.length ? 'Open' : 'Select'} ${sector.label}`}
+            aria-label={`${node.branches?.length ? 'Open' : 'Select'} ${node.label}`}
             aria-pressed={selected}
           >
             <path
               d={d}
               className={`${styles.wedge} ${selected ? styles.wedgeSelected : ''} ${
                 isDropTarget ? styles.wedgeDropTarget : ''
-              } ${isCancelNode(sector) ? styles.wedgeCancel : ''}`}
+              } ${isCancelNode(node) ? styles.wedgeCancel : ''}`}
             />
             <text
               x={lx}
@@ -272,7 +272,7 @@ export function MenuPreview() {
               textAnchor="middle"
               dominantBaseline="middle"
             >
-              {sector.label}
+              {node.label}
             </text>
           </g>
         );

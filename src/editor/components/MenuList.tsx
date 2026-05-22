@@ -8,7 +8,7 @@ import type { MenuNode } from '@/shared/menu';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTarget } from '../state/reorder';
-import { nextSectorId, sectorKey } from '../state/sector-keys';
+import { nextNodeId, nodeKey } from '../state/node-keys';
 import { ringBranches } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
@@ -20,7 +20,7 @@ function eqPath(a: readonly number[], b: readonly number[]): boolean {
 
 /**
  * Left sidebar: the whole menu as an expandable tree. Each row is one
- * sector, indented by depth; branches get a ▸/▾ toggle. Clicking a row
+ * node, indented by depth; branches get a ▸/▾ toggle. Clicking a row
  * jumps to it (parent ring → preview view, row → selection), so any nested
  * item is one click away.
  *
@@ -41,14 +41,14 @@ export function MenuList() {
   const selectedIndex = useAppState((s) => s.selectedIndex);
   const selectPath = useAppState((s) => s.selectPath);
 
-  // Expand/collapse keyed on sector identity (sectorKey → stable id) so the
+  // Expand/collapse keyed on node identity (nodeKey → stable id) so the
   // state survives reorder and edit.
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   // Sibling drag: the dragged node's ring + index, plus the hovered
   // insertion gap within that same ring (drag is confined to one ring).
   const [drag, setDrag] = useState<{ ring: number[]; index: number } | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
-  // Inline rename: the sectorKey of the row being renamed + its draft text.
+  // Inline rename: the nodeKey of the row being renamed + its draft text.
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   // Set on Escape so the blur that fires when the input unmounts can't
@@ -65,7 +65,7 @@ export function MenuList() {
     for (const idx of viewPath) {
       const node = ring[idx];
       if (!node) break;
-      ancestors.push(sectorKey(node));
+      ancestors.push(nodeKey(node));
       if (!node.branches) break;
       ring = node.branches;
     }
@@ -122,7 +122,7 @@ export function MenuList() {
     } else {
       updateNodeAt(path, (s) => {
         delete s.action;
-        s.branches = [{ label: 'New item', id: nextSectorId() }];
+        s.branches = [{ label: 'New item', id: nextNodeId() }];
       });
     }
     // Keep the *branch* selected (not the new child) so repeated ＋ adds
@@ -171,12 +171,12 @@ export function MenuList() {
   };
 
   const rows: ReactNode[] = [];
-  const walk = (sectors: readonly MenuNode[], ringPath: number[], depth: number): void => {
-    const ringLen = sectors.length;
-    sectors.forEach((sector, i) => {
+  const walk = (nodes: readonly MenuNode[], ringPath: number[], depth: number): void => {
+    const ringLen = nodes.length;
+    nodes.forEach((node, i) => {
       const path = [...ringPath, i];
-      const key = sectorKey(sector);
-      const isBranch = sector.branches !== undefined && sector.branches.length > 0;
+      const key = nodeKey(node);
+      const isBranch = node.branches !== undefined && node.branches.length > 0;
       const isOpen = expanded.has(key);
       const selected = eqPath(ringPath, viewPath) && selectedIndex === i;
       const inDragRing = drag !== null && eqPath(drag.ring, ringPath);
@@ -218,7 +218,7 @@ export function MenuList() {
               type="button"
               className={styles.chevron}
               aria-expanded={isOpen}
-              aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${sector.label}`}
+              aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${node.label}`}
               onClick={() => toggle(key)}
             >
               {isOpen ? '▾' : '▸'}
@@ -232,7 +232,7 @@ export function MenuList() {
               className={styles.rename}
               value={renameValue}
               autoFocus
-              aria-label={`Rename ${sector.label}`}
+              aria-label={`Rename ${node.label}`}
               onChange={(e) => setRenameValue(e.target.value)}
               onBlur={() => commitRename(path)}
               onKeyDown={(e) => {
@@ -253,7 +253,7 @@ export function MenuList() {
                 className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
                 aria-current={selected ? 'true' : undefined}
                 aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
-                title={sector.label}
+                title={node.label}
                 onClick={() => selectPath(path)}
                 onKeyDown={(e) => {
                   if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
@@ -262,14 +262,14 @@ export function MenuList() {
                   }
                 }}
               >
-                {sector.label}
+                {node.label}
               </button>
               <span className={styles.actions}>
                 <button
                   type="button"
                   className={styles.actionBtn}
                   title="Add child"
-                  aria-label={`Add child to ${sector.label}`}
+                  aria-label={`Add child to ${node.label}`}
                   onClick={() => addItem(path, isBranch, key)}
                 >
                   ＋
@@ -278,11 +278,11 @@ export function MenuList() {
                   type="button"
                   className={styles.actionBtn}
                   title="Rename"
-                  aria-label={`Rename ${sector.label}`}
+                  aria-label={`Rename ${node.label}`}
                   onClick={() => {
                     renameCancelled.current = false;
                     setRenaming(key);
-                    setRenameValue(sector.label);
+                    setRenameValue(node.label);
                   }}
                 >
                   ✎
@@ -297,7 +297,7 @@ export function MenuList() {
                         ? 'Delete (turns the parent back into a normal item)'
                         : 'Delete'
                   }
-                  aria-label={`Delete ${sector.label}`}
+                  aria-label={`Delete ${node.label}`}
                   disabled={ringPath.length === 0 && ringLen <= 1}
                   onClick={() => removeItem(ringPath, i, ringLen)}
                 >
@@ -309,7 +309,7 @@ export function MenuList() {
         </li>,
       );
 
-      if (isBranch && isOpen) walk(sector.branches!, path, depth + 1);
+      if (isBranch && isOpen) walk(node.branches!, path, depth + 1);
     });
   };
   if (config) walk(config.root.branches ?? [], [], 0);
@@ -333,7 +333,7 @@ export function MenuList() {
       {!config ? (
         <p className={styles.empty}>Loading…</p>
       ) : (config.root.branches?.length ?? 0) === 0 ? (
-        <p className={styles.empty}>No sectors configured.</p>
+        <p className={styles.empty}>No nodes configured.</p>
       ) : (
         <ul className={styles.list}>{rows}</ul>
       )}

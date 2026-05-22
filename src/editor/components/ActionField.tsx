@@ -19,8 +19,8 @@ const CUSTOM = '__custom__';
  * reveals the raw `pluginId/actionName` field — so arbitrary or
  * not-currently-loaded actions still work.
  *
- * Stateless about *which* sector it edits: the parent keys this on the
- * selection so the local "custom mode" resets when you switch sectors.
+ * Stateless about *which* node it edits: the parent keys this on the
+ * selection so the local "custom mode" resets when you switch nodes.
  */
 export function ActionField({
   action,
