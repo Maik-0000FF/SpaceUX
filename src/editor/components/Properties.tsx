@@ -1,12 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import {
-  BUILTIN_ACTION,
-  DEFAULT_GESTURE_THRESHOLD,
-  builtinAction,
-  resolveNavigation,
-} from '@/shared/menu';
+import { BUILTIN_ACTION, builtinAction, resolveNavigation } from '@/shared/menu';
 
 import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
@@ -21,8 +16,8 @@ import { nextNodeId } from '../state/node-keys';
 import { ActionField } from './ActionField';
 import { RootSettings } from './RootSettings';
 import { ConfigEditor } from './ConfigEditor';
+import { GestureInputList } from './GestureInputList';
 import { MenuSettings } from './MenuSettings';
-import { NavInputRow } from './NavInputRow';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
@@ -277,46 +272,30 @@ export function Properties() {
                         binding while it's hovered, on top of the global
                         trigger. Resolved ahead of the global gestures, so it
                         wins on a shared input (flagged below). */}
-                    <div className={styles.subheading}>Activate with</div>
-                    {(node.activation?.inputs ?? []).map((input, i) => (
-                      <Row key={i} label={`Input ${i + 1}`}>
-                        <NavInputRow
-                          input={input}
-                          offeredButtons={offeredButtons}
-                          defaultThreshold={DEFAULT_GESTURE_THRESHOLD}
-                          onChange={(next) =>
-                            updateNodeAt(path, (s) => {
-                              if (s.activation) s.activation.inputs[i] = next;
-                            })
-                          }
-                          onRemove={() =>
-                            updateNodeAt(path, (s) => {
-                              s.activation?.inputs.splice(i, 1);
-                              if (s.activation && s.activation.inputs.length === 0)
-                                delete s.activation;
-                            })
-                          }
-                        />
-                      </Row>
-                    ))}
-                    <button
-                      type="button"
-                      className={styles.openButton}
-                      onClick={() =>
+                    <GestureInputList
+                      heading="Activate with"
+                      binding={node.activation}
+                      offeredButtons={offeredButtons}
+                      shadows={activationShadows}
+                      verb="activation"
+                      onChangeInput={(i, next) =>
+                        updateNodeAt(path, (s) => {
+                          if (s.activation) s.activation.inputs[i] = next;
+                        })
+                      }
+                      onRemoveInput={(i) =>
+                        updateNodeAt(path, (s) => {
+                          s.activation?.inputs.splice(i, 1);
+                          if (s.activation && s.activation.inputs.length === 0) delete s.activation;
+                        })
+                      }
+                      onAddInput={() =>
                         updateNodeAt(path, (s) => {
                           if (!s.activation) s.activation = { inputs: [] };
                           s.activation.inputs.push({ kind: 'none' });
                         })
                       }
-                    >
-                      + Add input
-                    </button>
-                    {activationShadows.length > 0 && (
-                      <span className={styles.warning}>
-                        ⚠ Shares an input with global {activationShadows.join(', ')} — this item’s
-                        activation wins here.
-                      </span>
-                    )}
+                    />
                   </>
                 )}
               </>
@@ -334,44 +313,30 @@ export function Properties() {
                 deselects to the centre. Applies to any node (leaf or
                 submenu); resolved ahead of the global gestures, so it wins
                 on a shared input (flagged below). */}
-            <div className={styles.subheading}>Exit with</div>
-            {(node.exit?.inputs ?? []).map((input, i) => (
-              <Row key={i} label={`Input ${i + 1}`}>
-                <NavInputRow
-                  input={input}
-                  offeredButtons={offeredButtons}
-                  defaultThreshold={DEFAULT_GESTURE_THRESHOLD}
-                  onChange={(next) =>
-                    updateNodeAt(path, (s) => {
-                      if (s.exit) s.exit.inputs[i] = next;
-                    })
-                  }
-                  onRemove={() =>
-                    updateNodeAt(path, (s) => {
-                      s.exit?.inputs.splice(i, 1);
-                      if (s.exit && s.exit.inputs.length === 0) delete s.exit;
-                    })
-                  }
-                />
-              </Row>
-            ))}
-            <button
-              type="button"
-              className={styles.openButton}
-              onClick={() =>
+            <GestureInputList
+              heading="Exit with"
+              binding={node.exit}
+              offeredButtons={offeredButtons}
+              shadows={exitShadows}
+              verb="exit"
+              onChangeInput={(i, next) =>
+                updateNodeAt(path, (s) => {
+                  if (s.exit) s.exit.inputs[i] = next;
+                })
+              }
+              onRemoveInput={(i) =>
+                updateNodeAt(path, (s) => {
+                  s.exit?.inputs.splice(i, 1);
+                  if (s.exit && s.exit.inputs.length === 0) delete s.exit;
+                })
+              }
+              onAddInput={() =>
                 updateNodeAt(path, (s) => {
                   if (!s.exit) s.exit = { inputs: [] };
                   s.exit.inputs.push({ kind: 'none' });
                 })
               }
-            >
-              + Add input
-            </button>
-            {exitShadows.length > 0 && (
-              <span className={styles.warning}>
-                ⚠ Shares an input with global {exitShadows.join(', ')} — this item’s exit wins here.
-              </span>
-            )}
+            />
           </section>
 
           <section className={styles.flowSection}>
