@@ -373,11 +373,16 @@ export function resolvePuckFrame(args: {
 
   // Commit-center next: checked ahead of back so a shared axis resolves
   // to commit when its half is engaged. Rising-edge → a sustained
-  // deflection fires once.
+  // deflection fires once. Only fires when the centre is the active target
+  // (no sector hovered) — committing the centre while a sector is selected
+  // would wrongly fire the centre's action (e.g. close on a cancel centre)
+  // from a sector. The edge is tracked regardless so a gesture held across
+  // the sector→centre transition doesn't fire on arrival; a fresh press at
+  // the centre is required.
   const committing = gestureActive(nav.commitCenter, frame);
   const commitRising = committing && !edges.commit;
   edges.commit = committing;
-  if (committing) {
+  if (committing && sticky === null) {
     return { outcome: commitRising ? { kind: 'commitCenter' } : { kind: 'none' }, edges };
   }
 
