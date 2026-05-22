@@ -44,8 +44,9 @@
 }
 
 .wedgeSelected {
+  // The active fill alone signals selection — no white border highlight
+  // (it read as redundant). The base wedge border stays.
   fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
-  stroke: var(--pie-border-active);
 
   .wedgeGroup:hover & {
     fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
