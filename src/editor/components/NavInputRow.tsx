@@ -21,25 +21,28 @@ const DIRECTION_SYMBOL: Record<ActivationDirection, string> = {
   both: '±',
 };
 const MAGNITUDE_LABEL: Record<MagnitudeSource, string> = {
-  lateral: 'Push (TX/TY)',
+  // "Slide" matches the TX/TY axis verbs — this is the direction-agnostic
+  // lateral magnitude (hypot of TX/TY), i.e. slide the puck any way.
+  lateral: 'Slide (TX/TY)',
   tilt: 'Tilt (RX/RY)',
 };
 
 // Plain-language motion per axis so the dropdown reads as physical
 // gestures, not raw axis codes. `base` is the direction-agnostic verb
 // (used for the `both` split); positive/negative add a direction. The
-// sign→direction mapping is a best-effort default — SpaceMouse models
-// wire their signs differently and KDE's tilt sense varies (see the
+// sign→direction mapping is a best-effort default — every SpaceMouse
+// model wires its signs differently and KDE's sense varies (see the
 // MenuAxisInvert note in shared/menu.ts), so the raw axis + sign always
-// stays in parentheses as the ground truth. TZ is the one the codebase
-// pins down (TZ− = pushed down, TZ+ = pulled up).
+// stays in parentheses as the ground truth. This includes TZ: on this
+// dev's device pushing down is TZ+ (positive), so press/lift are mapped
+// to match it; the proper per-device fix is learn-axis (#111).
 const AXIS_MOTION: Record<MenuAxisName, { base: string; positive: string; negative: string }> = {
   tx: { base: 'Slide', positive: 'Slide right', negative: 'Slide left' },
   ty: { base: 'Slide', positive: 'Slide forward', negative: 'Slide back' },
   // `base` (the ± split) stays direction-neutral: TZ both is the shipped
   // default back gesture, so "Press / lift (TZ±)" must read as either way,
-  // not just downward.
-  tz: { base: 'Press / lift', positive: 'Lift up', negative: 'Press down' },
+  // not just one half.
+  tz: { base: 'Press / lift', positive: 'Press down', negative: 'Lift up' },
   rx: { base: 'Tilt', positive: 'Tilt forward', negative: 'Tilt back' },
   ry: { base: 'Tilt', positive: 'Tilt right', negative: 'Tilt left' },
   rz: { base: 'Twist', positive: 'Twist right', negative: 'Twist left' },
