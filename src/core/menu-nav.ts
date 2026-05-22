@@ -348,6 +348,20 @@ export function resolvePuckFrame(args: {
   const exitRising = exiting && !edges.exit;
   edges.exit = exiting;
   if (exiting) {
+    // Exit deselects (nulls sticky), so next frame this short-circuit is
+    // gone — no hovered sector — and a still-held input would fall through
+    // to the lower-priority globals, whose edge memory this early return
+    // never touched (the R1 partial-update). With the default TZ-both back,
+    // that dismisses the menu one frame after the deselect — the opposite
+    // of "pie stays open". So fold the globals' current activity into the
+    // returned edges: a sustained input then claims no rising edge next
+    // frame; a real release + re-press is a fresh gesture. (Unlike commit
+    // and a top-level back, exit keeps the menu open, so it's the one path
+    // that must carry the held-input state forward.)
+    edges.commit = gestureActive(nav.commitCenter, frame);
+    edges.back = gestureActive(nav.back, frame);
+    edges.drill = gestureActive(nav.drillIn, frame);
+    edges.cycle = cycleStepFromInputs(nav.cycle.inputs, axes) !== 0;
     return { outcome: exitRising ? { kind: 'exitToCenter' } : { kind: 'none' }, edges };
   }
 

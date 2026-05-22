@@ -376,4 +376,31 @@ describe('resolvePuckFrame — per-item exit (#130 R3)', () => {
     // No hovered sector → exit can't fire; TZ+ falls through to global back.
     expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
   });
+
+  it('keeps the pie open the frame after exit while the input stays held', () => {
+    // Regression: exit deselects (sticky→null), so the next frame has no
+    // hovered sector and the still-held TZ+ would fall through to the
+    // default TZ-both back and dismiss. The exit return folds the globals'
+    // activity into the edges to prevent that phantom rising edge.
+    const cfg = exitConfig(nav({}));
+    const f1 = resolvePuckFrame({
+      menuConfig: cfg,
+      axes: axes({ tz: 100 }),
+      navigation: [],
+      sticky: 1,
+      edges: FRESH,
+    });
+    expect(f1.outcome).toEqual({ kind: 'exitToCenter' });
+    // Global back marked active so it can't rising-edge next frame.
+    expect(f1.edges.back).toBe(true);
+    // Frame 2: input still held, sticky now null (hook applied hover(null)).
+    const f2 = resolvePuckFrame({
+      menuConfig: cfg,
+      axes: axes({ tz: 100 }),
+      navigation: [],
+      sticky: null,
+      edges: f1.edges,
+    });
+    expect(f2.outcome).toEqual({ kind: 'none' }); // not back/dismiss
+  });
 });
