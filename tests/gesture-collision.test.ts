@@ -29,7 +29,7 @@ describe('gestureShadows', () => {
       binding({ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }),
       nav({}),
     );
-    expect(r).toEqual(['Back']);
+    expect(r).toEqual(['Go back']);
   });
 
   it('does not flag a different axis', () => {
@@ -54,7 +54,7 @@ describe('gestureShadows', () => {
         commitCenter: { inputs: [{ kind: 'button', button: 1 }] },
       }),
     );
-    expect(r).toEqual(['Cycle', 'Commit center']);
+    expect(r).toEqual(['Step through items', 'Activate center']);
   });
 
   it('treats different input kinds as non-colliding', () => {

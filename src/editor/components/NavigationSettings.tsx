@@ -33,11 +33,13 @@ import styles from './Properties.module.scss';
 
 const GESTURE_KEYS = ['drillIn', 'back', 'cycle', 'commitCenter'] as const;
 type GestureKey = (typeof GESTURE_KEYS)[number];
+// Plain-language labels, matching the per-item Entry/Exit wording rather
+// than the internal gesture keys (drillIn/back/…).
 const GESTURE_LABELS: Record<GestureKey, string> = {
-  drillIn: 'Drill in',
-  back: 'Back / dismiss',
-  cycle: 'Cycle nodes',
-  commitCenter: 'Commit center',
+  drillIn: 'Open submenu',
+  back: 'Go back / close',
+  cycle: 'Step through items',
+  commitCenter: 'Activate center',
 };
 
 /** Default threshold to seed a fresh analog input with, per gesture:

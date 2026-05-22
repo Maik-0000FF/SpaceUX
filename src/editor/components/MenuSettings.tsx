@@ -11,11 +11,13 @@ import { Row } from './Row';
 import styles from './Properties.module.scss';
 
 /**
- * Menu-level settings shown when no node is selected: the trigger button
- * that opens this pie and the navigation gesture bindings. Operate on the
- * whole config rather than a single node. (The centre/root is edited via
- * its own row in the tree — see RootSettings. Pie design — size, theme,
- * opacity — lives in the preview section's design bar, see #107.)
+ * Menu-level settings: the trigger button that opens this pie and the
+ * navigation gesture bindings. Operate on the whole config rather than a
+ * single node, so Properties shows them in an always-present collapsible
+ * section above the selection editor (reachable whatever is selected).
+ * (The centre/root is edited via its own row in the tree — see
+ * RootSettings. Pie design — size, theme, opacity — lives in the preview
+ * section's design bar, see #107.)
  */
 export function MenuSettings() {
   const triggerButton = useMenuSettings((s) => s.config?.triggerButton);

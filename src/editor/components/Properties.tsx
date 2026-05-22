@@ -119,16 +119,25 @@ export function Properties() {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Properties</div>
+      {/* Menu-wide settings — the trigger button and the global navigation
+          gestures (open submenu, go back, …). Always present (collapsible)
+          so they're reachable whatever is selected, not only when nothing
+          is. The contextual editor for the selection follows below. */}
+      {config && (
+        <details className={styles.globalSection} open>
+          <summary className={styles.globalSummary}>Menu settings</summary>
+          <div className={styles.fields}>
+            <MenuSettings />
+          </div>
+        </details>
+      )}
       {config && centerSelected ? (
         // Root row / preview centre selected → edit the root node.
         <div className={styles.fields}>
           <RootSettings />
         </div>
       ) : !node || !path ? (
-        <div className={styles.fields}>
-          <p className={styles.empty}>Select a node to edit it.</p>
-          {config && <MenuSettings />}
-        </div>
+        <p className={styles.empty}>Select a node to edit it.</p>
       ) : (
         <div className={styles.fields}>
           {/* The item is edited along the flow you run with the puck:
@@ -305,9 +314,9 @@ export function Properties() {
           <section className={styles.flowSection}>
             <div className={styles.flowHeading}>↱ Exit</div>
             <p className={styles.sectionNote}>
-              The global Back gesture pops to the parent ring (or dismisses at the top level). A
-              per-item exit input instead returns focus to the centre — deselects, the menu stays
-              open — useful as the alternative way out when an activation has shadowed Back here.
+              The global “Go back” gesture pops to the parent ring (or dismisses at the top level).
+              A per-item exit input instead returns focus to the centre — deselects, the menu stays
+              open — useful as the alternative way out when an activation has shadowed Go back here.
             </p>
             {/* Per-item exit: an input that, while this node is hovered,
                 deselects to the centre. Applies to any node (leaf or

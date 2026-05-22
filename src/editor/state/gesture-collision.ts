@@ -18,10 +18,10 @@ import type { GestureBinding, InputBinding, MenuNavigation } from '@/shared/menu
  *  matter: a hovered item's binding can shadow back, the centre commit, a
  *  drill, or a cycle step on the same input. */
 const GLOBAL_GESTURE_LABELS = {
-  drillIn: 'Drill in',
-  back: 'Back',
-  cycle: 'Cycle',
-  commitCenter: 'Commit center',
+  drillIn: 'Open submenu',
+  back: 'Go back',
+  cycle: 'Step through items',
+  commitCenter: 'Activate center',
 } as const;
 
 type GlobalGestureKey = keyof typeof GLOBAL_GESTURE_LABELS;
