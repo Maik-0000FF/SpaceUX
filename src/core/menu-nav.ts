@@ -11,11 +11,11 @@
  * without a renderer harness.
  *
  * Conventions:
- *   - `navigation` is a path of zero-based sector indices, deepest
- *     last. `[]` = top level, `[0]` = inside `sectors[0].children`,
- *     `[0, 2]` = inside `sectors[0].children[2].children`, and so on.
- *   - `stickyChildIndex` is the user's currently-selected sector
- *     *inside the current ring* (the ring resolved by `currentSectors`).
+ *   - `navigation` is a path of zero-based node indices, deepest
+ *     last. `[]` = top level, `[0]` = inside `root.branches[0].branches`,
+ *     `[0, 2]` = inside `root.branches[0].branches[2].branches`, and so on.
+ *   - `stickyChildIndex` is the user's currently-selected node
+ *     *inside the current ring* (the ring resolved by `currentBranches`).
  *   - Commit and TZ-cancel are handled by the caller (they trigger
  *     side effects like firing an action or closing the menu);
  *     the reducer only mutates the navigation/selection state.
@@ -37,7 +37,7 @@ import {
   type SixAxes,
 } from './pie-geometry';
 import { resolveAxisInvert, resolveNavigation } from '../shared/menu';
-import type { MenuConfig, MenuSector, TwistCyclePriority } from '../shared/menu';
+import type { MenuConfig, MenuNode, TwistCyclePriority } from '../shared/menu';
 
 export type DrillState = {
   navigation: number[];
@@ -111,24 +111,25 @@ export function drillReducer(state: DrillState, action: DrillAction): DrillState
 
 /**
  * Walk the navigation path through the config tree and return the
- * sector list of the current ring. Falls back to the top-level
- * sectors if any intermediate step doesn't resolve to a branch —
+ * node list of the current ring. Falls back to the top-level
+ * branches if any intermediate step doesn't resolve to a submenu —
  * e.g. if the config was hot-reloaded mid-drill and the path is now
  * stale, the caller still sees a valid ring rather than `undefined`.
  *
  * Pure: no React, no DOM, no I/O. Tested in isolation.
  */
-export function currentSectors(config: MenuConfig, navigation: readonly number[]): MenuSector[] {
-  let level: MenuSector[] = config.sectors;
+export function currentBranches(config: MenuConfig, navigation: readonly number[]): MenuNode[] {
+  const top = config.root.branches ?? [];
+  let level: MenuNode[] = top;
   for (const i of navigation) {
-    const next = level[i]?.children;
+    const next = level[i]?.branches;
     // The `!next` branch fires on real-world stale paths (hot-reload
-    // turned a branch into a leaf). The `length === 0` branch is
+    // turned a submenu into a leaf). The `length === 0` branch is
     // belt-and-braces: the on-disk validator already rejects empty
-    // `children` arrays, but in-memory MenuConfig literals (e.g. in
+    // `branches` arrays, but in-memory MenuConfig literals (e.g. in
     // tests) can bypass that gate, and a 0-length ring would render
     // as a hole with no way out.
-    if (!next || next.length === 0) return config.sectors;
+    if (!next || next.length === 0) return top;
     level = next;
   }
   return level;
@@ -218,14 +219,14 @@ export function resolveTwistFrame(opts: {
  */
 export function navigationRingRotation(config: MenuConfig, navigation: readonly number[]): number {
   if (navigation.length === 0) return 0;
-  const parentRing = currentSectors(config, navigation.slice(0, -1));
+  const parentRing = currentBranches(config, navigation.slice(0, -1));
   const drilledIntoIndex = navigation[navigation.length - 1]!;
   return sectorCenterAngle(drilledIntoIndex, parentRing.length);
 }
 
 /**
- * Children of the currently-hovered sector in the active ring, or
- * `undefined` if no sector is hovered or the hovered sector is a
+ * Branches of the currently-hovered node in the active ring, or
+ * `undefined` if no node is hovered or the hovered node is a
  * leaf. The renderer reads this to decide whether (and what) to
  * draw as the concentric outer preview ring.
  *
@@ -233,13 +234,13 @@ export function navigationRingRotation(config: MenuConfig, navigation: readonly 
  * trigger for the outer ring is decoupled from React-rendering
  * test infrastructure.
  */
-export function previewChildren(
+export function previewBranches(
   config: MenuConfig,
   drillState: DrillState,
-): MenuSector[] | undefined {
+): MenuNode[] | undefined {
   if (drillState.stickyChildIndex === null) return undefined;
-  const ring = currentSectors(config, drillState.navigation);
-  return ring[drillState.stickyChildIndex]?.children;
+  const ring = currentBranches(config, drillState.navigation);
+  return ring[drillState.stickyChildIndex]?.branches;
 }
 
 /** Rising-edge memory for the gestures that fire once per engagement
@@ -313,10 +314,10 @@ export function resolvePuckFrame(args: {
   // drive everything. A later PR feeds real button state here.
   const frame: GestureFrame = { axes, buttons: [] };
 
-  const current = currentSectors(menuConfig, navigation);
+  const current = currentBranches(menuConfig, navigation);
 
   // Per-item activation first (#130 R2): if the hovered leaf binds an
-  // activation input and it rises, fire that sector's binding. Checked
+  // activation input and it rises, fire that node's action. Checked
   // ahead of every global gesture so a per-item input wins over a
   // colliding global one (e.g. binding TZ− to activate this item beats
   // the global TZ back — direction-aware, since back's other half stays
@@ -326,8 +327,8 @@ export function resolvePuckFrame(args: {
   const hovered = sticky !== null ? current[sticky] : undefined;
   const activation =
     hovered?.activation !== undefined &&
-    hovered.binding !== undefined &&
-    hovered.children === undefined
+    hovered.action !== undefined &&
+    hovered.branches === undefined
       ? hovered.activation
       : undefined;
   const activating = activation !== undefined && gestureActive(activation, frame);
@@ -445,7 +446,7 @@ export function resolvePuckFrame(args: {
 
   if (drillRising && drillTarget !== null) {
     const hovered = current[drillTarget];
-    if (hovered?.children) {
+    if (hovered?.branches) {
       return { outcome: { kind: 'drill', index: drillTarget }, edges };
     }
   }

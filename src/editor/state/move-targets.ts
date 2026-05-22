@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { MAX_MENU_DEPTH, type MenuConfig, type MenuSector } from '@/shared/menu';
+import { MAX_MENU_DEPTH, type MenuConfig, type MenuNode } from '@/shared/menu';
 
-import { sectorAtPath } from './selectors';
+import { nodeAtPath } from './selectors';
 
 /** `prefix` is a (non-strict) prefix of `path`. */
 export function isPrefix(prefix: readonly number[], path: readonly number[]): boolean {
@@ -15,10 +15,10 @@ export function eqPath(a: readonly number[], b: readonly number[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
-/** Nesting height of a sector: 0 for a leaf, 1 + deepest child otherwise. */
-export function sectorHeight(sector: MenuSector): number {
-  if (!sector.children || sector.children.length === 0) return 0;
-  return 1 + Math.max(...sector.children.map(sectorHeight));
+/** Nesting height of a node: 0 for a leaf, 1 + deepest branch otherwise. */
+export function sectorHeight(sector: MenuNode): number {
+  if (!sector.branches || sector.branches.length === 0) return 0;
+  return 1 + Math.max(...sector.branches.map(sectorHeight));
 }
 
 /** A ring the selected sector may be moved into. `path` is the ring path
@@ -33,13 +33,13 @@ export type MoveTarget = { path: number[]; label: string };
  */
 export function moveTargets(config: MenuConfig, fromPath: readonly number[]): MoveTarget[] {
   if (fromPath.length === 0) return [];
-  const moved = sectorAtPath(config, fromPath);
+  const moved = nodeAtPath(config, fromPath);
   if (!moved) return [];
   const height = sectorHeight(moved);
   const fromRing = fromPath.slice(0, -1);
 
   const targets: MoveTarget[] = [];
-  const visit = (sectors: readonly MenuSector[], ringPath: number[], labels: string[]): void => {
+  const visit = (sectors: readonly MenuNode[], ringPath: number[], labels: string[]): void => {
     const eligible =
       !eqPath(ringPath, fromRing) && // not the current ring (no-op)
       !isPrefix(fromPath, ringPath) && // not inside the moved subtree (cycle)
@@ -51,12 +51,12 @@ export function moveTargets(config: MenuConfig, fromPath: readonly number[]): Mo
       });
     }
     sectors.forEach((sector, i) => {
-      if (sector.children && sector.children.length > 0) {
-        visit(sector.children, [...ringPath, i], [...labels, sector.label]);
+      if (sector.branches && sector.branches.length > 0) {
+        visit(sector.branches, [...ringPath, i], [...labels, sector.label]);
       }
     });
   };
-  visit(config.sectors, [], []);
+  visit(config.root.branches ?? [], [], []);
   return targets;
 }
 
@@ -66,16 +66,16 @@ export function moveTargets(config: MenuConfig, fromPath: readonly number[]): Mo
  * shared ancestor ring is spliced.
  */
 export function pathOfSectorId(config: MenuConfig, id: string): number[] | null {
-  const search = (sectors: readonly MenuSector[], prefix: number[]): number[] | null => {
+  const search = (sectors: readonly MenuNode[], prefix: number[]): number[] | null => {
     for (let i = 0; i < sectors.length; i++) {
       const sector = sectors[i]!;
       if (sector.id === id) return [...prefix, i];
-      if (sector.children) {
-        const found = search(sector.children, [...prefix, i]);
+      if (sector.branches) {
+        const found = search(sector.branches, [...prefix, i]);
         if (found) return found;
       }
     }
     return null;
   };
-  return search(config.sectors, []);
+  return search(config.root.branches ?? [], []);
 }

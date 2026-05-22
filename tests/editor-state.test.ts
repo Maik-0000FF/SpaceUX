@@ -9,26 +9,30 @@ import {
   builtinAction,
   type MenuConfig,
   type MenuNavigation,
-  type MenuSector,
+  type MenuNode,
 } from '@/shared/menu';
 
 import { useAppState } from '../src/editor/state/app-state';
 import { useMenuSettings } from '../src/editor/state/menu-settings';
 import { pathOfSectorId } from '../src/editor/state/move-targets';
-import { ringSectors, sectorAtPath, selectedPath } from '../src/editor/state/selectors';
+import { ringBranches, nodeAtPath, selectedPath } from '../src/editor/state/selectors';
 
 // The editor's selection store and path resolver are pure logic, so
 // they're exercised here without a DOM — the components that consume
 // them stay verified by the manual Electron smoke test.
 
-// The store stamps editor-only `id`s onto adopted sectors; strip them to
-// compare against the (id-less) source config.
+// The store stamps editor-only `id`s onto adopted nodes; strip them to
+// compare against the (id-less) source config. The root itself never
+// gets an id, but its branches (recursively) do.
 function stripIds(config: MenuConfig): MenuConfig {
-  const strip = (s: MenuSector): MenuSector => {
-    const { id: _id, children, ...rest } = s;
-    return children ? { ...rest, children: children.map(strip) } : rest;
+  const strip = (s: MenuNode): MenuNode => {
+    const { id: _id, branches, ...rest } = s;
+    return branches ? { ...rest, branches: branches.map(strip) } : rest;
   };
-  return { ...config, sectors: config.sectors.map(strip) };
+  return {
+    ...config,
+    root: { ...config.root, branches: (config.root.branches ?? []).map(strip) },
+  };
 }
 
 describe('app-state navigation', () => {
@@ -77,41 +81,44 @@ describe('app-state navigation', () => {
   });
 });
 
-describe('sectorAtPath', () => {
+describe('nodeAtPath', () => {
   const nested: MenuConfig = {
     version: DEFAULT_MENU_CONFIG.version,
-    sectors: [
-      { label: 'Leaf', binding: { action: 'x/y' } },
-      {
-        label: 'Branch',
-        children: [
-          { label: 'Child0', binding: { action: 'a/b' } },
-          { label: 'Child1', binding: { action: 'c/d' } },
-        ],
-      },
-    ],
+    root: {
+      label: '',
+      branches: [
+        { label: 'Leaf', action: { id: 'x/y' } },
+        {
+          label: 'Branch',
+          branches: [
+            { label: 'Child0', action: { id: 'a/b' } },
+            { label: 'Child1', action: { id: 'c/d' } },
+          ],
+        },
+      ],
+    },
   };
 
   it('returns null for an empty path', () => {
-    expect(sectorAtPath(nested, [])).toBeNull();
+    expect(nodeAtPath(nested, [])).toBeNull();
   });
 
   it('resolves a top-level sector', () => {
-    expect(sectorAtPath(nested, [0])?.label).toBe('Leaf');
-    expect(sectorAtPath(nested, [1])?.label).toBe('Branch');
+    expect(nodeAtPath(nested, [0])?.label).toBe('Leaf');
+    expect(nodeAtPath(nested, [1])?.label).toBe('Branch');
   });
 
   it('resolves a nested child', () => {
-    expect(sectorAtPath(nested, [1, 1])?.label).toBe('Child1');
+    expect(nodeAtPath(nested, [1, 1])?.label).toBe('Child1');
   });
 
   it('returns null for an out-of-range index', () => {
-    expect(sectorAtPath(nested, [9])).toBeNull();
+    expect(nodeAtPath(nested, [9])).toBeNull();
   });
 
   it('returns null for a stale parent segment (no fallback to root)', () => {
-    expect(sectorAtPath(nested, [0, 0])).toBeNull(); // [0] is a leaf
-    expect(sectorAtPath(nested, [9, 0])).toBeNull(); // [9] does not exist
+    expect(nodeAtPath(nested, [0, 0])).toBeNull(); // [0] is a leaf
+    expect(nodeAtPath(nested, [9, 0])).toBeNull(); // [9] does not exist
   });
 });
 
@@ -123,18 +130,24 @@ describe('selectedPath', () => {
   });
 });
 
-describe('ringSectors', () => {
+describe('ringBranches', () => {
   const cfg: MenuConfig = {
     version: DEFAULT_MENU_CONFIG.version,
-    sectors: [{ label: 'Leaf' }, { label: 'Branch', children: [{ label: 'C0' }, { label: 'C1' }] }],
+    root: {
+      label: '',
+      branches: [
+        { label: 'Leaf' },
+        { label: 'Branch', branches: [{ label: 'C0' }, { label: 'C1' }] },
+      ],
+    },
   };
 
   it('returns the top-level ring for an empty view path', () => {
-    expect(ringSectors(cfg, []).map((s) => s.label)).toEqual(['Leaf', 'Branch']);
+    expect(ringBranches(cfg, []).map((s) => s.label)).toEqual(['Leaf', 'Branch']);
   });
 
   it('returns a submenu ring for a drilled-in path', () => {
-    expect(ringSectors(cfg, [1]).map((s) => s.label)).toEqual(['C0', 'C1']);
+    expect(ringBranches(cfg, [1]).map((s) => s.label)).toEqual(['C0', 'C1']);
   });
 });
 
@@ -151,17 +164,17 @@ describe('menu-settings', () => {
     expect(state.conflict).toBeNull();
   });
 
-  it('updateSectorAt edits in place and flags the change local + dirty', () => {
+  it('updateNodeAt edits in place and flags the change local + dirty', () => {
     useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
-    useMenuSettings.getState().updateSectorAt([0], (s) => {
+    useMenuSettings.getState().updateNodeAt([0], (s) => {
       s.label = 'Renamed';
     });
     const state = useMenuSettings.getState();
-    expect(state.config?.sectors[0]?.label).toBe('Renamed');
+    expect(state.config?.root.branches![0]?.label).toBe('Renamed');
     expect(state.origin).toBe('local');
     expect(state.dirty).toBe(true);
     // Immutable update — the shipped default constant is untouched.
-    expect(DEFAULT_MENU_CONFIG.sectors[0]?.label).not.toBe('Renamed');
+    expect(DEFAULT_MENU_CONFIG.root.branches![0]?.label).not.toBe('Renamed');
   });
 
   it('setConfig bumps remoteRev (so derived editors remount), markSaved does not', () => {
@@ -170,7 +183,7 @@ describe('menu-settings', () => {
     const afterAdopt = useMenuSettings.getState().remoteRev;
     expect(afterAdopt).toBe(before + 1);
     // A local edit + save must NOT bump it (avoids remount mid-typing).
-    useMenuSettings.getState().updateSectorAt([0], (s) => {
+    useMenuSettings.getState().updateNodeAt([0], (s) => {
       s.label = 'Y';
     });
     useMenuSettings.getState().markSaved(2);
@@ -179,7 +192,7 @@ describe('menu-settings', () => {
 
   it('markSaved clears dirty and updates the mtime baseline', () => {
     useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
-    useMenuSettings.getState().updateSectorAt([0], (s) => {
+    useMenuSettings.getState().updateNodeAt([0], (s) => {
       s.label = 'X';
     });
     expect(useMenuSettings.getState().dirty).toBe(true);
@@ -207,18 +220,18 @@ describe('menu-settings', () => {
 });
 
 describe('menu-settings undo/redo (zundo temporal)', () => {
-  const labelAt0 = () => useMenuSettings.getState().config?.sectors[0]?.label;
+  const labelAt0 = () => useMenuSettings.getState().config?.root.branches![0]?.label;
 
   it('steps through config edits with undo and redo', () => {
-    const original = DEFAULT_MENU_CONFIG.sectors[0]?.label;
+    const original = DEFAULT_MENU_CONFIG.root.branches![0]?.label;
     useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
     // Only edits made after this baseline should be undoable.
     useMenuSettings.temporal.getState().clear();
 
-    useMenuSettings.getState().updateSectorAt([0], (s) => {
+    useMenuSettings.getState().updateNodeAt([0], (s) => {
       s.label = 'A';
     });
-    useMenuSettings.getState().updateSectorAt([0], (s) => {
+    useMenuSettings.getState().updateNodeAt([0], (s) => {
       s.label = 'B';
     });
     expect(labelAt0()).toBe('B');
@@ -237,17 +250,17 @@ describe('menu-settings undo/redo (zundo temporal)', () => {
     useMenuSettings.temporal.getState().clear();
     const before = useMenuSettings.temporal.getState().pastStates.length;
     // Set the label to the value it already has → no state change.
-    useMenuSettings.getState().updateSectorAt([0], (s) => {
-      s.label = DEFAULT_MENU_CONFIG.sectors[0]!.label;
+    useMenuSettings.getState().updateNodeAt([0], (s) => {
+      s.label = DEFAULT_MENU_CONFIG.root.branches![0]!.label;
     });
     expect(useMenuSettings.temporal.getState().pastStates.length).toBe(before);
   });
 });
 
 describe('menu-settings CRUD', () => {
-  const load = (sectors: { label: string; binding?: { action: string } }[]) =>
+  const load = (branches: { label: string; action?: { id: string } }[]) =>
     useMenuSettings.getState().setConfig({
-      config: { version: DEFAULT_MENU_CONFIG.version, sectors },
+      config: { version: DEFAULT_MENU_CONFIG.version, root: { label: '', branches } },
       mtime: 1,
     });
 
@@ -255,7 +268,7 @@ describe('menu-settings CRUD', () => {
     load([{ label: 'A' }]);
     useMenuSettings.getState().addSector([]);
     const state = useMenuSettings.getState();
-    expect(state.config?.sectors.map((s) => s.label)).toEqual(['A', 'New item']);
+    expect(state.config?.root.branches!.map((s) => s.label)).toEqual(['A', 'New item']);
     expect(state.origin).toBe('local');
     expect(state.dirty).toBe(true);
   });
@@ -276,24 +289,23 @@ describe('menu-settings CRUD', () => {
     useMenuSettings.getState().setConfig({
       config: {
         version: DEFAULT_MENU_CONFIG.version,
-        sectors: [{ label: 'Branch', children: [{ label: 'C0' }] }],
+        root: { label: '', branches: [{ label: 'Branch', branches: [{ label: 'C0' }] }] },
       },
       mtime: 1,
     });
-    useMenuSettings.getState().addSector([0]); // into Branch's children
-    expect(useMenuSettings.getState().config?.sectors[0]?.children?.map((s) => s.label)).toEqual([
-      'C0',
-      'New item',
-    ]);
+    useMenuSettings.getState().addSector([0]); // into Branch's branches
+    expect(
+      useMenuSettings.getState().config?.root.branches![0]?.branches?.map((s) => s.label),
+    ).toEqual(['C0', 'New item']);
   });
 
   it('deleteSector removes within the ring but refuses to empty it', () => {
     load([{ label: 'A' }, { label: 'B' }]);
     useMenuSettings.getState().deleteSector([], 0);
-    expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual(['B']);
+    expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
     // The last remaining sector can't be deleted (validator needs ≥1).
     useMenuSettings.getState().deleteSector([], 0);
-    expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual(['B']);
+    expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
   });
 
   it('setTriggerButton sets the trigger and flags local/dirty', () => {
@@ -308,7 +320,7 @@ describe('menu-settings CRUD', () => {
   it('moveSector reorders so the item ends at the target index', () => {
     load([{ label: 'A' }, { label: 'B' }, { label: 'C' }, { label: 'D' }]);
     useMenuSettings.getState().moveSector([], 0, 2);
-    expect(useMenuSettings.getState().config?.sectors.map((s) => s.label)).toEqual([
+    expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual([
       'B',
       'C',
       'A',
@@ -317,26 +329,26 @@ describe('menu-settings CRUD', () => {
   });
 
   it('leaf↔branch conversion drops the mutually-exclusive field', () => {
-    load([{ label: 'X', binding: { action: 'p/a' } }]);
-    // action → submenu: seed a child, drop the binding.
-    useMenuSettings.getState().updateSectorAt([0], (s) => {
-      s.children = [{ label: 'New item' }];
-      delete s.binding;
+    load([{ label: 'X', action: { id: 'p/a' } }]);
+    // action → submenu: seed a child, drop the action.
+    useMenuSettings.getState().updateNodeAt([0], (s) => {
+      s.branches = [{ label: 'New item' }];
+      delete s.action;
     });
-    let sector = useMenuSettings.getState().config?.sectors[0];
-    expect(sector?.binding).toBeUndefined();
-    expect(sector?.children?.length).toBe(1);
-    // submenu → action: drop the children.
-    useMenuSettings.getState().updateSectorAt([0], (s) => {
-      delete s.children;
+    let sector = useMenuSettings.getState().config?.root.branches![0];
+    expect(sector?.action).toBeUndefined();
+    expect(sector?.branches?.length).toBe(1);
+    // submenu → action: drop the branches.
+    useMenuSettings.getState().updateNodeAt([0], (s) => {
+      delete s.branches;
     });
-    sector = useMenuSettings.getState().config?.sectors[0];
-    expect(sector?.children).toBeUndefined();
+    sector = useMenuSettings.getState().config?.root.branches![0];
+    expect(sector?.branches).toBeUndefined();
   });
 
   it('CRUD are no-ops for invalid indices or a stale ring path', () => {
     load([{ label: 'A' }, { label: 'B' }, { label: 'C' }]);
-    const labels = () => useMenuSettings.getState().config?.sectors.map((s) => s.label);
+    const labels = () => useMenuSettings.getState().config?.root.branches!.map((s) => s.label);
 
     useMenuSettings.getState().moveSector([], 1, 1); // same index
     expect(labels()).toEqual(['A', 'B', 'C']);
@@ -352,80 +364,87 @@ describe('menu-settings CRUD', () => {
   });
 });
 
-describe('menu-settings center field', () => {
+describe('menu-settings root (centre)', () => {
   const load = () =>
     useMenuSettings.getState().setConfig({
-      config: { version: DEFAULT_MENU_CONFIG.version, sectors: [{ label: 'A' }] },
+      config: {
+        version: DEFAULT_MENU_CONFIG.version,
+        root: { label: '', branches: [{ label: 'A' }] },
+      },
       mtime: 1,
     });
-  const center = () => useMenuSettings.getState().config?.centerField;
+  const root = () => useMenuSettings.getState().config?.root;
 
-  it('setCenterLabel sets the label and flags local/dirty', () => {
+  it('setRootLabel sets the label and flags local/dirty', () => {
     load();
-    useMenuSettings.getState().setCenterLabel('Close');
-    expect(center()?.label).toBe('Close');
+    useMenuSettings.getState().setRootLabel('Close');
+    expect(root()?.label).toBe('Close');
     expect(useMenuSettings.getState().origin).toBe('local');
     expect(useMenuSettings.getState().dirty).toBe(true);
   });
 
-  it('a blank label prunes an otherwise-empty centerField to undefined', () => {
+  it('a blank label normalises to the empty string (renderer falls back to ✕)', () => {
     load();
-    useMenuSettings.getState().setCenterLabel('Close');
-    useMenuSettings.getState().setCenterLabel('   ');
-    expect(center()).toBeUndefined();
+    useMenuSettings.getState().setRootLabel('Close');
+    useMenuSettings.getState().setRootLabel('   ');
+    expect(root()?.label).toBe('');
   });
 
-  it('setCenterBinding(null) removes the binding but keeps a label', () => {
+  it('setRootAction(null) removes the action but keeps a label', () => {
     load();
-    useMenuSettings.getState().setCenterLabel('Close');
-    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.CANCEL));
-    expect(center()?.binding).toEqual({ action: builtinAction(BUILTIN_ACTION.CANCEL) });
-    useMenuSettings.getState().setCenterBinding(null);
-    expect(center()?.binding).toBeUndefined();
-    expect(center()?.label).toBe('Close'); // label survives clearing the action
+    useMenuSettings.getState().setRootLabel('Close');
+    useMenuSettings.getState().setRootAction(builtinAction(BUILTIN_ACTION.CANCEL));
+    expect(root()?.action).toEqual({ id: builtinAction(BUILTIN_ACTION.CANCEL) });
+    useMenuSettings.getState().setRootAction(null);
+    expect(root()?.action).toBeUndefined();
+    expect(root()?.label).toBe('Close'); // label survives clearing the action
   });
 
-  it('setCenterBinding("") keeps the binding (action mode stays mounted)', () => {
+  it('setRootAction("") keeps the action (action mode stays mounted)', () => {
     // Distinct from null: clearing the action text leaves an empty
-    // binding so the editor's action section doesn't collapse mid-edit.
+    // action so the editor's action section doesn't collapse mid-edit.
     load();
-    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.CANCEL));
-    useMenuSettings.getState().setCenterBinding('');
-    expect(center()?.binding).toEqual({ action: '' });
+    useMenuSettings.getState().setRootAction(builtinAction(BUILTIN_ACTION.CANCEL));
+    useMenuSettings.getState().setRootAction('');
+    expect(root()?.action).toEqual({ id: '' });
   });
 
-  it('setCenterBinding preserves existing per-action config when changing the id', () => {
+  it('setRootAction preserves existing per-action config when changing the id', () => {
     load();
-    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.EXEC));
-    useMenuSettings.getState().setCenterActionConfig({ command: 'xdg-open .' });
-    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.KEY_COMBO));
-    expect(center()?.binding).toEqual({
-      action: builtinAction(BUILTIN_ACTION.KEY_COMBO),
+    useMenuSettings.getState().setRootAction(builtinAction(BUILTIN_ACTION.EXEC));
+    useMenuSettings.getState().setRootActionConfig({ command: 'xdg-open .' });
+    useMenuSettings.getState().setRootAction(builtinAction(BUILTIN_ACTION.KEY_COMBO));
+    expect(root()?.action).toEqual({
+      id: builtinAction(BUILTIN_ACTION.KEY_COMBO),
       config: { command: 'xdg-open .' },
     });
   });
 
-  it('setCenterActionConfig is a no-op without a binding', () => {
+  it('setRootActionConfig is a no-op without an action', () => {
     load();
-    useMenuSettings.getState().setCenterActionConfig({ x: 1 });
-    expect(center()).toBeUndefined();
+    useMenuSettings.getState().setRootActionConfig({ x: 1 });
+    expect(root()?.action).toBeUndefined();
   });
 
-  it('keeps the centerField while a field remains, prunes only when fully empty', () => {
+  it('keeps the action when the label is cleared (the root always exists)', () => {
     load();
-    useMenuSettings.getState().setCenterBinding(builtinAction(BUILTIN_ACTION.CANCEL));
-    useMenuSettings.getState().setCenterLabel('Close');
-    useMenuSettings.getState().setCenterLabel(''); // clears label, binding remains
-    expect(center()?.binding).toEqual({ action: builtinAction(BUILTIN_ACTION.CANCEL) });
-    useMenuSettings.getState().setCenterBinding(null); // now empty → pruned
-    expect(center()).toBeUndefined();
+    useMenuSettings.getState().setRootAction(builtinAction(BUILTIN_ACTION.CANCEL));
+    useMenuSettings.getState().setRootLabel('Close');
+    useMenuSettings.getState().setRootLabel(''); // clears label, action remains
+    expect(root()?.action).toEqual({ id: builtinAction(BUILTIN_ACTION.CANCEL) });
+    expect(root()?.label).toBe('');
+    useMenuSettings.getState().setRootAction(null); // now a plain dismiss
+    expect(root()?.action).toBeUndefined();
   });
 });
 
 describe('menu-settings navigation', () => {
   it('setNavigation replaces the block and flags local/dirty', () => {
     useMenuSettings.getState().setConfig({
-      config: { version: DEFAULT_MENU_CONFIG.version, sectors: [{ label: 'A' }] },
+      config: {
+        version: DEFAULT_MENU_CONFIG.version,
+        root: { label: '', branches: [{ label: 'A' }] },
+      },
       mtime: 1,
     });
     const nav: MenuNavigation = {
@@ -446,19 +465,22 @@ describe('moveSectorBetween', () => {
   // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
   const nested = (): MenuConfig => ({
     version: DEFAULT_MENU_CONFIG.version,
-    sectors: [
-      { label: 'A', binding: { action: 'p/a' } },
-      {
-        label: 'B',
-        children: [
-          { label: 'B0', binding: { action: 'p/a' } },
-          { label: 'B1', children: [{ label: 'B1a', binding: { action: 'p/a' } }] },
-        ],
-      },
-    ],
+    root: {
+      label: '',
+      branches: [
+        { label: 'A', action: { id: 'p/a' } },
+        {
+          label: 'B',
+          branches: [
+            { label: 'B0', action: { id: 'p/a' } },
+            { label: 'B1', branches: [{ label: 'B1a', action: { id: 'p/a' } }] },
+          ],
+        },
+      ],
+    },
   });
   const ringLabels = (path: readonly number[]): string[] =>
-    ringSectors(useMenuSettings.getState().config!, path).map((s) => s.label);
+    ringBranches(useMenuSettings.getState().config!, path).map((s) => s.label);
 
   beforeEach(() => useMenuSettings.getState().setConfig({ config: nested(), mtime: 1 }));
 
@@ -473,7 +495,7 @@ describe('moveSectorBetween', () => {
     // The bug the "Move to…" picker hit: toRingPath ([1]) is stale after the
     // move (B shifts to root[0]). Looking the moved item up by its stable id
     // lands on the correct new path instead.
-    const aId = sectorAtPath(useMenuSettings.getState().config!, [0])!.id!;
+    const aId = nodeAtPath(useMenuSettings.getState().config!, [0])!.id!;
     useMenuSettings.getState().moveSectorBetween([0], [1]); // A → B's children
     const after = useMenuSettings.getState().config!;
     expect(pathOfSectorId(after, aId)).toEqual([0, 2]); // B is root[0]; A is its 3rd child
@@ -494,6 +516,6 @@ describe('moveSectorBetween', () => {
     useMenuSettings.getState().moveSectorBetween([1, 1, 0], []); // B1a → top level
     expect(ringLabels([])).toEqual(['A', 'B', 'B1a']);
     // B1 had only B1a → it becomes a leaf.
-    expect(sectorAtPath(useMenuSettings.getState().config!, [1, 1])?.children).toBeUndefined();
+    expect(nodeAtPath(useMenuSettings.getState().config!, [1, 1])?.branches).toBeUndefined();
   });
 });

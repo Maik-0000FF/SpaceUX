@@ -3,13 +3,13 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-import type { MenuSector } from '@/shared/menu';
+import type { MenuNode } from '@/shared/menu';
 
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTarget } from '../state/reorder';
 import { nextSectorId, sectorKey } from '../state/sector-keys';
-import { ringSectors } from '../state/selectors';
+import { ringBranches } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
 
@@ -36,7 +36,7 @@ export function MenuList() {
   const addSector = useMenuSettings((s) => s.addSector);
   const moveSector = useMenuSettings((s) => s.moveSector);
   const deleteSector = useMenuSettings((s) => s.deleteSector);
-  const updateSectorAt = useMenuSettings((s) => s.updateSectorAt);
+  const updateNodeAt = useMenuSettings((s) => s.updateNodeAt);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
   const selectPath = useAppState((s) => s.selectPath);
@@ -61,13 +61,13 @@ export function MenuList() {
   useEffect(() => {
     if (!config) return;
     const ancestors: string[] = [];
-    let ring: readonly MenuSector[] = config.sectors;
+    let ring: readonly MenuNode[] = config.root.branches ?? [];
     for (const idx of viewPath) {
       const node = ring[idx];
       if (!node) break;
       ancestors.push(sectorKey(node));
-      if (!node.children) break;
-      ring = node.children;
+      if (!node.branches) break;
+      ring = node.branches;
     }
     if (ancestors.length === 0) return;
     setExpanded((prev) => {
@@ -120,9 +120,9 @@ export function MenuList() {
     if (isBranch) {
       addSector(path);
     } else {
-      updateSectorAt(path, (s) => {
-        delete s.binding;
-        s.children = [{ label: 'New item', id: nextSectorId() }];
+      updateNodeAt(path, (s) => {
+        delete s.action;
+        s.branches = [{ label: 'New item', id: nextSectorId() }];
       });
     }
     // Keep the *branch* selected (not the new child) so repeated ＋ adds
@@ -139,22 +139,22 @@ export function MenuList() {
     // plain leaf again. The root ring can't shrink to empty — its last
     // item's delete button is disabled, so `ring` is non-empty here.
     if (ringLen <= 1) {
-      updateSectorAt(ring, (s) => {
-        delete s.children;
+      updateNodeAt(ring, (s) => {
+        delete s.branches;
       });
       selectPath(ring);
       return;
     }
     deleteSector(ring, index);
     const after = useMenuSettings.getState().config;
-    const remaining = after ? ringSectors(after, ring).length : 0;
+    const remaining = after ? ringBranches(after, ring).length : 0;
     selectPath(remaining > 0 ? [...ring, Math.min(index, remaining - 1)] : []);
   };
 
   const addTopLevel = (): void => {
     addSector([]);
     const after = useMenuSettings.getState().config;
-    if (after) selectPath([after.sectors.length - 1]);
+    if (after) selectPath([(after.root.branches?.length ?? 0) - 1]);
   };
 
   const commitRename = (path: number[]): void => {
@@ -164,19 +164,19 @@ export function MenuList() {
     }
     const value = renameValue.trim();
     if (value)
-      updateSectorAt(path, (s) => {
+      updateNodeAt(path, (s) => {
         s.label = value;
       });
     setRenaming(null);
   };
 
   const rows: ReactNode[] = [];
-  const walk = (sectors: readonly MenuSector[], ringPath: number[], depth: number): void => {
+  const walk = (sectors: readonly MenuNode[], ringPath: number[], depth: number): void => {
     const ringLen = sectors.length;
     sectors.forEach((sector, i) => {
       const path = [...ringPath, i];
       const key = sectorKey(sector);
-      const isBranch = sector.children !== undefined && sector.children.length > 0;
+      const isBranch = sector.branches !== undefined && sector.branches.length > 0;
       const isOpen = expanded.has(key);
       const selected = eqPath(ringPath, viewPath) && selectedIndex === i;
       const inDragRing = drag !== null && eqPath(drag.ring, ringPath);
@@ -309,10 +309,10 @@ export function MenuList() {
         </li>,
       );
 
-      if (isBranch && isOpen) walk(sector.children!, path, depth + 1);
+      if (isBranch && isOpen) walk(sector.branches!, path, depth + 1);
     });
   };
-  if (config) walk(config.sectors, [], 0);
+  if (config) walk(config.root.branches ?? [], [], 0);
 
   return (
     <aside className={styles.sidebar}>
@@ -332,7 +332,7 @@ export function MenuList() {
       </div>
       {!config ? (
         <p className={styles.empty}>Loading…</p>
-      ) : config.sectors.length === 0 ? (
+      ) : (config.root.branches?.length ?? 0) === 0 ? (
         <p className={styles.empty}>No sectors configured.</p>
       ) : (
         <ul className={styles.list}>{rows}</ul>

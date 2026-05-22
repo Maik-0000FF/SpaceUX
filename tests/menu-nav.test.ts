@@ -5,11 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   INITIAL_DRILL_STATE,
-  currentSectors,
+  currentBranches,
   cycleSectorIndex,
   drillReducer,
   navigationRingRotation,
-  previewChildren,
+  previewBranches,
   resolveTwistFrame,
   type DrillState,
 } from '../src/core/menu-nav';
@@ -20,19 +20,22 @@ import { MENU_CONFIG_VERSION, builtinAction, type MenuConfig } from '../src/shar
  *  actually write so the tests exercise realistic shapes. */
 const NESTED_CONFIG: MenuConfig = {
   version: MENU_CONFIG_VERSION,
-  sectors: [
-    {
-      label: 'FreeCAD',
-      children: [
-        { label: 'New', binding: { action: builtinAction('exec'), config: { command: 'new' } } },
-        { label: 'Open', binding: { action: builtinAction('exec'), config: { command: 'open' } } },
-      ],
-    },
-    {
-      label: 'Terminal',
-      binding: { action: builtinAction('exec'), config: { command: 'konsole' } },
-    },
-  ],
+  root: {
+    label: '',
+    branches: [
+      {
+        label: 'FreeCAD',
+        branches: [
+          { label: 'New', action: { id: builtinAction('exec'), config: { command: 'new' } } },
+          { label: 'Open', action: { id: builtinAction('exec'), config: { command: 'open' } } },
+        ],
+      },
+      {
+        label: 'Terminal',
+        action: { id: builtinAction('exec'), config: { command: 'konsole' } },
+      },
+    ],
+  },
 };
 
 describe('drillReducer', () => {
@@ -144,13 +147,13 @@ describe('drillReducer', () => {
   });
 });
 
-describe('currentSectors', () => {
+describe('currentBranches', () => {
   it('returns the top-level sectors when navigation is empty', () => {
-    expect(currentSectors(NESTED_CONFIG, [])).toBe(NESTED_CONFIG.sectors);
+    expect(currentBranches(NESTED_CONFIG, [])).toBe(NESTED_CONFIG.root.branches);
   });
 
   it("walks one level into a branch's children", () => {
-    const result = currentSectors(NESTED_CONFIG, [0]);
+    const result = currentBranches(NESTED_CONFIG, [0]);
     expect(result).toHaveLength(2);
     expect(result[0]?.label).toBe('New');
     expect(result[1]?.label).toBe('Open');
@@ -161,35 +164,38 @@ describe('currentSectors', () => {
     // while the user is drilled in. Rather than crash with an
     // undefined, return the top so the user lands somewhere valid
     // — the renderer can re-pick after the config change settles.
-    const result = currentSectors(NESTED_CONFIG, [1]);
-    expect(result).toBe(NESTED_CONFIG.sectors);
+    const result = currentBranches(NESTED_CONFIG, [1]);
+    expect(result).toBe(NESTED_CONFIG.root.branches);
   });
 
   it('falls back to top-level when an index is out of range', () => {
-    expect(currentSectors(NESTED_CONFIG, [99])).toBe(NESTED_CONFIG.sectors);
+    expect(currentBranches(NESTED_CONFIG, [99])).toBe(NESTED_CONFIG.root.branches);
   });
 
   it('resolves a three-level deep navigation at runtime', () => {
     const deep: MenuConfig = {
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'L0',
-          children: [
-            {
-              label: 'L1',
-              children: [
-                {
-                  label: 'L2',
-                  binding: { action: builtinAction('exec'), config: { command: 'leaf' } },
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'L0',
+            branches: [
+              {
+                label: 'L1',
+                branches: [
+                  {
+                    label: 'L2',
+                    action: { id: builtinAction('exec'), config: { command: 'leaf' } },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     };
-    const result = currentSectors(deep, [0, 0]);
+    const result = currentBranches(deep, [0, 0]);
     expect(result).toHaveLength(1);
     expect(result[0]?.label).toBe('L2');
   });
@@ -215,39 +221,42 @@ describe('navigationRingRotation', () => {
     // a synthetic config so the math is unambiguous.
     const cfg: MenuConfig = {
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'first',
-          binding: { action: builtinAction('exec'), config: { command: 'a' } },
-        },
-        {
-          label: 'second',
-          children: [
-            { label: 'sub', binding: { action: builtinAction('exec'), config: { command: 'b' } } },
-          ],
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'first',
+            action: { id: builtinAction('exec'), config: { command: 'a' } },
+          },
+          {
+            label: 'second',
+            branches: [
+              { label: 'sub', action: { id: builtinAction('exec'), config: { command: 'b' } } },
+            ],
+          },
+        ],
+      },
     };
     expect(navigationRingRotation(cfg, [1])).toBeCloseTo(Math.PI);
   });
 });
 
-describe('previewChildren', () => {
+describe('previewBranches', () => {
   it('returns undefined when no sector is sticky', () => {
-    expect(previewChildren(NESTED_CONFIG, INITIAL_DRILL_STATE)).toBeUndefined();
+    expect(previewBranches(NESTED_CONFIG, INITIAL_DRILL_STATE)).toBeUndefined();
     expect(
-      previewChildren(NESTED_CONFIG, { navigation: [0], stickyChildIndex: null }),
+      previewBranches(NESTED_CONFIG, { navigation: [0], stickyChildIndex: null }),
     ).toBeUndefined();
   });
 
   it('returns undefined when the hovered sector is a leaf', () => {
     // Top-level "Terminal" sector — leaf, has binding, no children.
-    expect(previewChildren(NESTED_CONFIG, { navigation: [], stickyChildIndex: 1 })).toBeUndefined();
+    expect(previewBranches(NESTED_CONFIG, { navigation: [], stickyChildIndex: 1 })).toBeUndefined();
   });
 
   it('returns the children when the hovered sector is a branch', () => {
     // Top-level "FreeCAD" — branch with two leaves underneath.
-    const result = previewChildren(NESTED_CONFIG, { navigation: [], stickyChildIndex: 0 });
+    const result = previewBranches(NESTED_CONFIG, { navigation: [], stickyChildIndex: 0 });
     expect(result).toHaveLength(2);
     expect(result?.[0]?.label).toBe('New');
     expect(result?.[1]?.label).toBe('Open');
@@ -255,27 +264,30 @@ describe('previewChildren', () => {
 
   it('returns the grandchildren when drilled in and hovering a branch', () => {
     // Build a 3-level config so we can drill once and still hover a
-    // branch. The previewChildren contract must compose with depth.
+    // branch. The previewBranches contract must compose with depth.
     const deep: MenuConfig = {
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'L0',
-          children: [
-            {
-              label: 'L1-branch',
-              children: [
-                {
-                  label: 'leaf',
-                  binding: { action: builtinAction('exec'), config: { command: '' } },
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'L0',
+            branches: [
+              {
+                label: 'L1-branch',
+                branches: [
+                  {
+                    label: 'leaf',
+                    action: { id: builtinAction('exec'), config: { command: '' } },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     };
-    const result = previewChildren(deep, { navigation: [0], stickyChildIndex: 0 });
+    const result = previewBranches(deep, { navigation: [0], stickyChildIndex: 0 });
     expect(result).toHaveLength(1);
     expect(result?.[0]?.label).toBe('leaf');
   });

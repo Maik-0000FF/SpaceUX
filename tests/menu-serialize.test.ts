@@ -30,26 +30,25 @@ describe('serializeMenuConfig', () => {
     const a: MenuConfig = {
       version: 1,
       triggerButton: 0,
-      sectors: [{ label: 'A', binding: { action: 'p/x', config: { k: 1 } } }],
+      root: { label: '', branches: [{ label: 'A', action: { id: 'p/x', config: { k: 1 } } }] },
     };
     const b: MenuConfig = {
-      sectors: [{ binding: { config: { k: 1 }, action: 'p/x' }, label: 'A' }],
+      root: { branches: [{ action: { config: { k: 1 }, id: 'p/x' }, label: 'A' }], label: '' },
       triggerButton: 0,
       version: 1,
     } as MenuConfig;
     expect(serializeMenuConfig(a)).toBe(serializeMenuConfig(b));
-    // version precedes sectors in the output.
+    // version precedes root in the output.
     const out = serializeMenuConfig(a);
-    expect(out.indexOf('"version"')).toBeLessThan(out.indexOf('"sectors"'));
+    expect(out.indexOf('"version"')).toBeLessThan(out.indexOf('"root"'));
   });
 
   it('omits absent optional fields', () => {
-    const minimal: MenuConfig = { version: 1, sectors: [{ label: 'Solo' }] };
+    const minimal: MenuConfig = { version: 1, root: { label: '', branches: [{ label: 'Solo' }] } };
     const json = serializeMenuConfig(minimal);
     expect(json).not.toContain('triggerButton');
     expect(json).not.toContain('axisInvert');
-    expect(json).not.toContain('binding');
-    expect(json).not.toContain('centerField');
+    expect(json).not.toContain('action');
   });
 
   it('round-trips a navigation block through the validator', () => {
@@ -64,7 +63,7 @@ describe('serializeMenuConfig', () => {
         },
         commitCenter: { inputs: [{ kind: 'button', button: 1 }] },
       },
-      sectors: [{ label: 'Solo' }],
+      root: { label: '', branches: [{ label: 'Solo' }] },
     };
     const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
     const result = validateMenuConfig(parsed);
@@ -72,11 +71,14 @@ describe('serializeMenuConfig', () => {
     if (result.ok) expect(result.config).toEqual(cfg);
   });
 
-  it('round-trips a centerField (label + binding) through the validator', () => {
+  it('round-trips a root with a centre label + action through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,
-      centerField: { label: 'Close', binding: { action: 'org.spaceux.builtins/cancel' } },
-      sectors: [{ label: 'Solo' }],
+      root: {
+        label: 'Close',
+        action: { id: 'org.spaceux.builtins/cancel' },
+        branches: [{ label: 'Solo' }],
+      },
     };
     const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
     const result = validateMenuConfig(parsed);
@@ -84,12 +86,15 @@ describe('serializeMenuConfig', () => {
     if (result.ok) expect(result.config).toEqual(cfg);
   });
 
-  it('round-trips a keepOpen leaf sector through the validator', () => {
+  it('round-trips a keepOpen leaf node through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,
-      sectors: [
-        { label: 'Vol+', binding: { action: 'org.spaceux.builtins/key-combo' }, keepOpen: true },
-      ],
+      root: {
+        label: '',
+        branches: [
+          { label: 'Vol+', action: { id: 'org.spaceux.builtins/key-combo' }, keepOpen: true },
+        ],
+      },
     };
     const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
     const result = validateMenuConfig(parsed);
@@ -100,15 +105,18 @@ describe('serializeMenuConfig', () => {
   it('round-trips a per-item activation binding through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,
-      sectors: [
-        {
-          label: 'Vol',
-          binding: { action: 'org.spaceux.builtins/key-combo' },
-          activation: {
-            inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'Vol',
+            action: { id: 'org.spaceux.builtins/key-combo' },
+            activation: {
+              inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }],
+            },
           },
-        },
-      ],
+        ],
+      },
     };
     const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
     const result = validateMenuConfig(parsed);
@@ -119,13 +127,16 @@ describe('serializeMenuConfig', () => {
   it('round-trips a per-item exit binding through the validator', () => {
     const cfg: MenuConfig = {
       version: 1,
-      sectors: [
-        {
-          label: 'Item',
-          binding: { action: 'org.spaceux.builtins/exec' },
-          exit: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }] },
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'Item',
+            action: { id: 'org.spaceux.builtins/exec' },
+            exit: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }] },
+          },
+        ],
+      },
     };
     const parsed: unknown = JSON.parse(serializeMenuConfig(cfg));
     const result = validateMenuConfig(parsed);
@@ -133,13 +144,13 @@ describe('serializeMenuConfig', () => {
     if (result.ok) expect(result.config).toEqual(cfg);
   });
 
-  it('emits centerField before sectors', () => {
+  it('emits the root after the top-level settings', () => {
     const cfg: MenuConfig = {
       version: 1,
-      centerField: { label: 'Close' },
-      sectors: [{ label: 'Solo' }],
+      triggerButton: 0,
+      root: { label: 'Close', branches: [{ label: 'Solo' }] },
     };
     const out = serializeMenuConfig(cfg);
-    expect(out.indexOf('"centerField"')).toBeLessThan(out.indexOf('"sectors"'));
+    expect(out.indexOf('"triggerButton"')).toBeLessThan(out.indexOf('"root"'));
   });
 });

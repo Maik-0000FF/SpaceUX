@@ -12,7 +12,7 @@ import {
   MAX_MENU_DEPTH,
   MENU_CONFIG_VERSION,
   builtinAction,
-  isCancelSector,
+  isCancelNode,
   resolveAxisInvert,
   validateMenuConfig,
 } from '../src/shared/menu';
@@ -23,7 +23,7 @@ describe('validateMenuConfig', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.config.version).toBe(MENU_CONFIG_VERSION);
-      expect(result.config.sectors).toEqual(DEFAULT_MENU_CONFIG.sectors);
+      expect(result.config.root.branches).toEqual(DEFAULT_MENU_CONFIG.root.branches);
     }
   });
 
@@ -35,13 +35,20 @@ describe('validateMenuConfig', () => {
   });
 
   it('rejects a missing or wrong version', () => {
-    expect(validateMenuConfig({ sectors: [] }).ok).toBe(false);
-    expect(validateMenuConfig({ version: 'one', sectors: [] }).ok).toBe(false);
-    expect(validateMenuConfig({ version: 999, sectors: [{ label: 'x' }] }).ok).toBe(false);
+    expect(validateMenuConfig({ root: { label: '', branches: [] } }).ok).toBe(false);
+    expect(validateMenuConfig({ version: 'one', root: { label: '', branches: [] } }).ok).toBe(
+      false,
+    );
+    expect(
+      validateMenuConfig({ version: 999, root: { label: '', branches: [{ label: 'x' }] } }).ok,
+    ).toBe(false);
   });
 
   it('rejects an empty sectors array', () => {
-    const r = validateMenuConfig({ version: MENU_CONFIG_VERSION, sectors: [] });
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [] },
+    });
     expect(r.ok).toBe(false);
   });
 
@@ -68,30 +75,36 @@ describe('validateMenuConfig', () => {
     for (const label of labels) {
       const r = validateMenuConfig({
         version: MENU_CONFIG_VERSION,
-        sectors: [{ label }],
+        root: { label: '', branches: [{ label }] },
       });
       expect(r.ok, `label=${JSON.stringify(label)}`).toBe(true);
       if (r.ok) {
-        const sector = r.config.sectors[0];
+        const sector = r.config.root.branches![0];
         expect(sector?.label).toBe(label);
       }
     }
   });
 
   it('rejects a sector with no label', () => {
-    const r = validateMenuConfig({ version: MENU_CONFIG_VERSION, sectors: [{}] });
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{}] },
+    });
     expect(r.ok).toBe(false);
   });
 
   it('rejects a sector with a blank label', () => {
-    const r = validateMenuConfig({ version: MENU_CONFIG_VERSION, sectors: [{ label: '   ' }] });
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{ label: '   ' }] },
+    });
     expect(r.ok).toBe(false);
   });
 
   it('accepts a sector without a binding (label-only)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [{ label: 'Just a label' }],
+      root: { label: '', branches: [{ label: 'Just a label' }] },
     });
     expect(r.ok).toBe(true);
   });
@@ -99,7 +112,7 @@ describe('validateMenuConfig', () => {
   it('rejects a binding without an action field', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [{ label: 'x', binding: {} }],
+      root: { label: '', branches: [{ label: 'x', action: {} }] },
     });
     expect(r.ok).toBe(false);
   });
@@ -107,12 +120,15 @@ describe('validateMenuConfig', () => {
   it('rejects a binding with a non-object config', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'x',
-          binding: { action: builtinAction('exec'), config: 'not-an-object' },
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'x',
+            action: { id: builtinAction('exec'), config: 'not-an-object' },
+          },
+        ],
+      },
     });
     expect(r.ok).toBe(false);
   });
@@ -122,7 +138,7 @@ describe('validateMenuConfig', () => {
     // silently dropping; pin that contract.
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [{ label: 'x', icon: 42 }],
+      root: { label: '', branches: [{ label: 'x', icon: 42 }] },
     });
     expect(r.ok).toBe(false);
   });
@@ -130,7 +146,7 @@ describe('validateMenuConfig', () => {
   it('accepts a config without triggerButton (field is optional)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [{ label: 'x' }],
+      root: { label: '', branches: [{ label: 'x' }] },
     });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.config.triggerButton).toBeUndefined();
@@ -141,7 +157,7 @@ describe('validateMenuConfig', () => {
       const r = validateMenuConfig({
         version: MENU_CONFIG_VERSION,
         triggerButton: v,
-        sectors: [{ label: 'x' }],
+        root: { label: '', branches: [{ label: 'x' }] },
       });
       expect(r.ok, `triggerButton=${v}`).toBe(true);
       if (r.ok) expect(r.config.triggerButton).toBe(v);
@@ -150,7 +166,11 @@ describe('validateMenuConfig', () => {
 
   it('accepts and clamps the pie size scale; rejects a non-number', () => {
     const at = (scale: unknown) =>
-      validateMenuConfig({ version: MENU_CONFIG_VERSION, scale, sectors: [{ label: 'x' }] });
+      validateMenuConfig({
+        version: MENU_CONFIG_VERSION,
+        scale,
+        root: { label: '', branches: [{ label: 'x' }] },
+      });
     // In range: kept as-is.
     const ok = at(1.5);
     expect(ok.ok).toBe(true);
@@ -163,7 +183,10 @@ describe('validateMenuConfig', () => {
     // Wrong type: rejected.
     expect(at('big').ok).toBe(false);
     // Absent: undefined (falls back to 1 at render).
-    const none = validateMenuConfig({ version: MENU_CONFIG_VERSION, sectors: [{ label: 'x' }] });
+    const none = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
     if (none.ok) expect(none.config.scale).toBeUndefined();
   });
 
@@ -172,19 +195,19 @@ describe('validateMenuConfig', () => {
       const r = validateMenuConfig({
         version: MENU_CONFIG_VERSION,
         triggerButton: bad,
-        sectors: [{ label: 'x' }],
+        root: { label: '', branches: [{ label: 'x' }] },
       });
       expect(r.ok, `triggerButton=${JSON.stringify(bad)}`).toBe(false);
     }
   });
 });
 
-describe('isCancelSector', () => {
+describe('isCancelNode', () => {
   it('is true only for a binding on the built-in cancel action', () => {
-    expect(isCancelSector({ binding: { action: builtinAction('cancel') } })).toBe(true);
-    expect(isCancelSector({ binding: { action: builtinAction('exec') } })).toBe(false);
-    expect(isCancelSector({ binding: { action: 'some.plugin/cancel' } })).toBe(false);
-    expect(isCancelSector({})).toBe(false);
+    expect(isCancelNode({ action: { id: builtinAction('cancel') } })).toBe(true);
+    expect(isCancelNode({ action: { id: builtinAction('exec') } })).toBe(false);
+    expect(isCancelNode({ action: { id: 'some.plugin/cancel' } })).toBe(false);
+    expect(isCancelNode({})).toBe(false);
   });
 });
 
@@ -192,88 +215,101 @@ describe('validateMenuConfig — nested submenus', () => {
   it('accepts a sector whose only role is to host children (branch)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'FreeCAD',
-          children: [
-            { label: 'New', binding: { action: builtinAction('exec'), config: { command: 'x' } } },
-            { label: 'Open', binding: { action: builtinAction('exec'), config: { command: 'y' } } },
-          ],
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'FreeCAD',
+            branches: [
+              { label: 'New', action: { id: builtinAction('exec'), config: { command: 'x' } } },
+              { label: 'Open', action: { id: builtinAction('exec'), config: { command: 'y' } } },
+            ],
+          },
+        ],
+      },
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      const branch = r.config.sectors[0];
-      expect(branch?.children).toHaveLength(2);
-      expect(branch?.binding).toBeUndefined();
+      const branch = r.config.root.branches![0];
+      expect(branch?.branches).toHaveLength(2);
+      expect(branch?.action).toBeUndefined();
     }
   });
 
-  it('rejects a sector that declares both binding and children', () => {
-    // Branch vs leaf must be unambiguous so the renderer doesn't
-    // have to decide which one wins on commit.
+  it('rejects a non-root node that declares both action and branches', () => {
+    // Submenu vs leaf must be unambiguous so the renderer doesn't
+    // have to decide which one wins on commit. (The root is exempt —
+    // it may carry both; tested in the root describe.)
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'Ambiguous',
-          binding: { action: builtinAction('exec'), config: { command: 'x' } },
-          children: [{ label: 'Child' }],
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'Ambiguous',
+            action: { id: builtinAction('exec'), config: { command: 'x' } },
+            branches: [{ label: 'Child' }],
+          },
+        ],
+      },
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toMatch(/either "binding" or "children", not both/);
+    if (!r.ok) expect(r.reason).toMatch(/either "action" or "branches", not both/);
   });
 
-  it('rejects an empty children array (would render as a hole with no escape)', () => {
+  it('rejects an empty branches array (would render as a hole with no escape)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [{ label: 'Empty branch', children: [] }],
+      root: { label: '', branches: [{ label: 'Empty branch', branches: [] }] },
     });
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason).toMatch(/"children" must not be empty/);
+    if (!r.ok) expect(r.reason).toMatch(/"branches" must not be empty/);
   });
 
   it('keeps keepOpen=true on a leaf sector', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'Vol+',
-          binding: { action: builtinAction('key-combo'), config: { keys: 'XF86AudioRaiseVolume' } },
-          keepOpen: true,
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'Vol+',
+            action: { id: builtinAction('key-combo'), config: { keys: 'XF86AudioRaiseVolume' } },
+            keepOpen: true,
+          },
+        ],
+      },
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.sectors[0]?.keepOpen).toBe(true);
+    if (r.ok) expect(r.config.root.branches![0]?.keepOpen).toBe(true);
   });
 
   it('drops keepOpen when false, on a branch, or on a binding-less leaf', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        { label: 'Off', binding: { action: builtinAction('exec') }, keepOpen: false },
-        { label: 'Branch', children: [{ label: 'Child' }], keepOpen: true },
-        // Label-only leaf: commits to nothing, so keeping the menu open
-        // would strand the user — the flag must not persist here.
-        { label: 'Label only', keepOpen: true },
-      ],
+      root: {
+        label: '',
+        branches: [
+          { label: 'Off', action: { id: builtinAction('exec') }, keepOpen: false },
+          { label: 'Branch', branches: [{ label: 'Child' }], keepOpen: true },
+          // Label-only leaf: commits to nothing, so keeping the menu open
+          // would strand the user — the flag must not persist here.
+          { label: 'Label only', keepOpen: true },
+        ],
+      },
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.config.sectors[0]?.keepOpen).toBeUndefined();
-      expect(r.config.sectors[1]?.keepOpen).toBeUndefined();
-      expect(r.config.sectors[2]?.keepOpen).toBeUndefined();
+      expect(r.config.root.branches![0]?.keepOpen).toBeUndefined();
+      expect(r.config.root.branches![1]?.keepOpen).toBeUndefined();
+      expect(r.config.root.branches![2]?.keepOpen).toBeUndefined();
     }
   });
 
   it('rejects a non-boolean keepOpen', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [{ label: 'x', keepOpen: 'yes' }],
+      root: { label: '', branches: [{ label: 'x', keepOpen: 'yes' }] },
     });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toMatch(/"keepOpen" must be a boolean/);
@@ -282,50 +318,59 @@ describe('validateMenuConfig — nested submenus', () => {
   it('keeps a per-item activation binding on a leaf with a binding', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'Vol',
-          binding: { action: builtinAction('key-combo'), config: { keys: 'XF86AudioRaiseVolume' } },
-          activation: {
-            inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'Vol',
+            action: { id: builtinAction('key-combo'), config: { keys: 'XF86AudioRaiseVolume' } },
+            activation: {
+              inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }],
+            },
           },
-        },
-      ],
+        ],
+      },
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.sectors[0]?.activation?.inputs).toHaveLength(1);
+    if (r.ok) expect(r.config.root.branches![0]?.activation?.inputs).toHaveLength(1);
   });
 
   it('drops activation on a branch, a binding-less leaf, or with no inputs', () => {
     const act = { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }] };
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        { label: 'Branch', children: [{ label: 'C' }], activation: act },
-        { label: 'Label only', activation: act },
-        { label: 'Empty', binding: { action: builtinAction('exec') }, activation: { inputs: [] } },
-      ],
+      root: {
+        label: '',
+        branches: [
+          { label: 'Branch', branches: [{ label: 'C' }], activation: act },
+          { label: 'Label only', activation: act },
+          { label: 'Empty', action: { id: builtinAction('exec') }, activation: { inputs: [] } },
+        ],
+      },
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.config.sectors[0]?.activation).toBeUndefined();
-      expect(r.config.sectors[1]?.activation).toBeUndefined();
-      expect(r.config.sectors[2]?.activation).toBeUndefined();
+      expect(r.config.root.branches![0]?.activation).toBeUndefined();
+      expect(r.config.root.branches![1]?.activation).toBeUndefined();
+      expect(r.config.root.branches![2]?.activation).toBeUndefined();
     }
   });
 
   it('rejects a malformed activation input', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'x',
-          binding: { action: builtinAction('exec') },
-          activation: {
-            inputs: [{ kind: 'axis', axis: 'nope', direction: 'negative', threshold: 50 }],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'x',
+            action: { id: builtinAction('exec') },
+            activation: {
+              inputs: [{ kind: 'axis', axis: 'nope', direction: 'negative', threshold: 50 }],
+            },
           },
-        },
-      ],
+        ],
+      },
     });
     expect(r.ok).toBe(false);
   });
@@ -336,25 +381,28 @@ describe('validateMenuConfig — nested submenus', () => {
     };
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        { label: 'Leaf', binding: { action: builtinAction('exec') }, exit },
-        { label: 'Branch', children: [{ label: 'C' }], exit },
-      ],
+      root: {
+        label: '',
+        branches: [
+          { label: 'Leaf', action: { id: builtinAction('exec') }, exit },
+          { label: 'Branch', branches: [{ label: 'C' }], exit },
+        ],
+      },
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.config.sectors[0]?.exit?.inputs).toHaveLength(1);
-      expect(r.config.sectors[1]?.exit?.inputs).toHaveLength(1);
+      expect(r.config.root.branches![0]?.exit?.inputs).toHaveLength(1);
+      expect(r.config.root.branches![1]?.exit?.inputs).toHaveLength(1);
     }
   });
 
   it('drops an exit with no inputs', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [{ label: 'x', exit: { inputs: [] } }],
+      root: { label: '', branches: [{ label: 'x', exit: { inputs: [] } }] },
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.sectors[0]?.exit).toBeUndefined();
+    if (r.ok) expect(r.config.root.branches![0]?.exit).toBeUndefined();
   });
 
   it('rejects a non-array children field with a distinct message', () => {
@@ -366,12 +414,12 @@ describe('validateMenuConfig — nested submenus', () => {
     for (const bad of ['not-an-array', 42, null, {}]) {
       const r = validateMenuConfig({
         version: MENU_CONFIG_VERSION,
-        sectors: [{ label: 'x', children: bad }],
+        root: { label: '', branches: [{ label: 'x', branches: bad }] },
       });
-      expect(r.ok, `children=${JSON.stringify(bad)}`).toBe(false);
+      expect(r.ok, `branches=${JSON.stringify(bad)}`).toBe(false);
       if (!r.ok)
-        expect(r.reason, `children=${JSON.stringify(bad)}`).toMatch(
-          /"children" must be an array when present/,
+        expect(r.reason, `branches=${JSON.stringify(bad)}`).toMatch(
+          /"branches" must be an array when present/,
         );
     }
   });
@@ -384,21 +432,24 @@ describe('validateMenuConfig — nested submenus', () => {
     // bad node in their menu.json.
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'top',
-          children: [
-            {
-              label: 'mid',
-              children: [{ label: '' }], // blank label at depth 2
-            },
-          ],
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'top',
+            branches: [
+              {
+                label: 'mid',
+                branches: [{ label: '' }], // blank label at depth 2
+              },
+            ],
+          },
+        ],
+      },
     });
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.reason).toContain('sector 0 child 0 child 0');
+      expect(r.reason).toContain('root branch 0 branch 0 branch 0');
       expect(r.reason).toContain('"label"');
     }
   });
@@ -410,15 +461,15 @@ describe('validateMenuConfig — nested submenus', () => {
     // valid yesterday.
     const leaf = {
       label: 'leaf',
-      binding: { action: builtinAction('exec'), config: { command: 'x' } },
+      action: { id: builtinAction('exec'), config: { command: 'x' } },
     };
     let node: Record<string, unknown> = leaf;
     for (let d = 0; d < MAX_MENU_DEPTH; d++) {
-      node = { label: `L${d}`, children: [node] };
+      node = { label: `L${d}`, branches: [node] };
     }
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [node],
+      root: { label: '', branches: [node] },
     });
     expect(r.ok).toBe(true);
   });
@@ -431,15 +482,15 @@ describe('validateMenuConfig — nested submenus', () => {
     // they went without counting `child` tokens in the path.
     const leaf = {
       label: 'leaf',
-      binding: { action: builtinAction('exec'), config: { command: 'x' } },
+      action: { id: builtinAction('exec'), config: { command: 'x' } },
     };
     let node: Record<string, unknown> = leaf;
     for (let d = 0; d <= MAX_MENU_DEPTH; d++) {
-      node = { label: `L${d}`, children: [node] };
+      node = { label: `L${d}`, branches: [node] };
     }
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [node],
+      root: { label: '', branches: [node] },
     });
     expect(r.ok).toBe(false);
     if (!r.ok) {
@@ -455,96 +506,107 @@ describe('validateMenuConfig — nested submenus', () => {
     // load-bearing rather than implicit.
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'L0',
-          children: [
-            {
-              label: 'L1',
-              children: [
-                {
-                  label: 'L2',
-                  binding: { action: builtinAction('exec'), config: { command: 'deep' } },
-                },
-              ],
-            },
-          ],
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'L0',
+            branches: [
+              {
+                label: 'L1',
+                branches: [
+                  {
+                    label: 'L2',
+                    action: { id: builtinAction('exec'), config: { command: 'deep' } },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     });
     expect(r.ok).toBe(true);
   });
 });
 
-describe('validateMenuConfig — centerField', () => {
-  it('is undefined when the field is absent (historical cancel behavior)', () => {
-    const r = validateMenuConfig({ version: MENU_CONFIG_VERSION, sectors: [{ label: 'x' }] });
-    expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.centerField).toBeUndefined();
-  });
-
-  it('accepts a center with label + binding and round-trips both', () => {
+describe('validateMenuConfig — root centre', () => {
+  it('has no action when the root omits one (historical cancel behavior)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      centerField: {
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.root.action).toBeUndefined();
+  });
+
+  it('accepts a root centre label + action (coexisting with branches) and round-trips both', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: {
         label: 'Close',
-        binding: { action: builtinAction(BUILTIN_ACTION.CANCEL) },
+        action: { id: builtinAction(BUILTIN_ACTION.CANCEL) },
+        branches: [{ label: 'x' }],
       },
-      sectors: [{ label: 'x' }],
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
-      expect(r.config.centerField?.label).toBe('Close');
-      expect(r.config.centerField?.binding).toEqual({
-        action: builtinAction(BUILTIN_ACTION.CANCEL),
+      expect(r.config.root.label).toBe('Close');
+      expect(r.config.root.action).toEqual({
+        id: builtinAction(BUILTIN_ACTION.CANCEL),
       });
     }
   });
 
-  it('drops an empty center object (treated as omitted, never persisted)', () => {
-    // `{}` is semantically identical to no centerField at all; the
-    // validator normalises it to undefined so it can't round-trip to
-    // disk as a meaningless `"centerField": {}`.
+  it('accepts an empty root label (renderer falls back to ✕)', () => {
+    // The root label is optional; an empty string is preserved and the
+    // renderer renders the historical ✕ glyph in its place.
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      centerField: {},
-      sectors: [{ label: 'x' }],
+      root: { label: '', branches: [{ label: 'x' }] },
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.centerField).toBeUndefined();
+    if (r.ok) expect(r.config.root.label).toBe('');
   });
 
-  it('accepts a center binding to any action, not just cancel', () => {
-    // The center is a fully configurable target — pin that a non-cancel
-    // action is accepted so a future "center must be cancel" tightening
+  it('accepts a root action to any action, not just cancel', () => {
+    // The centre is a fully configurable target — pin that a non-cancel
+    // action is accepted so a future "centre must be cancel" tightening
     // has to delete this test rather than silently regress.
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      centerField: { binding: { action: builtinAction('exec'), config: { command: 'x' } } },
-      sectors: [{ label: 'x' }],
+      root: {
+        label: '',
+        action: { id: builtinAction('exec'), config: { command: 'x' } },
+        branches: [{ label: 'x' }],
+      },
     });
     expect(r.ok).toBe(true);
-    if (r.ok) expect(r.config.centerField?.binding?.action).toBe(builtinAction('exec'));
+    if (r.ok) expect(r.config.root.action?.id).toBe(builtinAction('exec'));
   });
 
-  it('rejects malformed center shapes', () => {
+  it('rejects malformed root shapes', () => {
     const cases: Array<[unknown, RegExp]> = [
-      ['not-an-object', /centerField must be an object/],
-      [[], /centerField must be an object/],
-      [{ label: '   ' }, /"label".*non-empty string/],
-      [{ label: 42 }, /"label".*non-empty string/],
-      [{ icon: 42 }, /"icon".*must be a string/],
-      [{ binding: {} }, /binding.*"action".*non-empty string/],
+      ['not-an-object', /root is not an object/],
+      [{ branches: [{ label: 'x' }], label: 42 }, /"label".*must be a string/],
+      [{ branches: [{ label: 'x' }], icon: 42 }, /"icon".*must be a string/],
+      [{ branches: [{ label: 'x' }], action: {} }, /action.*"id".*non-empty string/],
+      [{ label: 'x' }, /"branches".*non-empty array/], // root must have branches
+      [{ label: '', branches: [] }, /"branches".*must not be empty/],
     ];
     for (const [bad, pattern] of cases) {
       const r = validateMenuConfig({
         version: MENU_CONFIG_VERSION,
-        centerField: bad,
-        sectors: [{ label: 'x' }],
+        root: bad,
       });
-      expect(r.ok, `centerField=${JSON.stringify(bad)}`).toBe(false);
-      if (!r.ok) expect(r.reason, `centerField=${JSON.stringify(bad)}`).toMatch(pattern);
+      expect(r.ok, `root=${JSON.stringify(bad)}`).toBe(false);
+      if (!r.ok) expect(r.reason, `root=${JSON.stringify(bad)}`).toMatch(pattern);
     }
+  });
+
+  it('rejects a missing root entirely', () => {
+    const r = validateMenuConfig({ version: MENU_CONFIG_VERSION });
+    expect(r.ok).toBe(false);
   });
 });
 
@@ -562,7 +624,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       navigation,
-      sectors: [{ label: 'x' }],
+      root: { label: '', branches: [{ label: 'x' }] },
     });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.config.navigation).toEqual(navigation);
@@ -572,7 +634,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       navigation: { drillIn: { inputs: [{ kind: 'none' }] } },
-      sectors: [{ label: 'x' }],
+      root: { label: '', branches: [{ label: 'x' }] },
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
@@ -614,7 +676,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
       const r = validateMenuConfig({
         version: MENU_CONFIG_VERSION,
         navigation: nav,
-        sectors: [{ label: 'x' }],
+        root: { label: '', branches: [{ label: 'x' }] },
       });
       expect(r.ok, `navigation=${JSON.stringify(nav)}`).toBe(false);
       if (!r.ok) expect(r.reason, `navigation=${JSON.stringify(nav)}`).toMatch(pattern);
@@ -631,7 +693,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
           inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }],
         },
       },
-      sectors: [{ label: 'x' }],
+      root: { label: '', branches: [{ label: 'x' }] },
     });
     expect(r.ok).toBe(true); // permissive: a conflict never rejects
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind axis:rz:positive'));
@@ -650,7 +712,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
           inputs: [{ kind: 'axis', axis: 'rz', direction: 'positive', threshold: 200 }],
         },
       },
-      sectors: [{ label: 'x' }],
+      root: { label: '', branches: [{ label: 'x' }] },
     });
     expect(r.ok).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind axis:rz:positive'));
@@ -669,7 +731,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
           inputs: [{ kind: 'axis', axis: 'rz', direction: 'negative', threshold: 200 }],
         },
       },
-      sectors: [{ label: 'x' }],
+      root: { label: '', branches: [{ label: 'x' }] },
     });
     expect(r.ok).toBe(true);
     expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('both bind'));
@@ -737,9 +799,9 @@ describe('builtinAction key composition', () => {
       builtinAction(BUILTIN_ACTION.KEY_COMBO),
       builtinAction(BUILTIN_ACTION.EXEC),
     ]);
-    for (const sector of DEFAULT_MENU_CONFIG.sectors) {
-      const action = sector.binding?.action;
-      expect(action, `sector "${sector.label}" has no binding`).toBeDefined();
+    for (const sector of DEFAULT_MENU_CONFIG.root.branches ?? []) {
+      const action = sector.action?.id;
+      expect(action, `sector "${sector.label}" has no action`).toBeDefined();
       expect(known, `sector "${sector.label}" references unknown action ${action}`).toContain(
         action,
       );
@@ -769,7 +831,7 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       unknwon: 'oops', // typo of "unknown" — any non-recognised key
-      sectors: [{ label: 'x' }],
+      root: { label: '', branches: [{ label: 'x' }] },
     });
     expect(r.ok).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(
@@ -777,37 +839,40 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
     );
   });
 
-  it('warns for an unknown field inside a sector with the sector path', () => {
+  it('warns for an unknown field inside a node with the node path', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [{ label: 'x', bindings: { action: 'x' } }],
+      root: { label: '', branches: [{ label: 'x', bindings: { id: 'x' } }] },
     });
     expect(r.ok).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[menu-loader] unknown field "bindings" at sector 0'),
+      expect.stringContaining('[menu-loader] unknown field "bindings" at root branch 0'),
     );
   });
 
-  it('warns for an unknown field inside a binding with the binding path', () => {
-    // The validateActionRef warn-site uses `${where} binding` —
-    // a slightly different path shape from the sector/config
+  it('warns for an unknown field inside an action with the action path', () => {
+    // The validateActionRef warn-site uses `${where} action` —
+    // a slightly different path shape from the node/config
     // levels. Pin it directly so a future refactor that drops the
-    // "binding" suffix (or changes the join character) fails here.
+    // "action" suffix (or changes the join character) fails here.
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'x',
-          binding: {
-            action: builtinAction('exec'),
-            cofig: { command: 'x' }, // typo of "config"
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'x',
+            action: {
+              id: builtinAction('exec'),
+              cofig: { command: 'x' }, // typo of "config"
+            },
           },
-        },
-      ],
+        ],
+      },
     });
     expect(r.ok).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[menu-loader] unknown field "cofig" at sector 0 binding'),
+      expect.stringContaining('[menu-loader] unknown field "cofig" at root branch 0 action'),
     );
   });
 
@@ -818,30 +883,32 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
     // has both a typo and a structural problem in the same node.
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      sectors: [
-        {
-          label: 'top',
-          children: [
-            { label: 'mid', fakefield: 1 }, // unknown at sector 0 child 0
-          ],
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'top',
+            branches: [
+              { label: 'mid', fakefield: 1 }, // unknown at root branch 0 branch 0
+            ],
+          },
+        ],
+      },
     });
     expect(r.ok).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[menu-loader] unknown field "fakefield" at sector 0 child 0'),
+      expect.stringContaining('[menu-loader] unknown field "fakefield" at root branch 0 branch 0'),
     );
   });
 
-  it('warns for an unknown field inside centerField with the center path', () => {
+  it('warns for an unknown field on the root with the root path', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
-      centerField: { label: 'x', bindings: { action: 'p/x' } }, // typo of "binding"
-      sectors: [{ label: 'x' }],
+      root: { label: '', center: 'x', branches: [{ label: 'x' }] }, // unknown "center"
     });
     expect(r.ok).toBe(true);
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[menu-loader] unknown field "bindings" at centerField'),
+      expect.stringContaining('[menu-loader] unknown field "center" at root'),
     );
   });
 
@@ -856,22 +923,25 @@ describe('validateMenuConfig — unknown-field diagnostics', () => {
       version: MENU_CONFIG_VERSION,
       triggerButton: 0,
       axisInvert: { x: false, y: false },
-      sectors: [
-        {
-          label: 'leaf',
-          icon: 'app-icon',
-          binding: { action: builtinAction('exec'), config: { command: 'x' } },
-        },
-        {
-          label: 'branch',
-          children: [
-            {
-              label: 'child',
-              binding: { action: builtinAction('exec'), config: { command: 'y' } },
-            },
-          ],
-        },
-      ],
+      root: {
+        label: '',
+        branches: [
+          {
+            label: 'leaf',
+            icon: 'app-icon',
+            action: { id: builtinAction('exec'), config: { command: 'x' } },
+          },
+          {
+            label: 'branch',
+            branches: [
+              {
+                label: 'child',
+                action: { id: builtinAction('exec'), config: { command: 'y' } },
+              },
+            ],
+          },
+        ],
+      },
     });
     expect(r.ok).toBe(true);
     expect(warnSpy).not.toHaveBeenCalled();

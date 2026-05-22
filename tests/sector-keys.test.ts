@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { MenuSector } from '@/shared/menu';
+import type { MenuNode } from '@/shared/menu';
 
 import { sectorKey } from '../src/editor/state/sector-keys';
 
@@ -11,18 +11,18 @@ import { sectorKey } from '../src/editor/state/sector-keys';
 // pure object-identity, so it's exercised here without a DOM.
 describe('sectorKey', () => {
   it('returns a stable key for the same sector object', () => {
-    const sector: MenuSector = { label: 'A' };
+    const sector: MenuNode = { label: 'A' };
     expect(sectorKey(sector)).toBe(sectorKey(sector));
   });
 
   it('gives distinct keys to distinct objects, even with equal contents', () => {
-    const a: MenuSector = { label: 'Same' };
-    const b: MenuSector = { label: 'Same' };
+    const a: MenuNode = { label: 'Same' };
+    const b: MenuNode = { label: 'Same' };
     expect(sectorKey(a)).not.toBe(sectorKey(b));
   });
 
   it('keeps each sector its key across a reorder (splice preserves refs)', () => {
-    const ring: MenuSector[] = [{ label: 'A' }, { label: 'B' }, { label: 'C' }];
+    const ring: MenuNode[] = [{ label: 'A' }, { label: 'B' }, { label: 'C' }];
     const before = ring.map(sectorKey);
 
     // Mirror the store's moveSector: splice the same object references.

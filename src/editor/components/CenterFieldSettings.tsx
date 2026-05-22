@@ -23,18 +23,18 @@ import styles from './Properties.module.scss';
  * navigation bindings (issue #105, `navigation.commitCenter`), not here.
  */
 export function CenterFieldSettings() {
-  const center = useMenuSettings((s) => s.config?.centerField);
-  const setCenterLabel = useMenuSettings((s) => s.setCenterLabel);
-  const setCenterBinding = useMenuSettings((s) => s.setCenterBinding);
-  const setCenterActionConfig = useMenuSettings((s) => s.setCenterActionConfig);
+  const root = useMenuSettings((s) => s.config?.root);
+  const setRootLabel = useMenuSettings((s) => s.setRootLabel);
+  const setRootAction = useMenuSettings((s) => s.setRootAction);
+  const setRootActionConfig = useMenuSettings((s) => s.setRootActionConfig);
   const remoteRev = useMenuSettings((s) => s.remoteRev);
 
-  // "Action mode" is keyed on binding *presence*, not on the action
+  // "Action mode" is keyed on action *presence*, not on the action id
   // string being non-empty — so clearing the field to retype keeps the
-  // section mounted (binding stays as `{ action: '' }`) instead of
+  // section mounted (action stays as `{ id: '' }`) instead of
   // collapsing back to Dismiss, mirroring the sector editor's Type
   // toggle.
-  const hasBinding = center?.binding !== undefined;
+  const hasBinding = root?.action !== undefined;
 
   return (
     <>
@@ -42,9 +42,9 @@ export function CenterFieldSettings() {
       <Row label="Label">
         <input
           className={styles.input}
-          value={center?.label ?? ''}
+          value={root?.label ?? ''}
           placeholder="✕"
-          onChange={(e) => setCenterLabel(e.target.value)}
+          onChange={(e) => setRootLabel(e.target.value)}
         />
       </Row>
       <Row label="On commit">
@@ -52,7 +52,7 @@ export function CenterFieldSettings() {
           className={styles.select}
           value={hasBinding ? 'action' : 'dismiss'}
           onChange={(e) =>
-            setCenterBinding(
+            setRootAction(
               e.target.value === 'dismiss' ? null : builtinAction(BUILTIN_ACTION.CANCEL),
             )
           }
@@ -66,17 +66,17 @@ export function CenterFieldSettings() {
           <Row label="Action">
             <input
               className={styles.input}
-              value={center?.binding?.action ?? ''}
+              value={root?.action?.id ?? ''}
               placeholder="pluginId/actionName"
-              onChange={(e) => setCenterBinding(e.target.value)}
+              onChange={(e) => setRootAction(e.target.value)}
             />
           </Row>
           <ConfigEditor
             // Remount on external adoption (not mid-typing), like the
             // sector config editor.
             key={`center-${remoteRev}`}
-            value={center?.binding?.config}
-            onChange={(cfg) => setCenterActionConfig(cfg)}
+            value={root?.action?.config}
+            onChange={(cfg) => setRootActionConfig(cfg)}
           />
         </>
       )}

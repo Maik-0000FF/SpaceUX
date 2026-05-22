@@ -94,7 +94,7 @@ describe('loadDeviceProfile', () => {
   });
 
   it('reports invalid when the profile fails schema validation', async () => {
-    await write('046d-c62b', { version: MENU_CONFIG_VERSION, sectors: 'nope' });
+    await write('046d-c62b', { version: MENU_CONFIG_VERSION, root: 'nope' });
     const result = await loadDeviceProfile('046d-c62b', dir);
     expect(result.status).toBe('invalid');
   });
