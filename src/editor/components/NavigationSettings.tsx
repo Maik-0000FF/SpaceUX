@@ -41,7 +41,10 @@ type GestureKey = (typeof GESTURE_KEYS)[number];
 // than the internal gesture keys (drillIn/back/…).
 const GESTURE_LABELS: Record<GestureKey, string> = {
   drillIn: 'Open submenu',
-  back: 'Go back / close',
+  // Just "Go back": back pops a level and walks to the centre; whether the
+  // final step closes is the centre's job (its action) or Escape, not back's
+  // — so "/ close" would over-claim (#147 fallback + the Escape hatch).
+  back: 'Go back',
   cycle: 'Step through items',
 };
 

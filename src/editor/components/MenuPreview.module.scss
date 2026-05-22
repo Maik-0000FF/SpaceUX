@@ -117,33 +117,42 @@
   }
 }
 
+// The centre shares the wedge fill contract (--wedge-* vars), so it
+// dims/brightens and swaps blue↔red exactly like a wedge — same mechanism
+// as .wedge, nothing centre-specific to drift. Idle = neutral, hover lift,
+// selected = blue; a cancel root re-points the family to red below.
 .cancelCenter {
-  @include pieFill(var(--pie-bg));
+  --wedge-bg: var(--pie-bg);
+  --wedge-bg-hover: var(--pie-bg-hover);
+  --wedge-bg-active: var(--pie-bg-active);
+  --wedge-bg-active-hover: var(--pie-bg-active-hover);
+  @include pieFill(var(--wedge-bg));
   stroke: var(--pie-border);
   stroke-width: 1.5;
+
+  .centerGroup:hover & {
+    @include pieFill(var(--wedge-bg-hover));
+  }
 }
 
-// Selected for editing — signalled by the active fill, exactly like
-// .wedgeSelected (no white border; the fill alone signals selection).
-// A cancel root still wins (red) via .cancelCenterCancel below.
+// Selected for editing — the active fill alone signals it (no white border),
+// exactly like .wedgeSelected. A cancel root re-points --wedge-bg-active to
+// red below, so a selected cancel centre is bright red.
 .cancelCenterSelected {
-  @include pieFill(var(--pie-bg-active));
+  @include pieFill(var(--wedge-bg-active));
 
-  // Hover lift parallel to the cancel hover.
   .centerGroup:hover & {
-    @include pieFill(var(--pie-bg-active-hover));
+    @include pieFill(var(--wedge-bg-active-hover));
   }
 }
 
-// Root bound to the built-in cancel action → red abort target, like a
-// cancel wedge and the live pie's centre. --pie-opacity-scaled like every
-// fill; hover lifts to the red hover.
+// Root bound to the built-in cancel action → the red family: idle = dim red,
+// selected = bright red. Same as a cancel wedge (.wedgeCancel).
 .cancelCenterCancel {
-  @include pieFill(var(--pie-cancel-bg-active));
-
-  .centerGroup:hover & {
-    @include pieFill(var(--pie-cancel-bg-hover));
-  }
+  --wedge-bg: var(--pie-cancel-bg);
+  --wedge-bg-hover: var(--pie-cancel-bg-hover);
+  --wedge-bg-active: var(--pie-cancel-bg-active);
+  --wedge-bg-active-hover: var(--pie-cancel-bg-hover);
 }
 
 .cancelLabel {

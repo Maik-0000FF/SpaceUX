@@ -76,6 +76,25 @@ describe('resolvePuckFrame — commit center', () => {
     expect(r.edges.commit).toBe(true);
   });
 
+  it('does not commit the centre while a sector is hovered (commit only at the centre)', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(
+        nav({
+          back: { inputs: [] }, // isolate: only commitCenter reacts to TZ+
+          commitCenter: {
+            inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }],
+          },
+        }),
+      ),
+      axes: axes({ tz: 100 }),
+      navigation: [],
+      sticky: 1, // a sector is hovered → the centre isn't the active target
+      edges: FRESH,
+    });
+    expect(r.outcome).not.toEqual({ kind: 'commitCenter' });
+    expect(r.edges.commit).toBe(true); // edge still tracked (no fire on return)
+  });
+
   it('does not re-fire while the commit gesture stays held', () => {
     const r = resolvePuckFrame({
       menuConfig: config(
