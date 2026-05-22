@@ -5,6 +5,7 @@ import { BUILTIN_ACTION, builtinAction, resolveNavigation } from '@/shared/menu'
 
 import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
+import { cancelLabelFor } from '../state/cancel-label';
 import { gestureShadows } from '../state/gesture-collision';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
@@ -224,6 +225,10 @@ export function Properties() {
                     updateNodeAt(path, (s) => {
                       if (s.action) s.action.id = id;
                       else s.action = { id };
+                      // Picking Cancel onto a still-default label fills in
+                      // "Cancel" (editable); a custom label is left alone.
+                      const auto = cancelLabelFor(id, s.label);
+                      if (auto !== null) s.label = auto;
                     })
                   }
                   onCustomChange={(text) =>

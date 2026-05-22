@@ -5,6 +5,7 @@ import { resolveNavigation, type MenuNavigation } from '@/shared/menu';
 
 import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
+import { cancelLabelFor } from '../state/cancel-label';
 import { useMenuSettings } from '../state/menu-settings';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 
@@ -64,7 +65,13 @@ export function RootSettings() {
       <ActionField
         action={root?.action}
         actions={actions}
-        onPick={(id) => setRootAction(id)}
+        onPick={(id) => {
+          setRootAction(id);
+          // Picking Cancel onto a still-default (blank) centre label fills
+          // in "Cancel" (editable); a custom label is left alone.
+          const auto = cancelLabelFor(id, root?.label ?? '');
+          if (auto !== null) setRootLabel(auto);
+        }}
         onCustomChange={(text) => setRootAction(text)}
         onClear={() => setRootAction(null)}
       />
