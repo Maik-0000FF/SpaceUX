@@ -15,7 +15,7 @@ import {
   sectorCenterAngle,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import { DEFAULT_TRIGGER_BUTTON, resolveAxisInvert } from '@/shared/menu';
+import { DEFAULT_TRIGGER_BUTTON, isCancelSector, resolveAxisInvert } from '@/shared/menu';
 
 import { useEditorSpaceMouse } from '../hooks/useEditorSpaceMouse';
 import { useAppState } from '../state/app-state';
@@ -263,7 +263,7 @@ export function MenuPreview() {
               d={d}
               className={`${styles.wedge} ${selected ? styles.wedgeSelected : ''} ${
                 isDropTarget ? styles.wedgeDropTarget : ''
-              }`}
+              } ${isCancelSector(sector) ? styles.wedgeCancel : ''}`}
             />
             <text
               x={lx}

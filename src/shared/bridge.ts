@@ -19,6 +19,7 @@
 
 import type {
   DaemonStatusPayload,
+  EditorAction,
   EditorDeviceInfo,
   MenuConfigChange,
   MenuConfigSnapshot,
@@ -109,6 +110,10 @@ export type EditorBridge = {
    *  (re)connect, or a profile switch) so the pickers re-clamp and the
    *  active-device display tracks live. Returns an unsubscribe fn. */
   onDeviceInfo(handler: (info: EditorDeviceInfo) => void): () => void;
+  /** Pull the list of available actions (builtins + loaded plugins) on
+   *  mount, to populate the sector Action dropdown. Id = the composite
+   *  `pluginId/actionName` key; label/description for display. */
+  getAvailableActions(): Promise<EditorAction[]>;
   /** Pull the per-device profile list + manual override on mount (#113). */
   getProfiles(): Promise<ProfilesState>;
   /** Subscribe to profile-list / override changes (create / delete /

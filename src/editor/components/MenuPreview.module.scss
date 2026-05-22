@@ -52,6 +52,17 @@
   }
 }
 
+// A sector bound to the built-in cancel action: red, like the live pie's
+// cancel wedge and the centre ✕ (reuses --pie-cancel-bg-active). After
+// .wedgeSelected so a selected/hovered cancel wedge stays red.
+.wedgeCancel {
+  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+
+  .wedgeGroup:hover & {
+    fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+  }
+}
+
 // Source wedge while it's being dragged to a new slot (editor-only).
 .dragging {
   opacity: 0.5;

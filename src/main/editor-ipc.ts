@@ -3,7 +3,12 @@
 
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 
-import { IpcChannel, type MenuConfigSnapshot, type ThemeChoice } from '../shared/ipc.js';
+import {
+  IpcChannel,
+  type EditorAction,
+  type MenuConfigSnapshot,
+  type ThemeChoice,
+} from '../shared/ipc.js';
 import { DEFAULT_MENU_CONFIG, type MenuConfig } from '../shared/menu.js';
 
 import { loadEditorSettings, saveEditorSettings } from './editor-settings.js';
@@ -25,6 +30,9 @@ export interface EditorIpcDeps {
   /** Adopt a successful write: update the in-memory config/mtime/source
    *  and hot-reload the live pie. */
   applyWrite: (config: MenuConfig, mtime: number, target: string) => void;
+  /** The actions the editor can offer in the Action dropdown (builtins +
+   *  loaded plugins), flattened from main's action index. */
+  listActions: () => EditorAction[];
 }
 
 /**
@@ -64,6 +72,10 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
       return result;
     },
   );
+
+  // Available actions for the sector Action dropdown. Pulled on mount;
+  // static for the session (plugins load at startup), so no push channel.
+  ipcMain.handle(IpcChannel.EDITOR_GET_ACTIONS, (): EditorAction[] => deps.listActions());
 
   // Editor mounted. No-op: the editor pulls via EDITOR_GET_MENU_CONFIG;
   // the handler exists so the renderer's fire-and-forget `ready()` has a

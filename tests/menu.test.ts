@@ -12,6 +12,7 @@ import {
   MAX_MENU_DEPTH,
   MENU_CONFIG_VERSION,
   builtinAction,
+  isCancelSector,
   resolveAxisInvert,
   validateMenuConfig,
 } from '../src/shared/menu';
@@ -175,6 +176,15 @@ describe('validateMenuConfig', () => {
       });
       expect(r.ok, `triggerButton=${JSON.stringify(bad)}`).toBe(false);
     }
+  });
+});
+
+describe('isCancelSector', () => {
+  it('is true only for a binding on the built-in cancel action', () => {
+    expect(isCancelSector({ binding: { action: builtinAction('cancel') } })).toBe(true);
+    expect(isCancelSector({ binding: { action: builtinAction('exec') } })).toBe(false);
+    expect(isCancelSector({ binding: { action: 'some.plugin/cancel' } })).toBe(false);
+    expect(isCancelSector({})).toBe(false);
   });
 });
 

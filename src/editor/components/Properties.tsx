@@ -8,6 +8,7 @@ import {
   resolveNavigation,
 } from '@/shared/menu';
 
+import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { activationCollisions } from '../state/activation-collision';
 import { useAppState } from '../state/app-state';
@@ -17,6 +18,7 @@ import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 import { ringSectors, sectorAtPath, selectedPath } from '../state/selectors';
 import { nextSectorId } from '../state/sector-keys';
 
+import { ActionField } from './ActionField';
 import { CenterFieldSettings } from './CenterFieldSettings';
 import { ConfigEditor } from './ConfigEditor';
 import { MenuSettings } from './MenuSettings';
@@ -62,6 +64,7 @@ export function Properties() {
   // activation input dropdown's button options (#66).
   const { buttons: buttonCount } = useDeviceInfo();
   const offeredButtons = buttonCount > 0 ? buttonCount : FALLBACK_BUTTON_COUNT;
+  const availableActions = useAvailableActions();
 
   const path = selectedPath(viewPath, selectedIndex);
   const sector = config && path ? sectorAtPath(config, path) : null;
@@ -202,20 +205,30 @@ export function Properties() {
             )}
             {sector.children === undefined && (
               <>
-                <Row label="Action">
-                  <input
-                    className={styles.input}
-                    value={sector.binding?.action ?? ''}
-                    placeholder="pluginId/actionName"
-                    onChange={(e) =>
-                      updateSectorAt(path, (s) => {
-                        const action = e.target.value;
-                        if (s.binding) s.binding.action = action;
-                        else s.binding = { action };
-                      })
-                    }
-                  />
-                </Row>
+                {/* Keyed on the selection so ActionField's local "custom
+                    mode" resets when you switch to another sector. */}
+                <ActionField
+                  key={path.join('.')}
+                  binding={sector.binding}
+                  actions={availableActions}
+                  onPick={(id) =>
+                    updateSectorAt(path, (s) => {
+                      if (s.binding) s.binding.action = id;
+                      else s.binding = { action: id };
+                    })
+                  }
+                  onCustomChange={(text) =>
+                    updateSectorAt(path, (s) => {
+                      if (s.binding) s.binding.action = text;
+                      else s.binding = { action: text };
+                    })
+                  }
+                  onClear={() =>
+                    updateSectorAt(path, (s) => {
+                      delete s.binding;
+                    })
+                  }
+                />
                 {isExec && (
                   <button type="button" className={styles.openButton} onClick={handleBrowse}>
                     Browse for file…
