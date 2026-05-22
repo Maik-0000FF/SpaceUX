@@ -33,6 +33,37 @@
   gap: 12px;
 }
 
+// One stage of the item flow (Entry / Behavior / Exit, plus the
+// management footer). A top border + extra lead separates the stages
+// so the panel reads as three steps rather than one long list.
+.flowSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  & + & {
+    border-top: 1px solid var(--editor-border);
+    padding-top: 14px;
+  }
+}
+
+.flowHeading {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--editor-fg-dim);
+}
+
+// Explanatory copy under a flow heading (e.g. the global-model note in
+// Entry/Exit until per-item overrides land).
+.sectionNote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--editor-fg-dim);
+}
+
 .row {
   display: flex;
   flex-direction: column;

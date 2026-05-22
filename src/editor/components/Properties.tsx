@@ -108,128 +108,173 @@ export function Properties() {
         </div>
       ) : (
         <div className={styles.fields}>
-          <Row label="Label">
-            <input
-              className={styles.input}
-              value={sector.label}
-              onChange={(e) =>
-                updateSectorAt(path, (s) => {
-                  s.label = e.target.value;
-                })
-              }
-            />
-          </Row>
-          <Row label="Type">
-            <select
-              className={styles.select}
-              value={sector.children !== undefined ? 'submenu' : 'action'}
-              title={
-                sector.children !== undefined
-                  ? 'Switching to Action discards this submenu and its items'
-                  : undefined
-              }
-              onChange={(e) =>
-                updateSectorAt(path, (s) => {
-                  if (e.target.value === 'submenu') {
-                    if (s.children === undefined) {
-                      s.children = [{ label: 'New item', id: nextSectorId() }];
-                      delete s.binding;
-                    }
-                  } else {
-                    delete s.children;
-                  }
-                })
-              }
-            >
-              <option value="action">Action</option>
-              <option value="submenu">Submenu</option>
-            </select>
-          </Row>
-          {sector.children !== undefined && (
-            <>
-              <Row label="Submenu items">
-                <span className={styles.readonly}>{sector.children.length}</span>
-              </Row>
-              {sector.children.length > 0 && (
-                <button
-                  type="button"
-                  className={styles.openButton}
-                  onClick={() => {
-                    if (selectedIndex !== null) drillInto(selectedIndex);
-                  }}
-                >
-                  Open submenu →
-                </button>
-              )}
-            </>
-          )}
-          {sector.children === undefined && (
-            <>
-              <Row label="Action">
-                <input
-                  className={styles.input}
-                  value={sector.binding?.action ?? ''}
-                  placeholder="pluginId/actionName"
-                  onChange={(e) =>
-                    updateSectorAt(path, (s) => {
-                      const action = e.target.value;
-                      if (s.binding) s.binding.action = action;
-                      else s.binding = { action };
-                    })
-                  }
-                />
-              </Row>
-              {isExec && (
-                <button type="button" className={styles.openButton} onClick={handleBrowse}>
-                  Browse for file…
-                </button>
-              )}
-              {sector.binding !== undefined && (
-                // Keyed on the selection + remoteRev so the local JSON
-                // text remounts on an external adoption, not while typing.
-                <ConfigEditor
-                  key={`${path.join('.')}-${remoteRev}`}
-                  value={sector.binding.config}
-                  onChange={(cfg) =>
-                    updateSectorAt(path, (s) => {
-                      if (!s.binding) return;
-                      if (cfg === undefined) delete s.binding.config;
-                      else s.binding.config = cfg;
-                    })
-                  }
-                />
-              )}
-            </>
-          )}
-          {targets.length > 0 && (
-            <Row label="Move to">
+          {/* The item is edited along the flow you run with the puck:
+              how you reach it (Entry), what it does (Behavior), how you
+              leave it (Exit). Entry/Exit only describe the global model
+              for now — per-item gesture overrides land with #105. */}
+          <section className={styles.flowSection}>
+            <div className={styles.flowHeading}>↳ Entry</div>
+            <p className={styles.sectionNote}>
+              Reached with the global navigation gestures — aim the puck at this sector, or cycle to
+              step onto it. A per-item entry gesture lands later.
+            </p>
+          </section>
+
+          <section className={styles.flowSection}>
+            <div className={styles.flowHeading}>Behavior</div>
+            <Row label="Label">
+              <input
+                className={styles.input}
+                value={sector.label}
+                onChange={(e) =>
+                  updateSectorAt(path, (s) => {
+                    s.label = e.target.value;
+                  })
+                }
+              />
+            </Row>
+            <Row label="Type">
               <select
                 className={styles.select}
-                value=""
-                title="Move this item into another submenu (or the top level)"
-                onChange={(e) => {
-                  if (e.target.value === '') return;
-                  handleMove(targets[Number(e.target.value)]!.path);
-                }}
+                value={sector.children !== undefined ? 'submenu' : 'action'}
+                title={
+                  sector.children !== undefined
+                    ? 'Switching to Action discards this submenu and its items'
+                    : undefined
+                }
+                onChange={(e) =>
+                  updateSectorAt(path, (s) => {
+                    if (e.target.value === 'submenu') {
+                      if (s.children === undefined) {
+                        s.children = [{ label: 'New item', id: nextSectorId() }];
+                        delete s.binding;
+                        // keepOpen is a leaf-only flag — a branch always
+                        // stays open (it drills), so drop a stale one.
+                        delete s.keepOpen;
+                      }
+                    } else {
+                      delete s.children;
+                    }
+                  })
+                }
               >
-                <option value="">Move to submenu…</option>
-                {targets.map((t, i) => (
-                  <option key={t.path.join('.')} value={i}>
-                    {t.label}
-                  </option>
-                ))}
+                <option value="action">Action</option>
+                <option value="submenu">Submenu</option>
               </select>
             </Row>
-          )}
-          <button
-            type="button"
-            className={styles.deleteButton}
-            onClick={handleDelete}
-            disabled={!canDelete}
-            title={canDelete ? 'Delete this sector' : 'A menu must keep at least one sector'}
-          >
-            Delete sector
-          </button>
+            {sector.children !== undefined && (
+              <>
+                <Row label="Submenu items">
+                  <span className={styles.readonly}>{sector.children.length}</span>
+                </Row>
+                {sector.children.length > 0 && (
+                  <button
+                    type="button"
+                    className={styles.openButton}
+                    onClick={() => {
+                      if (selectedIndex !== null) drillInto(selectedIndex);
+                    }}
+                  >
+                    Open submenu →
+                  </button>
+                )}
+              </>
+            )}
+            {sector.children === undefined && (
+              <>
+                <Row label="Action">
+                  <input
+                    className={styles.input}
+                    value={sector.binding?.action ?? ''}
+                    placeholder="pluginId/actionName"
+                    onChange={(e) =>
+                      updateSectorAt(path, (s) => {
+                        const action = e.target.value;
+                        if (s.binding) s.binding.action = action;
+                        else s.binding = { action };
+                      })
+                    }
+                  />
+                </Row>
+                {isExec && (
+                  <button type="button" className={styles.openButton} onClick={handleBrowse}>
+                    Browse for file…
+                  </button>
+                )}
+                {sector.binding !== undefined && (
+                  // Keyed on the selection + remoteRev so the local JSON
+                  // text remounts on an external adoption, not while typing.
+                  <ConfigEditor
+                    key={`${path.join('.')}-${remoteRev}`}
+                    value={sector.binding.config}
+                    onChange={(cfg) =>
+                      updateSectorAt(path, (s) => {
+                        if (!s.binding) return;
+                        if (cfg === undefined) delete s.binding.config;
+                        else s.binding.config = cfg;
+                      })
+                    }
+                  />
+                )}
+                <Row label="After action">
+                  <select
+                    className={styles.select}
+                    value={sector.keepOpen ? 'keep' : 'close'}
+                    title="Keep the menu open after this action fires — e.g. to nudge volume repeatedly with the same gesture"
+                    onChange={(e) =>
+                      updateSectorAt(path, (s) => {
+                        if (e.target.value === 'keep') s.keepOpen = true;
+                        else delete s.keepOpen;
+                      })
+                    }
+                  >
+                    <option value="close">Close menu</option>
+                    <option value="keep">Keep menu open</option>
+                  </select>
+                </Row>
+              </>
+            )}
+          </section>
+
+          <section className={styles.flowSection}>
+            <div className={styles.flowHeading}>↱ Exit</div>
+            <p className={styles.sectionNote}>
+              Left with the global Back gesture — pops to the parent ring, or dismisses at the top
+              level. A per-item exit gesture lands later.
+            </p>
+          </section>
+
+          <section className={styles.flowSection}>
+            {targets.length > 0 && (
+              <Row label="Move to">
+                <select
+                  className={styles.select}
+                  value=""
+                  title="Move this item into another submenu (or the top level)"
+                  onChange={(e) => {
+                    if (e.target.value === '') return;
+                    handleMove(targets[Number(e.target.value)]!.path);
+                  }}
+                >
+                  <option value="">Move to submenu…</option>
+                  {targets.map((t, i) => (
+                    <option key={t.path.join('.')} value={i}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </Row>
+            )}
+            <button
+              type="button"
+              className={styles.deleteButton}
+              onClick={handleDelete}
+              disabled={!canDelete}
+              title={canDelete ? 'Delete this sector' : 'A menu must keep at least one sector'}
+            >
+              Delete sector
+            </button>
+          </section>
         </div>
       )}
     </aside>
