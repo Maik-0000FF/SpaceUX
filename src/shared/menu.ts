@@ -124,6 +124,15 @@ export type MenuSector = {
    *  (which commits to nothing). Omitted/false → historical
    *  close-on-commit. */
   keepOpen?: boolean;
+  /** Leaf-with-binding only: a per-item *activation* input that fires
+   *  this sector's `binding` while it is the hovered selection — e.g.
+   *  bind TZ− so pushing the puck down on this item runs its action,
+   *  on top of the global trigger/commit. Resolved relative to the
+   *  hovered item and checked ahead of the global gestures, so a
+   *  per-item activation wins over a colliding global gesture (e.g.
+   *  back) for this item (#130 R2). The validator drops it on a branch
+   *  or a binding-less leaf. */
+  activation?: GestureBinding;
   /** Editor-only stable identity. Assigned by the editor when a config
    *  is adopted (and to newly-added sectors); used for React keys and
    *  the tree's expand state. Because it lives on the object, immer
@@ -460,6 +469,7 @@ const KNOWN_MENU_SECTOR_FIELDS: readonly string[] = [
   'binding',
   'children',
   'keepOpen',
+  'activation',
   'id',
 ];
 const KNOWN_ACTION_REF_FIELDS: readonly string[] = ['action', 'config'];
@@ -905,6 +915,20 @@ function validateSector(raw: unknown, where: string, depth = 0): SectorValidatio
     if (s.keepOpen && sector.children === undefined && sector.binding !== undefined)
       sector.keepOpen = true;
   }
+  if (s.activation !== undefined) {
+    const result = validateGestureBinding(s.activation, `${where} activation`);
+    if (!result.ok) return { ok: false, reason: result.reason };
+    // Leaf-with-binding only, and only when it actually binds an input:
+    // a branch drills (no binding to fire) and a label-only leaf commits
+    // to nothing, so an activation there would be a no-op. Drop it
+    // otherwise so it never persists where it can't fire.
+    if (
+      result.value.inputs.length > 0 &&
+      sector.children === undefined &&
+      sector.binding !== undefined
+    )
+      sector.activation = result.value;
+  }
   warnUnknownFields(s, KNOWN_MENU_SECTOR_FIELDS, where);
   return { ok: true, value: sector };
 }
@@ -1023,6 +1047,8 @@ function orderSector(sector: MenuSector): Record<string, unknown> {
   if (sector.icon !== undefined) out.icon = sector.icon;
   if (sector.binding !== undefined) out.binding = orderActionRef(sector.binding);
   if (sector.keepOpen) out.keepOpen = true;
+  if (sector.activation !== undefined)
+    out.activation = { inputs: sector.activation.inputs.map(orderInput) };
   if (sector.children !== undefined) out.children = sector.children.map(orderSector);
   return out;
 }

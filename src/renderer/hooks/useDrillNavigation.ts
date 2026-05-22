@@ -34,13 +34,14 @@
 import { useEffect, useReducer, useRef, type Dispatch, type RefObject } from 'react';
 
 import {
+  currentSectors,
   INITIAL_DRILL_STATE,
   drillReducer,
   resolvePuckFrame,
   type DrillAction,
   type DrillState,
 } from '@/core/menu-nav';
-import { type MenuConfig } from '@/shared/menu';
+import { type MenuConfig, type MenuSector } from '@/shared/menu';
 
 export type UseDrillNavigation = {
   drillState: DrillState;
@@ -72,8 +73,14 @@ export function useDrillNavigation(opts: {
    *  separate from `onDismiss` so the back gesture can never trigger a
    *  bound center action. */
   onCommitCenter: () => void;
+  /** Fire the hovered sector's binding via its per-item activation input
+   *  (#130 R2). Receives the resolved sector so App.tsx can mirror the
+   *  leaf-commit path (close unless the sector is keepOpen, then invoke
+   *  its binding). The drill-state reset stays the hook's job, like
+   *  `onCommitCenter`. */
+  onActivate: (sector: MenuSector | undefined) => void;
 }): UseDrillNavigation {
-  const { axes, menuConfig, menuOpen, onDismiss, onCommitCenter } = opts;
+  const { axes, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate } = opts;
 
   const [drillState, dispatch] = useReducer(drillReducer, INITIAL_DRILL_STATE);
 
@@ -89,6 +96,7 @@ export function useDrillNavigation(opts: {
   // the menu with a held puck would surprise the user with an immediate
   // drill or pop. `resetTransientRefs` re-asserts this on every
   // MENU_OPEN so a previous session's tail state can't carry over.
+  const wasActivateRef = useRef<boolean>(true);
   const wasCommitRef = useRef<boolean>(true);
   const wasBackRef = useRef<boolean>(true);
   const wasDrillRef = useRef<boolean>(true);
@@ -112,6 +120,7 @@ export function useDrillNavigation(opts: {
       navigation,
       sticky: stickyChildIndex,
       edges: {
+        activate: wasActivateRef.current,
         commit: wasCommitRef.current,
         back: wasBackRef.current,
         drill: wasDrillRef.current,
@@ -121,12 +130,24 @@ export function useDrillNavigation(opts: {
     // Persist the next rising-edge memory regardless of the outcome — a
     // gesture that was active but didn't fire (held past a previous
     // edge) must still be remembered so it doesn't re-fire next frame.
+    wasActivateRef.current = edges.activate;
     wasCommitRef.current = edges.commit;
     wasBackRef.current = edges.back;
     wasDrillRef.current = edges.drill;
     wasCycleRef.current = edges.cycle;
 
     switch (outcome.kind) {
+      case 'activate': {
+        // Per-item activation fires the hovered leaf's binding mid-gesture.
+        // The hook resets its drill state unless the sector is keepOpen
+        // (so a continuous action re-fires without reopening), mirroring
+        // the keepOpen logic on MENU_COMMIT; App.tsx owns the window
+        // hide + invoke.
+        const sector = currentSectors(menuConfig, navigation)[outcome.index];
+        if (!sector?.keepOpen) dispatch({ type: 'reset' });
+        onActivate(sector);
+        break;
+      }
       case 'commitCenter':
         // Reset our own reducer state on the way out (the callback only
         // hides the window + fires the binding); the next MENU_OPEN
@@ -154,7 +175,7 @@ export function useDrillNavigation(opts: {
       case 'none':
         break;
     }
-  }, [axes, menuConfig, menuOpen, onDismiss, onCommitCenter]);
+  }, [axes, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate]);
 
   return {
     drillState,
@@ -164,6 +185,7 @@ export function useDrillNavigation(opts: {
       // Reset to `true` (not `false`) so a still-deflected puck at
       // MENU_OPEN doesn't claim a phantom rising edge on frame 1.
       // See the useRef initialisation above for the full rationale.
+      wasActivateRef.current = true;
       wasCommitRef.current = true;
       wasBackRef.current = true;
       wasDrillRef.current = true;

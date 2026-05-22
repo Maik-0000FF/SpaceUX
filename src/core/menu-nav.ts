@@ -249,6 +249,9 @@ export function previewChildren(
  *  hold; carried in and out of {@link resolvePuckFrame} so the decision
  *  logic is pure and the hook only stores the result. */
 export type PuckEdges = {
+  /** Per-item activation of the hovered leaf (#130 R2). Checked first so
+   *  a per-item input wins over a colliding global gesture. */
+  activate: boolean;
   commit: boolean;
   back: boolean;
   drill: boolean;
@@ -258,12 +261,14 @@ export type PuckEdges = {
 /** What one puck frame resolves to — the single side-effecting action
  *  the renderer should take this frame. Mirrors the dispatches/callbacks
  *  the hook performed inline:
+ *   - `activate`: fire the hovered leaf's binding (per-item activation).
  *   - `commitCenter`: reset state + fire the centre binding (or dismiss).
  *   - `back`: `pop` one level, or `dismiss` at the top.
  *   - `drill`: drill into the branch at `index`.
  *   - `hover`: set the sticky selection to `index`.
  *   - `none`: do nothing this frame. */
 export type PuckOutcome =
+  | { kind: 'activate'; index: number }
   | { kind: 'commitCenter' }
   | { kind: 'back'; mode: 'pop' | 'dismiss' }
   | { kind: 'drill'; index: number }
@@ -303,7 +308,34 @@ export function resolvePuckFrame(args: {
   // drive everything. A later PR feeds real button state here.
   const frame: GestureFrame = { axes, buttons: [] };
 
-  // Commit-center first: checked ahead of back so a shared axis resolves
+  const current = currentSectors(menuConfig, navigation);
+
+  // Per-item activation first (#130 R2): if the hovered leaf binds an
+  // activation input and it rises, fire that sector's binding. Checked
+  // ahead of every global gesture so a per-item input wins over a
+  // colliding global one (e.g. binding TZ− to activate this item beats
+  // the global TZ back — direction-aware, since back's other half stays
+  // free as the way out). Only a leaf that actually fires something
+  // qualifies (the validator already enforces this; the guard keeps
+  // in-memory configs honest).
+  const hovered = sticky !== null ? current[sticky] : undefined;
+  const activation =
+    hovered?.activation !== undefined &&
+    hovered.binding !== undefined &&
+    hovered.children === undefined
+      ? hovered.activation
+      : undefined;
+  const activating = activation !== undefined && gestureActive(activation, frame);
+  const activateRising = activating && !edges.activate;
+  edges.activate = activating;
+  if (activating) {
+    return {
+      outcome: activateRising ? { kind: 'activate', index: sticky! } : { kind: 'none' },
+      edges,
+    };
+  }
+
+  // Commit-center next: checked ahead of back so a shared axis resolves
   // to commit when its half is engaged. Rising-edge → a sustained
   // deflection fires once.
   const committing = gestureActive(nav.commitCenter, frame);
@@ -337,7 +369,6 @@ export function resolvePuckFrame(args: {
     return { outcome: { kind: 'none' }, edges };
   }
 
-  const current = currentSectors(menuConfig, navigation);
   const invert = resolveAxisInvert(menuConfig);
 
   // Rotate the lateral axes so the puck-to-sector mapping respects the
