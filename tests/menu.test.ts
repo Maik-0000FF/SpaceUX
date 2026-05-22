@@ -226,6 +226,49 @@ describe('validateMenuConfig — nested submenus', () => {
     if (!r.ok) expect(r.reason).toMatch(/"children" must not be empty/);
   });
 
+  it('keeps keepOpen=true on a leaf sector', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'Vol+',
+          binding: { action: builtinAction('key-combo'), config: { keys: 'XF86AudioRaiseVolume' } },
+          keepOpen: true,
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.sectors[0]?.keepOpen).toBe(true);
+  });
+
+  it('drops keepOpen when false, on a branch, or on a binding-less leaf', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        { label: 'Off', binding: { action: builtinAction('exec') }, keepOpen: false },
+        { label: 'Branch', children: [{ label: 'Child' }], keepOpen: true },
+        // Label-only leaf: commits to nothing, so keeping the menu open
+        // would strand the user — the flag must not persist here.
+        { label: 'Label only', keepOpen: true },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.sectors[0]?.keepOpen).toBeUndefined();
+      expect(r.config.sectors[1]?.keepOpen).toBeUndefined();
+      expect(r.config.sectors[2]?.keepOpen).toBeUndefined();
+    }
+  });
+
+  it('rejects a non-boolean keepOpen', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [{ label: 'x', keepOpen: 'yes' }],
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/"keepOpen" must be a boolean/);
+  });
+
   it('rejects a non-array children field with a distinct message', () => {
     // The "not an array" and "empty array" cases produce different
     // reasons so a user staring at the error knows whether to add

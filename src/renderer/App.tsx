@@ -144,10 +144,16 @@ export function App() {
       }
       // Leaf (or label-only sector with no binding): close the menu
       // first so the user can't accidentally commit twice, then
-      // fire the action if there is one.
-      setMenuAnchor(null);
-      dispatch({ type: 'reset' });
-      window.spaceux.closeMenu();
+      // fire the action if there is one. A keepOpen sector stays
+      // visible after firing — for continuous actions (e.g. nudging
+      // volume via twist) where re-committing without reopening is
+      // the point; the sticky selection is left intact so the next
+      // commit re-fires the same sector.
+      if (!sector?.keepOpen) {
+        setMenuAnchor(null);
+        dispatch({ type: 'reset' });
+        window.spaceux.closeMenu();
+      }
       invokeBinding(sector?.binding);
     });
 

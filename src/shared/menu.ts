@@ -116,6 +116,14 @@ export type MenuSector = {
    *  can itself carry further children for arbitrary depth.
    *  Mutually exclusive with `binding`. */
   children?: MenuSector[];
+  /** Leaf-with-binding only: keep the menu open after this sector's
+   *  action fires instead of dismissing. Lets a continuous action (e.g.
+   *  nudging volume via twist) be re-committed without reopening the
+   *  pie. The validator drops it on a branch (committing a branch
+   *  drills in, never dismisses) and on a binding-less label-only leaf
+   *  (which commits to nothing). Omitted/false → historical
+   *  close-on-commit. */
+  keepOpen?: boolean;
   /** Editor-only stable identity. Assigned by the editor when a config
    *  is adopted (and to newly-added sectors); used for React keys and
    *  the tree's expand state. Because it lives on the object, immer
@@ -446,7 +454,14 @@ const KNOWN_CENTER_FIELDS: readonly string[] = ['label', 'icon', 'binding'];
 // validator never copies it into its reconstructed output, so it's
 // stripped on write; listing it here just keeps warnUnknownFields quiet
 // when the editor sends an id-bearing config back to main to save.
-const KNOWN_MENU_SECTOR_FIELDS: readonly string[] = ['label', 'icon', 'binding', 'children', 'id'];
+const KNOWN_MENU_SECTOR_FIELDS: readonly string[] = [
+  'label',
+  'icon',
+  'binding',
+  'children',
+  'keepOpen',
+  'id',
+];
 const KNOWN_ACTION_REF_FIELDS: readonly string[] = ['action', 'config'];
 const KNOWN_AXIS_INVERT_FIELDS: readonly string[] = ['x', 'y'];
 
@@ -879,6 +894,17 @@ function validateSector(raw: unknown, where: string, depth = 0): SectorValidatio
     }
     sector.children = children;
   }
+  if (s.keepOpen !== undefined) {
+    if (typeof s.keepOpen !== 'boolean') {
+      return { ok: false, reason: `${where} field "keepOpen" must be a boolean when present` };
+    }
+    // Leaf-with-binding only, and only meaningful when true: drop it on a
+    // branch, a binding-less (label-only) leaf, or when false so it never
+    // persists as a no-op flag. A label-only sector commits to nothing, so
+    // keeping the menu open there would strand the user on the Back gesture.
+    if (s.keepOpen && sector.children === undefined && sector.binding !== undefined)
+      sector.keepOpen = true;
+  }
   warnUnknownFields(s, KNOWN_MENU_SECTOR_FIELDS, where);
   return { ok: true, value: sector };
 }
@@ -996,6 +1022,7 @@ function orderSector(sector: MenuSector): Record<string, unknown> {
   const out: Record<string, unknown> = { label: sector.label };
   if (sector.icon !== undefined) out.icon = sector.icon;
   if (sector.binding !== undefined) out.binding = orderActionRef(sector.binding);
+  if (sector.keepOpen) out.keepOpen = true;
   if (sector.children !== undefined) out.children = sector.children.map(orderSector);
   return out;
 }
