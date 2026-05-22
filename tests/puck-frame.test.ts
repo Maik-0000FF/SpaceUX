@@ -156,20 +156,50 @@ describe('resolvePuckFrame — back / pop / dismiss', () => {
     expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
   });
 
-  it('does not dismiss from a cancel centre — it has its own close path (fallback only)', () => {
-    const cancelRoot: MenuConfig = {
-      version: MENU_CONFIG_VERSION,
-      navigation: nav({}),
-      root: { label: 'Quit', action: { id: builtinAction('cancel') }, branches: SECTORS },
-    };
-    const r = resolvePuckFrame({
-      menuConfig: cancelRoot,
+  // A cancel centre: back rests on it (no-op) only when it's closable
+  // another way (toggle trigger, or a bound commitCenter); otherwise back
+  // stays the fallback escape so the pie can't soft-lock.
+  const cancelRoot = (over: {
+    triggerMode: 'toggle' | 'open';
+    commitBound?: boolean;
+  }): MenuConfig => ({
+    version: MENU_CONFIG_VERSION,
+    triggerMode: over.triggerMode,
+    navigation: nav(
+      over.commitBound
+        ? {
+            commitCenter: {
+              inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }],
+            },
+          }
+        : {},
+    ),
+    root: { label: 'Quit', action: { id: builtinAction('cancel') }, branches: SECTORS },
+  });
+  const backAtCentre = (cfg: MenuConfig) =>
+    resolvePuckFrame({
+      menuConfig: cfg,
       axes: axes({ tz: -100 }),
       navigation: [],
-      sticky: null, // at the centre, but the centre is cancel → no fallback dismiss
+      sticky: null,
       edges: FRESH,
+    }).outcome;
+
+  it('cancel centre, toggle mode: back rests on the centre (trigger closes)', () => {
+    expect(backAtCentre(cancelRoot({ triggerMode: 'toggle' }))).toEqual({ kind: 'none' });
+  });
+
+  it('cancel centre, open mode + bound commitCenter: back rests on the centre (commit closes)', () => {
+    expect(backAtCentre(cancelRoot({ triggerMode: 'open', commitBound: true }))).toEqual({
+      kind: 'none',
     });
-    expect(r.outcome).toEqual({ kind: 'none' });
+  });
+
+  it('cancel centre, open mode + unbound commitCenter: back still dismisses (no soft-lock)', () => {
+    expect(backAtCentre(cancelRoot({ triggerMode: 'open' }))).toEqual({
+      kind: 'back',
+      mode: 'dismiss',
+    });
   });
 
   it('keeps the pie open the frame after walking to the centre while held (#147)', () => {
