@@ -69,6 +69,13 @@
   // — mirrors .pie-wedge.is-cancel in the live pie.
   fill: var(--pie-cancel-bg-active);
 
+  // Selected (the active commit target) → the lifted red, so the cancel
+  // shows it's the current selection while keeping its red identity.
+  // Mirrors .pie-wedge.is-cancel.is-active in the live pie.
+  &.wedgeSelected {
+    fill: var(--pie-cancel-bg-hover);
+  }
+
   // Hover lift parallel to the blue --pie-bg-hover, in red.
   .wedgeGroup:hover & {
     fill: var(--pie-cancel-bg-hover);
