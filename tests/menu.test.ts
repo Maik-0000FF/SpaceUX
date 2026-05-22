@@ -269,6 +269,57 @@ describe('validateMenuConfig — nested submenus', () => {
     if (!r.ok) expect(r.reason).toMatch(/"keepOpen" must be a boolean/);
   });
 
+  it('keeps a per-item activation binding on a leaf with a binding', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'Vol',
+          binding: { action: builtinAction('key-combo'), config: { keys: 'XF86AudioRaiseVolume' } },
+          activation: {
+            inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }],
+          },
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.sectors[0]?.activation?.inputs).toHaveLength(1);
+  });
+
+  it('drops activation on a branch, a binding-less leaf, or with no inputs', () => {
+    const act = { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }] };
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        { label: 'Branch', children: [{ label: 'C' }], activation: act },
+        { label: 'Label only', activation: act },
+        { label: 'Empty', binding: { action: builtinAction('exec') }, activation: { inputs: [] } },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.sectors[0]?.activation).toBeUndefined();
+      expect(r.config.sectors[1]?.activation).toBeUndefined();
+      expect(r.config.sectors[2]?.activation).toBeUndefined();
+    }
+  });
+
+  it('rejects a malformed activation input', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      sectors: [
+        {
+          label: 'x',
+          binding: { action: builtinAction('exec') },
+          activation: {
+            inputs: [{ kind: 'axis', axis: 'nope', direction: 'negative', threshold: 50 }],
+          },
+        },
+      ],
+    });
+    expect(r.ok).toBe(false);
+  });
+
   it('rejects a non-array children field with a distinct message', () => {
     // The "not an array" and "empty array" cases produce different
     // reasons so a user staring at the error knows whether to add

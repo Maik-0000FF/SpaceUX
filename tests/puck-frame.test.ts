@@ -10,6 +10,7 @@ import {
   builtinAction,
   type MenuConfig,
   type MenuNavigation,
+  type MenuSector,
 } from '../src/shared/menu';
 
 /**
@@ -26,7 +27,13 @@ const axes = (p: Partial<SixAxes>): SixAxes => ({ ...ZERO, ...p });
 /** No gesture remembered as active — the post-reset / first-frame state
  *  is the opposite (`true` everywhere), but for asserting rising edges a
  *  clean `false` baseline is clearer. */
-const FRESH: PuckEdges = { commit: false, back: false, drill: false, cycle: false };
+const FRESH: PuckEdges = {
+  activate: false,
+  commit: false,
+  back: false,
+  drill: false,
+  cycle: false,
+};
 
 /** Full navigation block (resolveNavigation replaces wholesale, so a
  *  partial would drop the unspecified gestures). */
@@ -98,10 +105,16 @@ describe('resolvePuckFrame — commit center', () => {
       axes: axes({ tz: 100 }),
       navigation: [],
       sticky: null,
-      edges: { commit: false, back: true, drill: true, cycle: true },
+      edges: { activate: false, commit: false, back: true, drill: true, cycle: true },
     });
     expect(r.outcome).toEqual({ kind: 'commitCenter' });
-    expect(r.edges).toEqual({ commit: true, back: true, drill: true, cycle: true });
+    expect(r.edges).toEqual({
+      activate: false,
+      commit: true,
+      back: true,
+      drill: true,
+      cycle: true,
+    });
   });
 });
 
@@ -156,10 +169,16 @@ describe('resolvePuckFrame — cross-talk guard', () => {
       axes: axes({ tz: -100, ty: 100 }),
       navigation: [],
       sticky: null,
-      edges: { commit: false, back: false, drill: true, cycle: true },
+      edges: { activate: false, commit: false, back: false, drill: true, cycle: true },
     });
     expect(r.outcome).toEqual({ kind: 'none' });
-    expect(r.edges).toEqual({ commit: false, back: false, drill: true, cycle: true });
+    expect(r.edges).toEqual({
+      activate: false,
+      commit: false,
+      back: false,
+      drill: true,
+      cycle: true,
+    });
   });
 });
 
@@ -219,5 +238,72 @@ describe('resolvePuckFrame — drill / hover / cycle', () => {
       edges: FRESH,
     });
     expect(r.outcome).toEqual({ kind: 'none' });
+  });
+});
+
+describe('resolvePuckFrame — per-item activation (#130 R2)', () => {
+  // The hovered leaf (index 1) binds TZ− to fire its own binding. The
+  // default global back is TZ both — so TZ down collides, and the per-item
+  // activation must win for this item; TZ up still backs (direction-aware).
+  const ACT_SECTORS: MenuSector[] = [
+    { label: 'Branch', children: [{ label: 'C0' }, { label: 'C1' }] },
+    {
+      label: 'Vol',
+      binding: { action: builtinAction('exec'), config: { command: 'x' } },
+      activation: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }] },
+    },
+  ];
+  const actConfig = (navigation: MenuNavigation): MenuConfig => ({
+    version: MENU_CONFIG_VERSION,
+    navigation,
+    sectors: ACT_SECTORS,
+  });
+
+  it('fires the hovered leaf and wins over the colliding global back', () => {
+    const r = resolvePuckFrame({
+      menuConfig: actConfig(nav({})),
+      axes: axes({ tz: -100 }), // also satisfies global back (TZ both)
+      navigation: [],
+      sticky: 1,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'activate', index: 1 });
+    expect(r.edges.activate).toBe(true);
+  });
+
+  it('does not re-fire while the activation input stays held', () => {
+    const r = resolvePuckFrame({
+      menuConfig: actConfig(nav({})),
+      axes: axes({ tz: -100 }),
+      navigation: [],
+      sticky: 1,
+      edges: { ...FRESH, activate: true },
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+    expect(r.edges.activate).toBe(true);
+  });
+
+  it('leaves the other half of the axis free: TZ up still backs', () => {
+    const r = resolvePuckFrame({
+      menuConfig: actConfig(nav({})),
+      axes: axes({ tz: 100 }), // activation is TZ−, so this doesn't activate
+      navigation: [],
+      sticky: 1,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
+    expect(r.edges.activate).toBe(false);
+  });
+
+  it('ignores activation when no sector is hovered (sticky null)', () => {
+    const r = resolvePuckFrame({
+      menuConfig: actConfig(nav({})),
+      axes: axes({ tz: -100 }),
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    // No hovered leaf → activation can't fire; falls through to global back.
+    expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
   });
 });

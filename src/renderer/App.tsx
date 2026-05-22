@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { currentSectors, type DrillState } from '@/core/menu-nav';
-import { type ActionRef, type MenuConfig } from '@/shared/menu';
+import { type ActionRef, type MenuConfig, type MenuSector } from '@/shared/menu';
 
 import { PieMenu } from './PieMenu';
 import { useDrillNavigation } from './hooks/useDrillNavigation';
@@ -71,6 +71,20 @@ export function App() {
     invokeBinding(configRef.current?.centerField?.binding);
   }, []);
 
+  // Fire the hovered leaf via its per-item activation gesture (#130 R2).
+  // Mirrors the leaf-commit path: close the window unless the sector is
+  // keepOpen (so a continuous action can re-fire), then invoke its
+  // binding. The drill-state reset is the hook's job (like commitCenter),
+  // so this stays a stable, dep-free callback. The hook only emits this
+  // for a leaf with a binding, but the optional access stays defensive.
+  const activateSector = useCallback((sector: MenuSector | undefined) => {
+    if (!sector?.keepOpen) {
+      setMenuAnchor(null);
+      window.spaceux.closeMenu();
+    }
+    invokeBinding(sector?.binding);
+  }, []);
+
   // All puck-driven state (navigation, sticky, rising-edge refs for the
   // back / center-activation / drill gestures) lives in
   // `useDrillNavigation`. App.tsx owns the IPC subscription, the render,
@@ -82,6 +96,7 @@ export function App() {
     menuOpen: menuAnchor !== null,
     onDismiss: dismissMenu,
     onCommitCenter: commitCenter,
+    onActivate: activateSector,
   });
 
   useEffect(() => {
