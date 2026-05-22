@@ -66,7 +66,11 @@ export function Properties() {
   const offeredButtons = buttonCount > 0 ? buttonCount : FALLBACK_BUTTON_COUNT;
   const availableActions = useAvailableActions();
 
-  const path = selectedPath(viewPath, selectedIndex);
+  // Edit the in-ring selection; or, when a branch has been drilled into
+  // (nothing selected within its ring), edit that drilled-in node itself —
+  // so picking a branch in the tree both dives in (preview) and edits it.
+  const path =
+    selectedPath(viewPath, selectedIndex) ?? (viewPath.length > 0 ? [...viewPath] : null);
   const node = config && path ? nodeAtPath(config, path) : null;
   const isExec = node?.action?.id === builtinAction(BUILTIN_ACTION.EXEC);
   // Global gestures this node's activation shadows — it wins for this
