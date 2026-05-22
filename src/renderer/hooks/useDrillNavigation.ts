@@ -35,32 +35,12 @@ import { useEffect, useReducer, useRef, type Dispatch, type RefObject } from 're
 
 import {
   INITIAL_DRILL_STATE,
-  currentSectors,
   drillReducer,
-  navigationRingRotation,
-  resolveTwistFrame,
+  resolvePuckFrame,
   type DrillAction,
   type DrillState,
 } from '@/core/menu-nav';
-import {
-  axesToSector,
-  backAxisEngaged,
-  cycleStepFromInputs,
-  DEFAULT_PIE_GEOMETRY,
-  gestureActive,
-  rotateAxes,
-  type GestureFrame,
-} from '@/core/pie-geometry';
-import { resolveAxisInvert, resolveNavigation, type MenuConfig } from '@/shared/menu';
-
-/** Rising-edge detector for a boolean gesture: `true` once when
- *  `active` flips false→true, then stays `false` until it goes inactive
- *  again. Mutates `prevRef` to carry the "was active" memory. */
-function risingEdge(active: boolean, prevRef: RefObject<boolean>): boolean {
-  const rising = active && !prevRef.current;
-  prevRef.current = active;
-  return rising;
-}
+import { type MenuConfig } from '@/shared/menu';
 
 export type UseDrillNavigation = {
   drillState: DrillState;
@@ -117,130 +97,63 @@ export function useDrillNavigation(opts: {
   useEffect(() => {
     if (!menuOpen || !menuConfig) return;
 
-    const nav = resolveNavigation(menuConfig);
-    // Button states aren't plumbed to the hook yet, so button-bound
-    // inputs are inert for now (no migrated config uses them); axis +
-    // magnitude inputs drive everything. A later PR feeds real button
-    // state here.
-    const frame: GestureFrame = { axes, buttons: [] };
+    // The whole per-frame decision lives in the pure resolver; the hook
+    // just feeds it the live state + rising-edge memory and applies the
+    // outcome. `drillState` is read via `drillStateRef` (not the dep
+    // array): axes tick often enough that the next frame picks up any
+    // post-drill navigation, and depending on drillState here would
+    // re-run on every reducer dispatch. `onDismiss`/`onCommitCenter` are
+    // stable callbacks from App.tsx, listed so the effect always calls
+    // the current ones.
+    const { navigation, stickyChildIndex } = drillStateRef.current;
+    const { outcome, edges } = resolvePuckFrame({
+      menuConfig,
+      axes,
+      navigation,
+      sticky: stickyChildIndex,
+      edges: {
+        commit: wasCommitRef.current,
+        back: wasBackRef.current,
+        drill: wasDrillRef.current,
+        cycle: wasCycleRef.current,
+      },
+    });
+    // Persist the next rising-edge memory regardless of the outcome — a
+    // gesture that was active but didn't fire (held past a previous
+    // edge) must still be remembered so it doesn't re-fire next frame.
+    wasCommitRef.current = edges.commit;
+    wasBackRef.current = edges.back;
+    wasDrillRef.current = edges.drill;
+    wasCycleRef.current = edges.cycle;
 
-    // Commit-center first: its gesture commits the center directly —
-    // firing the binding, or dismissing when it has none. Rising-edge so
-    // a sustained deflection fires once. Checked ahead of back so a
-    // shared axis resolves to commit when its half is engaged.
-    const committing = gestureActive(nav.commitCenter, frame);
-    const commitRising = risingEdge(committing, wasCommitRef);
-    if (committing) {
-      if (commitRising) {
+    switch (outcome.kind) {
+      case 'commitCenter':
         // Reset our own reducer state on the way out (the callback only
         // hides the window + fires the binding); the next MENU_OPEN
         // re-arms cleanly regardless.
         dispatch({ type: 'reset' });
         onCommitCenter();
-      }
-      return;
-    }
-
-    // Back/pop next: a deliberate "back" gesture short-circuits the
-    // lateral gestures so it isn't mistaken for "drill harder". At the
-    // top level it dismisses — never firing the center binding, which is
-    // reserved for the commit/activation paths so back stays a pure
-    // escape hatch; drilled in it pops one level.
-    const backing = gestureActive(nav.back, frame);
-    const backRising = risingEdge(backing, wasBackRef);
-    if (backing) {
-      if (backRising) {
-        if (drillStateRef.current.navigation.length > 0) {
+        break;
+      case 'back':
+        if (outcome.mode === 'pop') {
           dispatch({ type: 'pop' });
         } else {
           dispatch({ type: 'reset' });
           onDismiss();
         }
-      }
-      return;
+        break;
+      case 'drill':
+        // child[0] aligns with the parent sector's angle thanks to the
+        // outer-ring rotation, so landing sticky on 0 matches the user's
+        // puck direction.
+        dispatch({ type: 'drill', index: outcome.index, nextSticky: 0 });
+        break;
+      case 'hover':
+        dispatch({ type: 'hover', index: outcome.index });
+        break;
+      case 'none':
+        break;
     }
-
-    // Cross-talk guard: a deflection on the back gesture's axis (in
-    // either sense) suppresses lateral selection, even the half a split
-    // cedes to commit-center that hasn't reached its threshold yet.
-    // Pushing the puck straight along that axis induces lateral
-    // cross-talk; this keeps it from spuriously hovering/drilling.
-    if (backAxisEngaged(nav.back, axes)) return;
-
-    const navigation = drillStateRef.current.navigation;
-    const current = currentSectors(menuConfig, navigation);
-    const invert = resolveAxisInvert(menuConfig);
-
-    // Rotate the lateral axes so the puck-to-sector mapping respects
-    // the visual rotation of the drilled-in outer ring. Top-level
-    // returns 0 from the shared rotation helper, leaving the axes
-    // unchanged for the inner-pie case.
-    const ringRotation = navigationRingRotation(menuConfig, navigation);
-    const rotated = rotateAxes({ tx: axes.tx, ty: axes.ty }, -ringRotation);
-
-    const rawSec = axesToSector(rotated, {
-      ...DEFAULT_PIE_GEOMETRY,
-      sectorCount: current.length,
-      invertX: invert.x,
-      invertY: invert.y,
-    });
-    // axesToSector clamps internal sectorCount to a minimum of 2,
-    // so a 1-child ring can return index 1 — nowhere to render.
-    // Clamp out so sticky always lands on an existing sector.
-    const sec = rawSec === null ? null : rawSec % current.length;
-
-    // Drill gesture: any of its inputs (lateral/tilt/twist magnitude,
-    // a split axis, …) firing drills into the hovered branch. One
-    // rising-edge over the combined gesture — a held drill fires once.
-    const drillRising = risingEdge(gestureActive(nav.drillIn, frame), wasDrillRef);
-
-    // Cycle: a directional axis input steps the selection one sector.
-    // Rising-edge so a held twist steps once. Shares an axis with drill
-    // via a threshold split — keep the cycle threshold below the drill
-    // threshold so a gentle twist steps and a firmer one drills (a fast
-    // twist past both steps then drills the just-stepped sector via
-    // `drillTarget`).
-    const cycleStepRaw = cycleStepFromInputs(nav.cycle.inputs, axes);
-    const cycleOver = cycleStepRaw !== 0;
-    const cycleStep = cycleOver && !wasCycleRef.current ? cycleStepRaw : 0;
-    // Mark the edge consumed every frame the cycle axis is over its
-    // threshold — even one made while aiming laterally under
-    // `priority: 'lateral'`, where `resolveTwistFrame` drops the step.
-    wasCycleRef.current = cycleOver;
-
-    // Resolve this frame's hover + drill target from the pure helper, so
-    // the priority and sticky-drill-fallback rules stay unit-tested.
-    const sticky = drillStateRef.current.stickyChildIndex;
-    const { hoverIndex, drillTarget } = resolveTwistFrame({
-      sec,
-      sticky,
-      cycleStep,
-      priority: nav.cycle.priority,
-      count: current.length,
-      // Only axis inputs can actually step; a button/magnitude-only
-      // cycle binding mustn't gate the sticky-drill fallback.
-      cycleEnabled: nav.cycle.inputs.some((input) => input.kind === 'axis'),
-    });
-
-    if (drillRising && drillTarget !== null) {
-      const hovered = current[drillTarget];
-      if (hovered?.children) {
-        // child[0] aligns with the parent sector's angle thanks to
-        // the outer-ring rotation, so landing sticky on 0 matches
-        // the user's puck direction.
-        dispatch({ type: 'drill', index: drillTarget, nextSticky: 0 });
-        return;
-      }
-    }
-
-    if (hoverIndex !== null) dispatch({ type: 'hover', index: hoverIndex });
-    // `drillState.navigation` is read via `drillStateRef`, not the
-    // dep array. axes ticks frequently enough that the next frame
-    // picks up any post-drill navigation; adding drillState here
-    // would re-run on every reducer dispatch and defeat the
-    // identity short-circuits inside it. `onDismiss`/`onCommitCenter`
-    // are stable callbacks from App.tsx; listed so the effect always
-    // calls the current ones.
   }, [axes, menuConfig, menuOpen, onDismiss, onCommitCenter]);
 
   return {
