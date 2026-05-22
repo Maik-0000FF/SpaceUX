@@ -36,7 +36,10 @@ const MAGNITUDE_LABEL: Record<MagnitudeSource, string> = {
 const AXIS_MOTION: Record<MenuAxisName, { base: string; positive: string; negative: string }> = {
   tx: { base: 'Slide', positive: 'Slide right', negative: 'Slide left' },
   ty: { base: 'Slide', positive: 'Slide forward', negative: 'Slide back' },
-  tz: { base: 'Press', positive: 'Lift up', negative: 'Press down' },
+  // `base` (the ± split) stays direction-neutral: TZ both is the shipped
+  // default back gesture, so "Press / lift (TZ±)" must read as either way,
+  // not just downward.
+  tz: { base: 'Press / lift', positive: 'Lift up', negative: 'Press down' },
   rx: { base: 'Tilt', positive: 'Tilt forward', negative: 'Tilt back' },
   ry: { base: 'Tilt', positive: 'Tilt right', negative: 'Tilt left' },
   rz: { base: 'Twist', positive: 'Twist right', negative: 'Twist left' },
