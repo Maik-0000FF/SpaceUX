@@ -241,18 +241,22 @@ describe('validateMenuConfig — nested submenus', () => {
     if (r.ok) expect(r.config.sectors[0]?.keepOpen).toBe(true);
   });
 
-  it('drops keepOpen when false or on a branch (never persists a no-op flag)', () => {
+  it('drops keepOpen when false, on a branch, or on a binding-less leaf', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       sectors: [
         { label: 'Off', binding: { action: builtinAction('exec') }, keepOpen: false },
         { label: 'Branch', children: [{ label: 'Child' }], keepOpen: true },
+        // Label-only leaf: commits to nothing, so keeping the menu open
+        // would strand the user — the flag must not persist here.
+        { label: 'Label only', keepOpen: true },
       ],
     });
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.config.sectors[0]?.keepOpen).toBeUndefined();
       expect(r.config.sectors[1]?.keepOpen).toBeUndefined();
+      expect(r.config.sectors[2]?.keepOpen).toBeUndefined();
     }
   });
 

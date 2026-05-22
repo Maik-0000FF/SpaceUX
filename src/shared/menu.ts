@@ -116,11 +116,13 @@ export type MenuSector = {
    *  can itself carry further children for arbitrary depth.
    *  Mutually exclusive with `binding`. */
   children?: MenuSector[];
-  /** Leaf-only: keep the menu open after this sector's action fires
-   *  instead of dismissing. Lets a continuous action (e.g. nudging
-   *  volume via twist) be re-committed without reopening the pie.
-   *  Ignored on branches (committing a branch drills in, never
-   *  dismisses). Omitted/false → the historical close-on-commit. */
+  /** Leaf-with-binding only: keep the menu open after this sector's
+   *  action fires instead of dismissing. Lets a continuous action (e.g.
+   *  nudging volume via twist) be re-committed without reopening the
+   *  pie. The validator drops it on a branch (committing a branch
+   *  drills in, never dismisses) and on a binding-less label-only leaf
+   *  (which commits to nothing). Omitted/false → historical
+   *  close-on-commit. */
   keepOpen?: boolean;
   /** Editor-only stable identity. Assigned by the editor when a config
    *  is adopted (and to newly-added sectors); used for React keys and
@@ -896,9 +898,12 @@ function validateSector(raw: unknown, where: string, depth = 0): SectorValidatio
     if (typeof s.keepOpen !== 'boolean') {
       return { ok: false, reason: `${where} field "keepOpen" must be a boolean when present` };
     }
-    // Leaf-only and only meaningful when true: drop it on a branch or
-    // when false so it never persists as a no-op flag.
-    if (s.keepOpen && sector.children === undefined) sector.keepOpen = true;
+    // Leaf-with-binding only, and only meaningful when true: drop it on a
+    // branch, a binding-less (label-only) leaf, or when false so it never
+    // persists as a no-op flag. A label-only sector commits to nothing, so
+    // keeping the menu open there would strand the user on the Back gesture.
+    if (s.keepOpen && sector.children === undefined && sector.binding !== undefined)
+      sector.keepOpen = true;
   }
   warnUnknownFields(s, KNOWN_MENU_SECTOR_FIELDS, where);
   return { ok: true, value: sector };

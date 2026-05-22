@@ -202,36 +202,41 @@ export function Properties() {
                   </button>
                 )}
                 {sector.binding !== undefined && (
-                  // Keyed on the selection + remoteRev so the local JSON
-                  // text remounts on an external adoption, not while typing.
-                  <ConfigEditor
-                    key={`${path.join('.')}-${remoteRev}`}
-                    value={sector.binding.config}
-                    onChange={(cfg) =>
-                      updateSectorAt(path, (s) => {
-                        if (!s.binding) return;
-                        if (cfg === undefined) delete s.binding.config;
-                        else s.binding.config = cfg;
-                      })
-                    }
-                  />
+                  <>
+                    {/* Keyed on the selection + remoteRev so the local JSON
+                        text remounts on an external adoption, not while typing. */}
+                    <ConfigEditor
+                      key={`${path.join('.')}-${remoteRev}`}
+                      value={sector.binding.config}
+                      onChange={(cfg) =>
+                        updateSectorAt(path, (s) => {
+                          if (!s.binding) return;
+                          if (cfg === undefined) delete s.binding.config;
+                          else s.binding.config = cfg;
+                        })
+                      }
+                    />
+                    {/* keepOpen only makes sense for a leaf that actually
+                        fires something — a label-only leaf commits to nothing,
+                        so keeping the menu open there would strand the user. */}
+                    <Row label="After action">
+                      <select
+                        className={styles.select}
+                        value={sector.keepOpen ? 'keep' : 'close'}
+                        title="Keep the menu open after this action fires — e.g. to nudge volume repeatedly with the same gesture"
+                        onChange={(e) =>
+                          updateSectorAt(path, (s) => {
+                            if (e.target.value === 'keep') s.keepOpen = true;
+                            else delete s.keepOpen;
+                          })
+                        }
+                      >
+                        <option value="close">Close menu</option>
+                        <option value="keep">Keep menu open</option>
+                      </select>
+                    </Row>
+                  </>
                 )}
-                <Row label="After action">
-                  <select
-                    className={styles.select}
-                    value={sector.keepOpen ? 'keep' : 'close'}
-                    title="Keep the menu open after this action fires — e.g. to nudge volume repeatedly with the same gesture"
-                    onChange={(e) =>
-                      updateSectorAt(path, (s) => {
-                        if (e.target.value === 'keep') s.keepOpen = true;
-                        else delete s.keepOpen;
-                      })
-                    }
-                  >
-                    <option value="close">Close menu</option>
-                    <option value="keep">Keep menu open</option>
-                  </select>
-                </Row>
               </>
             )}
           </section>
