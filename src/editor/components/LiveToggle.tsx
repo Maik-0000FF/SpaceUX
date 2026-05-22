@@ -6,7 +6,7 @@ import { useAppState } from '../state/app-state';
 import styles from './LiveToggle.module.scss';
 
 /**
- * Toggles "live" preview: when on, the preview highlights the sector under
+ * Toggles "live" preview: when on, the preview highlights the node under
  * the live SpaceMouse puck (so the author can feel the menu) instead of the
  * click selection. Off by default so the puck doesn't fight click editing.
  */

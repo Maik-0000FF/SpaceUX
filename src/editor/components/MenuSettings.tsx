@@ -12,9 +12,9 @@ import { Row } from './Row';
 import styles from './Properties.module.scss';
 
 /**
- * Menu-level settings shown when no sector is selected: the trigger button
+ * Menu-level settings shown when no node is selected: the trigger button
  * that opens this pie and the configurable center field. Operate on the
- * whole config rather than a single sector. (Pie design — size, theme,
+ * whole config rather than a single node. (Pie design — size, theme,
  * opacity — lives in the preview section's design bar, see #107.)
  */
 export function MenuSettings() {

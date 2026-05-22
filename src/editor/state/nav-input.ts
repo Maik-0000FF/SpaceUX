@@ -18,7 +18,7 @@ import type {
 /** Buttons the input dropdown offers when no device is connected (count
  *  0) — covers a SpaceNavigator through the common pucks. With a device
  *  attached the daemon-reported count is used instead (#66). Shared by
- *  the navigation editor and the per-sector activation control. */
+ *  the navigation editor and the per-node activation control. */
 export const FALLBACK_BUTTON_COUNT = 8;
 
 /** Encode an input binding as the dropdown's option `value`. */

@@ -16,7 +16,7 @@ const SCALE_STEP = 0.05;
  * Pie *design* controls, grouped above the preview (#107): theme + opacity
  * (app-level appearance) and size (the menu.json `scale`). Kept together
  * here, next to the pie they affect, rather than scattered across the
- * toolbar and the Properties sidebar. Menu *structure* (sectors, bindings,
+ * toolbar and the Properties sidebar. Menu *structure* (nodes, bindings,
  * navigation) stays in the sidebar.
  *
  * usePieAppearance also applies the live `--pie-*` vars to the editor's

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 /**
- * Detect when a per-sector activation input shadows a global navigation
+ * Detect when a per-node activation input shadows a global navigation
  * gesture (#130 R2). The runtime resolves activation ahead of the global
  * gestures, so a collision means the per-item input *wins* for that item
  * — useful, but worth flagging in the editor so the user knows they've
@@ -42,7 +42,7 @@ function inputsCollide(a: InputBinding, b: InputBinding): boolean {
 }
 
 /**
- * Labels of the global gestures a sector's activation collides with —
+ * Labels of the global gestures a node's activation collides with —
  * empty when there's no overlap (or no activation). The editor surfaces
  * these as a "wins for this item" warning.
  */

@@ -18,7 +18,7 @@ import {
 } from '@/shared/menu';
 
 import { eqPath, isPrefix, sectorHeight } from './move-targets';
-import { nextSectorId } from './sector-keys';
+import { nextNodeId } from './node-keys';
 
 /**
  * The editor's working copy of the menu config plus the bookkeeping the
@@ -78,7 +78,7 @@ type MenuSettingsState = {
   /** Reorder the ring at `ringPath` so the one at `from` ends up at
    *  `to`. No-op for invalid indices. */
   moveSector: (ringPath: readonly number[], from: number, to: number) => void;
-  /** Move the sector at `fromPath` to the end of the ring at `toRingPath`
+  /** Move the node at `fromPath` to the end of the ring at `toRingPath`
    *  (a different ring). No-op for a cycle (target inside the moved
    *  subtree), an empty-root result, the same ring, a target too deep for
    *  the moved subtree (MAX_MENU_DEPTH), or invalid paths. If the source
@@ -95,7 +95,7 @@ type MenuSettingsState = {
    *  becomes a silent dismiss); a string sets (or creates) `action.id`,
    *  preserving any existing per-action config. An empty string is kept
    *  as `{ id: '' }` — distinct from `null` — so the editor's "action
-   *  mode" stays mounted while the user retypes, mirroring the sector
+   *  mode" stays mounted while the user retypes, mirroring the node
    *  editor. */
   setRootAction: (id: string | null) => void;
   /** Set (or clear, with `undefined`) the root action's per-action
@@ -112,10 +112,10 @@ type MenuSettingsState = {
  *  edit-stable identity. Pure — never mutates the input (the adopted
  *  snapshot may be a shared object, e.g. DEFAULT_MENU_CONFIG). The root
  *  node itself is not assigned an id (it isn't a list/tree row). */
-function withSectorIds(config: MenuConfig): MenuConfig {
+function withNodeIds(config: MenuConfig): MenuConfig {
   const tag = (node: MenuNode): MenuNode => ({
     ...node,
-    id: node.id ?? nextSectorId(),
+    id: node.id ?? nextNodeId(),
     ...(node.branches ? { branches: node.branches.map(tag) } : {}),
   });
   return {
@@ -161,7 +161,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
       saveError: null,
       setConfig: (snapshot) =>
         set((state) => {
-          state.config = withSectorIds(snapshot.config);
+          state.config = withNodeIds(snapshot.config);
           state.mtime = snapshot.mtime;
           state.origin = 'remote';
           state.remoteRev += 1;
@@ -212,7 +212,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (!state.config) return;
           const ring = draftRingAt(state.config, ringPath);
           if (!ring) return;
-          ring.push({ label: 'New item', id: nextSectorId() });
+          ring.push({ label: 'New item', id: nextNodeId() });
           state.origin = 'local';
           state.dirty = true;
         }),
@@ -286,6 +286,8 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (!state.config) return;
           // The root label is required by the type but may be empty; an
           // empty/blank value normalises to '' (renderer falls back to ✕).
+          // Whitespace-only collapses to '' so the renderer shows the ✕
+          // glyph; a real label is kept verbatim (no trimming).
           state.config.root.label = label.trim() === '' ? '' : label;
           state.origin = 'local';
           state.dirty = true;

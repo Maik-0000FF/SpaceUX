@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import type { EditorAction } from '@/shared/ipc';
 
 /**
- * The actions the editor can offer in the sector Action dropdown
+ * The actions the editor can offer in the node Action dropdown
  * (builtins + loaded plugins), pulled from main on mount. Static for the
  * session — plugins load at startup — so a one-shot pull (no push) is
  * enough. Empty until the pull resolves, or if it fails (the Action field

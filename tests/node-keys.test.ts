@@ -5,31 +5,31 @@ import { describe, expect, it } from 'vitest';
 
 import type { MenuNode } from '@/shared/menu';
 
-import { sectorKey } from '../src/editor/state/sector-keys';
+import { nodeKey } from '../src/editor/state/node-keys';
 
-// sectorKey backs the editor list/preview React keys. The contract is
+// nodeKey backs the editor list/preview React keys. The contract is
 // pure object-identity, so it's exercised here without a DOM.
-describe('sectorKey', () => {
-  it('returns a stable key for the same sector object', () => {
-    const sector: MenuNode = { label: 'A' };
-    expect(sectorKey(sector)).toBe(sectorKey(sector));
+describe('nodeKey', () => {
+  it('returns a stable key for the same node object', () => {
+    const node: MenuNode = { label: 'A' };
+    expect(nodeKey(node)).toBe(nodeKey(node));
   });
 
   it('gives distinct keys to distinct objects, even with equal contents', () => {
     const a: MenuNode = { label: 'Same' };
     const b: MenuNode = { label: 'Same' };
-    expect(sectorKey(a)).not.toBe(sectorKey(b));
+    expect(nodeKey(a)).not.toBe(nodeKey(b));
   });
 
-  it('keeps each sector its key across a reorder (splice preserves refs)', () => {
+  it('keeps each node its key across a reorder (splice preserves refs)', () => {
     const ring: MenuNode[] = [{ label: 'A' }, { label: 'B' }, { label: 'C' }];
-    const before = ring.map(sectorKey);
+    const before = ring.map(nodeKey);
 
     // Mirror the store's moveSector: splice the same object references.
     const [moved] = ring.splice(0, 1);
     ring.splice(2, 0, moved!);
 
     // Keys travel with the objects, not the positions.
-    expect(ring.map(sectorKey)).toEqual([before[1], before[2], before[0]]);
+    expect(ring.map(nodeKey)).toEqual([before[1], before[2], before[0]]);
   });
 });

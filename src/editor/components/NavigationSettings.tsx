@@ -27,7 +27,7 @@ import styles from './Properties.module.scss';
  * and 2D push/tilt magnitudes — plus a threshold for the analog ones.
  *
  * The bindings drive the runtime directly (see useDrillNavigation), so
- * edits here take effect on the next menu open. Per-sector overrides
+ * edits here take effect on the next menu open. Per-node overrides
  * land in a later PR.
  */
 
@@ -36,7 +36,7 @@ type GestureKey = (typeof GESTURE_KEYS)[number];
 const GESTURE_LABELS: Record<GestureKey, string> = {
   drillIn: 'Drill in',
   back: 'Back / dismiss',
-  cycle: 'Cycle sectors',
+  cycle: 'Cycle nodes',
   commitCenter: 'Commit center',
 };
 
