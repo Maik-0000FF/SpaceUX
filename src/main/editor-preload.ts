@@ -6,6 +6,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { AxesValues, ButtonEventPayload, EditorBridge } from '../shared/bridge.js';
 import {
   IpcChannel,
+  type EditorAction,
   type EditorDeviceInfo,
   type MenuConfigChange,
   type MenuConfigSnapshot,
@@ -62,6 +63,8 @@ const bridge: EditorBridge = {
     ipcRenderer.on(IpcChannel.EDITOR_DEVICE, listener);
     return () => ipcRenderer.off(IpcChannel.EDITOR_DEVICE, listener);
   },
+  getAvailableActions: () =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_GET_ACTIONS) as Promise<EditorAction[]>,
   getProfiles: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_PROFILES) as Promise<ProfilesState>,
   onProfilesChanged: (handler) => {
     const listener = (_evt: IpcRendererEvent, state: ProfilesState) => handler(state);

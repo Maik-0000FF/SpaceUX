@@ -86,6 +86,17 @@ body {
   stroke: var(--pie-border-active);
 }
 
+/* A sector bound to the built-in cancel action: the abort target, red
+ * like the centre ✕ (reuses --pie-cancel-bg-active). Listed after
+ * .is-active (equal specificity) so a hovered cancel wedge stays red;
+ * the active stroke still applies via the rule below. */
+.pie-wedge.is-cancel {
+  fill: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+}
+.pie-wedge.is-cancel.is-active {
+  stroke: var(--pie-border-active);
+}
+
 /* Preview wedges (outer ring around a hovered branch). Dimmed so the
  * user reads them as "there's a submenu here" rather than "this is
  * selectable right now" — selection stays in the inner pie until

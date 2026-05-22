@@ -842,6 +842,12 @@ app.whenReady().then(async () => {
       // Hot-reload the live pie so an editor save takes effect at once.
       mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, config);
     },
+    listActions: () =>
+      Object.entries(actionIndex).map(([id, { descriptor }]) => ({
+        id,
+        label: descriptor.label,
+        description: descriptor.description,
+      })),
   });
   wireAppIpc({
     getAppearance: () => pieAppearance,

@@ -392,6 +392,13 @@ export function builtinAction(name: (typeof BUILTIN_ACTION)[keyof typeof BUILTIN
   return `${BUILTIN_PLUGIN_ID}/${name}`;
 }
 
+/** Whether a sector is bound to the built-in cancel action — i.e. an
+ *  explicit "dismiss the menu" field. The live pie and the editor preview
+ *  render it red (the abort target), matching the centre ✕. */
+export function isCancelSector(sector: Pick<MenuSector, 'binding'>): boolean {
+  return sector.binding?.action === builtinAction(BUILTIN_ACTION.CANCEL);
+}
+
 // ── Factory default ─────────────────────────────────────────────────
 //
 // Shipped when the user has no menu.json yet. Eight sectors so the

@@ -117,6 +117,11 @@ export const IpcChannel = {
   /** Editor deletes a profile by id. invoke → {@link ProfileActionResult}. */
   EDITOR_DELETE_PROFILE: 'spaceux:editor:profiles:delete',
 
+  /** Editor pulls the list of available actions on mount, to populate the
+   *  sector Action dropdown ({@link EditorAction}[], builtins + loaded
+   *  plugins). invoke. */
+  EDITOR_GET_ACTIONS: 'spaceux:editor:actions:get',
+
   // ── Pie appearance (own app setting, separate from menu.json and the
   //    editor UI theme; consumed by both the live pie and the editor
   //    preview) ─────────────────────────────────────────────────────────
@@ -143,6 +148,16 @@ export type EditorDeviceInfo = {
   product: number;
   name: string;
   profileId: string | null;
+};
+
+/** One selectable action for the editor's Action dropdown: the composite
+ *  `pluginId/actionName` key (the value persisted in a binding) plus the
+ *  human label/description from the action descriptor. Built from main's
+ *  action index (builtins + loaded plugins). */
+export type EditorAction = {
+  id: string;
+  label: string;
+  description?: string;
 };
 
 /** The per-device profiles the editor knows about (#113): the ids of the

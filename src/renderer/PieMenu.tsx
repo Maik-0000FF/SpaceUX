@@ -16,7 +16,7 @@ import {
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import { resolveAxisInvert, type MenuConfig, type MenuSector } from '@/shared/menu';
+import { isCancelSector, resolveAxisInvert, type MenuConfig, type MenuSector } from '@/shared/menu';
 
 const TAU = Math.PI * 2;
 
@@ -233,7 +233,7 @@ export function PieMenu({
         {/* Inner ring: active selection target at top level, dimmed
          *  breadcrumb once drilled in (with the drilled-into sector
          *  marked as "you came from here"). */}
-        {innerSectors.map((_, i) => (
+        {innerSectors.map((sector, i) => (
           <SectorWedge
             key={`inner-wedge-${i}`}
             index={i}
@@ -241,6 +241,7 @@ export function PieMenu({
             outerRadius={radius}
             innerRadius={innerRadius}
             active={!isDrilled && activeSector === i}
+            cancel={isCancelSector(sector)}
             breadcrumb={isDrilled}
             drilledInto={isDrilled && drilledIntoIndex === i}
           />
@@ -276,7 +277,7 @@ export function PieMenu({
          *  thing that changes is opacity + whether it's interactive. */}
         {outerSectors !== undefined && outerSectors.length > 0 && (
           <g className="pie-outer-ring">
-            {outerSectors.map((_, i) => (
+            {outerSectors.map((sector, i) => (
               <SectorWedge
                 key={`outer-wedge-${i}`}
                 index={i}
@@ -284,6 +285,7 @@ export function PieMenu({
                 outerRadius={outerRingOuterRadius}
                 innerRadius={outerRingInnerRadius}
                 active={isDrilled && activeSector === i}
+                cancel={isCancelSector(sector)}
                 preview={!isDrilled}
                 rotation={outerRingRotation}
               />
@@ -312,6 +314,7 @@ function SectorWedge({
   outerRadius,
   innerRadius,
   active,
+  cancel = false,
   preview = false,
   breadcrumb = false,
   drilledInto = false,
@@ -322,6 +325,9 @@ function SectorWedge({
   outerRadius: number;
   innerRadius: number;
   active: boolean;
+  /** Bound to the built-in cancel action → render red (the abort target),
+   *  matching the centre ✕. */
+  cancel?: boolean;
   /** Dimmed outer-ring style for a top-level branch preview.
    *  Mutually exclusive with `breadcrumb`. */
   preview?: boolean;
@@ -346,6 +352,7 @@ function SectorWedge({
   const className = [
     'pie-wedge',
     active && 'is-active',
+    cancel && 'is-cancel',
     preview && 'is-preview',
     breadcrumb && 'is-breadcrumb',
     breadcrumb && drilledInto && 'is-drilled-into',
