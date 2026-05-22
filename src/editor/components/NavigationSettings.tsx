@@ -4,22 +4,18 @@
 import { Fragment } from 'react';
 
 import {
-  ACTIVATION_DIRECTIONS,
   DEFAULT_ACTIVATION_THRESHOLD,
   DEFAULT_TWIST_CYCLE_THRESHOLD,
-  MAGNITUDE_SOURCES,
-  MENU_AXES,
   TWIST_CYCLE_PRIORITIES,
   resolveNavigation,
-  type ActivationDirection,
-  type MagnitudeSource,
   type MenuNavigation,
   type TwistCyclePriority,
 } from '@/shared/menu';
 
 import { useMenuSettings } from '../state/menu-settings';
-import { inputFromValue, inputThreshold, inputValue } from '../state/nav-input';
+import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 
+import { NavInputRow } from './NavInputRow';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
@@ -35,11 +31,6 @@ import styles from './Properties.module.scss';
  * land in a later PR.
  */
 
-/** Fallback button count when no device is connected (count 0) — covers
- *  a SpaceNavigator through the common pucks. With a device attached the
- *  daemon-reported count is used instead (#66). */
-const FALLBACK_BUTTON_COUNT = 8;
-
 const GESTURE_KEYS = ['drillIn', 'back', 'cycle', 'commitCenter'] as const;
 type GestureKey = (typeof GESTURE_KEYS)[number];
 const GESTURE_LABELS: Record<GestureKey, string> = {
@@ -47,16 +38,6 @@ const GESTURE_LABELS: Record<GestureKey, string> = {
   back: 'Back / dismiss',
   cycle: 'Cycle sectors',
   commitCenter: 'Commit center',
-};
-
-const DIRECTION_SYMBOL: Record<ActivationDirection, string> = {
-  positive: '+',
-  negative: '−',
-  both: '±',
-};
-const MAGNITUDE_LABEL: Record<MagnitudeSource, string> = {
-  lateral: 'Push (TX/TY)',
-  tilt: 'Tilt (RX/RY)',
 };
 
 /** Default threshold to seed a fresh analog input with, per gesture:
@@ -87,94 +68,25 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
       {GESTURE_KEYS.map((key) => (
         <Fragment key={key}>
           <div className={styles.subheading}>{GESTURE_LABELS[key]}</div>
-          {nav[key].inputs.map((input, i) => {
-            const threshold = inputThreshold(input);
-            // A saved binding may reference a button the connected device
-            // doesn't have (e.g. a config carried over from a larger puck).
-            // Surface it as a flagged, disabled option so the select shows
-            // it as selected instead of silently falling back to the first
-            // entry — making the stale binding visible rather than phantom.
-            const staleButton =
-              input.kind === 'button' && input.button >= offeredButtons ? input.button : null;
-            return (
-              <Row key={i} label={`Input ${i + 1}`}>
-                <div className={styles.navInputRow}>
-                  <select
-                    className={styles.select}
-                    value={inputValue(input)}
-                    onChange={(e) =>
-                      commit((n) => {
-                        n[key].inputs[i] = inputFromValue(
-                          e.target.value,
-                          inputThreshold(input),
-                          defaultThresholdFor(key),
-                        );
-                      })
-                    }
-                  >
-                    <option value="none">None</option>
-                    <optgroup label="Buttons">
-                      {Array.from({ length: offeredButtons }, (_, b) => (
-                        <option key={b} value={`button:${b}`}>
-                          Button {b}
-                        </option>
-                      ))}
-                      {staleButton !== null && (
-                        <option value={`button:${staleButton}`} disabled>
-                          Button {staleButton} (unavailable)
-                        </option>
-                      )}
-                    </optgroup>
-                    <optgroup label="Axes">
-                      {MENU_AXES.flatMap((axis) =>
-                        ACTIVATION_DIRECTIONS.map((dir) => (
-                          <option key={`${axis}:${dir}`} value={`axis:${axis}:${dir}`}>
-                            {axis.toUpperCase()} {DIRECTION_SYMBOL[dir]}
-                          </option>
-                        )),
-                      )}
-                    </optgroup>
-                    <optgroup label="Magnitude">
-                      {MAGNITUDE_SOURCES.map((source) => (
-                        <option key={source} value={`magnitude:${source}`}>
-                          {MAGNITUDE_LABEL[source]}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                  {threshold !== null && (
-                    <input
-                      className={styles.navThreshold}
-                      type="number"
-                      min={1}
-                      value={threshold}
-                      title="Threshold"
-                      onChange={(e) => {
-                        const v = Number(e.target.value);
-                        if (Number.isFinite(v) && v > 0)
-                          commit((n) => {
-                            const inp = n[key].inputs[i]!;
-                            if (inp.kind === 'axis' || inp.kind === 'magnitude') inp.threshold = v;
-                          });
-                      }}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    className={styles.navRemove}
-                    title="Remove this input"
-                    onClick={() =>
-                      commit((n) => {
-                        n[key].inputs.splice(i, 1);
-                      })
-                    }
-                  >
-                    ✕
-                  </button>
-                </div>
-              </Row>
-            );
-          })}
+          {nav[key].inputs.map((input, i) => (
+            <Row key={i} label={`Input ${i + 1}`}>
+              <NavInputRow
+                input={input}
+                offeredButtons={offeredButtons}
+                defaultThreshold={defaultThresholdFor(key)}
+                onChange={(next) =>
+                  commit((n) => {
+                    n[key].inputs[i] = next;
+                  })
+                }
+                onRemove={() =>
+                  commit((n) => {
+                    n[key].inputs.splice(i, 1);
+                  })
+                }
+              />
+            </Row>
+          ))}
           <button
             type="button"
             className={styles.openButton}
