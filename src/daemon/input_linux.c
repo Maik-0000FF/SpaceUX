@@ -215,7 +215,12 @@ int input_poll(int fd, struct puck_event *out)
 		if (n != sizeof(ie))
 			return -1;
 		if (ie.type == EV_ABS && ie.code < SPACEUX_AXIS_COUNT) {
-			g_axis_state[ie.code] = ie.value;
+			/* Normalise TZ to the coordinate convention down = negative Z.
+			 * The kernel reports pushing the puck cap *down* as +ABS_Z, but
+			 * the whole app treats TZ- as down/press (schema docs, editor
+			 * labels, the default TZ-back gesture). Flip it here at the
+			 * hardware boundary so push-down = TZ- on every device (#153). */
+			g_axis_state[ie.code] = (ie.code == ABS_Z) ? -ie.value : ie.value;
 			g_axis_dirty = 1;
 		} else if (ie.type == EV_KEY) {
 			int bnum = code_to_bnum(ie.code);
