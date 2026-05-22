@@ -156,6 +156,52 @@ describe('resolvePuckFrame — back / pop / dismiss', () => {
     expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
   });
 
+  // A cancel centre: back rests on it (no-op) only when it's closable
+  // another way (toggle trigger, or a bound commitCenter); otherwise back
+  // stays the fallback escape so the pie can't soft-lock.
+  const cancelRoot = (over: {
+    triggerMode: 'toggle' | 'open';
+    commitBound?: boolean;
+  }): MenuConfig => ({
+    version: MENU_CONFIG_VERSION,
+    triggerMode: over.triggerMode,
+    navigation: nav(
+      over.commitBound
+        ? {
+            commitCenter: {
+              inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }],
+            },
+          }
+        : {},
+    ),
+    root: { label: 'Quit', action: { id: builtinAction('cancel') }, branches: SECTORS },
+  });
+  const backAtCentre = (cfg: MenuConfig) =>
+    resolvePuckFrame({
+      menuConfig: cfg,
+      axes: axes({ tz: -100 }),
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    }).outcome;
+
+  it('cancel centre, toggle mode: back rests on the centre (trigger closes)', () => {
+    expect(backAtCentre(cancelRoot({ triggerMode: 'toggle' }))).toEqual({ kind: 'none' });
+  });
+
+  it('cancel centre, open mode + bound commitCenter: back rests on the centre (commit closes)', () => {
+    expect(backAtCentre(cancelRoot({ triggerMode: 'open', commitBound: true }))).toEqual({
+      kind: 'none',
+    });
+  });
+
+  it('cancel centre, open mode + unbound commitCenter: back still dismisses (no soft-lock)', () => {
+    expect(backAtCentre(cancelRoot({ triggerMode: 'open' }))).toEqual({
+      kind: 'back',
+      mode: 'dismiss',
+    });
+  });
+
   it('keeps the pie open the frame after walking to the centre while held (#147)', () => {
     // Frame 1 focuses the centre from a hovered sector and folds the
     // globals' activity into the edges; frame 2 (held, sticky now null)
@@ -441,5 +487,45 @@ describe('resolvePuckFrame — per-item exit (#130 R3)', () => {
       edges: f1.edges,
     });
     expect(f2.outcome).toEqual({ kind: 'none' }); // not back/dismiss
+  });
+});
+
+describe('resolvePuckFrame — button-bound inputs (#151)', () => {
+  const btnCommit = config(nav({ commitCenter: { inputs: [{ kind: 'button', button: 1 }] } }));
+
+  it('fires a gesture bound to a button when that button is held', () => {
+    const r = resolvePuckFrame({
+      menuConfig: btnCommit,
+      axes: ZERO,
+      buttons: [false, true],
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'commitCenter' });
+    expect(r.edges.commit).toBe(true);
+  });
+
+  it('stays inert when no button state is passed (axis-only callers)', () => {
+    const r = resolvePuckFrame({
+      menuConfig: btnCommit,
+      axes: ZERO,
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+  });
+
+  it('does not re-fire while the button stays held', () => {
+    const r = resolvePuckFrame({
+      menuConfig: btnCommit,
+      axes: ZERO,
+      buttons: [false, true],
+      navigation: [],
+      sticky: null,
+      edges: { ...FRESH, commit: true },
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
   });
 });

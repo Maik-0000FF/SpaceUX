@@ -18,7 +18,12 @@ import {
   type ProfileActionResult,
   type ProfilesState,
 } from '../shared/ipc.js';
-import { DEFAULT_MENU_CONFIG, DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '../shared/menu.js';
+import {
+  DEFAULT_MENU_CONFIG,
+  DEFAULT_TRIGGER_BUTTON,
+  DEFAULT_TRIGGER_MODE,
+  type MenuConfig,
+} from '../shared/menu.js';
 import { DEFAULT_PIE_APPEARANCE } from '../shared/pie-appearance.js';
 import type { DaemonEvent } from '../shared/protocol.js';
 
@@ -529,13 +534,15 @@ function hideMenuWindow(window: BrowserWindow): void {
  * so a hot-reload of menu.json swaps the trigger live without an
  * app restart.
  *
- * Click-to-toggle UX: press 1 opens; subsequent presses commit the
- * currently-highlighted sector. A commit on a branch drills into
- * its submenu and the menu stays open — pressing the trigger again
- * commits within the deeper ring. A commit on a leaf (or with no
- * selection) closes the menu via the renderer-initiated
- * CLOSE_MENU IPC. Release events are intentionally ignored so the
- * user can navigate the open pie without holding the button down.
+ * Click-to-toggle UX (the default `toggle` triggerMode): press opens;
+ * subsequent presses commit the currently-highlighted sector. A commit on
+ * a branch drills into its submenu and the menu stays open — pressing the
+ * trigger again commits within the deeper ring. A commit on a leaf (or
+ * with no selection) closes the menu via the renderer-initiated CLOSE_MENU
+ * IPC. In the `open` triggerMode the press-to-open stands but the
+ * subsequent commit is suppressed — the button only opens, leaving
+ * commit/close to the gestures. Release events are intentionally ignored
+ * so the user can navigate the open pie without holding the button down.
  */
 function handleTriggerButton(bnum: number, pressed: boolean): void {
   if (!mainWindow) return;
@@ -546,7 +553,11 @@ function handleTriggerButton(bnum: number, pressed: boolean): void {
   const activeTrigger = menuConfig?.triggerButton ?? DEFAULT_TRIGGER_BUTTON;
   if (bnum !== activeTrigger || !pressed) return;
   if (menuShown) {
-    commitMenu(mainWindow);
+    // 'open' mode: the button only opens — a second press is a no-op, so
+    // committing/closing is left to the gestures and the trigger button is
+    // free to be bound like any other input. 'toggle' (default) commits
+    // the highlighted selection (the historical click-to-toggle).
+    if ((menuConfig?.triggerMode ?? DEFAULT_TRIGGER_MODE) === 'toggle') commitMenu(mainWindow);
   } else {
     void openMenuAtCursor(mainWindow).catch((err: unknown) => {
       // eslint-disable-next-line no-console

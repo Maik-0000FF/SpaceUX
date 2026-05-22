@@ -36,7 +36,12 @@ import {
   type GestureFrame,
   type SixAxes,
 } from './pie-geometry';
-import { resolveAxisInvert, resolveNavigation } from '../shared/menu';
+import {
+  DEFAULT_TRIGGER_MODE,
+  isCancelNode,
+  resolveAxisInvert,
+  resolveNavigation,
+} from '../shared/menu';
 import type { MenuConfig, MenuNode, TwistCyclePriority } from '../shared/menu';
 
 export type DrillState = {
@@ -302,6 +307,9 @@ export function resolvePuckFrame(args: {
   navigation: readonly number[];
   /** Current sticky selection (`drillState.stickyChildIndex`). */
   sticky: number | null;
+  /** Currently-held device buttons (`buttons[i]` true while button i is
+   *  down). Drives button-bound inputs; omit for axis-only callers. */
+  buttons?: readonly boolean[];
   /** Rising-edge memory from the previous frame. */
   edges: PuckEdges;
 }): { outcome: PuckOutcome; edges: PuckEdges } {
@@ -309,10 +317,7 @@ export function resolvePuckFrame(args: {
   // Copy so the caller's memory is only updated via the returned value.
   const edges: PuckEdges = { ...args.edges };
   const nav = resolveNavigation(menuConfig);
-  // Buttons aren't plumbed to the renderer yet, so button-bound inputs
-  // are inert (no migrated config uses them); axis + magnitude inputs
-  // drive everything. A later PR feeds real button state here.
-  const frame: GestureFrame = { axes, buttons: [] };
+  const frame: GestureFrame = { axes, buttons: args.buttons ?? [] };
 
   const current = currentBranches(menuConfig, navigation);
 
@@ -381,10 +386,12 @@ export function resolvePuckFrame(args: {
   // one level. At the top level it walks INTO the centre (the tree root)
   // rather than dismissing outright (#147): from a hovered sector it
   // focuses the centre (pie stays open, like a per-item exit); from the
-  // centre itself (nothing hovered) it dismisses — the escape hatch,
-  // preserved so the default config (only `back` bound) can always close.
-  // Firing the centre's own action (e.g. cancel) is the separate,
-  // configurable commitCenter gesture.
+  // centre itself (nothing hovered) it dismisses — but only as a *fallback*
+  // escape: when the centre is bound to cancel AND that cancel is reachable
+  // another way (the trigger in toggle mode, or a bound commitCenter), back
+  // doesn't double up the close path — it just rests on the centre. If no
+  // such path exists (open mode + cancel centre + unbound commitCenter),
+  // back keeps dismissing so the pie can never soft-lock.
   const backing = gestureActive(nav.back, frame);
   const backRising = backing && !edges.back;
   edges.back = backing;
@@ -400,6 +407,17 @@ export function resolvePuckFrame(args: {
       edges.drill = gestureActive(nav.drillIn, frame);
       edges.cycle = cycleStepFromInputs(nav.cycle.inputs, axes) !== 0;
       return { outcome: { kind: 'exitToCenter' }, edges };
+    }
+    // At the centre. Suppress the redundant back-dismiss only when a cancel
+    // centre is actually closable another way — the trigger in toggle mode,
+    // or a bound commitCenter. Otherwise keep back as the guaranteed escape
+    // so open mode + a cancel centre + unbound commitCenter can't strand the
+    // pie with no way out.
+    const centreClosable =
+      (menuConfig.triggerMode ?? DEFAULT_TRIGGER_MODE) === 'toggle' ||
+      nav.commitCenter.inputs.length > 0;
+    if (isCancelNode(menuConfig.root) && centreClosable) {
+      return { outcome: { kind: 'none' }, edges };
     }
     return { outcome: { kind: 'back', mode: 'dismiss' }, edges };
   }

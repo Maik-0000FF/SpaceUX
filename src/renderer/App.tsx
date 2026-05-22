@@ -41,7 +41,7 @@ function fireAction(action: ActionRef | undefined): void {
  * renderer just decides *which* binding to ask for.
  */
 export function App() {
-  const { axes, daemonStatus } = useSpaceMouse();
+  const { axes, buttons, daemonStatus } = useSpaceMouse();
   usePieAppearance(); // applies data-pie-theme + --pie-opacity to <html>
   const [menuConfig, setMenuConfig] = useState<MenuConfig | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
@@ -92,6 +92,7 @@ export function App() {
   // dismisses or commits the center.
   const { drillState, dispatch, drillStateRef, resetTransientRefs } = useDrillNavigation({
     axes,
+    buttons,
     menuConfig,
     menuOpen: menuAnchor !== null,
     onDismiss: dismissMenu,
