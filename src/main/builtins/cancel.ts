@@ -12,7 +12,7 @@ import type { ActionHandler } from '../../shared/plugin-types.js';
  * has nothing left to do once it runs.
  *
  * It exists as a named, assignable action so the user can place an
- * explicit Cancel on a sector or the center field, with its own label
+ * explicit Cancel on a node, including the root/centre, with its own label
  * and icon, instead of relying on the implicit "leave the puck
  * centered and commit" gesture. Routing it through the normal dispatch
  * path (rather than special-casing the action key in the renderer)

@@ -13,9 +13,9 @@ import styles from './Properties.module.scss';
 const CUSTOM = '__custom__';
 
 /**
- * The Action picker for a leaf binding (and, later, the centre field): a
+ * The Action picker for a leaf action (and, later, the centre field): a
  * dropdown of the known actions (builtins + loaded plugins, by label)
- * plus "No action" (label-only, no binding) and a "Custom…" escape that
+ * plus "No action" (label-only, no action) and a "Custom…" escape that
  * reveals the raw `pluginId/actionName` field — so arbitrary or
  * not-currently-loaded actions still work.
  *

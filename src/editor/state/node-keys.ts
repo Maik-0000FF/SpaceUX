@@ -11,7 +11,7 @@ let counter = 0;
  * every node the editor renders carries one.
  */
 export function nextNodeId(): string {
-  return `sec-${counter++}`;
+  return `node-${counter++}`;
 }
 
 // Fallback identity for nodes that never went through the store (ad-hoc

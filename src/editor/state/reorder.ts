@@ -3,10 +3,10 @@
 
 /**
  * Translate a drop-line insertion index into the `to` argument for
- * `moveSector`.
+ * `moveNode`.
  *
  * The list draws a drop-line at `insertAt` — the gap (0..length) the
- * dragged item would land in. `moveSector` splices the item out of
+ * dragged item would land in. `moveNode` splices the item out of
  * `from` first, so when dragging downward (`from < insertAt`) the
  * surviving slots shift left by one and the insertion index has to be
  * decremented to compensate.

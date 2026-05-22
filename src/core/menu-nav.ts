@@ -147,7 +147,7 @@ export function currentBranches(config: MenuConfig, navigation: readonly number[
  * (defensive — the validator forbids empty rings, but in-memory configs
  * can bypass that).
  */
-export function cycleSectorIndex(current: number | null, step: -1 | 0 | 1, count: number): number {
+export function cycleNodeIndex(current: number | null, step: -1 | 0 | 1, count: number): number {
   if (count < 1) return 0;
   if (step === 0) return current ?? 0;
   if (current === null) return step > 0 ? 0 : count - 1;
@@ -199,7 +199,7 @@ export function resolveTwistFrame(opts: {
 }): TwistFrame {
   const { sec, sticky, cycleStep, priority, count, cycleEnabled } = opts;
   const cycleApplies = cycleStep !== 0 && (priority === 'twist' || sec === null);
-  const hoverIndex = cycleApplies ? cycleSectorIndex(sticky, cycleStep, count) : sec;
+  const hoverIndex = cycleApplies ? cycleNodeIndex(sticky, cycleStep, count) : sec;
   const drillTarget = hoverIndex ?? (cycleEnabled ? sticky : null);
   return { hoverIndex, drillTarget };
 }

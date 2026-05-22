@@ -45,15 +45,15 @@ describe('app-state navigation', () => {
     expect(useAppState.getState().selectedIndex).toBeNull();
   });
 
-  it('selectSector sets the in-ring index; clearSelection resets it', () => {
-    useAppState.getState().selectSector(2);
+  it('selectNode sets the in-ring index; clearSelection resets it', () => {
+    useAppState.getState().selectNode(2);
     expect(useAppState.getState().selectedIndex).toBe(2);
     useAppState.getState().clearSelection();
     expect(useAppState.getState().selectedIndex).toBeNull();
   });
 
   it('drillInto descends and clears selection; drillTo pops back', () => {
-    useAppState.getState().selectSector(1);
+    useAppState.getState().selectNode(1);
     useAppState.getState().drillInto(1);
     expect(useAppState.getState().viewPath).toEqual([1]);
     expect(useAppState.getState().selectedIndex).toBeNull();
@@ -264,9 +264,9 @@ describe('menu-settings CRUD', () => {
       mtime: 1,
     });
 
-  it('addSector appends a default leaf to the top-level ring', () => {
+  it('addNode appends a default leaf to the top-level ring', () => {
     load([{ label: 'A' }]);
-    useMenuSettings.getState().addSector([]);
+    useMenuSettings.getState().addNode([]);
     const state = useMenuSettings.getState();
     expect(state.config?.root.branches!.map((s) => s.label)).toEqual(['A', 'New item']);
     expect(state.origin).toBe('local');
@@ -285,7 +285,7 @@ describe('menu-settings CRUD', () => {
     expect(useMenuSettings.getState().config?.scale).toBe(0.5);
   });
 
-  it('addSector targets a submenu ring by path', () => {
+  it('addNode targets a submenu ring by path', () => {
     useMenuSettings.getState().setConfig({
       config: {
         version: DEFAULT_MENU_CONFIG.version,
@@ -293,18 +293,18 @@ describe('menu-settings CRUD', () => {
       },
       mtime: 1,
     });
-    useMenuSettings.getState().addSector([0]); // into Branch's branches
+    useMenuSettings.getState().addNode([0]); // into Branch's branches
     expect(
       useMenuSettings.getState().config?.root.branches![0]?.branches?.map((s) => s.label),
     ).toEqual(['C0', 'New item']);
   });
 
-  it('deleteSector removes within the ring but refuses to empty it', () => {
+  it('deleteNode removes within the ring but refuses to empty it', () => {
     load([{ label: 'A' }, { label: 'B' }]);
-    useMenuSettings.getState().deleteSector([], 0);
+    useMenuSettings.getState().deleteNode([], 0);
     expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
     // The last remaining node can't be deleted (validator needs ≥1).
-    useMenuSettings.getState().deleteSector([], 0);
+    useMenuSettings.getState().deleteNode([], 0);
     expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
   });
 
@@ -317,9 +317,9 @@ describe('menu-settings CRUD', () => {
     expect(state.dirty).toBe(true);
   });
 
-  it('moveSector reorders so the item ends at the target index', () => {
+  it('moveNode reorders so the item ends at the target index', () => {
     load([{ label: 'A' }, { label: 'B' }, { label: 'C' }, { label: 'D' }]);
-    useMenuSettings.getState().moveSector([], 0, 2);
+    useMenuSettings.getState().moveNode([], 0, 2);
     expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual([
       'B',
       'C',
@@ -350,16 +350,16 @@ describe('menu-settings CRUD', () => {
     load([{ label: 'A' }, { label: 'B' }, { label: 'C' }]);
     const labels = () => useMenuSettings.getState().config?.root.branches!.map((s) => s.label);
 
-    useMenuSettings.getState().moveSector([], 1, 1); // same index
+    useMenuSettings.getState().moveNode([], 1, 1); // same index
     expect(labels()).toEqual(['A', 'B', 'C']);
-    useMenuSettings.getState().moveSector([], 0, 9); // target out of range
+    useMenuSettings.getState().moveNode([], 0, 9); // target out of range
     expect(labels()).toEqual(['A', 'B', 'C']);
-    useMenuSettings.getState().moveSector([], -1, 0); // source out of range
+    useMenuSettings.getState().moveNode([], -1, 0); // source out of range
     expect(labels()).toEqual(['A', 'B', 'C']);
-    useMenuSettings.getState().deleteSector([], 9); // out of range
+    useMenuSettings.getState().deleteNode([], 9); // out of range
     expect(labels()).toEqual(['A', 'B', 'C']);
     // Stale ring path: index 0 is a leaf, not a branch → no-op.
-    useMenuSettings.getState().addSector([0]);
+    useMenuSettings.getState().addNode([0]);
     expect(labels()).toEqual(['A', 'B', 'C']);
   });
 });
@@ -461,7 +461,7 @@ describe('menu-settings navigation', () => {
   });
 });
 
-describe('moveSectorBetween', () => {
+describe('moveNodeBetween', () => {
   // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
   const nested = (): MenuConfig => ({
     version: DEFAULT_MENU_CONFIG.version,
@@ -485,7 +485,7 @@ describe('moveSectorBetween', () => {
   beforeEach(() => useMenuSettings.getState().setConfig({ config: nested(), mtime: 1 }));
 
   it('moves a leaf into another ring (appended at the end)', () => {
-    useMenuSettings.getState().moveSectorBetween([0], [1]); // A → B's children
+    useMenuSettings.getState().moveNodeBetween([0], [1]); // A → B's children
     expect(ringLabels([])).toEqual(['B']);
     // A removed from root → B shifts to index 0; its children now hold A.
     expect(ringLabels([0])).toEqual(['B0', 'B1', 'A']);
@@ -496,24 +496,24 @@ describe('moveSectorBetween', () => {
     // move (B shifts to root[0]). Looking the moved item up by its stable id
     // lands on the correct new path instead.
     const aId = nodeAtPath(useMenuSettings.getState().config!, [0])!.id!;
-    useMenuSettings.getState().moveSectorBetween([0], [1]); // A → B's children
+    useMenuSettings.getState().moveNodeBetween([0], [1]); // A → B's children
     const after = useMenuSettings.getState().config!;
     expect(pathOfNodeId(after, aId)).toEqual([0, 2]); // B is root[0]; A is its 3rd child
   });
 
   it('is a no-op for a cycle (target inside the moved subtree)', () => {
-    useMenuSettings.getState().moveSectorBetween([1], [1, 1]); // B into its own descendant
+    useMenuSettings.getState().moveNodeBetween([1], [1, 1]); // B into its own descendant
     expect(ringLabels([])).toEqual(['A', 'B']);
     expect(ringLabels([1])).toEqual(['B0', 'B1']);
   });
 
-  it('is a no-op for the same ring (that path is moveSector)', () => {
-    useMenuSettings.getState().moveSectorBetween([1, 0], [1]);
+  it('is a no-op for the same ring (that path is moveNode)', () => {
+    useMenuSettings.getState().moveNodeBetween([1, 0], [1]);
     expect(ringLabels([1])).toEqual(['B0', 'B1']);
   });
 
   it("drops a submenu's level when its last child moves out", () => {
-    useMenuSettings.getState().moveSectorBetween([1, 1, 0], []); // B1a → top level
+    useMenuSettings.getState().moveNodeBetween([1, 1, 0], []); // B1a → top level
     expect(ringLabels([])).toEqual(['A', 'B', 'B1a']);
     // B1 had only B1a → it becomes a leaf.
     expect(nodeAtPath(useMenuSettings.getState().config!, [1, 1])?.branches).toBeUndefined();

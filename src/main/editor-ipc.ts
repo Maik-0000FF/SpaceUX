@@ -73,7 +73,7 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
     },
   );
 
-  // Available actions for the sector Action dropdown. Pulled on mount;
+  // Available actions for the Action dropdown. Pulled on mount;
   // static for the session (plugins load at startup), so no push channel.
   ipcMain.handle(IpcChannel.EDITOR_GET_ACTIONS, (): EditorAction[] => deps.listActions());
 

@@ -233,7 +233,7 @@ export function PieMenu({
         {/* Inner ring: active selection target at top level, dimmed
          *  breadcrumb once drilled in (with the drilled-into sector
          *  marked as "you came from here"). */}
-        {innerSectors.map((sector, i) => (
+        {innerSectors.map((node, i) => (
           <SectorWedge
             key={`inner-wedge-${i}`}
             index={i}
@@ -241,7 +241,7 @@ export function PieMenu({
             outerRadius={radius}
             innerRadius={innerRadius}
             active={!isDrilled && activeSector === i}
-            cancel={isCancelNode(sector)}
+            cancel={isCancelNode(node)}
             breadcrumb={isDrilled}
             drilledInto={isDrilled && drilledIntoIndex === i}
           />
@@ -261,13 +261,13 @@ export function PieMenu({
         >
           {centerLabel}
         </text>
-        {innerSectors.map((sector, i) => (
+        {innerSectors.map((node, i) => (
           <SectorLabel
             key={`inner-label-${i}`}
             index={i}
             sectorCount={innerSectors.length}
             radius={innerLabelRadius}
-            sector={sector}
+            node={node}
             breadcrumb={isDrilled}
           />
         ))}
@@ -277,7 +277,7 @@ export function PieMenu({
          *  thing that changes is opacity + whether it's interactive. */}
         {outerSectors !== undefined && outerSectors.length > 0 && (
           <g className="pie-outer-ring">
-            {outerSectors.map((sector, i) => (
+            {outerSectors.map((node, i) => (
               <SectorWedge
                 key={`outer-wedge-${i}`}
                 index={i}
@@ -285,18 +285,18 @@ export function PieMenu({
                 outerRadius={outerRingOuterRadius}
                 innerRadius={outerRingInnerRadius}
                 active={isDrilled && activeSector === i}
-                cancel={isCancelNode(sector)}
+                cancel={isCancelNode(node)}
                 preview={!isDrilled}
                 rotation={outerRingRotation}
               />
             ))}
-            {outerSectors.map((sector, i) => (
+            {outerSectors.map((node, i) => (
               <SectorLabel
                 key={`outer-label-${i}`}
                 index={i}
                 sectorCount={outerSectors.length}
                 radius={outerLabelRadius}
-                sector={sector}
+                node={node}
                 preview={!isDrilled}
                 rotation={outerRingRotation}
               />
@@ -366,7 +366,7 @@ function SectorLabel({
   index,
   sectorCount,
   radius,
-  sector,
+  node,
   preview = false,
   breadcrumb = false,
   rotation = 0,
@@ -374,7 +374,7 @@ function SectorLabel({
   index: number;
   sectorCount: number;
   radius: number;
-  sector: MenuNode;
+  node: MenuNode;
   /** Match the wedge it belongs to. */
   preview?: boolean;
   /** Match the wedge it belongs to. */
@@ -392,7 +392,7 @@ function SectorLabel({
     .join(' ');
   return (
     <text className={className} x={x} y={y} textAnchor="middle" dominantBaseline="middle">
-      {sector.label}
+      {node.label}
     </text>
   );
 }

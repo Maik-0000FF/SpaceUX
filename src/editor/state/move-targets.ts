@@ -16,9 +16,9 @@ export function eqPath(a: readonly number[], b: readonly number[]): boolean {
 }
 
 /** Nesting height of a node: 0 for a leaf, 1 + deepest branch otherwise. */
-export function sectorHeight(node: MenuNode): number {
+export function nodeHeight(node: MenuNode): number {
   if (!node.branches || node.branches.length === 0) return 0;
-  return 1 + Math.max(...node.branches.map(sectorHeight));
+  return 1 + Math.max(...node.branches.map(nodeHeight));
 }
 
 /** A ring the selected node may be moved into. `path` is the ring path
@@ -35,7 +35,7 @@ export function moveTargets(config: MenuConfig, fromPath: readonly number[]): Mo
   if (fromPath.length === 0) return [];
   const moved = nodeAtPath(config, fromPath);
   if (!moved) return [];
-  const height = sectorHeight(moved);
+  const height = nodeHeight(moved);
   const fromRing = fromPath.slice(0, -1);
 
   const targets: MoveTarget[] = [];
