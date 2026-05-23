@@ -89,8 +89,9 @@ describe('loadDeviceProfile', () => {
     expect(result.status).toBe('loaded');
     if (result.status === 'loaded') {
       expect(result.config).toEqual(DEFAULT_MENU_CONFIG);
-      // 'bogus-theme' dropped → default 'dark'; opacity 5 clamped → 1.
-      expect(result.appearance).toEqual({ theme: 'dark', opacity: 1 });
+      // 'bogus-theme' dropped → default 'dark'; opacity 5 clamped → 1;
+      // labelScale absent → default 1.
+      expect(result.appearance).toEqual({ theme: 'dark', opacity: 1, labelScale: 1 });
     }
   });
 
@@ -108,7 +109,7 @@ describe('resolveActiveConfig', () => {
     source: '/cfg/menu.json',
   };
   const profileConfig = { ...DEFAULT_MENU_CONFIG, triggerButton: 3 };
-  const profileAppearance = { theme: 'spaceux' as const, opacity: 0.8 };
+  const profileAppearance = { theme: 'spaceux' as const, opacity: 0.8, labelScale: 1 };
   const loaded: ProfileLoadResult = {
     status: 'loaded',
     config: profileConfig,
@@ -206,7 +207,7 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
   });
 
   it('writes a profile (menu + appearance) that round-trips via the loader', async () => {
-    const appearance = { theme: 'light' as const, opacity: 0.4 };
+    const appearance = { theme: 'light' as const, opacity: 0.4, labelScale: 0.8 };
     const result = await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, appearance, dir);
     expect(result.ok).toBe(true);
     const loaded = await loadDeviceProfile('046d-c62b', dir);
@@ -229,7 +230,7 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
   });
 
   it('writeDeviceProfileSync (quit-path) writes a profile that round-trips', async () => {
-    const appearance = { theme: 'spaceux' as const, opacity: 0.3 };
+    const appearance = { theme: 'spaceux' as const, opacity: 0.3, labelScale: 1 };
     writeDeviceProfileSync('046d-c62b', DEFAULT_MENU_CONFIG, appearance, dir);
     const loaded = await loadDeviceProfile('046d-c62b', dir);
     expect(loaded.status).toBe('loaded');

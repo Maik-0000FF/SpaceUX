@@ -17,12 +17,51 @@ import {
   meetsActivation,
   rotateAxes,
   sectorCenterAngle,
+  segmentLabelFontPx,
+  truncatePieLabel,
   twistCycleStep,
   type GestureFrame,
   type PieGeometryConfig,
   type SixAxes,
 } from '../src/core/pie-geometry';
 import type { GestureBinding, InputBinding } from '../src/shared/menu';
+
+describe('truncatePieLabel', () => {
+  it('keeps labels of 6 code points or fewer', () => {
+    expect(truncatePieLabel('Files')).toBe('Files');
+    expect(truncatePieLabel('123456')).toBe('123456'); // exactly 6
+  });
+
+  it('truncates from the 7th char to 5 chars + ellipsis', () => {
+    expect(truncatePieLabel('1234567')).toBe('12345…');
+    expect(truncatePieLabel('VeryLongLabelName')).toBe('VeryL…');
+  });
+
+  it('counts by code point (emoji = one char)', () => {
+    // 5 emoji + ellipsis, not split surrogate pairs.
+    expect(truncatePieLabel('🔊🔊🔊🔊🔊🔊🔊')).toBe('🔊🔊🔊🔊🔊…');
+  });
+});
+
+describe('segmentLabelFontPx', () => {
+  it('shrinks as the sector count grows (more, narrower segments)', () => {
+    const few = segmentLabelFontPx(150, 4, 6);
+    const many = segmentLabelFontPx(150, 16, 6);
+    expect(many).toBeLessThan(few);
+  });
+
+  it('sizes a shorter label larger (fills its wedge)', () => {
+    // Tight wedge so neither hits the max cap, isolating the char-count effect.
+    const short = segmentLabelFontPx(80, 12, 3);
+    const long = segmentLabelFontPx(80, 12, 6);
+    expect(short).toBeGreaterThan(long);
+  });
+
+  it('stays within the [min, max] bounds', () => {
+    expect(segmentLabelFontPx(150, 2, 1)).toBeLessThanOrEqual(30); // capped
+    expect(segmentLabelFontPx(150, 64, 6)).toBeGreaterThanOrEqual(8); // floored
+  });
+});
 
 describe('axesToSector', () => {
   const eight: PieGeometryConfig = { sectorCount: 8, deadzone: 50, invertX: false, invertY: true };

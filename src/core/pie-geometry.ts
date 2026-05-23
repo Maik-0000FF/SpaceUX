@@ -88,6 +88,49 @@ export const INNER_LABEL_RATIO = 0.62;
 
 const TAU = Math.PI * 2;
 
+/** Pie-segment labels are capped at this many characters (counted by code
+ *  point, so emoji/CJK count as one) — long names are truncated so they can't
+ *  overflow a wedge. The ellipsis counts toward the cap, so a truncated label
+ *  is 5 chars + "…". Applies only in the pie/preview segments; the editor tree
+ *  shows full labels. The same cap drives the per-segment font fit below. */
+export const MAX_PIE_LABEL_CHARS = 6;
+
+/** Truncate a label for display inside a pie segment. */
+export function truncatePieLabel(label: string): string {
+  const chars = [...label];
+  if (chars.length <= MAX_PIE_LABEL_CHARS) return label;
+  return chars.slice(0, MAX_PIE_LABEL_CHARS - 1).join('') + '…';
+}
+
+// Label font-size bounds (px) for the per-segment fit below.
+const PIE_LABEL_FONT_MIN = 8;
+const PIE_LABEL_FONT_MAX = 30;
+// Average glyph advance as a fraction of the font size (sans-serif ≈ 0.55em).
+const LABEL_CHAR_EM = 0.55;
+
+/**
+ * Largest label font size (px) that keeps a `charCount`-glyph label inside one
+ * wedge at `labelRadius`, for `sectorCount` sectors. Sized to the *actual*
+ * (already truncated, ≤{@link MAX_PIE_LABEL_CHARS}) label length, so a short
+ * label fills its wedge rather than being sized for the worst case. Shrinks as
+ * sectorCount grows (each wedge narrower), so labels never spill past a
+ * boundary. The appearance label-scale (0–1) is applied on top by the renderer
+ * as a fraction of this fit (`calc(fit * var(--pie-label-scale))`).
+ */
+export function segmentLabelFontPx(
+  labelRadius: number,
+  sectorCount: number,
+  charCount: number,
+): number {
+  if (sectorCount <= 0) return PIE_LABEL_FONT_MAX;
+  // Tangential room a wedge has at this radius (chord of its angular slice),
+  // less a little so glyphs don't touch the wedge edges.
+  const chord = 2 * labelRadius * Math.sin(Math.PI / sectorCount);
+  const usable = chord * 0.95;
+  const fit = usable / (Math.max(1, charCount) * LABEL_CHAR_EM);
+  return Math.max(PIE_LABEL_FONT_MIN, Math.min(PIE_LABEL_FONT_MAX, fit));
+}
+
 /**
  * Map raw axes to a sector index 0..sectorCount-1, or null if inside
  * the deadzone. The angle is computed relative to "12 o'clock" so

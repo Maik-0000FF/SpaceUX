@@ -15,6 +15,8 @@ import {
   axesToSector,
   rotateAxes,
   sectorCenterAngle,
+  segmentLabelFontPx,
+  truncatePieLabel,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
 import {
@@ -259,6 +261,7 @@ export function MenuPreview() {
             const d = describeWedgePath(RADIUS, INNER_RADIUS, c - h, c + h);
             const lx = Math.sin(c) * INNER_LABEL_RADIUS;
             const ly = -Math.cos(c) * INNER_LABEL_RADIUS;
+            const labelText = truncatePieLabel(node.label);
             return (
               <g
                 key={`crumb-${nodeKey(node)}`}
@@ -287,8 +290,11 @@ export function MenuPreview() {
                   className={styles.labelBreadcrumb}
                   textAnchor="middle"
                   dominantBaseline="middle"
+                  style={{
+                    fontSize: `calc(${segmentLabelFontPx(INNER_LABEL_RADIUS, parentRing.length, [...labelText].length)}px * var(--pie-label-scale, 1))`,
+                  }}
                 >
-                  {node.label}
+                  {labelText}
                 </text>
               </g>
             );
@@ -304,6 +310,7 @@ export function MenuPreview() {
           const isDropTarget = dragFrom !== null && dropTo === i && dropTo !== dragFrom;
           const lx = Math.sin(c) * activeLabel;
           const ly = -Math.cos(c) * activeLabel;
+          const labelText = truncatePieLabel(node.label);
           return (
             <g
               key={nodeKey(node)}
@@ -339,8 +346,11 @@ export function MenuPreview() {
                 className={styles.label}
                 textAnchor="middle"
                 dominantBaseline="middle"
+                style={{
+                  fontSize: `calc(${segmentLabelFontPx(activeLabel, count, [...labelText].length)}px * var(--pie-label-scale, 1))`,
+                }}
               >
-                {node.label}
+                {labelText}
               </text>
             </g>
           );

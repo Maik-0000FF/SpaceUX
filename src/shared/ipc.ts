@@ -265,6 +265,10 @@ export type PieThemeChoice = 'dark' | 'light' | 'spaceux';
 export type PieAppearance = {
   theme: PieThemeChoice;
   opacity: number;
+  /** Label size as a fraction of the per-segment fit (1 = 100% = fill the
+   *  segment; less = smaller). Applied in both the live pie and the editor
+   *  preview via `--pie-label-scale`. */
+  labelScale: number;
 };
 
 /** Config plus the on-disk mtime it was read at. The editor snapshots

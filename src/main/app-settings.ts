@@ -8,7 +8,12 @@ import path from 'node:path';
 
 import { describeError } from '../shared/errors.js';
 import type { PieAppearance, PieThemeChoice } from '../shared/ipc.js';
-import { clampPieOpacity, DEFAULT_PIE_APPEARANCE, PIE_THEMES } from '../shared/pie-appearance.js';
+import {
+  clampPieLabelScale,
+  clampPieOpacity,
+  DEFAULT_PIE_APPEARANCE,
+  PIE_THEMES,
+} from '../shared/pie-appearance.js';
 
 /**
  * App-wide preferences stored at $XDG_CONFIG_HOME/spaceux/app-settings.json
@@ -23,7 +28,11 @@ import { clampPieOpacity, DEFAULT_PIE_APPEARANCE, PIE_THEMES } from '../shared/p
  * adds the file IO.
  */
 
-export type AppSettings = { pieTheme?: PieThemeChoice; pieOpacity?: number };
+export type AppSettings = {
+  pieTheme?: PieThemeChoice;
+  pieOpacity?: number;
+  pieLabelScale?: number;
+};
 
 const FILENAME = 'app-settings.json';
 const SUBDIR = 'spaceux';
@@ -58,6 +67,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
   if (typeof obj.pieOpacity === 'number' && Number.isFinite(obj.pieOpacity)) {
     out.pieOpacity = clampPieOpacity(obj.pieOpacity);
   }
+  if (typeof obj.pieLabelScale === 'number' && Number.isFinite(obj.pieLabelScale)) {
+    out.pieLabelScale = clampPieLabelScale(obj.pieLabelScale);
+  }
   return out;
 }
 
@@ -67,6 +79,7 @@ export async function loadPieAppearance(): Promise<PieAppearance> {
   return {
     theme: s.pieTheme ?? DEFAULT_PIE_APPEARANCE.theme,
     opacity: s.pieOpacity ?? DEFAULT_PIE_APPEARANCE.opacity,
+    labelScale: s.pieLabelScale ?? DEFAULT_PIE_APPEARANCE.labelScale,
   };
 }
 

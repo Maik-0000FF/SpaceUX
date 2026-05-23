@@ -443,7 +443,11 @@ async function persistActiveAppearance(): Promise<void> {
     }
     return;
   }
-  await saveAppSettings({ pieTheme: globalAppearance.theme, pieOpacity: globalAppearance.opacity });
+  await saveAppSettings({
+    pieTheme: globalAppearance.theme,
+    pieOpacity: globalAppearance.opacity,
+    pieLabelScale: globalAppearance.labelScale,
+  });
 }
 
 /**
@@ -1042,6 +1046,7 @@ app.on('before-quit', () => {
       saveAppSettingsSync({
         pieTheme: globalAppearance.theme,
         pieOpacity: globalAppearance.opacity,
+        pieLabelScale: globalAppearance.labelScale,
       });
     }
   }

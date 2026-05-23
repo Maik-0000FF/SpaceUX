@@ -19,6 +19,7 @@ export function usePieAppearance(): void {
       const root = document.documentElement;
       root.dataset.pieTheme = a.theme;
       root.style.setProperty('--pie-opacity', String(a.opacity));
+      root.style.setProperty('--pie-label-scale', String(a.labelScale));
     };
     void window.spaceux.getPieAppearance().then((a) => {
       if (!cancelled) apply(a);
