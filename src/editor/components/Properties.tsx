@@ -1,6 +1,9 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { useState } from 'react';
+
+import { isRenderableIcon } from '@/core/icon';
 import { BUILTIN_ACTION, builtinAction, resolveNavigation } from '@/shared/menu';
 
 import { useAvailableActions } from '../hooks/useAvailableActions';
@@ -56,6 +59,8 @@ export function Properties() {
   const selectPath = useAppState((s) => s.selectPath);
   const clearSelection = useAppState((s) => s.clearSelection);
   const drillInto = useAppState((s) => s.drillInto);
+  // Last node-icon pick error (too large / unsupported), shown under the row.
+  const [iconError, setIconError] = useState<string | null>(null);
 
   // Connected device's button count (0 = none/unknown) → constrains the
   // activation input dropdown's button options (#66).
@@ -180,6 +185,43 @@ export function Properties() {
                 }
               />
             </Row>
+            <Row label="Icon">
+              <div className={styles.iconRow}>
+                {isRenderableIcon(node.icon) && (
+                  <img className={styles.iconPreview} src={node.icon} alt="" />
+                )}
+                <button
+                  type="button"
+                  className={styles.openButton}
+                  onClick={() => {
+                    setIconError(null);
+                    void window.editor.pickIcon().then((r) => {
+                      if (r.ok === true)
+                        updateNodeAt(path, (s) => {
+                          s.icon = r.dataUri;
+                        });
+                      else if (r.ok === false) setIconError(r.reason);
+                    });
+                  }}
+                >
+                  {isRenderableIcon(node.icon) ? 'Replace…' : 'Choose…'}
+                </button>
+                {node.icon !== undefined && (
+                  <button
+                    type="button"
+                    className={styles.openButton}
+                    onClick={() =>
+                      updateNodeAt(path, (s) => {
+                        delete s.icon;
+                      })
+                    }
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </Row>
+            {iconError !== null && <p className={styles.fieldError}>{iconError}</p>}
             <Row label="Type">
               <select
                 className={styles.select}

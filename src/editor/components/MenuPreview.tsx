@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
+import { ICON_SIZE_RATIO, isRenderableIcon } from '@/core/icon';
 import { menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
@@ -21,6 +22,7 @@ import {
   isCancelNode,
   resolveAxisInvert,
   resolveNavigation,
+  type MenuNode,
 } from '@/shared/menu';
 
 import { useEditorSpaceMouse } from '../hooks/useEditorSpaceMouse';
@@ -43,6 +45,25 @@ const OUTER_OUTER_RADIUS = RADIUS * OUTER_RING_OUTER_RATIO;
 const INNER_LABEL_RADIUS = RADIUS * INNER_LABEL_RATIO;
 const OUTER_LABEL_RADIUS = (OUTER_INNER_RADIUS + OUTER_OUTER_RADIUS) / 2;
 const VIEW = OUTER_OUTER_RADIUS; // viewBox half-extent (reserves the outer ring)
+const ICON_SIZE = RADIUS * ICON_SIZE_RATIO; // matches the live pie's icon size
+
+/** A node's icon as an `<image>` stacked above the label point (cx, cy), or
+ *  null when the node has no renderable icon. Matches the live pie's layout
+ *  so the preview is faithful. */
+function sectorIcon(node: MenuNode, cx: number, cy: number) {
+  if (!isRenderableIcon(node.icon)) return null;
+  return (
+    <image
+      className={styles.icon}
+      href={node.icon}
+      x={cx - ICON_SIZE / 2}
+      y={cy - ICON_SIZE}
+      width={ICON_SIZE}
+      height={ICON_SIZE}
+      preserveAspectRatio="xMidYMid meet"
+    />
+  );
+}
 
 /**
  * Centre stage: the menu drawn exactly as the live pie shows it. The
@@ -257,9 +278,10 @@ export function MenuPreview() {
                     i === drilledIntoIndex ? styles.wedgeDrilledInto : ''
                   }`}
                 />
+                {sectorIcon(node, lx, ly)}
                 <text
                   x={lx}
-                  y={ly}
+                  y={isRenderableIcon(node.icon) ? ly + ICON_SIZE * 0.5 : ly}
                   className={styles.labelBreadcrumb}
                   textAnchor="middle"
                   dominantBaseline="middle"
@@ -308,9 +330,10 @@ export function MenuPreview() {
                   isDropTarget ? styles.wedgeDropTarget : ''
                 } ${isCancelNode(node) ? styles.wedgeCancel : ''}`}
               />
+              {sectorIcon(node, lx, ly)}
               <text
                 x={lx}
-                y={ly}
+                y={isRenderableIcon(node.icon) ? ly + ICON_SIZE * 0.5 : ly}
                 className={styles.label}
                 textAnchor="middle"
                 dominantBaseline="middle"

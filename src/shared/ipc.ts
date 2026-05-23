@@ -76,6 +76,10 @@ export const IpcChannel = {
   /** Editor opens a native file-open dialog (for an exec command path);
    *  resolves to the chosen absolute path, or null if cancelled. */
   EDITOR_PICK_FILE: 'spaceux:editor:pick-file',
+  /** Editor opens an image picker for a node icon; main reads + encodes the
+   *  chosen file into an inline data URI (size-guarded, SVG sanitized).
+   *  invoke → {@link PickIconResult}. */
+  EDITOR_PICK_ICON: 'spaceux:editor:pick-icon',
   /** Main forwards live SpaceMouse axis snapshots to the editor (only
    *  while the editor window exists) so the preview can highlight the
    *  sector under the puck in real time — the same stream as AXES. */
@@ -230,6 +234,15 @@ export type ProfilesState = {
 
 /** Result of a profile save/delete action. */
 export type ProfileActionResult = { ok: true } | { ok: false; reason: string };
+
+/** Outcome of the node-icon image picker. `cancelled` is distinct from a
+ *  real failure (e.g. too large, unreadable) so the UI only shows an error
+ *  when something went wrong. Success carries the inline image data URI to
+ *  store on the node. */
+export type PickIconResult =
+  | { ok: true; dataUri: string }
+  | { ok: false; reason: string }
+  | { ok: 'cancelled' };
 
 /** Editor colour theme. `system` follows the OS light/dark preference;
  *  `spaceux` is the branded palette. Persisted in editor-settings.json. */

@@ -1,12 +1,17 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 
+import { describeError } from '../shared/errors.js';
 import {
   IpcChannel,
   type EditorAction,
   type MenuConfigSnapshot,
+  type PickIconResult,
   type PluginCategory,
   type PluginImportResult,
   type PluginsState,
@@ -18,6 +23,31 @@ import { loadEditorSettings, saveEditorSettings } from './editor-settings.js';
 import { setEditorLive } from './editor-window.js';
 import { markSelfWrite } from './menu-watcher.js';
 import { writeMenuConfig } from './menu-writer.js';
+
+/** Image types accepted for a node icon, mapped to their MIME type. */
+const ICON_MIME: Record<string, string> = {
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+};
+
+// Icons are inlined into menu.json as data URIs, so cap the source size to
+// keep the config from ballooning. SVGs are tiny; this mainly bounds rasters.
+const MAX_ICON_BYTES = 256 * 1024;
+
+/** Light SVG hardening before inlining. The renderer already draws icons via
+ *  `<image>` (secure static mode — no script execution), so this is
+ *  defence-in-depth + keeps the stored markup clean: drop <script> blocks and
+ *  inline on* event handlers. */
+function sanitizeSvg(text: string): string {
+  return text
+    .replace(/<script[\s\S]*?<\/script\s*>/gi, '')
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, '');
+}
 
 /**
  * Hooks the editor IPC layer into main's live menu-config state. The
@@ -134,5 +164,38 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
       ? dialog.showOpenDialog(parent, { properties: ['openFile'] })
       : dialog.showOpenDialog({ properties: ['openFile'] }));
     return result.canceled || result.filePaths.length === 0 ? null : (result.filePaths[0] ?? null);
+  });
+
+  // Node-icon image picker: pick an image, read + encode it to an inline data
+  // URI on main (size-guarded, SVG sanitized) so the renderer can draw it the
+  // same way it will draw a plugin/bridge-provided icon.
+  ipcMain.handle(IpcChannel.EDITOR_PICK_ICON, async (): Promise<PickIconResult> => {
+    const parent = BrowserWindow.getFocusedWindow();
+    const filters = [{ name: 'Images', extensions: ['svg', 'png', 'jpg', 'jpeg', 'gif', 'webp'] }];
+    const result = await (parent
+      ? dialog.showOpenDialog(parent, { properties: ['openFile'], filters })
+      : dialog.showOpenDialog({ properties: ['openFile'], filters }));
+    if (result.canceled || result.filePaths.length === 0) return { ok: 'cancelled' };
+
+    const file = result.filePaths[0]!;
+    const mime = ICON_MIME[path.extname(file).toLowerCase()];
+    if (mime === undefined) return { ok: false, reason: 'unsupported image type' };
+
+    let buf: Buffer;
+    try {
+      buf = await fs.readFile(file);
+    } catch (err) {
+      return { ok: false, reason: `cannot read file: ${describeError(err)}` };
+    }
+    if (buf.byteLength > MAX_ICON_BYTES) {
+      return {
+        ok: false,
+        reason: `image too large (${Math.round(buf.byteLength / 1024)} KB; max ${MAX_ICON_BYTES / 1024} KB)`,
+      };
+    }
+
+    const payload =
+      mime === 'image/svg+xml' ? Buffer.from(sanitizeSvg(buf.toString('utf8')), 'utf8') : buf;
+    return { ok: true, dataUri: `data:${mime};base64,${payload.toString('base64')}` };
   });
 }

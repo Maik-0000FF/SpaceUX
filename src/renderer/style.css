@@ -156,6 +156,12 @@ body {
   pointer-events: none;
 }
 
+/* Sector icon, stacked above the label. Click-through like everything in
+ * the overlay. */
+.pie-icon {
+  pointer-events: none;
+}
+
 /* Matches .pie-wedge.is-preview — preview labels share the wedge's
  * dimming so the whole outer ring reads as one visual group. */
 .pie-label.is-preview {
