@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { isRenderableIcon } from '@/core/icon';
 import type { MenuNode } from '@/shared/menu';
 
 import { useAppState } from '../state/app-state';
@@ -343,6 +344,9 @@ export function MenuList() {
                 className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
                 aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Alt+ArrowUp Alt+ArrowDown"
                 title={node.label}
+                // Give icon-only rows (empty label) an accessible name so the
+                // tree isn't a list of blank treeitems.
+                aria-label={node.label.trim() === '' ? 'Unnamed item' : undefined}
                 onClick={() => (isBranch ? openNode(path) : selectPath(path))}
                 // Double-click the label to rename inline — single click still
                 // opens/selects; the ✎ button does the same.
@@ -360,6 +364,9 @@ export function MenuList() {
                   }
                 }}
               >
+                {isRenderableIcon(node.icon) && (
+                  <img className={styles.rowIcon} src={node.icon} alt="" />
+                )}
                 {node.label}
               </button>
               <span className={styles.actions}>
