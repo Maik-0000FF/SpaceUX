@@ -230,6 +230,11 @@ export type PluginImportResult =
 export type ProfilesState = {
   ids: string[];
   override: string | null;
+  /** Plugin-provided menus selectable as the active pie (#76), listed
+   *  separately so the dropdown shows plugin names and tells them apart from
+   *  device profiles. Selecting one sets `override` to its `id`, which is
+   *  `plugin:<pluginId>`. */
+  pluginMenus: { id: string; name: string }[];
 };
 
 /** Result of a profile save/delete action. */

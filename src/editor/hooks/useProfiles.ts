@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 
 import type { ProfilesState } from '@/shared/ipc';
 
-const EMPTY: ProfilesState = { ids: [], override: null };
+const EMPTY: ProfilesState = { ids: [], override: null, pluginMenus: [] };
 
 /**
  * The per-device profiles the editor knows about (#113): the saved profile

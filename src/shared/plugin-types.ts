@@ -16,6 +16,8 @@
  * trigger.
  */
 
+import type { MenuNode } from './menu.js';
+
 /**
  * Current plugin API version emitted by the host. A plugin's
  * `manifest.json` must declare an `apiVersion` field; the loader
@@ -106,6 +108,33 @@ export type PluginManifest = {
   homepage?: string;
   /** List of every action this plugin exposes. */
   actions: ActionDescriptor[];
+  /** Optional pie menu this plugin contributes (#76). When present, the menu
+   *  is selectable as the active pie via the editor's profile dropdown
+   *  (`plugin:<id>`). Selecting it is non-destructive: it overlays the
+   *  plugin's *content* (`root`) onto the user's own trigger / navigation /
+   *  appearance, and never writes the user's menu.json. */
+  menu?: PluginMenu;
+};
+
+/** The id prefix marking a profile-dropdown entry as a plugin-provided menu
+ *  (`plugin:<pluginId>`), distinguishing it from a device profile
+ *  (`<vid>-<pid>`) in the same override slot. Shared so main and the editor
+ *  renderer agree on the one literal across the process boundary. */
+export const PLUGIN_MENU_ID_PREFIX = 'plugin:';
+
+/** Whether an override id names a plugin-provided menu. Tolerates null/undefined
+ *  so callers can pass an optional override directly. */
+export function isPluginMenuId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && id.startsWith(PLUGIN_MENU_ID_PREFIX);
+}
+
+/** A plugin-contributed menu. C1 carries only the content (`root`); a plugin
+ *  may later also *suggest* its own trigger/navigation/appearance, applied
+ *  opt-in (the user is asked) and never overwriting their config. */
+export type PluginMenu = {
+  /** The menu content: a root node whose `branches` are the pie's items.
+   *  Validated as a config root (centre may be empty; non-empty branches). */
+  root: MenuNode;
 };
 
 /** Runtime context passed to every action invocation. */

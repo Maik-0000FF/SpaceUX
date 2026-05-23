@@ -983,7 +983,12 @@ type NodeValidation = { ok: true; value: MenuNode } | { ok: false; reason: strin
  *     target) — the one node where the two coexist;
  *   - a non-root node keeps the historical mutual exclusivity: either an
  *     `action` (leaf) or `branches` (submenu), never both. */
-function validateNode(raw: unknown, where: string, depth = 0, isRoot = false): NodeValidation {
+export function validateNode(
+  raw: unknown,
+  where: string,
+  depth = 0,
+  isRoot = false,
+): NodeValidation {
   // Reject pathologically nested configs before the recursion
   // walks far enough to overflow the call stack. The cap leaves
   // plenty of headroom over realistic menus and surfaces as a

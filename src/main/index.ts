@@ -25,6 +25,7 @@ import {
   DEFAULT_TRIGGER_BUTTON,
   DEFAULT_TRIGGER_MODE,
   type MenuConfig,
+  type MenuNode,
 } from '../shared/menu.js';
 import { DEFAULT_PIE_APPEARANCE } from '../shared/pie-appearance.js';
 import type { DaemonEvent } from '../shared/protocol.js';
@@ -52,8 +53,10 @@ import {
   listDeviceProfiles,
   loadDeviceProfile,
   resolveActiveConfig,
+  resolvePluginMenuConfig,
   writeDeviceProfile,
   writeDeviceProfileSync,
+  type ActiveMenuConfig,
   type ProfileLoadResult,
 } from './profile-loader.js';
 import {
@@ -64,7 +67,11 @@ import {
   type LoadedPlugin,
 } from './plugin-loader.js';
 import { importPluginFromFolder, uninstallPlugin } from './plugin-installer.js';
-import type { PluginManifest } from '../shared/plugin-types.js';
+import {
+  PLUGIN_MENU_ID_PREFIX,
+  isPluginMenuId,
+  type PluginManifest,
+} from '../shared/plugin-types.js';
 import { createTray } from './tray.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -199,6 +206,22 @@ async function reloadFunctionPlugins(): Promise<void> {
   }
   actionIndex = indexActions([BUILTIN_PLUGIN, ...plugins]);
   sendToEditor(IpcChannel.EDITOR_ACTIONS_CHANGED, undefined);
+  // The set of plugin-provided menus may have changed too — refresh the
+  // dropdown, and if the *active* plugin menu was just uninstalled, re-resolve
+  // so the live pie falls back instead of pointing at a gone menu.
+  //
+  // Static-scope limitation (C1): re-importing an updated plugin while its menu
+  // is active does NOT refresh the live pie's content here — the id is
+  // unchanged, so applyActiveProfile's change-gate wouldn't push it anyway. The
+  // user reselects to pick up new content; a live-refresh path is a follow-up.
+  void pushEditorProfiles();
+  if (
+    activeProfileId !== null &&
+    isPluginMenuId(activeProfileId) &&
+    pluginMenuRootFor(activeProfileId) === null
+  ) {
+    void applyActiveProfile('profile');
+  }
 }
 
 // Single point that latches the reported device. Re-resolves the active
@@ -223,6 +246,19 @@ function resolveProfileId(): string | null {
   return overrideProfileId ?? deviceProfileId(deviceVendor, deviceProduct);
 }
 
+/** The (normalized) root of the plugin menu named by a `plugin:<id>` id, or
+ *  null when no loaded plugin with that id contributes a menu. */
+function pluginMenuRootFor(id: string): MenuNode | null {
+  const pid = id.slice(PLUGIN_MENU_ID_PREFIX.length);
+  return loadedPlugins.find((p) => p.manifest.id === pid)?.manifest.menu?.root ?? null;
+}
+/** Selectable plugin menus for the editor's profile dropdown. */
+function listPluginMenus(): { id: string; name: string }[] {
+  return loadedPlugins
+    .filter((p) => p.manifest.menu !== undefined)
+    .map((p) => ({ id: `${PLUGIN_MENU_ID_PREFIX}${p.manifest.id}`, name: p.manifest.name }));
+}
+
 /**
  * Resolve and apply the active menu config: the manual override profile,
  * else the connected device's profile, else the global fallback. Pushes
@@ -241,20 +277,33 @@ async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
   await flushPendingAppearance();
 
   const id = resolveProfileId();
-
-  let profile: ProfileLoadResult | null = null;
-  if (id) {
-    profile = await loadDeviceProfile(id);
-    // A newer device change or override landed while we were reading: that
-    // call owns the result now, so drop this stale one.
-    if (resolveProfileId() !== id) return;
-    if (profile.status === 'invalid')
-      // eslint-disable-next-line no-console
-      console.warn(`[profile] ${id}: ${profile.reason} — using fallback`);
-  }
-
   const fallback = fallbackMenu ?? { config: DEFAULT_MENU_CONFIG, mtime: null, source: null };
-  const next = resolveActiveConfig(id, profile, fallback);
+
+  let next: ActiveMenuConfig;
+  if (id !== null && isPluginMenuId(id)) {
+    // A plugin-provided menu is the override. Overlay its content onto the
+    // user's base config (non-destructive). If the plugin/menu has gone
+    // (uninstalled), drop the override and re-resolve the normal way.
+    const root = pluginMenuRootFor(id);
+    if (root === null) {
+      if (overrideProfileId === id) overrideProfileId = null;
+      await applyActiveProfile(cause);
+      return;
+    }
+    next = resolvePluginMenuConfig(root, fallback, id);
+  } else {
+    let profile: ProfileLoadResult | null = null;
+    if (id) {
+      profile = await loadDeviceProfile(id);
+      // A newer device change or override landed while we were reading: that
+      // call owns the result now, so drop this stale one.
+      if (resolveProfileId() !== id) return;
+      if (profile.status === 'invalid')
+        // eslint-disable-next-line no-console
+        console.warn(`[profile] ${id}: ${profile.reason} — using fallback`);
+    }
+    next = resolveActiveConfig(id, profile, fallback);
+  }
 
   // State is updated unconditionally so main stays authoritative; the IPC
   // push is gated on a source change so a swap between two unprofiled
@@ -292,6 +341,7 @@ async function pushEditorProfiles(): Promise<void> {
   sendToEditor(IpcChannel.EDITOR_PROFILES_CHANGED, {
     ids: await listDeviceProfiles(),
     override: overrideProfileId,
+    pluginMenus: listPluginMenus(),
   } satisfies ProfilesState);
 }
 
@@ -724,6 +774,7 @@ function wireActionDispatch(): void {
     async (): Promise<ProfilesState> => ({
       ids: await listDeviceProfiles(),
       override: overrideProfileId,
+      pluginMenus: listPluginMenus(),
     }),
   );
 
@@ -731,7 +782,13 @@ function wireActionDispatch(): void {
   // "Auto" (device auto-detect). Re-resolves the active config + syncs the
   // editor dropdown. A non-null id is validated; a bogus one is ignored.
   ipcMain.handle(IpcChannel.EDITOR_SET_PROFILE_OVERRIDE, async (_evt, id: unknown) => {
-    if (id !== null && (typeof id !== 'string' || !isProfileId(id))) return;
+    if (id !== null) {
+      if (typeof id !== 'string') return;
+      // Accept a device profile id, or a plugin-menu id that resolves to a
+      // currently-loaded plugin menu. Reject anything else (stray IPC).
+      const valid = isProfileId(id) || (isPluginMenuId(id) && pluginMenuRootFor(id) !== null);
+      if (!valid) return;
+    }
     overrideProfileId = id;
     await applyActiveProfile('profile');
     await pushEditorProfiles();
@@ -892,7 +949,13 @@ app.whenReady().then(async () => {
   wireEditorIpc({
     getConfig: () => menuConfig,
     getMtime: () => menuConfigMtime,
-    getWriteTarget: () => menuConfigSource ?? menuSearchPaths[0],
+    // No writable target while a plugin menu is active: it's a read-only
+    // overlay of the plugin's content, so an editor save must not write it
+    // over the user's menu.json. The editor surfaces "no writable path".
+    getWriteTarget: () =>
+      activeProfileId !== null && isPluginMenuId(activeProfileId)
+        ? undefined
+        : (menuConfigSource ?? menuSearchPaths[0]),
     applyWrite: (config, mtime, target) => {
       menuConfig = config;
       menuConfigMtime = mtime;

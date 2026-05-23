@@ -18,6 +18,7 @@ import {
   listDeviceProfiles,
   loadDeviceProfile,
   resolveActiveConfig,
+  resolvePluginMenuConfig,
   writeDeviceProfile,
   writeDeviceProfileSync,
   type FallbackMenu,
@@ -140,6 +141,33 @@ describe('resolveActiveConfig', () => {
   it('falls back when there is no device (null id / null profile)', () => {
     const active = resolveActiveConfig(null, null, fallback);
     expect(active).toEqual({ ...fallback, profileId: null, appearance: null });
+  });
+});
+
+describe('resolvePluginMenuConfig', () => {
+  const fallback: FallbackMenu = {
+    config: { ...DEFAULT_MENU_CONFIG, triggerButton: 3 },
+    mtime: 111,
+    source: '/cfg/menu.json',
+  };
+  const root = { label: '', branches: [{ label: 'Item' }] };
+
+  it("overlays the plugin's content onto the user's base config", () => {
+    const active = resolvePluginMenuConfig(root, fallback, 'plugin:org.x');
+    expect(active.config.root).toBe(root); // plugin content
+    expect(active.config.triggerButton).toBe(3); // user's base preserved
+    expect(active.profileId).toBe('plugin:org.x');
+  });
+
+  it('is read-only (source null) and keeps the global appearance (null)', () => {
+    const active = resolvePluginMenuConfig(root, fallback, 'plugin:org.x');
+    expect(active.source).toBeNull();
+    expect(active.appearance).toBeNull();
+  });
+
+  it('does not mutate the fallback config', () => {
+    resolvePluginMenuConfig(root, fallback, 'plugin:org.x');
+    expect(fallback.config.root).not.toBe(root);
   });
 });
 
