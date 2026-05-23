@@ -3,7 +3,13 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { ICON_SIZE_RATIO, isRenderableIcon } from '../src/core/icon';
+import {
+  ICON_MIME,
+  ICON_SIZE_RATIO,
+  MAX_ICON_BYTES,
+  isRenderableIcon,
+  sanitizeSvg,
+} from '../src/core/icon';
 
 describe('isRenderableIcon', () => {
   it('accepts inline image data URIs (the icon pipeline output)', () => {
@@ -26,5 +32,38 @@ describe('isRenderableIcon', () => {
   it('keeps the icon size a sane fraction of the pie radius', () => {
     expect(ICON_SIZE_RATIO).toBeGreaterThan(0);
     expect(ICON_SIZE_RATIO).toBeLessThan(0.5);
+  });
+});
+
+describe('sanitizeSvg', () => {
+  it('strips <script> blocks', () => {
+    const dirty = '<svg><script>alert(1)</script><rect/></svg>';
+    const clean = sanitizeSvg(dirty);
+    expect(clean).not.toMatch(/<script/i);
+    expect(clean).toContain('<rect/>');
+  });
+
+  it('strips quoted on* event handlers', () => {
+    expect(sanitizeSvg('<svg onload="x()"><g onclick=\'y()\'/></svg>')).not.toMatch(/on\w+=/i);
+  });
+
+  it('leaves benign markup untouched', () => {
+    const svg = '<svg viewBox="0 0 1 1"><path d="M0 0"/></svg>';
+    expect(sanitizeSvg(svg)).toBe(svg);
+  });
+});
+
+describe('icon picker constants', () => {
+  it('maps the accepted extensions to MIME types', () => {
+    expect(ICON_MIME['.svg']).toBe('image/svg+xml');
+    expect(ICON_MIME['.png']).toBe('image/png');
+    expect(ICON_MIME['.jpg']).toBe('image/jpeg');
+    expect(ICON_MIME['.jpeg']).toBe('image/jpeg');
+    expect(ICON_MIME['.bmp']).toBeUndefined(); // unsupported → rejected
+  });
+
+  it('caps the source size at a sane bound', () => {
+    expect(MAX_ICON_BYTES).toBeGreaterThan(0);
+    expect(MAX_ICON_BYTES).toBeLessThanOrEqual(1024 * 1024);
   });
 });

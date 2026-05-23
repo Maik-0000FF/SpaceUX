@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 
+import { ICON_MIME, MAX_ICON_BYTES, sanitizeSvg } from '../core/icon.js';
 import { describeError } from '../shared/errors.js';
 import {
   IpcChannel,
@@ -23,31 +24,6 @@ import { loadEditorSettings, saveEditorSettings } from './editor-settings.js';
 import { setEditorLive } from './editor-window.js';
 import { markSelfWrite } from './menu-watcher.js';
 import { writeMenuConfig } from './menu-writer.js';
-
-/** Image types accepted for a node icon, mapped to their MIME type. */
-const ICON_MIME: Record<string, string> = {
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.jpeg': 'image/jpeg',
-  '.gif': 'image/gif',
-  '.webp': 'image/webp',
-};
-
-// Icons are inlined into menu.json as data URIs, so cap the source size to
-// keep the config from ballooning. SVGs are tiny; this mainly bounds rasters.
-const MAX_ICON_BYTES = 256 * 1024;
-
-/** Light SVG hardening before inlining. The renderer already draws icons via
- *  `<image>` (secure static mode — no script execution), so this is
- *  defence-in-depth + keeps the stored markup clean: drop <script> blocks and
- *  inline on* event handlers. */
-function sanitizeSvg(text: string): string {
-  return text
-    .replace(/<script[\s\S]*?<\/script\s*>/gi, '')
-    .replace(/\son\w+\s*=\s*"[^"]*"/gi, '')
-    .replace(/\son\w+\s*=\s*'[^']*'/gi, '');
-}
 
 /**
  * Hooks the editor IPC layer into main's live menu-config state. The
@@ -181,17 +157,20 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
     const mime = ICON_MIME[path.extname(file).toLowerCase()];
     if (mime === undefined) return { ok: false, reason: 'unsupported image type' };
 
+    // Check the size via stat before reading, so a huge pick is rejected
+    // without loading it all into memory first.
     let buf: Buffer;
     try {
+      const { size } = await fs.stat(file);
+      if (size > MAX_ICON_BYTES) {
+        return {
+          ok: false,
+          reason: `image too large (${Math.round(size / 1024)} KB; max ${MAX_ICON_BYTES / 1024} KB)`,
+        };
+      }
       buf = await fs.readFile(file);
     } catch (err) {
       return { ok: false, reason: `cannot read file: ${describeError(err)}` };
-    }
-    if (buf.byteLength > MAX_ICON_BYTES) {
-      return {
-        ok: false,
-        reason: `image too large (${Math.round(buf.byteLength / 1024)} KB; max ${MAX_ICON_BYTES / 1024} KB)`,
-      };
     }
 
     const payload =
