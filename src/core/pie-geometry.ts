@@ -173,9 +173,12 @@ export function rotateAxes(axes: PieAxes, angle: number): PieAxes {
  * which axes steer the hovered sector. Replaces the previously hardwired
  * `{ tx, ty }`:
  *   - `push` → the lateral push (TX/TY), the historical behaviour;
- *   - `tilt` → the rotational tilt (RX/RY);
- *   - `both` → the two summed, so push and tilt aim equally and in
- *     parallel (neither dominates);
+ *   - `tilt` → the rotational tilt, mapped to match push: RY (tilt
+ *     left/right) drives the horizontal aim like TX, RX (tilt
+ *     forward/back) the vertical like TY. (Mapping RX→x/RY→y would aim
+ *     90° off and fight push in `both`.)
+ *   - `both` → push + the matching tilt axis summed, so the two aim the
+ *     same way and reinforce rather than cancel;
  *   - `twist` → `null`: there's no lateral pointer at all, so the caller
  *     makes no sector from deflection and lets the cycle/twist step drive
  *     the selection alone.
@@ -189,9 +192,12 @@ export function aimAxes(source: AimSource, axes: SixAxes): PieAxes | null {
     case 'push':
       return { tx: axes.tx, ty: axes.ty };
     case 'tilt':
-      return { tx: axes.rx, ty: axes.ry };
+      // RY (left/right) → horizontal, RX (forward/back) → vertical, so tilt
+      // aims the same way push does. RY is negated: tilting left reads RY+
+      // on our hardware but must aim left (−x), so −RY puts it there.
+      return { tx: -axes.ry, ty: axes.rx };
     case 'both':
-      return { tx: axes.tx + axes.rx, ty: axes.ty + axes.ry };
+      return { tx: axes.tx - axes.ry, ty: axes.ty + axes.rx };
     case 'twist':
       return null;
   }

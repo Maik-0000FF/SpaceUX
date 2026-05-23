@@ -377,16 +377,17 @@ describe('resolvePuckFrame — aim source (#159)', () => {
     expect(hover(nav({ aim: 'push' }), { ry: -100 })).toEqual({ kind: 'none' });
   });
 
-  it('tilt aims by RX/RY and ignores push', () => {
-    expect(hover(nav({ aim: 'tilt' }), { ry: -100 })).toEqual({ kind: 'hover', index: 0 });
+  it('tilt aims by tilt axes and ignores push — RX (forward/back) drives the vertical', () => {
+    // RX → vertical: rx −100 aims the top sector, like ty −100 does for push.
+    expect(hover(nav({ aim: 'tilt' }), { rx: -100 })).toEqual({ kind: 'hover', index: 0 });
     expect(hover(nav({ aim: 'tilt' }), { ty: -100 })).toEqual({ kind: 'none' });
   });
 
-  it('both sums push and tilt — each alone below the deadzone, together over it', () => {
-    // -30 push and -30 tilt are each inside the 50 deadzone, but summed
-    // (-60) they cross it and aim the top sector — proving equal contribution.
+  it('both sums push with the matching tilt axis — each alone below the deadzone, together over it', () => {
+    // Push-forward (ty) and tilt-forward (rx) both drive the vertical, so they
+    // reinforce: −30 each is inside the 50 deadzone, summed (−60) aims the top.
     expect(hover(nav({ aim: 'push' }), { ty: -30 })).toEqual({ kind: 'none' });
-    expect(hover(nav({ aim: 'both' }), { ty: -30, ry: -30 })).toEqual({ kind: 'hover', index: 0 });
+    expect(hover(nav({ aim: 'both' }), { ty: -30, rx: -30 })).toEqual({ kind: 'hover', index: 0 });
   });
 
   it('deadzone gates lateral aiming — a deflection under it hovers nothing (#160)', () => {
