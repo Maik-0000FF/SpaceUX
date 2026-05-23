@@ -17,6 +17,7 @@ export function usePieAppearance(): {
   appearance: PieAppearance;
   setTheme: (theme: PieThemeChoice) => void;
   setOpacity: (opacity: number) => void;
+  setLabelScale: (labelScale: number) => void;
 } {
   const [appearance, setAppearance] = useState<PieAppearance>(DEFAULT_PIE_APPEARANCE);
 
@@ -36,6 +37,7 @@ export function usePieAppearance(): {
     const root = document.documentElement;
     root.dataset.pieTheme = appearance.theme;
     root.style.setProperty('--pie-opacity', String(appearance.opacity));
+    root.style.setProperty('--pie-label-scale', String(appearance.labelScale));
   }, [appearance]);
 
   const setTheme = useCallback((theme: PieThemeChoice) => {
@@ -48,5 +50,10 @@ export function usePieAppearance(): {
     window.editor.setPieAppearance({ opacity });
   }, []);
 
-  return { appearance, setTheme, setOpacity };
+  const setLabelScale = useCallback((labelScale: number) => {
+    setAppearance((a) => ({ ...a, labelScale }));
+    window.editor.setPieAppearance({ labelScale });
+  }, []);
+
+  return { appearance, setTheme, setOpacity, setLabelScale };
 }

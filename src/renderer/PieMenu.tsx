@@ -14,6 +14,8 @@ import {
   axesToSector,
   clampPieAnchor,
   sectorCenterAngle,
+  segmentLabelFontPx,
+  truncatePieLabel,
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
@@ -461,8 +463,20 @@ function SectorLabel({
           preserveAspectRatio="xMidYMid meet"
         />
       )}
-      <text className={className} x={x} y={labelY} textAnchor="middle" dominantBaseline="middle">
-        {node.label}
+      <text
+        className={className}
+        x={x}
+        y={labelY}
+        textAnchor="middle"
+        dominantBaseline="middle"
+        // Auto-fit the label to the segment (shrinks as sectors grow), then
+        // scale by the user's label-size fraction. Truncated to keep ≤10 chars
+        // inside the wedge.
+        style={{
+          fontSize: `calc(${segmentLabelFontPx(radius, sectorCount)}px * var(--pie-label-scale, 1))`,
+        }}
+      >
+        {truncatePieLabel(node.label)}
       </text>
     </>
   );

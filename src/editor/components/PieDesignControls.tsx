@@ -3,7 +3,14 @@
 
 import type { PieThemeChoice } from '@/shared/ipc';
 import { MAX_PIE_SCALE, MIN_PIE_SCALE } from '@/shared/menu';
-import { PIE_OPACITY_MAX, PIE_OPACITY_MIN, PIE_OPACITY_STEP } from '@/shared/pie-appearance';
+import {
+  PIE_LABEL_SCALE_MAX,
+  PIE_LABEL_SCALE_MIN,
+  PIE_LABEL_SCALE_STEP,
+  PIE_OPACITY_MAX,
+  PIE_OPACITY_MIN,
+  PIE_OPACITY_STEP,
+} from '@/shared/pie-appearance';
 
 import { usePieAppearance } from '../hooks/usePieAppearance';
 import { useMenuSettings } from '../state/menu-settings';
@@ -23,7 +30,7 @@ const SCALE_STEP = 0.05;
  * <html>, so this component being always-mounted keeps the preview themed.
  */
 export function PieDesignControls() {
-  const { appearance: pie, setTheme, setOpacity } = usePieAppearance();
+  const { appearance: pie, setTheme, setOpacity, setLabelScale } = usePieAppearance();
   const scale = useMenuSettings((s) => s.config?.scale ?? 1);
   const setScale = useMenuSettings((s) => s.setScale);
   const hasConfig = useMenuSettings((s) => s.config !== null);
@@ -68,6 +75,20 @@ export function PieDesignControls() {
           onChange={(e) => setOpacity(Number(e.target.value))}
         />
         <span className={styles.value}>{Math.round(pie.opacity * 100)}%</span>
+      </label>
+      <label className={styles.control}>
+        <span className={styles.label}>Label</span>
+        <input
+          className={styles.slider}
+          type="range"
+          min={PIE_LABEL_SCALE_MIN}
+          max={PIE_LABEL_SCALE_MAX}
+          step={PIE_LABEL_SCALE_STEP}
+          value={pie.labelScale}
+          onChange={(e) => setLabelScale(Number(e.target.value))}
+          title="Label size as a fraction of the per-segment fit (100% = fill the segment)"
+        />
+        <span className={styles.value}>{Math.round(pie.labelScale * 100)}%</span>
       </label>
     </div>
   );

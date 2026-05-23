@@ -15,6 +15,8 @@ import {
   axesToSector,
   rotateAxes,
   sectorCenterAngle,
+  segmentLabelFontPx,
+  truncatePieLabel,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
 import {
@@ -287,8 +289,11 @@ export function MenuPreview() {
                   className={styles.labelBreadcrumb}
                   textAnchor="middle"
                   dominantBaseline="middle"
+                  style={{
+                    fontSize: `calc(${segmentLabelFontPx(INNER_LABEL_RADIUS, parentRing.length)}px * var(--pie-label-scale, 1))`,
+                  }}
                 >
-                  {node.label}
+                  {truncatePieLabel(node.label)}
                 </text>
               </g>
             );
@@ -339,8 +344,11 @@ export function MenuPreview() {
                 className={styles.label}
                 textAnchor="middle"
                 dominantBaseline="middle"
+                style={{
+                  fontSize: `calc(${segmentLabelFontPx(activeLabel, count)}px * var(--pie-label-scale, 1))`,
+                }}
               >
-                {node.label}
+                {truncatePieLabel(node.label)}
               </text>
             </g>
           );

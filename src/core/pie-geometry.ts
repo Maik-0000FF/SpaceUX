@@ -88,6 +88,41 @@ export const INNER_LABEL_RATIO = 0.62;
 
 const TAU = Math.PI * 2;
 
+/** Pie-segment labels are capped at this many characters (counted by code
+ *  point, so emoji/CJK count as one) — long names are truncated with an
+ *  ellipsis so they can't overflow a wedge. Applies only in the pie/preview
+ *  segments; the editor tree shows full labels. */
+export const MAX_PIE_LABEL_CHARS = 10;
+
+/** Truncate a label for display inside a pie segment. */
+export function truncatePieLabel(label: string): string {
+  const chars = [...label];
+  if (chars.length <= MAX_PIE_LABEL_CHARS) return label;
+  return chars.slice(0, MAX_PIE_LABEL_CHARS - 1).join('') + '…';
+}
+
+// Label font-size bounds (px) for the per-segment fit below.
+const PIE_LABEL_FONT_MIN = 8;
+const PIE_LABEL_FONT_MAX = 20;
+
+/**
+ * Largest label font size (px) that keeps a {@link MAX_PIE_LABEL_CHARS}-char
+ * label inside one wedge at `labelRadius`, for `sectorCount` sectors. Shrinks
+ * as sectorCount grows (each wedge gets narrower), so labels never spill past
+ * a segment boundary. The appearance label-scale (0–1) is applied on top by
+ * the renderer as a fraction of this fit (`calc(fit * var(--pie-label-scale))`).
+ */
+export function segmentLabelFontPx(labelRadius: number, sectorCount: number): number {
+  if (sectorCount <= 0) return PIE_LABEL_FONT_MAX;
+  // Tangential room a wedge has at this radius (chord of its angular slice),
+  // less ~10% so glyphs don't touch the wedge edges.
+  const chord = 2 * labelRadius * Math.sin(Math.PI / sectorCount);
+  const usable = chord * 0.9;
+  // ~MAX chars at an average glyph advance of ~0.55em.
+  const fit = usable / (MAX_PIE_LABEL_CHARS * 0.55);
+  return Math.max(PIE_LABEL_FONT_MIN, Math.min(PIE_LABEL_FONT_MAX, fit));
+}
+
 /**
  * Map raw axes to a sector index 0..sectorCount-1, or null if inside
  * the deadzone. The angle is computed relative to "12 o'clock" so
