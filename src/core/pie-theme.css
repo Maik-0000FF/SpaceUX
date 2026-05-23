@@ -78,3 +78,39 @@
   --pie-cancel-bg-hover: rgb(216, 96, 96);
   --pie-cancel-label: rgb(160, 190, 220);
 }
+
+/*
+ * Depth-dots indicator (#…): a fixed row of dots — one per ring level on the
+ * deepest path of the tree — showing how deep in the menu you are. The dot
+ * for the current level is full opacity, the rest half, and the whole row is
+ * scaled by --pie-opacity (the appearance slider) like the wedge fills. When
+ * the centre is a cancel target the dots turn red, mirroring the centre.
+ * Shared by the live overlay and the editor preview so they can't drift.
+ */
+.pie-depth-dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+
+.pie-depth-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  /* Idle (non-current) level: half of the slider opacity. */
+  background: rgb(from var(--pie-label) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
+}
+
+.pie-depth-dot.is-active {
+  /* Current level: full slider opacity. */
+  background: rgb(from var(--pie-label) r g b / var(--pie-opacity, 0.6));
+}
+
+/* Cancel centre → the dots mirror it in red (idle half, active full). */
+.pie-depth-dots.is-cancel .pie-depth-dot {
+  background: rgb(from var(--pie-cancel-bg-active) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
+}
+
+.pie-depth-dots.is-cancel .pie-depth-dot.is-active {
+  background: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+}

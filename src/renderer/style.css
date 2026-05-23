@@ -61,6 +61,18 @@ body {
   pointer-events: none;
 }
 
+/* Depth dots sit just below the pie without affecting its centring on the
+ * cursor: absolutely placed under the SVG (top: 100% of the .pie-menu box),
+ * horizontally centred. The shared .pie-depth-dots (pie-theme.css) styles the
+ * row itself. */
+.pie-menu .pie-depth-dots {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 12px;
+}
+
 /* Only the wedge *fill* carries the appearance slider's translucency
  * (--pie-opacity, set on <html> by usePieAppearance): the relative-colour
  * syntax keeps the theme colour but replaces its alpha. Strokes and labels

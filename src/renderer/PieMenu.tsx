@@ -3,7 +3,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 
-import { currentBranches, navigationRingRotation } from '@/core/menu-nav';
+import { currentBranches, menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
   DEFAULT_PIE_GEOMETRY,
@@ -209,6 +209,11 @@ export function PieMenu({
   const rootCancel = isCancelNode(config.root);
   const centerLabel = config.root.label || '✕';
 
+  // Depth dots: a fixed row sized to the tree's deepest path, with the dot
+  // for the current navigation depth highlighted (top level = first dot).
+  const depth = menuTreeDepth(config);
+  const activeDepth = Math.min(navigation.length, depth - 1);
+
   // Mid-radius of the outer ring band, used to position outer-ring
   // labels in the visual centre of each wedge. Pre-computed because
   // both the wedge map and the label map below need it.
@@ -316,6 +321,13 @@ export function PieMenu({
           </g>
         )}
       </svg>
+      {depth > 0 && (
+        <div className={`pie-depth-dots${rootCancel ? ' is-cancel' : ''}`} aria-hidden="true">
+          {Array.from({ length: depth }, (_, i) => (
+            <span key={i} className={`pie-depth-dot${i === activeDepth ? ' is-active' : ''}`} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

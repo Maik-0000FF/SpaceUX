@@ -8,6 +8,7 @@ import {
   currentBranches,
   cycleNodeIndex,
   drillReducer,
+  menuTreeDepth,
   navigationRingRotation,
   previewBranches,
   resolveTwistFrame,
@@ -144,6 +145,38 @@ describe('drillReducer', () => {
     // React doesn't churn.
     const result = drillReducer(INITIAL_DRILL_STATE, { type: 'pop' });
     expect(result).toBe(INITIAL_DRILL_STATE);
+  });
+});
+
+describe('menuTreeDepth', () => {
+  it('counts the deepest ring path from the root', () => {
+    // NESTED_CONFIG: top ring + one branch with leaf children → 2 levels.
+    expect(menuTreeDepth(NESTED_CONFIG)).toBe(2);
+  });
+
+  it('is 1 for a flat menu and 0 for an empty root', () => {
+    const flat: MenuConfig = {
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{ label: 'A' }, { label: 'B' }] },
+    };
+    expect(menuTreeDepth(flat)).toBe(1);
+    expect(menuTreeDepth({ version: MENU_CONFIG_VERSION, root: { label: '', branches: [] } })).toBe(
+      0,
+    );
+  });
+
+  it('takes the max over branches (deepest path wins)', () => {
+    const cfg: MenuConfig = {
+      version: MENU_CONFIG_VERSION,
+      root: {
+        label: '',
+        branches: [
+          { label: 'Shallow' },
+          { label: 'Deep', branches: [{ label: 'D1', branches: [{ label: 'D1a' }] }] },
+        ],
+      },
+    };
+    expect(menuTreeDepth(cfg)).toBe(3); // top → Deep → D1 → D1a rings
   });
 });
 
