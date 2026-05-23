@@ -106,8 +106,11 @@ export function Properties() {
     });
   };
 
+  // The top-level ring can be emptied to just the centre; a submenu keeps
+  // its last item (delete the submenu node itself to remove it).
   const canDelete =
-    selectedIndex !== null && (config ? ringBranches(config, viewPath).length : 0) > 1;
+    selectedIndex !== null &&
+    (viewPath.length === 0 || (config ? ringBranches(config, viewPath).length : 0) > 1);
   const handleDelete = (): void => {
     if (selectedIndex === null) return;
     deleteNode(viewPath, selectedIndex);
@@ -390,7 +393,7 @@ export function Properties() {
               className={styles.deleteButton}
               onClick={handleDelete}
               disabled={!canDelete}
-              title={canDelete ? 'Delete this node' : 'A menu must keep at least one node'}
+              title={canDelete ? 'Delete this node' : 'A submenu must keep at least one item'}
             >
               Delete node
             </button>

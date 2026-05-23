@@ -301,13 +301,27 @@ describe('menu-settings CRUD', () => {
     ).toEqual(['C0', 'Item 1.2']);
   });
 
-  it('deleteNode removes within the ring but refuses to empty it', () => {
+  it('deleteNode empties the top-level ring down to just the centre (#160)', () => {
     load([{ label: 'A' }, { label: 'B' }]);
     useMenuSettings.getState().deleteNode([], 0);
     expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
-    // The last remaining node can't be deleted (validator needs ≥1).
+    // The top-level ring can now be emptied — leaves just the centre.
     useMenuSettings.getState().deleteNode([], 0);
-    expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
+    expect(useMenuSettings.getState().config?.root.branches).toEqual([]);
+  });
+
+  it('deleteNode keeps a deeper submenu ring non-empty (#160)', () => {
+    useMenuSettings.getState().setConfig({
+      config: {
+        version: DEFAULT_MENU_CONFIG.version,
+        root: { label: '', branches: [{ label: 'Branch', branches: [{ label: 'C0' }] }] },
+      },
+      mtime: 1,
+    });
+    useMenuSettings.getState().deleteNode([0], 0); // try to empty Branch's ring
+    expect(
+      useMenuSettings.getState().config?.root.branches![0]?.branches?.map((s) => s.label),
+    ).toEqual(['C0']); // unchanged — a submenu keeps its last item
   });
 
   it('setTriggerButton sets the trigger and flags local/dirty', () => {

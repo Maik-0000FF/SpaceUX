@@ -157,11 +157,11 @@ export function MenuList() {
   };
 
   const removeItem = (ring: number[], index: number, ringLen: number): void => {
-    // Deleting the last child of a submenu would leave it empty (invalid),
+    // Deleting the last child of a *submenu* would leave it empty (invalid),
     // so instead drop the submenu level: the parent (at `ring`) becomes a
-    // plain leaf again. The root ring can't shrink to empty — its last
-    // item's delete button is disabled, so `ring` is non-empty here.
-    if (ringLen <= 1) {
+    // plain leaf again. The top-level ring (ring []) is exempt — it can be
+    // emptied down to just the centre, so it deletes normally below.
+    if (ring.length > 0 && ringLen <= 1) {
       updateNodeAt(ring, (s) => {
         delete s.branches;
       });
@@ -390,13 +390,12 @@ export function MenuList() {
                   className={styles.actionBtn}
                   title={
                     ringPath.length === 0 && ringLen <= 1
-                      ? 'A menu must keep at least one item'
+                      ? 'Delete (leaves just the centre)'
                       : ringLen <= 1
                         ? 'Delete (turns the parent back into a normal item)'
                         : 'Delete'
                   }
                   aria-label={`Delete ${node.label}`}
-                  disabled={ringPath.length === 0 && ringLen <= 1}
                   onClick={() => removeItem(ringPath, i, ringLen)}
                 >
                   🗑

@@ -353,6 +353,21 @@ describe('resolvePuckFrame — drill / hover / cycle', () => {
     expect(r.edges.cycle).toBe(true);
   });
 
+  it('does nothing in an empty ring — no item to aim at, no NaN sector (#160)', () => {
+    const r = resolvePuckFrame({
+      menuConfig: {
+        version: MENU_CONFIG_VERSION,
+        navigation: nav({}),
+        root: { label: '', branches: [] },
+      },
+      axes: axes({ ty: -300 }), // a firm aim that would normally hover/drill
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+  });
+
   it('does nothing with a centred puck and no gestures', () => {
     const r = resolvePuckFrame({
       menuConfig: config(nav({})),
