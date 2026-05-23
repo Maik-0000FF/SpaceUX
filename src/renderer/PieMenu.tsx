@@ -276,7 +276,7 @@ export function PieMenu({
           r={innerRadius}
         />
         <text
-          className={`pie-cancel-label${cancelActive ? ' is-active' : ''}`}
+          className="pie-cancel-label"
           x={0}
           y={0}
           textAnchor="middle"

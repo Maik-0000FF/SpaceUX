@@ -199,15 +199,12 @@ body {
 }
 
 .pie-cancel-label {
+  /* Theme colour in every state — the centre label doesn't flip to white
+     when active (unlike wedge labels), matching the editor preview. */
   fill: var(--pie-cancel-label);
   font-size: 18px;
   font-weight: 600;
   pointer-events: none;
-  transition: fill var(--transition-fast);
-}
-
-.pie-cancel-label.is-active {
-  fill: var(--pie-label-active);
 }
 
 /* ── Connection status ──────────────────────────────────────────────── */

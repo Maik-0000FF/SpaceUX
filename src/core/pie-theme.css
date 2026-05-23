@@ -31,7 +31,6 @@
   --pie-border: rgb(255, 255, 255);
   --pie-border-active: rgb(255, 255, 255);
   --pie-label: rgb(240, 240, 240);
-  --pie-label-active: rgb(255, 255, 255);
 
   /* Cancel sectors mirror the blue wedge states, one hue over: an idle
      (dim) red and an active (bright) red, both scaled by --pie-opacity so
@@ -55,7 +54,6 @@
   --pie-border: rgb(40, 44, 54);
   --pie-border-active: rgb(255, 255, 255);
   --pie-label: rgb(20, 22, 28);
-  --pie-label-active: rgb(255, 255, 255);
   --pie-cancel-bg: rgb(248, 226, 226);
   --pie-cancel-bg-active: rgb(200, 70, 70);
   --pie-cancel-bg-hover: rgb(216, 96, 96);
@@ -72,7 +70,6 @@
   --pie-border: rgb(124, 211, 255);
   --pie-border-active: rgb(124, 211, 255);
   --pie-label: rgb(226, 240, 255);
-  --pie-label-active: rgb(255, 255, 255);
   --pie-cancel-bg: rgb(40, 18, 22);
   --pie-cancel-bg-active: rgb(200, 70, 70);
   --pie-cancel-bg-hover: rgb(216, 96, 96);
