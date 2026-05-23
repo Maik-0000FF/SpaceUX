@@ -331,13 +331,21 @@ export function resolvePuckFrame(args: {
   // qualifies (the validator already enforces this; the guard keeps
   // in-memory configs honest).
   const hovered = sticky !== null ? current[sticky] : undefined;
-  const activation =
-    hovered?.activation !== undefined &&
-    hovered.action !== undefined &&
-    hovered.branches === undefined
-      ? hovered.activation
-      : undefined;
-  const activating = activation !== undefined && gestureActive(activation, frame);
+  // A hovered leaf with an action can be activated mid-gesture by either
+  // route, sharing the one `activate` edge + outcome:
+  //   - the leaf's own per-item `activation` binding (#130 R2), or
+  //   - the menu-level `activate` gesture (#160) — the style-friendly way
+  //     to fire every leaf from one input without per-item bindings.
+  // Per-item still wins on a shared input (it's the first operand). Only a
+  // leaf that fires something qualifies (action present, no branches) — the
+  // validator enforces this for per-item; the guard keeps in-memory honest.
+  const isActivatableLeaf = hovered?.action !== undefined && hovered.branches === undefined;
+  const perItemActivation =
+    isActivatableLeaf && hovered?.activation !== undefined ? hovered.activation : undefined;
+  const activating =
+    isActivatableLeaf &&
+    ((perItemActivation !== undefined && gestureActive(perItemActivation, frame)) ||
+      gestureActive(nav.activate, frame));
   const activateRising = activating && !edges.activate;
   edges.activate = activating;
   if (activating) {

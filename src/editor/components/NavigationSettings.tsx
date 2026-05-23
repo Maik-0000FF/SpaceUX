@@ -37,12 +37,15 @@ import styles from './Properties.module.scss';
 // commitCenter is the *centre's* trigger — it lives with the centre's
 // label + action in RootSettings now (#129 consolidation), not here, so
 // this section is purely the ring-navigation gestures.
-const GESTURE_KEYS = ['drillIn', 'back', 'cycle'] as const;
+const GESTURE_KEYS = ['drillIn', 'activate', 'back', 'cycle'] as const;
 type GestureKey = (typeof GESTURE_KEYS)[number];
 // Plain-language labels, matching the per-item Entry/Exit wording rather
 // than the internal gesture keys (drillIn/back/…).
 const GESTURE_LABELS: Record<GestureKey, string> = {
   drillIn: 'Open submenu',
+  // Fires the hovered leaf's action — the menu-wide way to activate an item
+  // without each leaf binding its own input (#160).
+  activate: 'Activate item',
   // Just "Go back": back pops a level and walks to the centre; whether the
   // final step closes is the centre's job (its action) or Escape, not back's
   // — so "/ close" would over-claim (#147 fallback + the Escape hatch).

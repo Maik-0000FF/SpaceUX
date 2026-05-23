@@ -453,6 +453,7 @@ describe('menu-settings navigation', () => {
       back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
       cycle: { inputs: [], priority: 'lateral' },
       commitCenter: { inputs: [{ kind: 'button', button: 2 }] },
+      activate: { inputs: [] },
     };
     useMenuSettings.getState().setNavigation(nav);
     const state = useMenuSettings.getState();

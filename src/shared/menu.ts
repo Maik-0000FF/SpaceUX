@@ -276,6 +276,13 @@ export type MenuNavigation = {
   /** Commit the center field (fire its binding, or dismiss when it has
    *  none). Legacy: centerField.activation. */
   commitCenter: GestureBinding;
+  /** Fire the hovered leaf's action (#160) — the menu-level counterpart
+   *  to a node's own per-item `activation`, so a navigation style can bind
+   *  one input (e.g. a button) to activate every leaf instead of each item
+   *  carrying its own. Only fires on a hovered leaf that has an action; a
+   *  per-item `activation` on the same leaf still wins on a shared input.
+   *  Default unbound. */
+  activate: GestureBinding;
 };
 
 /** Recursively freeze an object so a shared default can be handed out
@@ -304,6 +311,7 @@ export const DEFAULT_NAVIGATION: MenuNavigation = deepFreeze({
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
   commitCenter: { inputs: [] },
+  activate: { inputs: [] },
 });
 
 /** Resolve the navigation block for a config that may omit it, so every
@@ -490,6 +498,7 @@ const KNOWN_NAVIGATION_FIELDS: readonly string[] = [
   'back',
   'cycle',
   'commitCenter',
+  'activate',
 ];
 const KNOWN_GESTURE_FIELDS: readonly string[] = ['inputs'];
 const KNOWN_CYCLE_GESTURE_FIELDS: readonly string[] = ['inputs', 'priority'];
@@ -806,6 +815,8 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
   if (!cycle.ok) return { ok: false, reason: cycle.reason };
   const commitCenter = validateGestureBinding(o.commitCenter, `${where}.commitCenter`);
   if (!commitCenter.ok) return { ok: false, reason: commitCenter.reason };
+  const activate = validateGestureBinding(o.activate, `${where}.activate`);
+  if (!activate.ok) return { ok: false, reason: activate.reason };
   warnUnknownFields(o, KNOWN_NAVIGATION_FIELDS, where);
   return {
     ok: true,
@@ -815,6 +826,7 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
       back: back.value,
       cycle: cycle.value,
       commitCenter: commitCenter.value,
+      activate: activate.value,
     },
   };
 }
@@ -851,6 +863,7 @@ function warnNavigationConflicts(nav: MenuNavigation): void {
     ['back', nav.back],
     ['cycle', nav.cycle],
     ['commitCenter', nav.commitCenter],
+    ['activate', nav.activate],
   ];
   for (const [name, gesture] of gestures) {
     for (const input of gesture.inputs) {
@@ -1079,6 +1092,7 @@ function orderNavigation(nav: MenuNavigation): Record<string, unknown> {
   out.back = { inputs: nav.back.inputs.map(orderInput) };
   out.cycle = { inputs: nav.cycle.inputs.map(orderInput), priority: nav.cycle.priority };
   out.commitCenter = { inputs: nav.commitCenter.inputs.map(orderInput) };
+  out.activate = { inputs: nav.activate.inputs.map(orderInput) };
   return out;
 }
 

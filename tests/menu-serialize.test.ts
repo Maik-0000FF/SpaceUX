@@ -77,6 +77,7 @@ describe('serializeMenuConfig', () => {
           priority: 'lateral',
         },
         commitCenter: { inputs: [{ kind: 'button', button: 1 }] },
+        activate: { inputs: [{ kind: 'button', button: 0 }] },
       },
       root: { label: '', branches: [{ label: 'Solo' }] },
     };
@@ -92,6 +93,7 @@ describe('serializeMenuConfig', () => {
       back: { inputs: [] },
       cycle: { inputs: [], priority: 'lateral' as const },
       commitCenter: { inputs: [] },
+      activate: { inputs: [] },
     };
     const root = { label: '', branches: [{ label: 'Solo' }] };
     const pushed = serializeMenuConfig({ version: 1, navigation: { aim: 'push', ...base }, root });

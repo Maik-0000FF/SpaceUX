@@ -644,6 +644,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
         priority: 'twist',
       },
       commitCenter: { inputs: [{ kind: 'button', button: 2 }] },
+      activate: { inputs: [{ kind: 'button', button: 0 }] },
     };
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
@@ -668,6 +669,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
         back: { inputs: [] },
         cycle: { inputs: [], priority: 'lateral' },
         commitCenter: { inputs: [] },
+        activate: { inputs: [] },
       });
     }
   });

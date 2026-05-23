@@ -44,6 +44,7 @@ const nav = (over: Partial<MenuNavigation>): MenuNavigation => ({
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
   commitCenter: { inputs: [] },
+  activate: { inputs: [] },
   ...over,
 });
 
@@ -488,6 +489,64 @@ describe('resolvePuckFrame — per-item activation (#130 R2)', () => {
     });
     // No hovered leaf → activation can't fire; falls through to global back.
     expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
+  });
+});
+
+describe('resolvePuckFrame — global activate gesture (#160)', () => {
+  // SECTORS[0] is a branch, SECTORS[1] a leaf with an action. The menu-level
+  // activate gesture (button 0 here) fires the hovered leaf without it
+  // binding its own per-item activation.
+  const navAct = nav({ activate: { inputs: [{ kind: 'button', button: 0 }] } });
+
+  it('fires the hovered leaf when the global activate input rises', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(navAct),
+      axes: ZERO,
+      buttons: [true],
+      navigation: [],
+      sticky: 1,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'activate', index: 1 });
+    expect(r.edges.activate).toBe(true);
+  });
+
+  it('does not re-fire while the button stays held', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(navAct),
+      axes: ZERO,
+      buttons: [true],
+      navigation: [],
+      sticky: 1,
+      edges: { ...FRESH, activate: true },
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+    expect(r.edges.activate).toBe(true);
+  });
+
+  it('does not fire on a hovered branch — only a leaf with an action activates', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(navAct),
+      axes: ZERO,
+      buttons: [true],
+      navigation: [],
+      sticky: 0, // a branch
+      edges: FRESH,
+    });
+    expect(r.outcome.kind).not.toBe('activate');
+    expect(r.edges.activate).toBe(false);
+  });
+
+  it('does nothing at the centre (no hovered leaf)', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(navAct),
+      axes: ZERO,
+      buttons: [true],
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    expect(r.outcome.kind).not.toBe('activate');
   });
 });
 
