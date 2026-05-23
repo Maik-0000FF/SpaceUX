@@ -638,6 +638,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     const navigation = {
       aim: 'both',
       deadzone: 120,
+      hoverDeadzone: 60,
       drillIn: { inputs: [{ kind: 'magnitude', source: 'lateral', threshold: 250 }] },
       back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
       cycle: {
@@ -667,6 +668,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
       expect(r.config.navigation).toEqual({
         aim: 'push',
         deadzone: 50,
+        hoverDeadzone: 25,
         drillIn: { inputs: [{ kind: 'none' }] },
         back: { inputs: [] },
         cycle: { inputs: [], priority: 'lateral' },
@@ -692,6 +694,19 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     });
     expect(bad.ok).toBe(false);
     if (!bad.ok) expect(bad.reason).toMatch(/"deadzone" must be a finite number/);
+  });
+
+  it('clamps hoverDeadzone to <= the engage deadzone (#160)', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: { deadzone: 60, hoverDeadzone: 200 }, // hover asked higher than engage
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.navigation?.deadzone).toBe(60);
+      expect(r.config.navigation?.hoverDeadzone).toBe(60); // pulled down to engage
+    }
   });
 
   it('rejects an unknown aim source (#159)', () => {

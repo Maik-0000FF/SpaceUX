@@ -453,13 +453,21 @@ export function resolvePuckFrame(args: {
   // step below drives the selection alone.
   const ringRotation = navigationRingRotation(menuConfig, navigation);
   const aimed = aimAxes(nav.aim, axes);
+  // Radial hysteresis: leaving the centre takes a firm push (nav.deadzone —
+  // the engage hurdle), but once a sector is held the threshold drops to
+  // nav.hoverDeadzone, so moving between items is easy. Entering a ring is
+  // deliberate; hovering within it isn't. The same applies at every depth —
+  // a drill lands at the child's centre (sticky null), so engaging its ring
+  // takes the full push again. (Angular per-item hysteresis is a separate,
+  // later refinement.)
+  const effectiveDeadzone = sticky === null ? nav.deadzone : nav.hoverDeadzone;
   const rawSec =
     aimed === null
       ? null
       : axesToSector(rotateAxes(aimed, -ringRotation), {
           ...DEFAULT_PIE_GEOMETRY,
           sectorCount: current.length,
-          deadzone: nav.deadzone,
+          deadzone: effectiveDeadzone,
           invertX: invert.x,
           invertY: invert.y,
         });

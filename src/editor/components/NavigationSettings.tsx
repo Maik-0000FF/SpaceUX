@@ -20,6 +20,7 @@ import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useMenuSettings } from '../state/menu-settings';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 
+import { DualRange } from './DualRange';
 import { NavInputRow } from './NavInputRow';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
@@ -121,23 +122,36 @@ export function NavigationSettings() {
         </select>
       </Row>
       <Row label="Aim deadzone">
-        <input
-          type="range"
+        <DualRange
           min={MIN_LATERAL_DEADZONE}
           max={MAX_LATERAL_DEADZONE}
           step={5}
           // Inert for twist aiming (no lateral pointer), so disable it there
           // rather than imply it does something.
           disabled={nav.aim === 'twist'}
-          value={nav.deadzone}
-          onChange={(e) =>
+          low={nav.hoverDeadzone}
+          high={nav.deadzone}
+          lowLabel="Hover threshold"
+          highLabel="Engage threshold"
+          onChange={(hover, engage) =>
             commit((n) => {
-              n.deadzone = Number(e.target.value);
+              n.deadzone = engage;
+              n.hoverDeadzone = hover;
             })
           }
         />
-        <span className={styles.navThreshold}>{nav.deadzone}</span>
+        <span className={styles.navThreshold}>
+          {nav.hoverDeadzone} – {nav.deadzone}
+        </span>
       </Row>
+      {nav.aim !== 'twist' && (
+        <p className={styles.sectionNote}>
+          Two thresholds: the higher (right handle) is the push needed to leave the centre and
+          engage a sector; the lower (left handle) is what holds the aim once an item is selected,
+          so moving between items is lighter than entering — the band between them is the
+          hysteresis.
+        </p>
+      )}
       {twistNeedsCycle && (
         <div className={styles.warning}>
           ⚠ Twist aiming moves the selection only by stepping — bind an axis (e.g. Twist&nbsp;RZ)

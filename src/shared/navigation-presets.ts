@@ -17,6 +17,7 @@
 import isEqual from 'lodash/isEqual';
 
 import {
+  DEFAULT_HOVER_DEADZONE,
   DEFAULT_LATERAL_DEADZONE,
   DEFAULT_TWIST_CYCLE_THRESHOLD,
   type MenuNavigation,
@@ -39,6 +40,9 @@ export type NavigationPreset = {
 // sectors when aiming close to a boundary. Requiring a firmer push before any
 // sector lights up settles it.
 const AIMING_DEADZONE = 100;
+// Hover (maintain) threshold for the standard style: half the engage push,
+// so moving between items is clearly lighter than entering a ring.
+const AIMING_HOVER_DEADZONE = 50;
 // Firmness past the aim deadzone at which a lateral push commits a drill —
 // well above the deadzone so a light push aims and a firm one drills.
 const DRILL_PUSH_THRESHOLD = 250;
@@ -66,14 +70,18 @@ export const NAVIGATION_PRESETS: readonly NavigationPreset[] = [
   {
     id: 'aiming',
     label: 'Aiming (standard)',
-    description: 'Push or tilt points at an item; a firm push drills in. Press TZ to go back.',
+    description:
+      'Push or tilt points at an item; a firm push drills in. Press down (TZ−) to go back.',
     navigation: {
       aim: 'both',
       deadzone: AIMING_DEADZONE,
+      hoverDeadzone: AIMING_HOVER_DEADZONE,
       drillIn: {
         inputs: [{ kind: 'magnitude', source: 'lateral', threshold: DRILL_PUSH_THRESHOLD }],
       },
-      back: tzBack,
+      // Back is a firm press only (TZ−), not lift — and a high threshold so a
+      // light touch doesn't trip it.
+      back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 150 }] },
       cycle: { inputs: [], priority: 'lateral' },
       commitCenter: { inputs: [] },
       activate: activateButton,
@@ -86,6 +94,7 @@ export const NAVIGATION_PRESETS: readonly NavigationPreset[] = [
     navigation: {
       aim: 'push',
       deadzone: DEFAULT_LATERAL_DEADZONE,
+      hoverDeadzone: DEFAULT_HOVER_DEADZONE,
       drillIn: {
         inputs: [{ kind: 'magnitude', source: 'lateral', threshold: DRILL_PUSH_THRESHOLD }],
       },
@@ -103,6 +112,7 @@ export const NAVIGATION_PRESETS: readonly NavigationPreset[] = [
     navigation: {
       aim: 'twist',
       deadzone: DEFAULT_LATERAL_DEADZONE,
+      hoverDeadzone: DEFAULT_HOVER_DEADZONE,
       drillIn: { inputs: [{ kind: 'button', button: ACTIVATE_BUTTON }] },
       back: tzBack,
       cycle: twistCycle,
@@ -118,6 +128,7 @@ export const NAVIGATION_PRESETS: readonly NavigationPreset[] = [
     navigation: {
       aim: 'twist',
       deadzone: DEFAULT_LATERAL_DEADZONE,
+      hoverDeadzone: DEFAULT_HOVER_DEADZONE,
       drillIn: {
         inputs: [
           { kind: 'axis', axis: 'tz', direction: 'positive', threshold: TZ_SPLIT_THRESHOLD },

@@ -41,6 +41,7 @@ const FRESH: PuckEdges = {
 const nav = (over: Partial<MenuNavigation>): MenuNavigation => ({
   aim: 'push',
   deadzone: 50,
+  hoverDeadzone: 25,
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
@@ -394,6 +395,27 @@ describe('resolvePuckFrame — aim source (#159)', () => {
     // ty −100 is over the default 50 deadzone (hovers), but under a 150 one.
     expect(hover(nav({ deadzone: 50 }), { ty: -100 })).toEqual({ kind: 'hover', index: 0 });
     expect(hover(nav({ deadzone: 150 }), { ty: -100 })).toEqual({ kind: 'none' });
+  });
+
+  it('radial hysteresis: engage at deadzone, hold at hoverDeadzone (#160)', () => {
+    const cfg = nav({ deadzone: 100, hoverDeadzone: 50 });
+    const from = (sticky: number | null, p: Partial<SixAxes>) =>
+      resolvePuckFrame({
+        menuConfig: config(cfg),
+        axes: axes(p),
+        navigation: [],
+        sticky,
+        edges: FRESH,
+      }).outcome;
+    // From the centre (sticky null), a mid push (70 < engage 100) hovers nothing.
+    expect(from(null, { ty: -70 })).toEqual({ kind: 'none' });
+    // Past the engage hurdle it selects.
+    expect(from(null, { ty: -120 })).toEqual({ kind: 'hover', index: 0 });
+    // Once a sector is held, a lighter push (70 > hover 50) keeps aiming —
+    // moving between items is lighter than entering.
+    expect(from(0, { ty: -70 })).toEqual({ kind: 'hover', index: 0 });
+    // ...but below the hover threshold (40 < 50) nothing new is selected.
+    expect(from(0, { ty: -40 })).toEqual({ kind: 'none' });
   });
 
   it('twist turns lateral pointing off — push and tilt no longer aim', () => {
