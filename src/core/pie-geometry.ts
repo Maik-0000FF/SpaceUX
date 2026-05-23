@@ -21,6 +21,7 @@
 
 import type {
   ActivationDirection,
+  AimSource,
   GestureBinding,
   InputBinding,
   MenuAxisName,
@@ -167,6 +168,35 @@ export function rotateAxes(axes: PieAxes, angle: number): PieAxes {
   };
 }
 
+/**
+ * Resolve the 2D aiming vector for the configured aim source (#159) —
+ * which axes steer the hovered sector. Replaces the previously hardwired
+ * `{ tx, ty }`:
+ *   - `push` → the lateral push (TX/TY), the historical behaviour;
+ *   - `tilt` → the rotational tilt (RX/RY);
+ *   - `both` → the two summed, so push and tilt aim equally and in
+ *     parallel (neither dominates);
+ *   - `twist` → `null`: there's no lateral pointer at all, so the caller
+ *     makes no sector from deflection and lets the cycle/twist step drive
+ *     the selection alone.
+ *
+ * For the 2D sources the result feeds the same `rotateAxes` →
+ * `axesToSector` pipeline, so ring rotation and per-axis inversion still
+ * apply downstream unchanged.
+ */
+export function aimAxes(source: AimSource, axes: SixAxes): PieAxes | null {
+  switch (source) {
+    case 'push':
+      return { tx: axes.tx, ty: axes.ty };
+    case 'tilt':
+      return { tx: axes.rx, ty: axes.ry };
+    case 'both':
+      return { tx: axes.tx + axes.rx, ty: axes.ty + axes.ry };
+    case 'twist':
+      return null;
+  }
+}
+
 /** Read a named axis from a six-axis snapshot. Thin indexed access,
  *  but centralising it keeps the activation call sites from hand-
  *  mapping axis names to fields (and lets the helper be unit-tested
@@ -234,14 +264,20 @@ export function cycleStepFromInputs(inputs: readonly InputBinding[], axes: SixAx
 /**
  * Whether the back gesture's axis is deflected enough to suppress the
  * lateral selection this frame — the generalised cross-talk guard.
- * Direction-agnostic (uses |value|, like the old TZ guard) so a back
- * deflection in *either* sense quiets lateral hover/drill, even the half
- * ceded to a split. Only `axis` inputs participate; button/magnitude
- * back bindings don't induce lateral cross-talk.
+ *
+ * Direction-*aware* (#160): a back bound to one half of an axis only
+ * suppresses when the deflection is on that half, leaving the other half
+ * free for a different gesture. So a TZ− back no longer blocks a TZ+ drill
+ * — the "press = back, lift = deeper" split now works. A `both` back still
+ * quiets either sense (the historical TZ-cancel rule, where the whole axis
+ * means back). Only `axis` inputs participate; button/magnitude back
+ * bindings don't induce lateral cross-talk.
  */
 export function backAxisEngaged(back: GestureBinding, axes: SixAxes): boolean {
   return back.inputs.some(
-    (input) => input.kind === 'axis' && Math.abs(axisValue(axes, input.axis)) > input.threshold,
+    (input) =>
+      input.kind === 'axis' &&
+      meetsActivation(axisValue(axes, input.axis), input.direction, input.threshold),
   );
 }
 

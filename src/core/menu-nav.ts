@@ -26,6 +26,7 @@
 // tsconfig.electron.json (which doesn't). Sticking to relative keeps
 // this module buildable under both without duplicating the alias.
 import {
+  aimAxes,
   axesToSector,
   backAxisEngaged,
   cycleStepFromInputs,
@@ -330,13 +331,21 @@ export function resolvePuckFrame(args: {
   // qualifies (the validator already enforces this; the guard keeps
   // in-memory configs honest).
   const hovered = sticky !== null ? current[sticky] : undefined;
-  const activation =
-    hovered?.activation !== undefined &&
-    hovered.action !== undefined &&
-    hovered.branches === undefined
-      ? hovered.activation
-      : undefined;
-  const activating = activation !== undefined && gestureActive(activation, frame);
+  // A hovered leaf with an action can be activated mid-gesture by either
+  // route, sharing the one `activate` edge + outcome:
+  //   - the leaf's own per-item `activation` binding (#130 R2), or
+  //   - the menu-level `activate` gesture (#160) — the style-friendly way
+  //     to fire every leaf from one input without per-item bindings.
+  // Per-item still wins on a shared input (it's the first operand). Only a
+  // leaf that fires something qualifies (action present, no branches) — the
+  // validator enforces this for per-item; the guard keeps in-memory honest.
+  const isActivatableLeaf = hovered?.action !== undefined && hovered.branches === undefined;
+  const perItemActivation =
+    isActivatableLeaf && hovered?.activation !== undefined ? hovered.activation : undefined;
+  const activating =
+    isActivatableLeaf &&
+    ((perItemActivation !== undefined && gestureActive(perItemActivation, frame)) ||
+      gestureActive(nav.activate, frame));
   const activateRising = activating && !edges.activate;
   edges.activate = activating;
   if (activating) {
@@ -436,16 +445,24 @@ export function resolvePuckFrame(args: {
 
   const invert = resolveAxisInvert(menuConfig);
 
-  // Rotate the lateral axes so the puck-to-sector mapping respects the
-  // visual rotation of the drilled-in outer ring (0 at the top level).
+  // Resolve the configured aim source (#159 — push / tilt / both / twist,
+  // no longer hardwired to TX/TY). The 2D sources are rotated so the
+  // puck-to-sector mapping respects the visual rotation of the drilled-in
+  // outer ring (0 at the top level); `twist` has no lateral pointer
+  // (aimAxes → null) so no sector comes from deflection — the cycle/twist
+  // step below drives the selection alone.
   const ringRotation = navigationRingRotation(menuConfig, navigation);
-  const rotated = rotateAxes({ tx: axes.tx, ty: axes.ty }, -ringRotation);
-  const rawSec = axesToSector(rotated, {
-    ...DEFAULT_PIE_GEOMETRY,
-    sectorCount: current.length,
-    invertX: invert.x,
-    invertY: invert.y,
-  });
+  const aimed = aimAxes(nav.aim, axes);
+  const rawSec =
+    aimed === null
+      ? null
+      : axesToSector(rotateAxes(aimed, -ringRotation), {
+          ...DEFAULT_PIE_GEOMETRY,
+          sectorCount: current.length,
+          deadzone: nav.deadzone,
+          invertX: invert.x,
+          invertY: invert.y,
+        });
   // axesToSector clamps internal sectorCount to a minimum of 2, so a
   // 1-child ring can return index 1 — clamp out so sticky always lands
   // on an existing sector.

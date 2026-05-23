@@ -11,7 +11,6 @@ import {
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useMenuSettings } from '../state/menu-settings';
 
-import { NavigationSettings } from './NavigationSettings';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
@@ -21,13 +20,14 @@ const TRIGGER_MODE_LABELS: Record<TriggerMode, string> = {
 };
 
 /**
- * Menu-level settings: the trigger button that opens this pie and the
- * navigation gesture bindings. Operate on the whole config rather than a
- * single node, so Properties shows them in an always-present collapsible
- * section above the selection editor (reachable whatever is selected).
- * (The centre/root is edited via its own row in the tree — see
- * RootSettings. Pie design — size, theme, opacity — lives in the preview
- * section's design bar, see #107.)
+ * Menu-level settings: the trigger button that opens this pie and what it
+ * does once open. Operate on the whole config rather than a single node, so
+ * Properties shows them in an always-present collapsible section above the
+ * selection editor (reachable whatever is selected). The navigation gestures
+ * + aim/deadzone live in their own sibling "Navigation" section (see
+ * NavigationSettings); the centre/root is edited via its tree row (see
+ * RootSettings); pie design — size, theme, opacity — lives in the preview
+ * design bar (#107).
  */
 export function MenuSettings() {
   const triggerButton = useMenuSettings((s) => s.config?.triggerButton);
@@ -86,7 +86,6 @@ export function MenuSettings() {
             : 'The button only opens the menu — commit items and close with your SpaceMouse gestures (the trigger button is then free to bind as an input).'}
         </span>
       </Row>
-      <NavigationSettings buttonCount={buttonCount} />
     </>
   );
 }

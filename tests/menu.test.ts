@@ -636,6 +636,8 @@ describe('validateMenuConfig — root centre', () => {
 describe('validateMenuConfig — navigation (issue #105)', () => {
   it('accepts a full navigation block and round-trips every gesture', () => {
     const navigation = {
+      aim: 'both',
+      deadzone: 120,
       drillIn: { inputs: [{ kind: 'magnitude', source: 'lateral', threshold: 250 }] },
       back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
       cycle: {
@@ -643,6 +645,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
         priority: 'twist',
       },
       commitCenter: { inputs: [{ kind: 'button', button: 2 }] },
+      activate: { inputs: [{ kind: 'button', button: 0 }] },
     };
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
@@ -653,7 +656,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     if (r.ok) expect(r.config.navigation).toEqual(navigation);
   });
 
-  it('defaults omitted gestures to unbound (empty inputs)', () => {
+  it('defaults omitted gestures to unbound (empty inputs) and aim to push', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       navigation: { drillIn: { inputs: [{ kind: 'none' }] } },
@@ -662,12 +665,70 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     expect(r.ok).toBe(true);
     if (r.ok) {
       expect(r.config.navigation).toEqual({
+        aim: 'push',
+        deadzone: 50,
         drillIn: { inputs: [{ kind: 'none' }] },
         back: { inputs: [] },
         cycle: { inputs: [], priority: 'lateral' },
         commitCenter: { inputs: [] },
+        activate: { inputs: [] },
       });
     }
+  });
+
+  it('clamps an out-of-range deadzone and rejects a non-number (#160)', () => {
+    const tooBig = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: { deadzone: 9999 },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(tooBig.ok).toBe(true);
+    if (tooBig.ok) expect(tooBig.config.navigation?.deadzone).toBe(500); // MAX_LATERAL_DEADZONE
+
+    const bad = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: { deadzone: 'wide' },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.reason).toMatch(/"deadzone" must be a finite number/);
+  });
+
+  it('rejects an unknown aim source (#159)', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: { aim: 'sideways' },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/"aim" must be one of/);
+  });
+
+  it('warns (but accepts) twist aiming with no axis bound to cycle (#159)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: { aim: 'twist' }, // cycle defaults to unbound
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(r.ok).toBe(true); // permissive: never rejects
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('aim is "twist"'));
+    warnSpy.mockRestore();
+  });
+
+  it('does NOT warn for twist aiming once an axis is bound to cycle (#159)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        aim: 'twist',
+        cycle: { inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }] },
+      },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('aim is "twist"'));
+    warnSpy.mockRestore();
   });
 
   it('rejects malformed input bindings (structural errors are hard rejections)', () => {

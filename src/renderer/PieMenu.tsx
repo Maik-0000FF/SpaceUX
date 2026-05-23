@@ -16,7 +16,13 @@ import {
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import { isCancelNode, resolveAxisInvert, type MenuConfig, type MenuNode } from '@/shared/menu';
+import {
+  isCancelNode,
+  resolveAxisInvert,
+  resolveNavigation,
+  type MenuConfig,
+  type MenuNode,
+} from '@/shared/menu';
 
 const TAU = Math.PI * 2;
 
@@ -98,6 +104,7 @@ export function PieMenu({
       ...DEFAULT_PIE_GEOMETRY,
       ...geometryOverrides,
       sectorCount: activeRing.length,
+      deadzone: resolveNavigation(config).deadzone,
       invertX: invert.x,
       invertY: invert.y,
     };

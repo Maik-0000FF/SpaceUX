@@ -7,6 +7,7 @@ import { DeviceStatus } from './components/DeviceStatus';
 import { LiveToggle } from './components/LiveToggle';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
+import { NavigationStyle } from './components/NavigationStyle';
 import { PieDesignControls } from './components/PieDesignControls';
 import { ProfileControls } from './components/ProfileControls';
 import { Properties } from './components/Properties';
@@ -141,7 +142,10 @@ export function App() {
         <MenuList />
         <main className={styles.center}>
           <div className={styles.designBar}>
-            <PieDesignControls />
+            <div className={styles.designGroup}>
+              <PieDesignControls />
+              <NavigationStyle />
+            </div>
             <LiveToggle />
           </div>
           <div className={styles.previewArea}>

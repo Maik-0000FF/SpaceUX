@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_PIE_GEOMETRY,
+  aimAxes,
   axesMagnitude,
   axesToSector,
   axisValue,
@@ -281,13 +282,15 @@ describe('backAxisEngaged', () => {
     expect(backAxisEngaged(back, { ...ZERO, tz: 40 })).toBe(false);
   });
 
-  it('is direction-agnostic — even the half ceded to a split suppresses lateral', () => {
+  it('is direction-aware — a directional back leaves its other half free (#160)', () => {
     const back: GestureBinding = {
       inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }],
     };
-    // The positive half is ceded to a commit gesture, yet a positive
-    // deflection still quiets lateral (cross-talk is sign-agnostic).
-    expect(backAxisEngaged(back, { ...ZERO, tz: 60 })).toBe(true);
+    // back is TZ−: a negative deflection still suppresses lateral...
+    expect(backAxisEngaged(back, { ...ZERO, tz: -60 })).toBe(true);
+    // ...but the positive half is now free (e.g. for a TZ+ drill — the
+    // Press/Lift split), no longer quieted by the cross-talk guard.
+    expect(backAxisEngaged(back, { ...ZERO, tz: 60 })).toBe(false);
   });
 
   it('ignores non-axis inputs', () => {
@@ -369,5 +372,25 @@ describe('gestureActive', () => {
 
   it('a gesture with no inputs is never active', () => {
     expect(gestureActive({ inputs: [] }, frame({ tz: 999 }))).toBe(false);
+  });
+});
+
+describe('aimAxes (#159)', () => {
+  const axes: SixAxes = { tx: 10, ty: 20, tz: 30, rx: 100, ry: 200, rz: 300 };
+
+  it('push reads the lateral push (TX/TY)', () => {
+    expect(aimAxes('push', axes)).toEqual({ tx: 10, ty: 20 });
+  });
+
+  it('tilt reads the rotational tilt (RX/RY)', () => {
+    expect(aimAxes('tilt', axes)).toEqual({ tx: 100, ty: 200 });
+  });
+
+  it('both sums push and tilt so neither dominates', () => {
+    expect(aimAxes('both', axes)).toEqual({ tx: 110, ty: 220 });
+  });
+
+  it('twist has no lateral pointer (null) — selection moves by stepping only', () => {
+    expect(aimAxes('twist', axes)).toBeNull();
   });
 });

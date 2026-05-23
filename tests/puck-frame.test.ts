@@ -39,10 +39,13 @@ const FRESH: PuckEdges = {
 /** Full navigation block (resolveNavigation replaces wholesale, so a
  *  partial would drop the unspecified gestures). */
 const nav = (over: Partial<MenuNavigation>): MenuNavigation => ({
+  aim: 'push',
+  deadzone: 50,
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
   commitCenter: { inputs: [] },
+  activate: { inputs: [] },
   ...over,
 });
 
@@ -258,31 +261,44 @@ describe('resolvePuckFrame — back / pop / dismiss', () => {
   });
 });
 
-describe('resolvePuckFrame — cross-talk guard', () => {
-  it('suppresses lateral selection when the back axis is deflected on its non-firing half', () => {
-    // Back bound to tz-positive only: tz=-100 doesn't fire back, but the
-    // axis is engaged, so lateral hover/drill is quieted. The later
-    // gestures' memory passes through untouched.
+describe('resolvePuckFrame — cross-talk guard (direction-aware, #160)', () => {
+  it('a directional back no longer suppresses its opposite half — a TZ split works', () => {
+    // back on TZ− (press), drill on TZ+ (lift) — the Press/Lift split.
+    // Lifting must drill the twist-hovered branch, not be quieted by the
+    // back-axis cross-talk guard (which used to block the whole axis).
     const r = resolvePuckFrame({
       menuConfig: config(
         nav({
-          back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }] },
+          aim: 'twist',
+          cycle: {
+            inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
+            priority: 'twist',
+          },
+          drillIn: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }] },
+          back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }] },
         }),
+      ),
+      axes: axes({ tz: 100 }), // lift; no twist this frame
+      navigation: [],
+      sticky: 0, // a branch, reached earlier by twisting
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'drill', index: 0 });
+  });
+
+  it('still suppresses lateral when a both-direction back is deflected (held back)', () => {
+    // back TZ both, held (no rising edge): the frame resolves to none and
+    // lateral never sneaks through while the puck rests on the back axis.
+    const r = resolvePuckFrame({
+      menuConfig: config(
+        nav({ back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] } }),
       ),
       axes: axes({ tz: -100, ty: 100 }),
       navigation: [],
       sticky: null,
-      edges: { activate: false, exit: false, commit: false, back: false, drill: true, cycle: true },
+      edges: { ...FRESH, back: true },
     });
     expect(r.outcome).toEqual({ kind: 'none' });
-    expect(r.edges).toEqual({
-      activate: false,
-      exit: false,
-      commit: false,
-      back: false,
-      drill: true,
-      cycle: true,
-    });
   });
 });
 
@@ -342,6 +358,88 @@ describe('resolvePuckFrame — drill / hover / cycle', () => {
       edges: FRESH,
     });
     expect(r.outcome).toEqual({ kind: 'none' });
+  });
+});
+
+describe('resolvePuckFrame — aim source (#159)', () => {
+  const hover = (navigation: MenuNavigation, p: Partial<SixAxes>) =>
+    resolvePuckFrame({
+      menuConfig: config(navigation),
+      axes: axes(p),
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    }).outcome;
+
+  it('push (default) aims by TX/TY and ignores tilt', () => {
+    expect(hover(nav({ aim: 'push' }), { ty: -100 })).toEqual({ kind: 'hover', index: 0 });
+    // RX/RY don't steer when aiming by push.
+    expect(hover(nav({ aim: 'push' }), { ry: -100 })).toEqual({ kind: 'none' });
+  });
+
+  it('tilt aims by RX/RY and ignores push', () => {
+    expect(hover(nav({ aim: 'tilt' }), { ry: -100 })).toEqual({ kind: 'hover', index: 0 });
+    expect(hover(nav({ aim: 'tilt' }), { ty: -100 })).toEqual({ kind: 'none' });
+  });
+
+  it('both sums push and tilt — each alone below the deadzone, together over it', () => {
+    // -30 push and -30 tilt are each inside the 50 deadzone, but summed
+    // (-60) they cross it and aim the top sector — proving equal contribution.
+    expect(hover(nav({ aim: 'push' }), { ty: -30 })).toEqual({ kind: 'none' });
+    expect(hover(nav({ aim: 'both' }), { ty: -30, ry: -30 })).toEqual({ kind: 'hover', index: 0 });
+  });
+
+  it('deadzone gates lateral aiming — a deflection under it hovers nothing (#160)', () => {
+    // ty −100 is over the default 50 deadzone (hovers), but under a 150 one.
+    expect(hover(nav({ deadzone: 50 }), { ty: -100 })).toEqual({ kind: 'hover', index: 0 });
+    expect(hover(nav({ deadzone: 150 }), { ty: -100 })).toEqual({ kind: 'none' });
+  });
+
+  it('twist turns lateral pointing off — push and tilt no longer aim', () => {
+    expect(hover(nav({ aim: 'twist' }), { ty: -100 })).toEqual({ kind: 'none' });
+    expect(hover(nav({ aim: 'twist' }), { rx: -100, ry: -100 })).toEqual({ kind: 'none' });
+  });
+
+  it('twist enters the ring from the centre (sticky=null) — the first twist lands on item 0', () => {
+    // The "I open at the centre, how do I reach the first item?" path: with
+    // no lateral pointer, a forward twist steps in from null → index 0.
+    const r = resolvePuckFrame({
+      menuConfig: config(
+        nav({
+          aim: 'twist',
+          cycle: {
+            inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
+            priority: 'lateral',
+          },
+        }),
+      ),
+      axes: axes({ rz: 200 }),
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'hover', index: 0 });
+    expect(r.edges.cycle).toBe(true);
+  });
+
+  it('twist then steps on from the current selection', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(
+        nav({
+          aim: 'twist',
+          cycle: {
+            inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
+            priority: 'lateral',
+          },
+        }),
+      ),
+      axes: axes({ rz: 200 }),
+      navigation: [],
+      sticky: 0,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'hover', index: 1 });
+    expect(r.edges.cycle).toBe(true);
   });
 });
 
@@ -411,6 +509,64 @@ describe('resolvePuckFrame — per-item activation (#130 R2)', () => {
     });
     // No hovered leaf → activation can't fire; falls through to global back.
     expect(r.outcome).toEqual({ kind: 'back', mode: 'dismiss' });
+  });
+});
+
+describe('resolvePuckFrame — global activate gesture (#160)', () => {
+  // SECTORS[0] is a branch, SECTORS[1] a leaf with an action. The menu-level
+  // activate gesture (button 0 here) fires the hovered leaf without it
+  // binding its own per-item activation.
+  const navAct = nav({ activate: { inputs: [{ kind: 'button', button: 0 }] } });
+
+  it('fires the hovered leaf when the global activate input rises', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(navAct),
+      axes: ZERO,
+      buttons: [true],
+      navigation: [],
+      sticky: 1,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'activate', index: 1 });
+    expect(r.edges.activate).toBe(true);
+  });
+
+  it('does not re-fire while the button stays held', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(navAct),
+      axes: ZERO,
+      buttons: [true],
+      navigation: [],
+      sticky: 1,
+      edges: { ...FRESH, activate: true },
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+    expect(r.edges.activate).toBe(true);
+  });
+
+  it('does not fire on a hovered branch — only a leaf with an action activates', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(navAct),
+      axes: ZERO,
+      buttons: [true],
+      navigation: [],
+      sticky: 0, // a branch
+      edges: FRESH,
+    });
+    expect(r.outcome.kind).not.toBe('activate');
+    expect(r.edges.activate).toBe(false);
+  });
+
+  it('does nothing at the centre (no hovered leaf)', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(navAct),
+      axes: ZERO,
+      buttons: [true],
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    expect(r.outcome.kind).not.toBe('activate');
   });
 });
 

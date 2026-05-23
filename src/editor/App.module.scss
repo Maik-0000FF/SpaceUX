@@ -99,6 +99,15 @@
   margin-bottom: 8px;
 }
 
+// Left group: pie design controls + the navigation-style quick-pick, kept
+// together so `space-between` pushes only the live toggle to the right.
+.designGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
 .previewArea {
   flex: 1;
   min-height: 0;

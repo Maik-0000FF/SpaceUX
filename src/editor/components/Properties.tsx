@@ -19,6 +19,7 @@ import { RootSettings } from './RootSettings';
 import { ConfigEditor } from './ConfigEditor';
 import { GestureInputList } from './GestureInputList';
 import { MenuSettings } from './MenuSettings';
+import { NavigationSettings } from './NavigationSettings';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
@@ -120,15 +121,25 @@ export function Properties() {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Properties</div>
-      {/* Menu-wide settings — the trigger button and the global navigation
-          gestures (open submenu, go back, …). Always present (collapsible)
-          so they're reachable whatever is selected, not only when nothing
-          is. The contextual editor for the selection follows below. */}
+      {/* Menu-wide settings — the trigger button + what it does once open.
+          Always present (collapsible) so they're reachable whatever is
+          selected. The navigation gestures live in their own section below. */}
       {config && (
         <details className={styles.globalSection} open>
           <summary className={styles.globalSummary}>Menu settings</summary>
           <div className={styles.fields}>
             <MenuSettings />
+          </div>
+        </details>
+      )}
+      {/* Navigation — the global gestures + aim/deadzone a navigation style
+          configures. Its own section (sibling of Menu settings) so everything
+          style-related lives under one "Navigation" heading. */}
+      {config && (
+        <details className={styles.globalSection} open>
+          <summary className={styles.globalSummary}>Navigation</summary>
+          <div className={styles.fields}>
+            <NavigationSettings />
           </div>
         </details>
       )}

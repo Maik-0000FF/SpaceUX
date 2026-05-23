@@ -4,14 +4,19 @@
 import { Fragment } from 'react';
 
 import {
+  AIM_SOURCES,
   DEFAULT_GESTURE_THRESHOLD,
   DEFAULT_TWIST_CYCLE_THRESHOLD,
+  MAX_LATERAL_DEADZONE,
+  MIN_LATERAL_DEADZONE,
   TWIST_CYCLE_PRIORITIES,
   resolveNavigation,
+  type AimSource,
   type MenuNavigation,
   type TwistCyclePriority,
 } from '@/shared/menu';
 
+import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useMenuSettings } from '../state/menu-settings';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 
@@ -35,17 +40,32 @@ import styles from './Properties.module.scss';
 // commitCenter is the *centre's* trigger — it lives with the centre's
 // label + action in RootSettings now (#129 consolidation), not here, so
 // this section is purely the ring-navigation gestures.
-const GESTURE_KEYS = ['drillIn', 'back', 'cycle'] as const;
+const GESTURE_KEYS = ['drillIn', 'activate', 'back', 'cycle'] as const;
 type GestureKey = (typeof GESTURE_KEYS)[number];
 // Plain-language labels, matching the per-item Entry/Exit wording rather
 // than the internal gesture keys (drillIn/back/…).
 const GESTURE_LABELS: Record<GestureKey, string> = {
   drillIn: 'Open submenu',
+  // Fires the hovered leaf's action — the menu-wide way to activate an item
+  // without each leaf binding its own input (#160).
+  activate: 'Activate item',
   // Just "Go back": back pops a level and walks to the centre; whether the
   // final step closes is the centre's job (its action) or Escape, not back's
   // — so "/ close" would over-claim (#147 fallback + the Escape hatch).
   back: 'Go back',
   cycle: 'Step through items',
+};
+
+// Plain-language labels for the aim source (#159), naming the axes so the
+// user can match the dropdown to the way they move the puck. "Both" spells
+// out that the two contribute equally.
+const AIM_LABELS: Record<AimSource, string> = {
+  push: 'Push (TX / TY)',
+  tilt: 'Tilt (RX / RY)',
+  both: 'Push + Tilt (equal)',
+  // Lateral pointing off; the selection only moves by twisting (RZ),
+  // through the "Step through items" gesture below.
+  twist: 'Twist (RZ — step only)',
 };
 
 /** Default threshold to seed a fresh analog input with, per gesture:
@@ -55,12 +75,17 @@ function defaultThresholdFor(key: GestureKey): number {
   return key === 'cycle' ? DEFAULT_TWIST_CYCLE_THRESHOLD : DEFAULT_GESTURE_THRESHOLD;
 }
 
-/** @param buttonCount Connected device's button count, or 0 when none —
- *  drives how many buttons the input dropdown offers. */
-export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
+/** Rendered in its own "Navigation" section in Properties — the global
+ *  navigation gestures + aim/deadzone that a navigation style configures.
+ *  Pulls the connected device's button count itself (the section is now a
+ *  sibling of "Menu settings", not nested under it). */
+export function NavigationSettings() {
   const navigation = useMenuSettings((s) => s.config?.navigation);
   const setNavigation = useMenuSettings((s) => s.setNavigation);
   const nav = resolveNavigation({ navigation });
+  // Connected device's button count (0 = none/unknown) constrains the
+  // button pickers to buttons that exist (#66).
+  const { buttons: buttonCount } = useDeviceInfo();
   const offeredButtons = buttonCount > 0 ? buttonCount : FALLBACK_BUTTON_COUNT;
 
   // Clone (the resolved fallback is frozen) → mutate → store.
@@ -70,9 +95,55 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
     setNavigation(next);
   };
 
+  // Twist aiming has no lateral pointer — the selection can only move via a
+  // cycle step, which needs an axis. Flag the soft-lock inline so it's
+  // visible in Properties, not just a console warning at load (#160).
+  const twistNeedsCycle =
+    nav.aim === 'twist' && !nav.cycle.inputs.some((input) => input.kind === 'axis');
+
   return (
     <>
-      <div className={styles.heading}>Navigation</div>
+      <Row label="Aim with">
+        <select
+          className={styles.select}
+          value={nav.aim}
+          onChange={(e) =>
+            commit((n) => {
+              n.aim = e.target.value as AimSource;
+            })
+          }
+        >
+          {AIM_SOURCES.map((a) => (
+            <option key={a} value={a}>
+              {AIM_LABELS[a]}
+            </option>
+          ))}
+        </select>
+      </Row>
+      <Row label="Aim deadzone">
+        <input
+          type="range"
+          min={MIN_LATERAL_DEADZONE}
+          max={MAX_LATERAL_DEADZONE}
+          step={5}
+          // Inert for twist aiming (no lateral pointer), so disable it there
+          // rather than imply it does something.
+          disabled={nav.aim === 'twist'}
+          value={nav.deadzone}
+          onChange={(e) =>
+            commit((n) => {
+              n.deadzone = Number(e.target.value);
+            })
+          }
+        />
+        <span className={styles.navThreshold}>{nav.deadzone}</span>
+      </Row>
+      {twistNeedsCycle && (
+        <div className={styles.warning}>
+          ⚠ Twist aiming moves the selection only by stepping — bind an axis (e.g. Twist&nbsp;RZ)
+          under “Step through items” below, or the selection can’t leave the centre.
+        </div>
+      )}
       {GESTURE_KEYS.map((key) => (
         <Fragment key={key}>
           <div className={styles.subheading}>{GESTURE_LABELS[key]}</div>
@@ -82,6 +153,9 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
                 input={input}
                 offeredButtons={offeredButtons}
                 defaultThreshold={defaultThresholdFor(key)}
+                // Stepping needs a direction — only an axis can say which
+                // way to cycle, so the cycle picker offers axes only (#160).
+                axisOnly={key === 'cycle'}
                 onChange={(next) =>
                   commit((n) => {
                     n[key].inputs[i] = next;
