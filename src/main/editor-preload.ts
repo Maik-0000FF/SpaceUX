@@ -11,6 +11,7 @@ import {
   type MenuConfigChange,
   type MenuConfigSnapshot,
   type MenuWriteResult,
+  type PickIconResult,
   type PieAppearance,
   type PluginCategory,
   type PluginImportResult,
@@ -48,6 +49,7 @@ const bridge: EditorBridge = {
   getTheme: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_THEME) as Promise<ThemeChoice>,
   setTheme: (theme: ThemeChoice) => ipcRenderer.send(IpcChannel.EDITOR_SET_THEME, theme),
   pickFile: () => ipcRenderer.invoke(IpcChannel.EDITOR_PICK_FILE) as Promise<string | null>,
+  pickIcon: () => ipcRenderer.invoke(IpcChannel.EDITOR_PICK_ICON) as Promise<PickIconResult>,
   onAxes: (handler) => {
     const listener = (_evt: IpcRendererEvent, values: AxesValues) => handler(values);
     ipcRenderer.on(IpcChannel.EDITOR_AXES, listener);

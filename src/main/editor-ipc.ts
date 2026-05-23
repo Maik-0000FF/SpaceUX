@@ -1,12 +1,18 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 
+import { ICON_MIME, MAX_ICON_BYTES, sanitizeSvg } from '../core/icon.js';
+import { describeError } from '../shared/errors.js';
 import {
   IpcChannel,
   type EditorAction,
   type MenuConfigSnapshot,
+  type PickIconResult,
   type PluginCategory,
   type PluginImportResult,
   type PluginsState,
@@ -134,5 +140,41 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
       ? dialog.showOpenDialog(parent, { properties: ['openFile'] })
       : dialog.showOpenDialog({ properties: ['openFile'] }));
     return result.canceled || result.filePaths.length === 0 ? null : (result.filePaths[0] ?? null);
+  });
+
+  // Node-icon image picker: pick an image, read + encode it to an inline data
+  // URI on main (size-guarded, SVG sanitized) so the renderer can draw it the
+  // same way it will draw a plugin/bridge-provided icon.
+  ipcMain.handle(IpcChannel.EDITOR_PICK_ICON, async (): Promise<PickIconResult> => {
+    const parent = BrowserWindow.getFocusedWindow();
+    const filters = [{ name: 'Images', extensions: ['svg', 'png', 'jpg', 'jpeg', 'gif', 'webp'] }];
+    const result = await (parent
+      ? dialog.showOpenDialog(parent, { properties: ['openFile'], filters })
+      : dialog.showOpenDialog({ properties: ['openFile'], filters }));
+    if (result.canceled || result.filePaths.length === 0) return { ok: 'cancelled' };
+
+    const file = result.filePaths[0]!;
+    const mime = ICON_MIME[path.extname(file).toLowerCase()];
+    if (mime === undefined) return { ok: false, reason: 'unsupported image type' };
+
+    // Check the size via stat before reading, so a huge pick is rejected
+    // without loading it all into memory first.
+    let buf: Buffer;
+    try {
+      const { size } = await fs.stat(file);
+      if (size > MAX_ICON_BYTES) {
+        return {
+          ok: false,
+          reason: `image too large (${Math.round(size / 1024)} KB; max ${MAX_ICON_BYTES / 1024} KB)`,
+        };
+      }
+      buf = await fs.readFile(file);
+    } catch (err) {
+      return { ok: false, reason: `cannot read file: ${describeError(err)}` };
+    }
+
+    const payload =
+      mime === 'image/svg+xml' ? Buffer.from(sanitizeSvg(buf.toString('utf8')), 'utf8') : buf;
+    return { ok: true, dataUri: `data:${mime};base64,${payload.toString('base64')}` };
   });
 }

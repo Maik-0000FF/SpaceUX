@@ -158,6 +158,21 @@
   font-size: 13px;
 }
 
+.iconRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.iconPreview {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border: 1px solid var(--editor-border);
+  border-radius: 4px;
+  background: var(--editor-input-bg);
+}
+
 .openButton {
   align-self: flex-start;
   padding: 6px 12px;

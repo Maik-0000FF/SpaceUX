@@ -25,6 +25,7 @@ import type {
   MenuConfigSnapshot,
   MenuOpenPayload,
   MenuWriteResult,
+  PickIconResult,
   PieAppearance,
   PluginCategory,
   PluginImportResult,
@@ -94,6 +95,9 @@ export type EditorBridge = {
   /** Open a native file-open dialog; resolves to the chosen absolute
    *  path, or null if cancelled. */
   pickFile(): Promise<string | null>;
+  /** Open an image picker for a node icon; main encodes the chosen file into
+   *  an inline data URI (size-guarded, SVG sanitized). */
+  pickIcon(): Promise<PickIconResult>;
   /** Subscribe to live SpaceMouse axis snapshots (forwarded by main while
    *  the editor is open) so the preview can highlight the live sector.
    *  Returns an unsubscribe fn. */

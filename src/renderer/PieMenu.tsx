@@ -3,6 +3,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 
+import { ICON_SIZE_RATIO, isRenderableIcon } from '@/core/icon';
 import { currentBranches, menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
@@ -225,6 +226,10 @@ export function PieMenu({
   // both the wedge map and the label map below need it.
   const outerLabelRadius = ((OUTER_RING_INNER_RATIO + OUTER_RING_OUTER_RATIO) / 2) * radius;
   const innerLabelRadius = radius * INNER_LABEL_RATIO;
+  // Uniform icon size for both rings, scaled to the pie so it tracks the
+  // configured radius (not the per-ring label radius, which would make inner
+  // and outer icons different sizes).
+  const iconSize = radius * ICON_SIZE_RATIO;
 
   // Rotational alignment for the outer ring: spin it so its first
   // sector centres on whichever parent sector spawned it. Without
@@ -291,6 +296,7 @@ export function PieMenu({
             sectorCount={innerSectors.length}
             radius={innerLabelRadius}
             node={node}
+            iconSize={iconSize}
             breadcrumb={isDrilled}
           />
         ))}
@@ -320,6 +326,7 @@ export function PieMenu({
                 sectorCount={outerSectors.length}
                 radius={outerLabelRadius}
                 node={node}
+                iconSize={iconSize}
                 preview={!isDrilled}
                 rotation={outerRingRotation}
               />
@@ -407,6 +414,7 @@ function SectorLabel({
   sectorCount,
   radius,
   node,
+  iconSize = 0,
   preview = false,
   breadcrumb = false,
   rotation = 0,
@@ -415,6 +423,8 @@ function SectorLabel({
   sectorCount: number;
   radius: number;
   node: MenuNode;
+  /** Edge length for the node's icon, in SVG units; 0 disables icons. */
+  iconSize?: number;
   /** Match the wedge it belongs to. */
   preview?: boolean;
   /** Match the wedge it belongs to. */
@@ -430,9 +440,30 @@ function SectorLabel({
   const className = ['pie-label', preview && 'is-preview', breadcrumb && 'is-breadcrumb']
     .filter(Boolean)
     .join(' ');
+  // With an icon, stack it above the label; without one, the label keeps
+  // sitting on the radial point (no change for icon-less menus). When the
+  // label is empty, centre the icon on the radial point instead of leaving a
+  // gap where the label would be.
+  const icon = iconSize > 0 && isRenderableIcon(node.icon) ? node.icon : null;
+  const hasLabel = node.label.trim().length > 0;
+  const iconTop = hasLabel ? y - iconSize : y - iconSize / 2;
+  const labelY = icon !== null && hasLabel ? y + iconSize * 0.5 : y;
   return (
-    <text className={className} x={x} y={y} textAnchor="middle" dominantBaseline="middle">
-      {node.label}
-    </text>
+    <>
+      {icon !== null && (
+        <image
+          className="pie-icon"
+          href={icon}
+          x={x - iconSize / 2}
+          y={iconTop}
+          width={iconSize}
+          height={iconSize}
+          preserveAspectRatio="xMidYMid meet"
+        />
+      )}
+      <text className={className} x={x} y={labelY} textAnchor="middle" dominantBaseline="middle">
+        {node.label}
+      </text>
+    </>
   );
 }

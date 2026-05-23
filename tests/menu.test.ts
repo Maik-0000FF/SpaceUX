@@ -102,10 +102,33 @@ describe('validateMenuConfig', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('rejects a node with a blank label', () => {
+  it('rejects a node with a blank label and no icon', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       root: { label: '', branches: [{ label: '   ' }] },
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('accepts an icon-only node (blank label + icon)', () => {
+    // An item identified by its icon alone is valid — a node only needs a
+    // non-empty label OR an icon, so icon-only menus (e.g. FreeCAD commands)
+    // are allowed.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{ label: '', icon: 'data:image/png;base64,iVBOR' }] },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.root.branches?.[0]?.icon).toBe('data:image/png;base64,iVBOR');
+  });
+
+  it('rejects a blank label with a non-renderable icon (would draw nothing)', () => {
+    // The icon-only allowance uses the renderer's predicate: a non-data: icon
+    // (e.g. a legacy theme-icon name) renders nothing, so it can't stand in
+    // for a label.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{ label: '', icon: 'box' }] },
     });
     expect(r.ok).toBe(false);
   });
