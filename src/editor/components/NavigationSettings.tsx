@@ -16,6 +16,7 @@ import {
   type TwistCyclePriority,
 } from '@/shared/menu';
 
+import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useMenuSettings } from '../state/menu-settings';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 
@@ -74,12 +75,17 @@ function defaultThresholdFor(key: GestureKey): number {
   return key === 'cycle' ? DEFAULT_TWIST_CYCLE_THRESHOLD : DEFAULT_GESTURE_THRESHOLD;
 }
 
-/** @param buttonCount Connected device's button count, or 0 when none —
- *  drives how many buttons the input dropdown offers. */
-export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
+/** Rendered in its own "Navigation" section in Properties — the global
+ *  navigation gestures + aim/deadzone that a navigation style configures.
+ *  Pulls the connected device's button count itself (the section is now a
+ *  sibling of "Menu settings", not nested under it). */
+export function NavigationSettings() {
   const navigation = useMenuSettings((s) => s.config?.navigation);
   const setNavigation = useMenuSettings((s) => s.setNavigation);
   const nav = resolveNavigation({ navigation });
+  // Connected device's button count (0 = none/unknown) constrains the
+  // button pickers to buttons that exist (#66).
+  const { buttons: buttonCount } = useDeviceInfo();
   const offeredButtons = buttonCount > 0 ? buttonCount : FALLBACK_BUTTON_COUNT;
 
   // Clone (the resolved fallback is frozen) → mutate → store.
@@ -97,7 +103,6 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
 
   return (
     <>
-      <div className={styles.heading}>Navigation</div>
       <Row label="Aim with">
         <select
           className={styles.select}
