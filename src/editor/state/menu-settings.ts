@@ -19,7 +19,7 @@ import {
 } from '@/shared/menu';
 
 import { eqPath, isPrefix, nodeHeight } from './move-targets';
-import { defaultItemLabel, nextNodeId } from './node-keys';
+import { nextNodeId, uniqueItemLabel } from './node-keys';
 
 /**
  * The editor's working copy of the menu config plus the bookkeeping the
@@ -215,9 +215,15 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (!state.config) return;
           const ring = draftRingAt(state.config, ringPath);
           if (!ring) return;
-          // 1-based tree path of the appended node → a unique, position-
-          // showing default label (e.g. "Item 3.1").
-          ring.push({ label: defaultItemLabel([...ringPath, ring.length]), id: nextNodeId() });
+          // Next free "Item …" number in this ring → a unique default label
+          // (e.g. "Item 3.1") that won't collide with a sibling.
+          ring.push({
+            label: uniqueItemLabel(
+              ringPath,
+              ring.map((n) => n.label),
+            ),
+            id: nextNodeId(),
+          });
           state.origin = 'local';
           state.dirty = true;
         }),

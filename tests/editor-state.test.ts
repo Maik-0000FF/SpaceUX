@@ -264,14 +264,25 @@ describe('menu-settings CRUD', () => {
       mtime: 1,
     });
 
-  it('addNode appends a leaf with a path-based default label to the top-level ring', () => {
+  it('addNode appends a leaf with the next free "Item N" label to the top-level ring', () => {
     load([{ label: 'A' }]);
     useMenuSettings.getState().addNode([]);
     const state = useMenuSettings.getState();
-    // Appended at index 1 → 1-based path "Item 2".
-    expect(state.config?.root.branches!.map((s) => s.label)).toEqual(['A', 'Item 2']);
+    // 'A' isn't an "Item N" label, so the first auto-item is "Item 1".
+    expect(state.config?.root.branches!.map((s) => s.label)).toEqual(['A', 'Item 1']);
     expect(state.origin).toBe('local');
     expect(state.dirty).toBe(true);
+  });
+
+  it('addNode numbers past the highest existing "Item N", avoiding collisions', () => {
+    load([{ label: 'Item 1' }, { label: 'Item 3' }]);
+    useMenuSettings.getState().addNode([]);
+    // Not "Item 3" again (index would) — one past the highest → "Item 4".
+    expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual([
+      'Item 1',
+      'Item 3',
+      'Item 4',
+    ]);
   });
 
   it('setScale clamps to [0.5, 2] and flags the change local + dirty', () => {
@@ -295,10 +306,10 @@ describe('menu-settings CRUD', () => {
       mtime: 1,
     });
     useMenuSettings.getState().addNode([0]); // into Branch's branches
-    // Appended at [0, 1] → 1-based path "Item 1.2".
+    // 'C0' isn't an "Item 1.N" label, so the first auto-item is "Item 1.1".
     expect(
       useMenuSettings.getState().config?.root.branches![0]?.branches?.map((s) => s.label),
-    ).toEqual(['C0', 'Item 1.2']);
+    ).toEqual(['C0', 'Item 1.1']);
   });
 
   it('deleteNode empties the top-level ring down to just the centre (#160)', () => {

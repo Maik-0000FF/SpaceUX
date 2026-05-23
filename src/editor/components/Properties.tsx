@@ -12,7 +12,7 @@ import { useMenuSettings } from '../state/menu-settings';
 import { moveTargets, pathOfNodeId } from '../state/move-targets';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 import { ringBranches, nodeAtPath, selectedPath } from '../state/selectors';
-import { defaultItemLabel, nextNodeId } from '../state/node-keys';
+import { nextNodeId, uniqueItemLabel } from '../state/node-keys';
 
 import { ActionField } from './ActionField';
 import { RootSettings } from './RootSettings';
@@ -193,7 +193,7 @@ export function Properties() {
                   updateNodeAt(path, (s) => {
                     if (e.target.value === 'submenu') {
                       if (s.branches === undefined) {
-                        s.branches = [{ label: defaultItemLabel([...path, 0]), id: nextNodeId() }];
+                        s.branches = [{ label: uniqueItemLabel(path, []), id: nextNodeId() }];
                         delete s.action;
                         // keepOpen is a leaf-only flag — a branch always
                         // stays open (it drills), so drop a stale one.

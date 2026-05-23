@@ -15,13 +15,31 @@ export function nextNodeId(): string {
 }
 
 /**
- * Default label for a freshly-added node, encoding its 1-based tree path so
- * every new item is unique and shows where it sits — e.g. path `[0]` → "Item
- * 1", `[2, 0]` → "Item 3.1", `[0, 1, 0]` → "Item 1.2.1". Set at creation; the
- * user renames freely afterwards (the label doesn't track later moves).
+ * Default label for a freshly-added node: "Item " + the 1-based path of its
+ * ring (just "Item " at the top level) + the next free number in that ring.
+ * The number is one past the highest "Item <prefix>N" already present, so a
+ * new item never collides with a sibling — even after deletions reshuffle
+ * the indices (a plain position index would reuse a number an undeleted
+ * sibling still holds). User-renamed siblings are ignored for numbering.
+ * Shows roughly where the item sits; the user renames freely afterwards.
+ *
+ * @param ringPath 1-based-encoded by this fn; `[]` = the top-level ring.
+ * @param siblingLabels labels already in that ring.
  */
-export function defaultItemLabel(path: readonly number[]): string {
-  return `Item ${path.map((i) => i + 1).join('.')}`;
+export function uniqueItemLabel(
+  ringPath: readonly number[],
+  siblingLabels: readonly string[],
+): string {
+  const prefix = ringPath.map((i) => i + 1).join('.');
+  const head = prefix ? `Item ${prefix}.` : 'Item ';
+  let max = 0;
+  for (const label of siblingLabels) {
+    if (label.startsWith(head)) {
+      const rest = label.slice(head.length);
+      if (/^\d+$/.test(rest)) max = Math.max(max, Number(rest));
+    }
+  }
+  return `${head}${max + 1}`;
 }
 
 /**

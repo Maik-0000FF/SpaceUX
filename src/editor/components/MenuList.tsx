@@ -14,7 +14,7 @@ import type { MenuNode } from '@/shared/menu';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTarget } from '../state/reorder';
-import { defaultItemLabel, nextNodeId, nodeKey } from '../state/node-keys';
+import { nextNodeId, nodeKey, uniqueItemLabel } from '../state/node-keys';
 import { ringBranches } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
@@ -146,7 +146,7 @@ export function MenuList() {
     } else {
       updateNodeAt(path, (s) => {
         delete s.action;
-        s.branches = [{ label: defaultItemLabel([...path, 0]), id: nextNodeId() }];
+        s.branches = [{ label: uniqueItemLabel(path, []), id: nextNodeId() }];
       });
     }
     // Dive into the node so the preview shows its children (the active
