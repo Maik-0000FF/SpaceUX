@@ -799,6 +799,37 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     warnSpy.mockRestore();
   });
 
+  it('does NOT warn for drillIn + activate sharing a button — disjoint by node type (#160)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        // The twist styles' "button 0 drills a branch / fires a leaf" combo:
+        // a node is never both, so the shared input can't fire both.
+        drillIn: { inputs: [{ kind: 'button', button: 0 }] },
+        activate: { inputs: [{ kind: 'button', button: 0 }] },
+      },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('both bind button:0'));
+    warnSpy.mockRestore();
+  });
+
+  it('still warns for a real conflict — back + activate on the same button (#160)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        back: { inputs: [{ kind: 'button', button: 1 }] },
+        activate: { inputs: [{ kind: 'button', button: 1 }] },
+      },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind button:1'));
+    warnSpy.mockRestore();
+  });
+
   it('warns when a both-axis binding overlaps a directional one on the same axis', () => {
     // `both` occupies the whole axis, so it collides with a positive
     // binding even though their direction strings differ.

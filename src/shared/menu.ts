@@ -932,6 +932,13 @@ function warnNavigationConflicts(nav: MenuNavigation): void {
       for (const key of inputConflictKeys(input)) {
         const prev = seen.get(key);
         if (prev !== undefined && prev !== name) {
+          // drillIn and activate are disjoint by node type — drill only acts
+          // on a hovered branch, activate only on a hovered leaf, and a node
+          // is never both — so a shared input can never fire both. Suppress
+          // that specific (always-false) conflict; it's the natural "button 0
+          // = drill a branch / fire a leaf" combo the twist styles use.
+          const pair = `${prev}+${name}`;
+          if (pair === 'drillIn+activate' || pair === 'activate+drillIn') continue;
           // eslint-disable-next-line no-console
           console.warn(
             `[menu-loader] navigation: "${name}" and "${prev}" both bind ${key} — they may fight; split by direction or pick distinct inputs`,
