@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { useEffect, useState } from 'react';
+
 import {
   ACTIVATION_DIRECTIONS,
   MAGNITUDE_SOURCES,
@@ -87,6 +89,16 @@ export function NavInputRow({
   onRemove: () => void;
 }) {
   const threshold = inputThreshold(input);
+  // Local draft for the threshold field so the user can clear it to type a
+  // new number — the committed value only updates on a valid (> 0) entry, so
+  // a transient empty/invalid field no longer snaps back mid-edit. Synced
+  // when the committed threshold changes (e.g. switching input kind). On
+  // blur an empty/invalid field reverts to the committed value.
+  const [draft, setDraft] = useState(threshold !== null ? String(threshold) : '');
+  useEffect(() => {
+    setDraft(threshold !== null ? String(threshold) : '');
+  }, [threshold]);
+
   // A saved binding may reference a button the connected device doesn't
   // have (e.g. a config carried over from a larger puck). Surface it as a
   // flagged, disabled option so the select shows it as selected instead
@@ -149,16 +161,22 @@ export function NavInputRow({
           className={styles.navThreshold}
           type="number"
           min={1}
-          value={threshold}
+          value={draft}
           title="Threshold"
           onChange={(e) => {
+            setDraft(e.target.value);
             const v = Number(e.target.value);
             if (
+              e.target.value !== '' &&
               Number.isFinite(v) &&
               v > 0 &&
               (input.kind === 'axis' || input.kind === 'magnitude')
             )
               onChange({ ...input, threshold: v });
+          }}
+          onBlur={() => {
+            // Revert an empty/invalid field to the committed value on blur.
+            if (!(Number(draft) > 0)) setDraft(threshold !== null ? String(threshold) : '');
           }}
         />
       )}
