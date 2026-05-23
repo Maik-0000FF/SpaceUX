@@ -122,6 +122,17 @@ describe('validateMenuConfig', () => {
     if (r.ok) expect(r.config.root.branches?.[0]?.icon).toBe('data:image/png;base64,iVBOR');
   });
 
+  it('rejects a blank label with a non-renderable icon (would draw nothing)', () => {
+    // The icon-only allowance uses the renderer's predicate: a non-data: icon
+    // (e.g. a legacy theme-icon name) renders nothing, so it can't stand in
+    // for a label.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{ label: '', icon: 'box' }] },
+    });
+    expect(r.ok).toBe(false);
+  });
+
   it('accepts a node without a binding (label-only)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,

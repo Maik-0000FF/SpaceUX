@@ -21,6 +21,9 @@
  *  navigation migrator land in the later PR that removes the legacy
  *  gesture fields and switches the runtime over (that is the breaking
  *  change). */
+
+import { isRenderableIcon } from './icon.js';
+
 export const MENU_CONFIG_VERSION = 1;
 
 /** Hard cap on how deeply menus can nest. Each level inside a node's
@@ -1009,10 +1012,13 @@ function validateNode(raw: unknown, where: string, depth = 0, isRoot = false): N
       label = s.label;
     }
   } else {
-    // A non-root node needs *something* to show: a non-empty label, or an
-    // icon. Icon-only items are allowed (e.g. a FreeCAD command shown by its
-    // icon alone) — but a node with neither would be invisible/unidentifiable.
-    const hasIcon = typeof s.icon === 'string' && s.icon.trim() !== '';
+    // A non-root node needs *something* to show: a non-empty label, or a
+    // renderable icon. Icon-only items are allowed (e.g. a FreeCAD command
+    // shown by its icon alone) — but a node with neither would be
+    // invisible/unidentifiable. Gate on the same predicate the renderer uses,
+    // so a node that validates as "icon-only" actually draws an icon (a
+    // non-data: string like a legacy "box" name renders nothing).
+    const hasIcon = isRenderableIcon(s.icon);
     if (typeof s.label !== 'string') {
       return { ok: false, reason: `${where} field "label" must be a string` };
     }

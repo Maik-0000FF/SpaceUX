@@ -12,21 +12,16 @@
  * names or fetches files.
  */
 
+// The renderable-icon gate lives in shared/ (the menu validator uses the same
+// predicate, so "validation says it shows" and "the renderer shows it" stay
+// the same statement). Re-exported here so the render-side keeps importing it
+// from one icon module.
+export { isRenderableIcon } from '../shared/icon.js';
+
 /** Icon edge length as a fraction of the pie's base radius. Kept here so the
  *  overlay and the editor preview (both 240-unit based) render icons at the
  *  same proportion. */
 export const ICON_SIZE_RATIO = 0.14;
-
-/**
- * Whether a node's `icon` is safe to draw in an `<image>`. Only inline image
- * data URIs are accepted: that's exactly what the icon pipeline produces, and
- * it stops a stray value from making the renderer fetch an external URL.
- * SVG loaded through `<image>` runs in secure static mode (no scripts), so
- * `data:image/svg+xml` is safe too.
- */
-export function isRenderableIcon(icon: string | undefined): icon is string {
-  return typeof icon === 'string' && icon.startsWith('data:image/');
-}
 
 /** Image file extensions the icon picker accepts, mapped to their MIME type. */
 export const ICON_MIME: Record<string, string> = {
