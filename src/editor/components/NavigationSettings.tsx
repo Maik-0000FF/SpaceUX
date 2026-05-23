@@ -132,10 +132,10 @@ export function NavigationSettings() {
           low={nav.hoverDeadzone}
           high={nav.deadzone}
           lowLabel="Hover threshold"
-          highLabel="Engage threshold"
-          onChange={(hover, engage) =>
+          highLabel="Open-submenu threshold"
+          onChange={(hover, open) =>
             commit((n) => {
-              n.deadzone = engage;
+              n.deadzone = open;
               n.hoverDeadzone = hover;
             })
           }
@@ -146,10 +146,9 @@ export function NavigationSettings() {
       </Row>
       {nav.aim !== 'twist' && (
         <p className={styles.sectionNote}>
-          Two thresholds: the higher (right handle) is the push needed to leave the centre and
-          engage a sector; the lower (left handle) is what holds the aim once an item is selected,
-          so moving between items is lighter than entering — the band between them is the
-          hysteresis.
+          Two thresholds: aim past the lower (left handle) to hover an item; aim firmly past the
+          higher (right handle) to open the hovered submenu — so the aim itself drills, no separate
+          “Open submenu” input needed.
         </p>
       )}
       {twistNeedsCycle && (
@@ -161,6 +160,12 @@ export function NavigationSettings() {
       {GESTURE_KEYS.map((key) => (
         <Fragment key={key}>
           <div className={styles.subheading}>{GESTURE_LABELS[key]}</div>
+          {key === 'drillIn' && nav.aim !== 'twist' && (
+            <p className={styles.sectionNote}>
+              Optional with push/tilt aiming — firmly aiming past the open-submenu threshold above
+              already opens the hovered submenu. Bind an input here only for an extra way in.
+            </p>
+          )}
           {nav[key].inputs.map((input, i) => (
             <Row key={i} label={`Input ${i + 1}`}>
               <NavInputRow

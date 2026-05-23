@@ -35,17 +35,15 @@ export type NavigationPreset = {
   navigation: MenuNavigation;
 };
 
-// A larger aim deadzone than the schema default (50): near centre a small
-// deflection's *angle* is jittery, so the hover flickers between adjacent
-// sectors when aiming close to a boundary. Requiring a firmer push before any
-// sector lights up settles it.
-const AIMING_DEADZONE = 100;
-// Hover (maintain) threshold for the standard style: half the engage push,
-// so moving between items is clearly lighter than entering a ring.
-const AIMING_HOVER_DEADZONE = 50;
-// Firmness past the aim deadzone at which a lateral push commits a drill —
-// well above the deadzone so a light push aims and a firm one drills.
-const DRILL_PUSH_THRESHOLD = 250;
+// Aim styles: the aimed item lights up past this hover threshold. Set above
+// the near-centre jitter floor so a small deflection's wobbly angle doesn't
+// flicker the hover between adjacent sectors.
+const AIM_HOVER = 100;
+// ...and firmly aiming past this opens the hovered submenu — the aim itself
+// is the "open submenu" gesture for the 2D aim sources, so drillIn stays
+// empty. Well above the hover threshold so a light aim hovers, a firm one
+// descends.
+const AIM_OPEN_SUBMENU = 250;
 // TZ deflection for the press/lift split — above the aim deadzone so a
 // light puck rest doesn't trip it, with each half its own gesture.
 const TZ_SPLIT_THRESHOLD = 150;
@@ -71,14 +69,14 @@ export const NAVIGATION_PRESETS: readonly NavigationPreset[] = [
     id: 'aiming',
     label: 'Aiming (standard)',
     description:
-      'Push or tilt points at an item; a firm push drills in. Press down (TZ−) to go back.',
+      'Push or tilt to hover an item; aim firmly to open its submenu. Press down (TZ−) to go back.',
     navigation: {
       aim: 'both',
-      deadzone: AIMING_DEADZONE,
-      hoverDeadzone: AIMING_HOVER_DEADZONE,
-      drillIn: {
-        inputs: [{ kind: 'magnitude', source: 'lateral', threshold: DRILL_PUSH_THRESHOLD }],
-      },
+      deadzone: AIM_OPEN_SUBMENU,
+      hoverDeadzone: AIM_HOVER,
+      // No separate open-submenu input — firmly aiming past the deadzone
+      // opens the hovered branch (see resolvePuckFrame).
+      drillIn: { inputs: [] },
       // Back is a firm press only (TZ−), not lift — and a high threshold so a
       // light touch doesn't trip it.
       back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 150 }] },
@@ -90,14 +88,15 @@ export const NAVIGATION_PRESETS: readonly NavigationPreset[] = [
   {
     id: 'push',
     label: 'Push only',
-    description: 'Slide (TX/TY) points at an item; a firm push drills in. Press TZ to go back.',
+    description:
+      'Slide (TX/TY) to hover an item; push firmly to open its submenu. Press TZ to go back.',
     navigation: {
       aim: 'push',
-      deadzone: DEFAULT_LATERAL_DEADZONE,
-      hoverDeadzone: DEFAULT_HOVER_DEADZONE,
-      drillIn: {
-        inputs: [{ kind: 'magnitude', source: 'lateral', threshold: DRILL_PUSH_THRESHOLD }],
-      },
+      deadzone: AIM_OPEN_SUBMENU,
+      hoverDeadzone: AIM_HOVER,
+      // Firmly pushing past the deadzone opens the hovered branch — no
+      // separate open-submenu input needed.
+      drillIn: { inputs: [] },
       back: tzBack,
       cycle: { inputs: [], priority: 'lateral' },
       commitCenter: { inputs: [] },

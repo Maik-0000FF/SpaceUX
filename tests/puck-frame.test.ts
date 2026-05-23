@@ -40,8 +40,11 @@ const FRESH: PuckEdges = {
  *  partial would drop the unspecified gestures). */
 const nav = (over: Partial<MenuNavigation>): MenuNavigation => ({
   aim: 'push',
-  deadzone: 50,
-  hoverDeadzone: 25,
+  // deadzone = the open-submenu (high) threshold; hoverDeadzone = the hover
+  // (low) threshold. Open is well above the ~100 magnitudes the hover tests
+  // use, so a plain hover doesn't trip the aim-drill.
+  deadzone: 250,
+  hoverDeadzone: 50,
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
@@ -391,31 +394,47 @@ describe('resolvePuckFrame — aim source (#159)', () => {
     expect(hover(nav({ aim: 'both' }), { ty: -30, rx: -30 })).toEqual({ kind: 'hover', index: 0 });
   });
 
-  it('deadzone gates lateral aiming — a deflection under it hovers nothing (#160)', () => {
-    // ty −100 is over the default 50 deadzone (hovers), but under a 150 one.
-    expect(hover(nav({ deadzone: 50 }), { ty: -100 })).toEqual({ kind: 'hover', index: 0 });
-    expect(hover(nav({ deadzone: 150 }), { ty: -100 })).toEqual({ kind: 'none' });
+  it('hoverDeadzone gates when an item lights up (#160)', () => {
+    // ty −100 is over a 50 hover threshold (hovers), but under a 150 one.
+    expect(hover(nav({ hoverDeadzone: 50 }), { ty: -100 })).toEqual({ kind: 'hover', index: 0 });
+    expect(hover(nav({ hoverDeadzone: 150 }), { ty: -100 })).toEqual({ kind: 'none' });
   });
 
-  it('radial hysteresis: engage at deadzone, hold at hoverDeadzone (#160)', () => {
-    const cfg = nav({ deadzone: 100, hoverDeadzone: 50 });
-    const from = (sticky: number | null, p: Partial<SixAxes>) =>
+  it('aim drills past the open-submenu threshold; lighter aim only hovers (#160)', () => {
+    const cfg = nav({ deadzone: 250, hoverDeadzone: 50 });
+    const at = (p: Partial<SixAxes>, edges = FRESH) =>
       resolvePuckFrame({
         menuConfig: config(cfg),
         axes: axes(p),
         navigation: [],
-        sticky,
-        edges: FRESH,
+        sticky: null,
+        edges,
       }).outcome;
-    // From the centre (sticky null), a mid push (70 < engage 100) hovers nothing.
-    expect(from(null, { ty: -70 })).toEqual({ kind: 'none' });
-    // Past the engage hurdle it selects.
-    expect(from(null, { ty: -120 })).toEqual({ kind: 'hover', index: 0 });
-    // Once a sector is held, a lighter push (70 > hover 50) keeps aiming —
-    // moving between items is lighter than entering.
-    expect(from(0, { ty: -70 })).toEqual({ kind: 'hover', index: 0 });
-    // ...but below the hover threshold (40 < 50) nothing new is selected.
-    expect(from(0, { ty: -40 })).toEqual({ kind: 'none' });
+    // SECTORS[0] is a branch. A light aim (100: over hover 50, under open 250)
+    // just hovers it.
+    expect(at({ ty: -100 })).toEqual({ kind: 'hover', index: 0 });
+    // A firm aim (300 > open 250) opens it — the aim itself is the drill.
+    expect(at({ ty: -300 })).toEqual({ kind: 'drill', index: 0 });
+    // Held past the threshold, it doesn't re-open (one level per rising edge).
+    expect(at({ ty: -300 }, { ...FRESH, drill: true })).toEqual({ kind: 'hover', index: 0 });
+  });
+
+  it('drill re-arms only below the hover threshold — no cascade on overshoot (#160)', () => {
+    const cfg = nav({ deadzone: 250, hoverDeadzone: 50 });
+    const edgesAfter = (p: Partial<SixAxes>, drill: boolean) =>
+      resolvePuckFrame({
+        menuConfig: config(cfg),
+        axes: axes(p),
+        navigation: [],
+        sticky: null,
+        edges: { ...FRESH, drill },
+      }).edges.drill;
+    // Already consumed (just drilled): easing into the hover band (150, still
+    // > hover 50) does NOT re-arm — overshoot near the open threshold can't
+    // re-fire.
+    expect(edgesAfter({ ty: -150 }, true)).toBe(true);
+    // Only easing back below the hover threshold (30 ≤ 50) re-arms the drill.
+    expect(edgesAfter({ ty: -30 }, true)).toBe(false);
   });
 
   it('twist turns lateral pointing off — push and tilt no longer aim', () => {
