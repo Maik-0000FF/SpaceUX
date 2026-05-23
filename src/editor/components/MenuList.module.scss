@@ -154,6 +154,13 @@
   }
 }
 
+// Always-visible variant — the centre/root ＋ is shown unconditionally so
+// adding a top-level item is discoverable without hovering. Defined after
+// `.actions` so it wins the equal-specificity opacity at rest.
+.actionsAlways {
+  opacity: 1;
+}
+
 .actionBtn {
   width: 22px;
   padding: 5px 0;

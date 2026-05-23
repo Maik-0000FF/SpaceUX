@@ -19,7 +19,7 @@ import {
 } from '@/shared/menu';
 
 import { eqPath, isPrefix, nodeHeight } from './move-targets';
-import { nextNodeId } from './node-keys';
+import { defaultItemLabel, nextNodeId } from './node-keys';
 
 /**
  * The editor's working copy of the menu config plus the bookkeeping the
@@ -215,7 +215,9 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (!state.config) return;
           const ring = draftRingAt(state.config, ringPath);
           if (!ring) return;
-          ring.push({ label: 'New item', id: nextNodeId() });
+          // 1-based tree path of the appended node → a unique, position-
+          // showing default label (e.g. "Item 3.1").
+          ring.push({ label: defaultItemLabel([...ringPath, ring.length]), id: nextNodeId() });
           state.origin = 'local';
           state.dirty = true;
         }),

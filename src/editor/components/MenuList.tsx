@@ -14,7 +14,7 @@ import type { MenuNode } from '@/shared/menu';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTarget } from '../state/reorder';
-import { nextNodeId, nodeKey } from '../state/node-keys';
+import { defaultItemLabel, nextNodeId, nodeKey } from '../state/node-keys';
 import { ringBranches } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
@@ -146,7 +146,7 @@ export function MenuList() {
     } else {
       updateNodeAt(path, (s) => {
         delete s.action;
-        s.branches = [{ label: 'New item', id: nextNodeId() }];
+        s.branches = [{ label: defaultItemLabel([...path, 0]), id: nextNodeId() }];
       });
     }
     // Dive into the node so the preview shows its children (the active
@@ -344,6 +344,13 @@ export function MenuList() {
                 aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Alt+ArrowUp Alt+ArrowDown"
                 title={node.label}
                 onClick={() => (isBranch ? openNode(path) : selectPath(path))}
+                // Double-click the label to rename inline — single click still
+                // opens/selects; the ✎ button does the same.
+                onDoubleClick={() => {
+                  renameCancelled.current = false;
+                  setRenaming(key);
+                  setRenameValue(node.label);
+                }}
                 onKeyDown={(e) => {
                   if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                     e.preventDefault();
@@ -457,7 +464,7 @@ export function MenuList() {
             >
               {rootLabel}
             </button>
-            <span className={styles.actions}>
+            <span className={`${styles.actions} ${styles.actionsAlways}`}>
               <button
                 type="button"
                 className={styles.actionBtn}

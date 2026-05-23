@@ -264,11 +264,12 @@ describe('menu-settings CRUD', () => {
       mtime: 1,
     });
 
-  it('addNode appends a default leaf to the top-level ring', () => {
+  it('addNode appends a leaf with a path-based default label to the top-level ring', () => {
     load([{ label: 'A' }]);
     useMenuSettings.getState().addNode([]);
     const state = useMenuSettings.getState();
-    expect(state.config?.root.branches!.map((s) => s.label)).toEqual(['A', 'New item']);
+    // Appended at index 1 → 1-based path "Item 2".
+    expect(state.config?.root.branches!.map((s) => s.label)).toEqual(['A', 'Item 2']);
     expect(state.origin).toBe('local');
     expect(state.dirty).toBe(true);
   });
@@ -294,9 +295,10 @@ describe('menu-settings CRUD', () => {
       mtime: 1,
     });
     useMenuSettings.getState().addNode([0]); // into Branch's branches
+    // Appended at [0, 1] → 1-based path "Item 1.2".
     expect(
       useMenuSettings.getState().config?.root.branches![0]?.branches?.map((s) => s.label),
-    ).toEqual(['C0', 'New item']);
+    ).toEqual(['C0', 'Item 1.2']);
   });
 
   it('deleteNode removes within the ring but refuses to empty it', () => {
