@@ -172,6 +172,13 @@ export function MenuPreview() {
     : null;
   liveSectorRef.current = liveSector;
 
+  // The centre is the *active* target whenever no sector is — mirroring the
+  // live overlay (cancelActive = activeSector === null), so a cancel centre
+  // shows its bright/active red right away instead of only after it's clicked
+  // (the idle red is near-black and reads as "no centre, just a full ring").
+  const activeSector = livePreview ? liveSector : selectedIndex;
+  const centerActive = centerSelected || activeSector === null;
+
   // Pointer angle → active-ring sector (undoing the ring's rotation; radius
   // irrelevant since reorder is angular).
   const sectorUnderPointer = (e: React.PointerEvent): number | null => {
@@ -333,7 +340,7 @@ export function MenuPreview() {
           }}
         >
           <circle
-            className={`${styles.cancelCenter} ${centerSelected ? styles.cancelCenterSelected : ''} ${
+            className={`${styles.cancelCenter} ${centerActive ? styles.cancelCenterSelected : ''} ${
               isCancelNode(config.root) ? styles.cancelCenterCancel : ''
             }`}
             cx={0}
