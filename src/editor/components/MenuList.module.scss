@@ -88,6 +88,16 @@
   }
 }
 
+// Node icon shown inline before the label in a tree row. Icon-only rows
+// (empty label) show just this. Sized to sit on the text baseline.
+.rowIcon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  vertical-align: text-bottom;
+  margin-right: 6px;
+}
+
 // Expand/collapse toggle on a branch row. The spacer keeps leaf rows'
 // labels aligned with branch labels (same width as the chevron).
 .chevron {
