@@ -47,6 +47,13 @@ export const MIN_LATERAL_DEADZONE = 0;
 export const MAX_LATERAL_DEADZONE = 500;
 export const DEFAULT_LATERAL_DEADZONE = 50;
 
+/** Default *hover* (maintain) threshold — the lower end of the aim
+ *  hysteresis (#160). Once a sector is held, the deflection only needs to
+ *  stay above this (instead of the higher `deadzone` engage threshold) to
+ *  keep aiming, so moving between items is lighter than entering a ring.
+ *  Always clamped to ≤ the engage `deadzone`. */
+export const DEFAULT_HOVER_DEADZONE = 25;
+
 /** Reverse-DNS-style namespace under which built-in actions live in
  *  the action registry. Identical in shape to a 3rd-party plugin id
  *  so the dispatch path (invokeAction("<plugin>/<action>", config))
@@ -275,12 +282,21 @@ export type MenuNavigation = {
    *  to `push` (TX/TY) — the historical hardwired behaviour. See
    *  :type:`AimSource`. Issue #159. */
   aim: AimSource;
-  /** Lateral aiming deadzone — puck deflection below this magnitude selects
-   *  no sector. Clamped to [:data:`MIN_LATERAL_DEADZONE`,
-   *  :data:`MAX_LATERAL_DEADZONE`]; defaults to
-   *  :data:`DEFAULT_LATERAL_DEADZONE`. Only affects the 2D aim sources;
-   *  `aim: 'twist'` has no lateral pointer so it's inert there. Issue #160. */
+  /** Lateral aiming deadzone — the *engage* threshold: from the centre, the
+   *  puck must deflect past this before any sector is selected (the hurdle
+   *  to leave the centre / enter a ring). Once a sector is held the runtime
+   *  applies a lower *hover* threshold (radial hysteresis), so moving between
+   *  items is lighter than entering. Clamped to [:data:`MIN_LATERAL_DEADZONE`,
+   *  :data:`MAX_LATERAL_DEADZONE`]; defaults to :data:`DEFAULT_LATERAL_DEADZONE`.
+   *  Only affects the 2D aim sources; `aim: 'twist'` has no lateral pointer so
+   *  it's inert there. Issue #160. */
   deadzone: number;
+  /** Hover (maintain) threshold — the lower end of the aim hysteresis. Once
+   *  a sector is held, deflection only needs to exceed this (not the higher
+   *  `deadzone`) to keep aiming, so moving between items is lighter than
+   *  entering. Clamped to ≤ `deadzone`; defaults to
+   *  :data:`DEFAULT_HOVER_DEADZONE`. Inert for `aim: 'twist'`. Issue #160. */
+  hoverDeadzone: number;
   /** Drill into a hovered branch. Legacy: magnitudeDrill + tiltDrill + twistDrill. */
   drillIn: GestureBinding;
   /** Pop one level (drilled) or dismiss (top level). Legacy: TZ-back via tzDeadzone. */
@@ -322,6 +338,7 @@ function deepFreeze<T>(value: T): T {
 export const DEFAULT_NAVIGATION: MenuNavigation = deepFreeze({
   aim: 'push',
   deadzone: DEFAULT_LATERAL_DEADZONE,
+  hoverDeadzone: DEFAULT_HOVER_DEADZONE,
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
@@ -510,6 +527,7 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
 const KNOWN_NAVIGATION_FIELDS: readonly string[] = [
   'aim',
   'deadzone',
+  'hoverDeadzone',
   'drillIn',
   'back',
   'cycle',
@@ -836,6 +854,19 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
     }
     deadzone = Math.min(MAX_LATERAL_DEADZONE, Math.max(MIN_LATERAL_DEADZONE, o.deadzone));
   }
+  // Hover threshold: optional finite number, clamped into range and then to
+  // ≤ the engage deadzone (the hysteresis invariant — hovering can't take a
+  // firmer push than engaging). Defaults to DEFAULT_HOVER_DEADZONE (#160).
+  let hoverDeadzone = Math.min(deadzone, DEFAULT_HOVER_DEADZONE);
+  if (o.hoverDeadzone !== undefined) {
+    if (typeof o.hoverDeadzone !== 'number' || !Number.isFinite(o.hoverDeadzone)) {
+      return {
+        ok: false,
+        reason: `${where} field "hoverDeadzone" must be a finite number when present`,
+      };
+    }
+    hoverDeadzone = Math.min(deadzone, Math.max(MIN_LATERAL_DEADZONE, o.hoverDeadzone));
+  }
   const drillIn = validateGestureBinding(o.drillIn, `${where}.drillIn`);
   if (!drillIn.ok) return { ok: false, reason: drillIn.reason };
   const back = validateGestureBinding(o.back, `${where}.back`);
@@ -852,6 +883,7 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
     value: {
       aim,
       deadzone,
+      hoverDeadzone,
       drillIn: drillIn.value,
       back: back.value,
       cycle: cycle.value,
@@ -900,6 +932,13 @@ function warnNavigationConflicts(nav: MenuNavigation): void {
       for (const key of inputConflictKeys(input)) {
         const prev = seen.get(key);
         if (prev !== undefined && prev !== name) {
+          // drillIn and activate are disjoint by node type — drill only acts
+          // on a hovered branch, activate only on a hovered leaf, and a node
+          // is never both — so a shared input can never fire both. Suppress
+          // that specific (always-false) conflict; it's the natural "button 0
+          // = drill a branch / fire a leaf" combo the twist styles use.
+          const pair = `${prev}+${name}`;
+          if (pair === 'drillIn+activate' || pair === 'activate+drillIn') continue;
           // eslint-disable-next-line no-console
           console.warn(
             `[menu-loader] navigation: "${name}" and "${prev}" both bind ${key} — they may fight; split by direction or pick distinct inputs`,
@@ -1120,6 +1159,7 @@ function orderNavigation(nav: MenuNavigation): Record<string, unknown> {
   if (nav.aim !== 'push') out.aim = nav.aim;
   // Omit the default deadzone so unchanged configs don't gain the field.
   if (nav.deadzone !== DEFAULT_LATERAL_DEADZONE) out.deadzone = nav.deadzone;
+  if (nav.hoverDeadzone !== DEFAULT_HOVER_DEADZONE) out.hoverDeadzone = nav.hoverDeadzone;
   out.drillIn = { inputs: nav.drillIn.inputs.map(orderInput) };
   out.back = { inputs: nav.back.inputs.map(orderInput) };
   out.cycle = { inputs: nav.cycle.inputs.map(orderInput), priority: nav.cycle.priority };

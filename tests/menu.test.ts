@@ -638,6 +638,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     const navigation = {
       aim: 'both',
       deadzone: 120,
+      hoverDeadzone: 60,
       drillIn: { inputs: [{ kind: 'magnitude', source: 'lateral', threshold: 250 }] },
       back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
       cycle: {
@@ -667,6 +668,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
       expect(r.config.navigation).toEqual({
         aim: 'push',
         deadzone: 50,
+        hoverDeadzone: 25,
         drillIn: { inputs: [{ kind: 'none' }] },
         back: { inputs: [] },
         cycle: { inputs: [], priority: 'lateral' },
@@ -692,6 +694,19 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     });
     expect(bad.ok).toBe(false);
     if (!bad.ok) expect(bad.reason).toMatch(/"deadzone" must be a finite number/);
+  });
+
+  it('clamps hoverDeadzone to <= the engage deadzone (#160)', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: { deadzone: 60, hoverDeadzone: 200 }, // hover asked higher than engage
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.config.navigation?.deadzone).toBe(60);
+      expect(r.config.navigation?.hoverDeadzone).toBe(60); // pulled down to engage
+    }
   });
 
   it('rejects an unknown aim source (#159)', () => {
@@ -781,6 +796,37 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     });
     expect(r.ok).toBe(true); // permissive: a conflict never rejects
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind axis:rz:positive'));
+    warnSpy.mockRestore();
+  });
+
+  it('does NOT warn for drillIn + activate sharing a button — disjoint by node type (#160)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        // The twist styles' "button 0 drills a branch / fires a leaf" combo:
+        // a node is never both, so the shared input can't fire both.
+        drillIn: { inputs: [{ kind: 'button', button: 0 }] },
+        activate: { inputs: [{ kind: 'button', button: 0 }] },
+      },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(r.ok).toBe(true);
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('both bind button:0'));
+    warnSpy.mockRestore();
+  });
+
+  it('still warns for a real conflict — back + activate on the same button (#160)', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: {
+        back: { inputs: [{ kind: 'button', button: 1 }] },
+        activate: { inputs: [{ kind: 'button', button: 1 }] },
+      },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('both bind button:1'));
     warnSpy.mockRestore();
   });
 

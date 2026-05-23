@@ -104,7 +104,9 @@ export function PieMenu({
       ...DEFAULT_PIE_GEOMETRY,
       ...geometryOverrides,
       sectorCount: activeRing.length,
-      deadzone: resolveNavigation(config).deadzone,
+      // Hover highlight lights up at the hover (low) threshold; deadzone is
+      // the open-submenu (high) threshold.
+      deadzone: resolveNavigation(config).hoverDeadzone,
       invertX: invert.x,
       invertY: invert.y,
     };

@@ -382,12 +382,14 @@ describe('aimAxes (#159)', () => {
     expect(aimAxes('push', axes)).toEqual({ tx: 10, ty: 20 });
   });
 
-  it('tilt reads the rotational tilt (RX/RY)', () => {
-    expect(aimAxes('tilt', axes)).toEqual({ tx: 100, ty: 200 });
+  it('tilt maps RY→horizontal (negated), RX→vertical (matching push)', () => {
+    // axes.ry = 200 → tx = −200 (tilt-left reads RY+, must aim −x);
+    // axes.rx = 100 → ty.
+    expect(aimAxes('tilt', axes)).toEqual({ tx: -200, ty: 100 });
   });
 
-  it('both sums push and tilt so neither dominates', () => {
-    expect(aimAxes('both', axes)).toEqual({ tx: 110, ty: 220 });
+  it('both sums push with the matching tilt axis (TX−RY, TY+RX)', () => {
+    expect(aimAxes('both', axes)).toEqual({ tx: 10 - 200, ty: 20 + 100 });
   });
 
   it('twist has no lateral pointer (null) — selection moves by stepping only', () => {

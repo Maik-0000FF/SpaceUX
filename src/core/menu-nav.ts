@@ -27,6 +27,7 @@
 // this module buildable under both without duplicating the alias.
 import {
   aimAxes,
+  axesMagnitude,
   axesToSector,
   backAxisEngaged,
   cycleStepFromInputs,
@@ -453,13 +454,16 @@ export function resolvePuckFrame(args: {
   // step below drives the selection alone.
   const ringRotation = navigationRingRotation(menuConfig, navigation);
   const aimed = aimAxes(nav.aim, axes);
+  // Hover threshold (low end of the aim band): the aimed sector lights up
+  // once the aim passes nav.hoverDeadzone, immediately and the same at every
+  // depth. axesToSector returns null below it.
   const rawSec =
     aimed === null
       ? null
       : axesToSector(rotateAxes(aimed, -ringRotation), {
           ...DEFAULT_PIE_GEOMETRY,
           sectorCount: current.length,
-          deadzone: nav.deadzone,
+          deadzone: nav.hoverDeadzone,
           invertX: invert.x,
           invertY: invert.y,
         });
@@ -468,11 +472,26 @@ export function resolvePuckFrame(args: {
   // on an existing sector.
   const sec = rawSec === null ? null : rawSec % current.length;
 
-  // Drill: any of its inputs firing drills into the hovered branch. One
-  // rising-edge over the combined gesture — a held drill fires once.
-  const drillActive = gestureActive(nav.drillIn, frame);
-  const drillRising = drillActive && !edges.drill;
-  edges.drill = drillActive;
+  // Open submenu ("drill"): firmly aiming past nav.deadzone (the high end of
+  // the aim band) opens the hovered branch — the aim subsumes the drill
+  // gesture for the 2D aim sources, so a style needn't bind a separate input.
+  // A bound drillIn input also descends, for twist styles where there's no
+  // aim magnitude.
+  //
+  // Schmitt-triggered to stop a cascade through submenus that line up on one
+  // axis: it fires above the open threshold (nav.deadzone) but only re-arms
+  // once the aim eases back below the lower hover threshold (or the bound
+  // input releases). A spring-loaded puck overshooting near the open
+  // threshold then can't produce a fresh rising edge — each level needs a
+  // deliberate ease-back, the intermediate step.
+  const drillGesture = gestureActive(nav.drillIn, frame);
+  const aimMagnitude = aimed === null ? 0 : axesMagnitude(aimed);
+  const descendActive = aimMagnitude > nav.deadzone || drillGesture;
+  const drillRising = descendActive && !edges.drill;
+  // `edges.drill` carries the "consumed" state: set when a drill fires, held
+  // until the aim falls back below the hover threshold (and any bound input
+  // releases), which re-arms it.
+  edges.drill = drillRising || (edges.drill && (aimMagnitude > nav.hoverDeadzone || drillGesture));
 
   // Cycle: a directional axis input steps the selection one sector.
   // Rising-edge so a held twist steps once. Mark the edge consumed every

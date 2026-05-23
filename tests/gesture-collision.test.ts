@@ -9,6 +9,7 @@ import type { GestureBinding, MenuNavigation } from '../src/shared/menu';
 const nav = (over: Partial<MenuNavigation>): MenuNavigation => ({
   aim: 'push',
   deadzone: 50,
+  hoverDeadzone: 25,
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },

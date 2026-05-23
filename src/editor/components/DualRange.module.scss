@@ -1,0 +1,79 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Two-handle range on one track (#160): two overlaid native range inputs
+// with transparent tracks and pointer-through, so each thumb stays grabbable.
+
+.wrap {
+  position: relative;
+  flex: 1;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  min-width: 140px;
+}
+
+// The shared rail and the highlighted band between the two thumbs.
+.track {
+  position: absolute;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--editor-border);
+}
+
+.fill {
+  position: absolute;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--editor-accent);
+}
+
+// Both inputs share the rail; only their thumbs receive pointer events so
+// either handle can be grabbed regardless of which input is on top.
+.range {
+  position: absolute;
+  width: 100%;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+
+  &:focus {
+    outline: none;
+  }
+
+  &::-webkit-slider-thumb {
+    pointer-events: auto;
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--editor-accent);
+    border: 2px solid var(--editor-input-bg);
+    cursor: pointer;
+  }
+
+  &::-moz-range-thumb {
+    pointer-events: auto;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--editor-accent);
+    border: 2px solid var(--editor-input-bg);
+    cursor: pointer;
+  }
+
+  &:disabled {
+    &::-webkit-slider-thumb {
+      background: var(--editor-fg-dim);
+      cursor: not-allowed;
+    }
+    &::-moz-range-thumb {
+      background: var(--editor-fg-dim);
+      cursor: not-allowed;
+    }
+  }
+}

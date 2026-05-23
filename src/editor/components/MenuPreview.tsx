@@ -153,7 +153,9 @@ export function MenuPreview() {
     ? axesToSector(rotateAxes(aimVec, -activeRotation), {
         ...DEFAULT_PIE_GEOMETRY,
         sectorCount: count,
-        deadzone: nav.deadzone,
+        // The preview highlights the *hovered* sector, so it lights up at the
+        // hover threshold (low) — the deadzone field is the open-submenu (high).
+        deadzone: nav.hoverDeadzone,
         invertX: invert.x,
         invertY: invert.y,
       })

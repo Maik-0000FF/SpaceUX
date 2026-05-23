@@ -215,6 +215,16 @@
   font-size: 13px;
 }
 
+// Read-out for the dual-range (hover – open) value. Single line even when
+// both numbers are three digits — tabular figures so the width is steady.
+.rangeValue {
+  flex: none;
+  white-space: nowrap;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--editor-fg-dim);
+}
+
 .navRemove {
   flex: none;
   padding: 4px 8px;
