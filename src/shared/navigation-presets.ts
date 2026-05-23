@@ -34,6 +34,11 @@ export type NavigationPreset = {
   navigation: MenuNavigation;
 };
 
+// A larger aim deadzone than the schema default (50): near centre a small
+// deflection's *angle* is jittery, so the hover flickers between adjacent
+// sectors when aiming close to a boundary. Requiring a firmer push before any
+// sector lights up settles it.
+const AIMING_DEADZONE = 100;
 // Firmness past the aim deadzone at which a lateral push commits a drill —
 // well above the deadzone so a light push aims and a firm one drills.
 const DRILL_PUSH_THRESHOLD = 250;
@@ -64,7 +69,7 @@ export const NAVIGATION_PRESETS: readonly NavigationPreset[] = [
     description: 'Push or tilt points at an item; a firm push drills in. Press TZ to go back.',
     navigation: {
       aim: 'both',
-      deadzone: DEFAULT_LATERAL_DEADZONE,
+      deadzone: AIMING_DEADZONE,
       drillIn: {
         inputs: [{ kind: 'magnitude', source: 'lateral', threshold: DRILL_PUSH_THRESHOLD }],
       },
