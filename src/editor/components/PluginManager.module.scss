@@ -1,0 +1,141 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Plugin manager: an inline panel (on the Settings page) to import / list /
+// remove plugins from the managed extensions tree.
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.actions {
+  display: flex;
+}
+
+.button {
+  padding: 5px 12px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--editor-hover);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.empty {
+  margin: 0;
+  font-size: 12px;
+  color: var(--editor-fg-dim);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'head remove'
+    'meta remove';
+  gap: 2px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--editor-border);
+  border-radius: 7px;
+}
+
+.itemHead {
+  grid-area: head;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.itemName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.kindBadge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--editor-hover);
+  color: var(--editor-fg-dim);
+}
+
+.itemMeta {
+  grid-area: meta;
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--editor-fg-dim);
+}
+
+.removeButton {
+  grid-area: remove;
+  padding: 4px 10px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--editor-hover);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.errorsSection {
+  border-top: 1px solid var(--editor-border);
+  padding-top: 8px;
+}
+
+.subhead {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--editor-fg-dim);
+}
+
+.errorItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 120, 120, 0.4);
+  border-radius: 7px;
+}
+
+.error {
+  font-size: 11px;
+  color: rgba(255, 120, 120, 0.95);
+}

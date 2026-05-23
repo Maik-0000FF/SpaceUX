@@ -12,6 +12,7 @@ import { MIN_SUPPORTED_PLUGIN_API_VERSION, PLUGIN_API_VERSION } from '../src/sha
 function manifestBase(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     apiVersion: PLUGIN_API_VERSION,
+    kind: 'function',
     id: 'org.example.test',
     name: 'Test Plugin',
     version: '0.0.1',
@@ -98,6 +99,28 @@ describe('validateManifest — structural fields', () => {
   it('rejects an action without a name or label', () => {
     expect(validateManifest(manifestBase({ actions: [{ label: 'x' }] }))).toMatch(/action\.name/);
     expect(validateManifest(manifestBase({ actions: [{ name: 'x' }] }))).toMatch(/action\.label/);
+  });
+
+  it('rejects a missing or unknown kind', () => {
+    const missing = manifestBase();
+    delete missing.kind;
+    expect(validateManifest(missing)).toMatch(/"kind"/);
+    expect(validateManifest(manifestBase({ kind: 'widget' }))).toMatch(/"kind"/);
+    expect(validateManifest(manifestBase({ kind: 42 }))).toMatch(/"kind"/);
+  });
+
+  it('accepts a theme plugin without an actions array', () => {
+    // Theme plugins (#47) carry no actions — the `actions` contract only
+    // applies to function plugins. A theme manifest minus actions is valid.
+    const theme = manifestBase({ kind: 'theme' });
+    delete theme.actions;
+    expect(validateManifest(theme)).toBeNull();
+  });
+
+  it('still requires actions for a function plugin', () => {
+    const fn = manifestBase({ kind: 'function' });
+    delete fn.actions;
+    expect(validateManifest(fn)).toMatch(/actions/);
   });
 
   it('rejects a blank id / name / version / license', () => {

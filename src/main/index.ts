@@ -15,6 +15,8 @@ import {
   type MenuConfigChange,
   type MenuOpenPayload,
   type PieAppearance,
+  type PluginInfo,
+  type PluginsState,
   type ProfileActionResult,
   type ProfilesState,
 } from '../shared/ipc.js';
@@ -56,10 +58,13 @@ import {
 } from './profile-loader.js';
 import {
   indexActions,
+  loadPluginManifests,
   loadPlugins,
   makeActionContext,
-  pluginSearchPaths,
+  type LoadedPlugin,
 } from './plugin-loader.js';
+import { importPluginFromFolder, uninstallPlugin } from './plugin-installer.js';
+import type { PluginManifest } from '../shared/plugin-types.js';
 import { createTray } from './tray.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -99,6 +104,12 @@ let mainWindow: BrowserWindow | null = null;
 let kwinCursor: KWinCursorService | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
+// Loaded `function` plugins + their load errors, and the repo root used to
+// (re)load them. Kept so the editor's plugin manager can rebuild the action
+// index after an import/uninstall without an app restart.
+let loadedPlugins: LoadedPlugin[] = [];
+let pluginErrors: { dir: string; reason: string }[] = [];
+let pluginRepoRoot = '';
 // The *active* menu config — either the global menu.json (fallback) or
 // the connected device's profile (#113). Conflict-detection + write-back
 // state for the editor: `mtime` is the on-disk mtime the active config
@@ -148,6 +159,46 @@ function pushEditorDevice(): void {
     name: deviceName,
     profileId: activeProfileId,
   } satisfies EditorDeviceInfo);
+}
+
+/** Map a loaded/installed plugin to the editor-facing {@link PluginInfo}. */
+function toPluginInfo(manifest: PluginManifest, dir: string): PluginInfo {
+  return {
+    id: manifest.id,
+    name: manifest.name,
+    version: manifest.version,
+    kind: manifest.kind,
+    dir,
+    actionCount: manifest.actions?.length ?? 0,
+  };
+}
+
+/** Snapshot the installed plugins for the editor's manager: the live
+ *  `function` plugins (already loaded for the action index) plus the
+ *  `theme` plugins, which are listed but not executed yet (#47). */
+async function buildPluginsState(): Promise<PluginsState> {
+  const fnPlugins = loadedPlugins.map((p) => toPluginInfo(p.manifest, p.dir));
+  const theme = await loadPluginManifests('theme', pluginRepoRoot);
+  const themePlugins = theme.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
+  return {
+    plugins: [...fnPlugins, ...themePlugins],
+    errors: [...pluginErrors, ...theme.errors],
+  };
+}
+
+/** Re-scan + re-import the `function` plugins and rebuild the action index.
+ *  Called after an import/uninstall so a freshly managed plugin takes effect
+ *  without restarting the app, and the editor re-pulls its Action dropdown. */
+async function reloadFunctionPlugins(): Promise<void> {
+  const { plugins, errors } = await loadPlugins('function', pluginRepoRoot);
+  loadedPlugins = plugins;
+  pluginErrors = errors;
+  for (const err of errors) {
+    // eslint-disable-next-line no-console
+    console.warn(`[plugin] skipped ${err.dir}: ${err.reason}`);
+  }
+  actionIndex = indexActions([BUILTIN_PLUGIN, ...plugins]);
+  sendToEditor(IpcChannel.EDITOR_ACTIONS_CHANGED, undefined);
 }
 
 // Single point that latches the reported device. Re-resolves the active
@@ -762,7 +813,10 @@ app.whenReady().then(async () => {
   }
 
   const repoRoot = path.resolve(__dirname, '..', '..');
-  const { plugins, errors } = await loadPlugins(pluginSearchPaths(repoRoot));
+  pluginRepoRoot = repoRoot;
+  const { plugins, errors } = await loadPlugins('function', repoRoot);
+  loadedPlugins = plugins;
+  pluginErrors = errors;
   for (const err of errors) {
     // eslint-disable-next-line no-console
     console.warn(`[plugin] skipped ${err.dir}: ${err.reason}`);
@@ -859,6 +913,23 @@ app.whenReady().then(async () => {
         label: descriptor.label,
         description: descriptor.description,
       })),
+    getPlugins: () => buildPluginsState(),
+    importPlugin: async (srcDir) => {
+      const outcome = await importPluginFromFolder(srcDir);
+      if (!outcome.ok) return { ok: false, reason: outcome.reason };
+      await reloadFunctionPlugins();
+      const state = await buildPluginsState();
+      const installed =
+        state.plugins.find(
+          (p) => p.id === outcome.manifest.id && p.kind === outcome.manifest.kind,
+        ) ?? toPluginInfo(outcome.manifest, outcome.dir);
+      return { ok: true, installed, state };
+    },
+    uninstallPlugin: async (kind, id) => {
+      await uninstallPlugin(kind, id);
+      await reloadFunctionPlugins();
+      return buildPluginsState();
+    },
   });
   wireAppIpc({
     getAppearance: () => pieAppearance,

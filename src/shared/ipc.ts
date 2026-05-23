@@ -121,6 +121,26 @@ export const IpcChannel = {
    *  Action dropdown ({@link EditorAction}[], builtins + loaded
    *  plugins). invoke. */
   EDITOR_GET_ACTIONS: 'spaceux:editor:actions:get',
+  /** Main pushes when the action set changed because plugins were
+   *  (re)loaded — i.e. the user imported or removed a plugin. The editor
+   *  re-pulls EDITOR_GET_ACTIONS so the Action dropdown reflects a freshly
+   *  imported plugin without an editor restart. */
+  EDITOR_ACTIONS_CHANGED: 'spaceux:editor:actions:changed',
+
+  // ── Plugin manager (#NNN): plugins live in a managed, per-category tree
+  //    under the data dir (extensions/<kind>/<id>/). The user imports a
+  //    downloaded plugin folder (it's copied in) rather than configuring
+  //    arbitrary load paths. ─────────────────────────────────────────────
+  /** Editor pulls the current {@link PluginsState} (installed plugins +
+   *  load errors) on mount. invoke. */
+  EDITOR_GET_PLUGINS: 'spaceux:editor:plugins:get',
+  /** Editor asks main to open a native folder picker and import the chosen
+   *  plugin folder: validate its manifest, copy it into the managed tree by
+   *  its `kind`, and reload. invoke → {@link PluginImportResult}. */
+  EDITOR_IMPORT_PLUGIN: 'spaceux:editor:plugins:import',
+  /** Editor uninstalls an installed plugin (deletes its managed folder),
+   *  identified by kind + id. invoke → the new {@link PluginsState}. */
+  EDITOR_UNINSTALL_PLUGIN: 'spaceux:editor:plugins:uninstall',
 
   // ── Pie appearance (own app setting, separate from menu.json and the
   //    editor UI theme; consumed by both the live pie and the editor
@@ -159,6 +179,45 @@ export type EditorAction = {
   label: string;
   description?: string;
 };
+
+/** A plugin category — the subdirectory of the managed `extensions/` tree a
+ *  plugin lives in, and the value of its manifest `kind`. `function` plugins
+ *  contribute actions/menus (e.g. FreeCAD); `theme` plugins style the pie
+ *  (#47). The folder name, the manifest `kind`, and this union are kept in
+ *  lockstep so a plugin is self-describing and the importer can route it. */
+export type PluginCategory = 'function' | 'theme';
+
+/** One installed third-party plugin, as the editor's plugin manager lists it.
+ *  Built-ins are excluded — they aren't user-managed. */
+export type PluginInfo = {
+  /** Reverse-DNS manifest id (the prefix of every action key it owns). */
+  id: string;
+  name: string;
+  version: string;
+  kind: PluginCategory;
+  /** Absolute directory the plugin was loaded from. */
+  dir: string;
+  /** How many actions the manifest declares. */
+  actionCount: number;
+};
+
+/** A plugin directory that failed to load, with the loader's reason. */
+export type PluginLoadError = { dir: string; reason: string };
+
+/** What the editor's plugin manager shows: the installed plugins and any
+ *  load failures. Built-ins are omitted. */
+export type PluginsState = {
+  plugins: PluginInfo[];
+  errors: PluginLoadError[];
+};
+
+/** Outcome of an import. `cancelled` (the picker was dismissed) is distinct
+ *  from a real failure so the UI only shows an error when something actually
+ *  went wrong. Success carries the refreshed state and which plugin landed. */
+export type PluginImportResult =
+  | { ok: true; installed: PluginInfo; state: PluginsState }
+  | { ok: 'cancelled' }
+  | { ok: false; reason: string };
 
 /** The per-device profiles the editor knows about (#113): the ids of the
  *  saved profile files, and the manual override (a profile id force-loaded
