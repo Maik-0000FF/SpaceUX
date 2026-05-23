@@ -47,17 +47,19 @@ const OUTER_LABEL_RADIUS = (OUTER_INNER_RADIUS + OUTER_OUTER_RADIUS) / 2;
 const VIEW = OUTER_OUTER_RADIUS; // viewBox half-extent (reserves the outer ring)
 const ICON_SIZE = RADIUS * ICON_SIZE_RATIO; // matches the live pie's icon size
 
-/** A node's icon as an `<image>` stacked above the label point (cx, cy), or
- *  null when the node has no renderable icon. Matches the live pie's layout
- *  so the preview is faithful. */
+/** A node's icon as an `<image>`, or null when the node has no renderable
+ *  icon. Stacked above the label point (cx, cy); with an empty label it
+ *  centres on the point instead. Matches the live pie's layout so the preview
+ *  is faithful. */
 function sectorIcon(node: MenuNode, cx: number, cy: number) {
   if (!isRenderableIcon(node.icon)) return null;
+  const top = node.label.trim().length > 0 ? cy - ICON_SIZE : cy - ICON_SIZE / 2;
   return (
     <image
       className={styles.icon}
       href={node.icon}
       x={cx - ICON_SIZE / 2}
-      y={cy - ICON_SIZE}
+      y={top}
       width={ICON_SIZE}
       height={ICON_SIZE}
       preserveAspectRatio="xMidYMid meet"

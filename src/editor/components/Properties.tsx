@@ -221,7 +221,7 @@ export function Properties() {
                 )}
               </div>
             </Row>
-            {iconError !== null && <p className={styles.fieldError}>{iconError}</p>}
+            {iconError !== null && <p className={styles.warning}>{iconError}</p>}
             <Row label="Type">
               <select
                 className={styles.select}

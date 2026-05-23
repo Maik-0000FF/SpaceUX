@@ -441,9 +441,13 @@ function SectorLabel({
     .filter(Boolean)
     .join(' ');
   // With an icon, stack it above the label; without one, the label keeps
-  // sitting on the radial point (no change for icon-less menus).
+  // sitting on the radial point (no change for icon-less menus). When the
+  // label is empty, centre the icon on the radial point instead of leaving a
+  // gap where the label would be.
   const icon = iconSize > 0 && isRenderableIcon(node.icon) ? node.icon : null;
-  const labelY = icon !== null ? y + iconSize * 0.5 : y;
+  const hasLabel = node.label.trim().length > 0;
+  const iconTop = hasLabel ? y - iconSize : y - iconSize / 2;
+  const labelY = icon !== null && hasLabel ? y + iconSize * 0.5 : y;
   return (
     <>
       {icon !== null && (
@@ -451,7 +455,7 @@ function SectorLabel({
           className="pie-icon"
           href={icon}
           x={x - iconSize / 2}
-          y={y - iconSize}
+          y={iconTop}
           width={iconSize}
           height={iconSize}
           preserveAspectRatio="xMidYMid meet"
