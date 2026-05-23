@@ -265,8 +265,9 @@ export type PieThemeChoice = 'dark' | 'light' | 'spaceux';
 export type PieAppearance = {
   theme: PieThemeChoice;
   opacity: number;
-  /** Label font-size multiplier (1 = the baseline 18px). Scales sector labels
-   *  in both the live pie and the editor preview via `--pie-label-scale`. */
+  /** Label size as a fraction of the per-segment fit (1 = 100% = fill the
+   *  segment; less = smaller). Applied in both the live pie and the editor
+   *  preview via `--pie-label-scale`. */
   labelScale: number;
 };
 

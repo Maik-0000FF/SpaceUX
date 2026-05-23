@@ -173,7 +173,9 @@
 
 .cancelLabel {
   fill: var(--pie-cancel-label);
-  font-size: 18px;
+  // Centre label scales with the Label slider too (no per-segment fit — the
+  // centre isn't a segment), so one control covers all labels.
+  font-size: calc(18px * var(--pie-label-scale, 1));
   font-weight: 600;
   pointer-events: none;
 }
