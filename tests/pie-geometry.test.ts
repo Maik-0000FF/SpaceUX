@@ -27,19 +27,19 @@ import {
 import type { GestureBinding, InputBinding } from '../src/shared/menu';
 
 describe('truncatePieLabel', () => {
-  it('keeps labels of 10 code points or fewer', () => {
+  it('keeps labels of 6 code points or fewer', () => {
     expect(truncatePieLabel('Files')).toBe('Files');
-    expect(truncatePieLabel('1234567890')).toBe('1234567890'); // exactly 10
+    expect(truncatePieLabel('123456')).toBe('123456'); // exactly 6
   });
 
-  it('truncates longer labels to 9 chars + ellipsis', () => {
-    expect(truncatePieLabel('12345678901')).toBe('123456789…');
-    expect(truncatePieLabel('VeryLongLabelName')).toBe('VeryLongL…');
+  it('truncates from the 7th char to 5 chars + ellipsis', () => {
+    expect(truncatePieLabel('1234567')).toBe('12345…');
+    expect(truncatePieLabel('VeryLongLabelName')).toBe('VeryL…');
   });
 
   it('counts by code point (emoji = one char)', () => {
-    // 9 emoji + ellipsis, not split surrogate pairs.
-    expect(truncatePieLabel('🔊🔊🔊🔊🔊🔊🔊🔊🔊🔊🔊')).toBe('🔊🔊🔊🔊🔊🔊🔊🔊🔊…');
+    // 5 emoji + ellipsis, not split surrogate pairs.
+    expect(truncatePieLabel('🔊🔊🔊🔊🔊🔊🔊')).toBe('🔊🔊🔊🔊🔊…');
   });
 });
 

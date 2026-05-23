@@ -89,10 +89,11 @@ export const INNER_LABEL_RATIO = 0.62;
 const TAU = Math.PI * 2;
 
 /** Pie-segment labels are capped at this many characters (counted by code
- *  point, so emoji/CJK count as one) — long names are truncated with an
- *  ellipsis so they can't overflow a wedge. Applies only in the pie/preview
- *  segments; the editor tree shows full labels. */
-export const MAX_PIE_LABEL_CHARS = 10;
+ *  point, so emoji/CJK count as one) — long names are truncated so they can't
+ *  overflow a wedge. The ellipsis counts toward the cap, so a truncated label
+ *  is 5 chars + "…". Applies only in the pie/preview segments; the editor tree
+ *  shows full labels. The same cap drives the per-segment font fit below. */
+export const MAX_PIE_LABEL_CHARS = 6;
 
 /** Truncate a label for display inside a pie segment. */
 export function truncatePieLabel(label: string): string {
