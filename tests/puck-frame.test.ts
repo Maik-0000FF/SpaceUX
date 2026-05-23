@@ -261,31 +261,44 @@ describe('resolvePuckFrame — back / pop / dismiss', () => {
   });
 });
 
-describe('resolvePuckFrame — cross-talk guard', () => {
-  it('suppresses lateral selection when the back axis is deflected on its non-firing half', () => {
-    // Back bound to tz-positive only: tz=-100 doesn't fire back, but the
-    // axis is engaged, so lateral hover/drill is quieted. The later
-    // gestures' memory passes through untouched.
+describe('resolvePuckFrame — cross-talk guard (direction-aware, #160)', () => {
+  it('a directional back no longer suppresses its opposite half — a TZ split works', () => {
+    // back on TZ− (press), drill on TZ+ (lift) — the Press/Lift split.
+    // Lifting must drill the twist-hovered branch, not be quieted by the
+    // back-axis cross-talk guard (which used to block the whole axis).
     const r = resolvePuckFrame({
       menuConfig: config(
         nav({
-          back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }] },
+          aim: 'twist',
+          cycle: {
+            inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
+            priority: 'twist',
+          },
+          drillIn: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'positive', threshold: 50 }] },
+          back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }] },
         }),
+      ),
+      axes: axes({ tz: 100 }), // lift; no twist this frame
+      navigation: [],
+      sticky: 0, // a branch, reached earlier by twisting
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'drill', index: 0 });
+  });
+
+  it('still suppresses lateral when a both-direction back is deflected (held back)', () => {
+    // back TZ both, held (no rising edge): the frame resolves to none and
+    // lateral never sneaks through while the puck rests on the back axis.
+    const r = resolvePuckFrame({
+      menuConfig: config(
+        nav({ back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] } }),
       ),
       axes: axes({ tz: -100, ty: 100 }),
       navigation: [],
       sticky: null,
-      edges: { activate: false, exit: false, commit: false, back: false, drill: true, cycle: true },
+      edges: { ...FRESH, back: true },
     });
     expect(r.outcome).toEqual({ kind: 'none' });
-    expect(r.edges).toEqual({
-      activate: false,
-      exit: false,
-      commit: false,
-      back: false,
-      drill: true,
-      cycle: true,
-    });
   });
 });
 

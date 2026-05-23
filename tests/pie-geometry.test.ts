@@ -282,13 +282,15 @@ describe('backAxisEngaged', () => {
     expect(backAxisEngaged(back, { ...ZERO, tz: 40 })).toBe(false);
   });
 
-  it('is direction-agnostic — even the half ceded to a split suppresses lateral', () => {
+  it('is direction-aware — a directional back leaves its other half free (#160)', () => {
     const back: GestureBinding = {
       inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 50 }],
     };
-    // The positive half is ceded to a commit gesture, yet a positive
-    // deflection still quiets lateral (cross-talk is sign-agnostic).
-    expect(backAxisEngaged(back, { ...ZERO, tz: 60 })).toBe(true);
+    // back is TZ−: a negative deflection still suppresses lateral...
+    expect(backAxisEngaged(back, { ...ZERO, tz: -60 })).toBe(true);
+    // ...but the positive half is now free (e.g. for a TZ+ drill — the
+    // Press/Lift split), no longer quieted by the cross-talk guard.
+    expect(backAxisEngaged(back, { ...ZERO, tz: 60 })).toBe(false);
   });
 
   it('ignores non-axis inputs', () => {

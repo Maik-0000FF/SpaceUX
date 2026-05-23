@@ -264,14 +264,20 @@ export function cycleStepFromInputs(inputs: readonly InputBinding[], axes: SixAx
 /**
  * Whether the back gesture's axis is deflected enough to suppress the
  * lateral selection this frame — the generalised cross-talk guard.
- * Direction-agnostic (uses |value|, like the old TZ guard) so a back
- * deflection in *either* sense quiets lateral hover/drill, even the half
- * ceded to a split. Only `axis` inputs participate; button/magnitude
- * back bindings don't induce lateral cross-talk.
+ *
+ * Direction-*aware* (#160): a back bound to one half of an axis only
+ * suppresses when the deflection is on that half, leaving the other half
+ * free for a different gesture. So a TZ− back no longer blocks a TZ+ drill
+ * — the "press = back, lift = deeper" split now works. A `both` back still
+ * quiets either sense (the historical TZ-cancel rule, where the whole axis
+ * means back). Only `axis` inputs participate; button/magnitude back
+ * bindings don't induce lateral cross-talk.
  */
 export function backAxisEngaged(back: GestureBinding, axes: SixAxes): boolean {
   return back.inputs.some(
-    (input) => input.kind === 'axis' && Math.abs(axisValue(axes, input.axis)) > input.threshold,
+    (input) =>
+      input.kind === 'axis' &&
+      meetsActivation(axisValue(axes, input.axis), input.direction, input.threshold),
   );
 }
 
