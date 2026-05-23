@@ -214,7 +214,9 @@ export function PieMenu({
   // centre when nothing is hovered at the top (you're "on" the centre), else
   // the current ring's dot (top ring = second dot). The centre dot turns red
   // when the centre is a cancel target.
-  const dotCount = 1 + menuTreeDepth(config);
+  // Memoised: PieMenu re-renders every axes frame, but the tree shape only
+  // changes when the config does.
+  const dotCount = useMemo(() => 1 + menuTreeDepth(config), [config]);
   const atCentre = navigation.length === 0 && cancelActive;
   const activeDot = Math.min(atCentre ? 0 : navigation.length + 1, dotCount - 1);
 

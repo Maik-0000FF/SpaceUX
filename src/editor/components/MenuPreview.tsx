@@ -354,6 +354,7 @@ export function MenuPreview() {
       <div
         className="pie-depth-dots"
         style={{ ['--depth-dot-size']: `${displaySize * 0.02}px` } as CSSProperties}
+        aria-hidden="true"
       >
         {Array.from({ length: dotCount }, (_, i) => {
           const cancel = i === 0 && isCancelNode(config.root);
