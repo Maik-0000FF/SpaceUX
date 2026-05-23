@@ -7,6 +7,8 @@ import {
   AIM_SOURCES,
   DEFAULT_GESTURE_THRESHOLD,
   DEFAULT_TWIST_CYCLE_THRESHOLD,
+  MAX_LATERAL_DEADZONE,
+  MIN_LATERAL_DEADZONE,
   TWIST_CYCLE_PRIORITIES,
   resolveNavigation,
   type AimSource,
@@ -112,6 +114,24 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
             </option>
           ))}
         </select>
+      </Row>
+      <Row label="Aim deadzone">
+        <input
+          type="range"
+          min={MIN_LATERAL_DEADZONE}
+          max={MAX_LATERAL_DEADZONE}
+          step={5}
+          // Inert for twist aiming (no lateral pointer), so disable it there
+          // rather than imply it does something.
+          disabled={nav.aim === 'twist'}
+          value={nav.deadzone}
+          onChange={(e) =>
+            commit((n) => {
+              n.deadzone = Number(e.target.value);
+            })
+          }
+        />
+        <span className={styles.navThreshold}>{nav.deadzone}</span>
       </Row>
       {twistNeedsCycle && (
         <div className={styles.warning}>

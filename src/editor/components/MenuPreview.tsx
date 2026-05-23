@@ -134,7 +134,8 @@ export function MenuPreview() {
   // up with the rendered (rotated) outer ring. Null inside the deadzone —
   // so a centred puck highlights nothing, like the real pie.
   const invert = resolveAxisInvert(config);
-  const aim = resolveNavigation(config).aim;
+  const nav = resolveNavigation(config);
+  const aim = nav.aim;
   // null for the twist source (no lateral pointer) — the preview then
   // highlights nothing from deflection, matching the overlay.
   const aimVec =
@@ -152,6 +153,7 @@ export function MenuPreview() {
     ? axesToSector(rotateAxes(aimVec, -activeRotation), {
         ...DEFAULT_PIE_GEOMETRY,
         sectorCount: count,
+        deadzone: nav.deadzone,
         invertX: invert.x,
         invertY: invert.y,
       })

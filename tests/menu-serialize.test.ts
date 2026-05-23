@@ -70,6 +70,7 @@ describe('serializeMenuConfig', () => {
       version: 1,
       navigation: {
         aim: 'tilt',
+        deadzone: 80,
         drillIn: { inputs: [{ kind: 'magnitude', source: 'tilt', threshold: 200 }] },
         back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 60 }] },
         cycle: {
@@ -89,6 +90,7 @@ describe('serializeMenuConfig', () => {
 
   it('omits the default push aim but emits a non-default one (#159)', () => {
     const base = {
+      deadzone: 50,
       drillIn: { inputs: [] },
       back: { inputs: [] },
       cycle: { inputs: [], priority: 'lateral' as const },

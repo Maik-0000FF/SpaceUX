@@ -40,6 +40,7 @@ const FRESH: PuckEdges = {
  *  partial would drop the unspecified gestures). */
 const nav = (over: Partial<MenuNavigation>): MenuNavigation => ({
   aim: 'push',
+  deadzone: 50,
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
@@ -373,6 +374,12 @@ describe('resolvePuckFrame — aim source (#159)', () => {
     // (-60) they cross it and aim the top sector — proving equal contribution.
     expect(hover(nav({ aim: 'push' }), { ty: -30 })).toEqual({ kind: 'none' });
     expect(hover(nav({ aim: 'both' }), { ty: -30, ry: -30 })).toEqual({ kind: 'hover', index: 0 });
+  });
+
+  it('deadzone gates lateral aiming — a deflection under it hovers nothing (#160)', () => {
+    // ty −100 is over the default 50 deadzone (hovers), but under a 150 one.
+    expect(hover(nav({ deadzone: 50 }), { ty: -100 })).toEqual({ kind: 'hover', index: 0 });
+    expect(hover(nav({ deadzone: 150 }), { ty: -100 })).toEqual({ kind: 'none' });
   });
 
   it('twist turns lateral pointing off — push and tilt no longer aim', () => {

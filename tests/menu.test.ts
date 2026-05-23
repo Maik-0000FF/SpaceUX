@@ -637,6 +637,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
   it('accepts a full navigation block and round-trips every gesture', () => {
     const navigation = {
       aim: 'both',
+      deadzone: 120,
       drillIn: { inputs: [{ kind: 'magnitude', source: 'lateral', threshold: 250 }] },
       back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
       cycle: {
@@ -665,6 +666,7 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
     if (r.ok) {
       expect(r.config.navigation).toEqual({
         aim: 'push',
+        deadzone: 50,
         drillIn: { inputs: [{ kind: 'none' }] },
         back: { inputs: [] },
         cycle: { inputs: [], priority: 'lateral' },
@@ -672,6 +674,24 @@ describe('validateMenuConfig — navigation (issue #105)', () => {
         activate: { inputs: [] },
       });
     }
+  });
+
+  it('clamps an out-of-range deadzone and rejects a non-number (#160)', () => {
+    const tooBig = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: { deadzone: 9999 },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(tooBig.ok).toBe(true);
+    if (tooBig.ok) expect(tooBig.config.navigation?.deadzone).toBe(500); // MAX_LATERAL_DEADZONE
+
+    const bad = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      navigation: { deadzone: 'wide' },
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.reason).toMatch(/"deadzone" must be a finite number/);
   });
 
   it('rejects an unknown aim source (#159)', () => {

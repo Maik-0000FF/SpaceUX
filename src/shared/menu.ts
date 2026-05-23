@@ -39,6 +39,14 @@ export const MAX_MENU_DEPTH = 16;
 export const MIN_PIE_SCALE = 0.5;
 export const MAX_PIE_SCALE = 2;
 
+/** Bounds + default for the lateral aiming deadzone (navigation.deadzone),
+ *  in the same raw axis units the daemon broadcasts. A puck deflection
+ *  below this magnitude selects no sector — the dead spot around centre.
+ *  Default 50 matches the historical fixed value (DEFAULT_PIE_GEOMETRY). */
+export const MIN_LATERAL_DEADZONE = 0;
+export const MAX_LATERAL_DEADZONE = 500;
+export const DEFAULT_LATERAL_DEADZONE = 50;
+
 /** Reverse-DNS-style namespace under which built-in actions live in
  *  the action registry. Identical in shape to a 3rd-party plugin id
  *  so the dispatch path (invokeAction("<plugin>/<action>", config))
@@ -267,6 +275,12 @@ export type MenuNavigation = {
    *  to `push` (TX/TY) — the historical hardwired behaviour. See
    *  :type:`AimSource`. Issue #159. */
   aim: AimSource;
+  /** Lateral aiming deadzone — puck deflection below this magnitude selects
+   *  no sector. Clamped to [:data:`MIN_LATERAL_DEADZONE`,
+   *  :data:`MAX_LATERAL_DEADZONE`]; defaults to
+   *  :data:`DEFAULT_LATERAL_DEADZONE`. Only affects the 2D aim sources;
+   *  `aim: 'twist'` has no lateral pointer so it's inert there. Issue #160. */
+  deadzone: number;
   /** Drill into a hovered branch. Legacy: magnitudeDrill + tiltDrill + twistDrill. */
   drillIn: GestureBinding;
   /** Pop one level (drilled) or dismiss (top level). Legacy: TZ-back via tzDeadzone. */
@@ -307,6 +321,7 @@ function deepFreeze<T>(value: T): T {
  *  freezing guards the shared singleton against accidental mutation. */
 export const DEFAULT_NAVIGATION: MenuNavigation = deepFreeze({
   aim: 'push',
+  deadzone: DEFAULT_LATERAL_DEADZONE,
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
@@ -494,6 +509,7 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
 ];
 const KNOWN_NAVIGATION_FIELDS: readonly string[] = [
   'aim',
+  'deadzone',
   'drillIn',
   'back',
   'cycle',
@@ -807,6 +823,19 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
     }
     aim = o.aim as AimSource;
   }
+  // Deadzone: optional finite number, clamped to bounds; defaults to the
+  // historical 50 when omitted (#160). Mirrors the scale clamp — an
+  // out-of-range value is pulled into range rather than rejected.
+  let deadzone = DEFAULT_LATERAL_DEADZONE;
+  if (o.deadzone !== undefined) {
+    if (typeof o.deadzone !== 'number' || !Number.isFinite(o.deadzone)) {
+      return {
+        ok: false,
+        reason: `${where} field "deadzone" must be a finite number when present`,
+      };
+    }
+    deadzone = Math.min(MAX_LATERAL_DEADZONE, Math.max(MIN_LATERAL_DEADZONE, o.deadzone));
+  }
   const drillIn = validateGestureBinding(o.drillIn, `${where}.drillIn`);
   if (!drillIn.ok) return { ok: false, reason: drillIn.reason };
   const back = validateGestureBinding(o.back, `${where}.back`);
@@ -822,6 +851,7 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
     ok: true,
     value: {
       aim,
+      deadzone,
       drillIn: drillIn.value,
       back: back.value,
       cycle: cycle.value,
@@ -1088,6 +1118,8 @@ function orderNavigation(nav: MenuNavigation): Record<string, unknown> {
   // field — only a non-default aim source is written (#159), keeping the
   // additive field out of every serialized config.
   if (nav.aim !== 'push') out.aim = nav.aim;
+  // Omit the default deadzone so unchanged configs don't gain the field.
+  if (nav.deadzone !== DEFAULT_LATERAL_DEADZONE) out.deadzone = nav.deadzone;
   out.drillIn = { inputs: nav.drillIn.inputs.map(orderInput) };
   out.back = { inputs: nav.back.inputs.map(orderInput) };
   out.cycle = { inputs: nav.cycle.inputs.map(orderInput), priority: nav.cycle.priority };

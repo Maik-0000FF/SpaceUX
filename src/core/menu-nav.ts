@@ -459,6 +459,7 @@ export function resolvePuckFrame(args: {
       : axesToSector(rotateAxes(aimed, -ringRotation), {
           ...DEFAULT_PIE_GEOMETRY,
           sectorCount: current.length,
+          deadzone: nav.deadzone,
           invertX: invert.x,
           invertY: invert.y,
         });
