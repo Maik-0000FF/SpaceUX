@@ -12,6 +12,9 @@ import {
   type MenuConfigSnapshot,
   type MenuWriteResult,
   type PieAppearance,
+  type PluginCategory,
+  type PluginImportResult,
+  type PluginsState,
   type ProfileActionResult,
   type ProfilesState,
   type ThemeChoice,
@@ -65,6 +68,16 @@ const bridge: EditorBridge = {
   },
   getAvailableActions: () =>
     ipcRenderer.invoke(IpcChannel.EDITOR_GET_ACTIONS) as Promise<EditorAction[]>,
+  onActionsChanged: (handler) => {
+    const listener = () => handler();
+    ipcRenderer.on(IpcChannel.EDITOR_ACTIONS_CHANGED, listener);
+    return () => ipcRenderer.off(IpcChannel.EDITOR_ACTIONS_CHANGED, listener);
+  },
+  getPlugins: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_PLUGINS) as Promise<PluginsState>,
+  importPlugin: () =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_IMPORT_PLUGIN) as Promise<PluginImportResult>,
+  uninstallPlugin: (kind: PluginCategory, id: string) =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_UNINSTALL_PLUGIN, kind, id) as Promise<PluginsState>,
   getProfiles: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_PROFILES) as Promise<ProfilesState>,
   onProfilesChanged: (handler) => {
     const listener = (_evt: IpcRendererEvent, state: ProfilesState) => handler(state);

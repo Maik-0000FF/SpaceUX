@@ -65,6 +65,19 @@ export type ActionDescriptor = {
   config?: ActionConfigSchema;
 };
 
+/** A plugin's category. Decides which subdirectory of the managed
+ *  `extensions/` tree it installs into and how the host treats it:
+ *    - `function` — contributes actions / a pie menu (e.g. FreeCAD).
+ *    - `theme`    — styles the pie (theme/design plugin, #47).
+ *  The folder name and this value are kept identical so a plugin is
+ *  self-describing and the importer can route it without guessing. New
+ *  categories are added here and to the loader's category list together. */
+export type PluginKind = 'function' | 'theme';
+
+/** Every recognised plugin kind, in one place so the loader, the importer,
+ *  and the manifest validator agree on the set. */
+export const PLUGIN_KINDS: readonly PluginKind[] = ['function', 'theme'];
+
 /** manifest.json shape. */
 export type PluginManifest = {
   /** Plugin API contract version this plugin was written against.
@@ -74,6 +87,10 @@ export type PluginManifest = {
    *  later host fails fast with an actionable message instead of
    *  crashing at first trigger when it touches a missing API. */
   apiVersion: number;
+  /** Which category this plugin belongs to — picks the managed
+   *  `extensions/<kind>/` folder it installs into and how the host loads it.
+   *  Must equal the folder it's found under (the loader flags a mismatch). */
+  kind: PluginKind;
   /** Reverse-DNS-style id, e.g. "org.spaceux.example-launch". */
   id: string;
   /** Human-readable plugin name. */

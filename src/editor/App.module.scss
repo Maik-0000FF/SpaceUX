@@ -38,38 +38,38 @@
   flex: none;
 }
 
+.tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tab {
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--editor-fg-dim);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--editor-hover);
+    color: var(--editor-fg);
+  }
+}
+
+.tabActive {
+  background: var(--editor-hover);
+  color: var(--editor-fg);
+  border-color: var(--editor-border);
+}
+
 .toolbarControls {
   display: inline-flex;
   align-items: center;
   gap: 16px;
-}
-
-.themeControl {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.themeLabel {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--editor-fg-dim);
-}
-
-.themeSelect {
-  padding: 4px 8px;
-  border: 1px solid var(--editor-border);
-  border-radius: 5px;
-  background: var(--editor-input-bg);
-  color: var(--editor-fg);
-  font: inherit;
-  font-size: 12px;
-
-  &:focus {
-    outline: none;
-    border-color: var(--editor-accent);
-  }
 }
 
 .shell {

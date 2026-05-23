@@ -7,6 +7,9 @@ import {
   IpcChannel,
   type EditorAction,
   type MenuConfigSnapshot,
+  type PluginCategory,
+  type PluginImportResult,
+  type PluginsState,
   type ThemeChoice,
 } from '../shared/ipc.js';
 import { DEFAULT_MENU_CONFIG, type MenuConfig } from '../shared/menu.js';
@@ -33,6 +36,14 @@ export interface EditorIpcDeps {
   /** The actions the editor can offer in the Action dropdown (builtins +
    *  loaded plugins), flattened from main's action index. */
   listActions: () => EditorAction[];
+  /** Installed plugins + load errors for the plugin manager. */
+  getPlugins: () => Promise<PluginsState>;
+  /** Import the plugin folder at `srcDir`: validate, copy into the managed
+   *  tree by `kind`, reload, and resolve with the outcome. */
+  importPlugin: (srcDir: string) => Promise<PluginImportResult>;
+  /** Uninstall a plugin (delete its managed folder) and reload; resolves to
+   *  the refreshed state. */
+  uninstallPlugin: (kind: PluginCategory, id: string) => Promise<PluginsState>;
 }
 
 /**
@@ -73,9 +84,28 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
     },
   );
 
-  // Available actions for the Action dropdown. Pulled on mount;
-  // static for the session (plugins load at startup), so no push channel.
+  // Available actions for the Action dropdown. Pulled on mount, and re-pulled
+  // when EDITOR_ACTIONS_CHANGED fires after a plugin import/uninstall.
   ipcMain.handle(IpcChannel.EDITOR_GET_ACTIONS, (): EditorAction[] => deps.listActions());
+
+  // Plugin manager: list installed plugins, import a downloaded folder, or
+  // uninstall one. Import opens a native folder picker (parented to the
+  // editor) and hands the chosen path to main, which validates + copies it
+  // into the managed tree and reloads.
+  ipcMain.handle(IpcChannel.EDITOR_GET_PLUGINS, (): Promise<PluginsState> => deps.getPlugins());
+  ipcMain.handle(IpcChannel.EDITOR_IMPORT_PLUGIN, async (): Promise<PluginImportResult> => {
+    const parent = BrowserWindow.getFocusedWindow();
+    const result = await (parent
+      ? dialog.showOpenDialog(parent, { properties: ['openDirectory'] })
+      : dialog.showOpenDialog({ properties: ['openDirectory'] }));
+    if (result.canceled || result.filePaths.length === 0) return { ok: 'cancelled' };
+    return deps.importPlugin(result.filePaths[0]!);
+  });
+  ipcMain.handle(
+    IpcChannel.EDITOR_UNINSTALL_PLUGIN,
+    (_evt, kind: PluginCategory, id: string): Promise<PluginsState> =>
+      deps.uninstallPlugin(kind, id),
+  );
 
   // Editor mounted. No-op: the editor pulls via EDITOR_GET_MENU_CONFIG;
   // the handler exists so the renderer's fire-and-forget `ready()` has a

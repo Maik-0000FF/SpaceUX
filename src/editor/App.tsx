@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import type { ThemeChoice } from '@/shared/ipc';
+import { useState } from 'react';
 
 import { DeviceStatus } from './components/DeviceStatus';
 import { LiveToggle } from './components/LiveToggle';
@@ -11,6 +11,7 @@ import { NavigationStyle } from './components/NavigationStyle';
 import { PieDesignControls } from './components/PieDesignControls';
 import { ProfileControls } from './components/ProfileControls';
 import { Properties } from './components/Properties';
+import { SettingsPage } from './components/SettingsPage';
 import { useDeviceInfo } from './hooks/useDeviceInfo';
 import { useExternalSync } from './hooks/useExternalSync';
 import { useThemePreference } from './hooks/useThemePreference';
@@ -31,6 +32,7 @@ export function App() {
   const conflictCause = useMenuSettings((s) => s.conflictCause);
   const saveError = useMenuSettings((s) => s.saveError);
   const device = useDeviceInfo();
+  const [tab, setTab] = useState<'menu' | 'settings'>('menu');
 
   const { theme, changeTheme } = useThemePreference();
   useExternalSync();
@@ -70,24 +72,31 @@ export function App() {
       <header className={styles.toolbar}>
         <div className={styles.toolbarLeft}>
           <span className={styles.brand}>SpaceUX</span>
+          <nav className={styles.tabs}>
+            <button
+              type="button"
+              className={tab === 'menu' ? `${styles.tab} ${styles.tabActive}` : styles.tab}
+              onClick={() => setTab('menu')}
+              aria-current={tab === 'menu'}
+            >
+              Menu
+            </button>
+            <button
+              type="button"
+              className={tab === 'settings' ? `${styles.tab} ${styles.tabActive}` : styles.tab}
+              onClick={() => setTab('settings')}
+              aria-current={tab === 'settings'}
+            >
+              Settings
+            </button>
+          </nav>
           <DeviceStatus />
         </div>
-        <div className={styles.toolbarControls}>
-          <ProfileControls />
-          <label className={styles.themeControl}>
-            <span className={styles.themeLabel}>Theme</span>
-            <select
-              className={styles.themeSelect}
-              value={theme}
-              onChange={(e) => changeTheme(e.target.value as ThemeChoice)}
-            >
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="spaceux">SpaceUX</option>
-            </select>
-          </label>
-        </div>
+        {tab === 'menu' && (
+          <div className={styles.toolbarControls}>
+            <ProfileControls />
+          </div>
+        )}
       </header>
       {conflict !== null ? (
         <div className={styles.bannerConflict} role="alert">
@@ -138,22 +147,26 @@ export function App() {
         </div>
       ) : null}
 
-      <div className={styles.shell}>
-        <MenuList />
-        <main className={styles.center}>
-          <div className={styles.designBar}>
-            <div className={styles.designGroup}>
-              <PieDesignControls />
-              <NavigationStyle />
+      {tab === 'menu' ? (
+        <div className={styles.shell}>
+          <MenuList />
+          <main className={styles.center}>
+            <div className={styles.designBar}>
+              <div className={styles.designGroup}>
+                <PieDesignControls />
+                <NavigationStyle />
+              </div>
+              <LiveToggle />
             </div>
-            <LiveToggle />
-          </div>
-          <div className={styles.previewArea}>
-            <MenuPreview />
-          </div>
-        </main>
-        <Properties />
-      </div>
+            <div className={styles.previewArea}>
+              <MenuPreview />
+            </div>
+          </main>
+          <Properties />
+        </div>
+      ) : (
+        <SettingsPage theme={theme} changeTheme={changeTheme} />
+      )}
     </div>
   );
 }

@@ -30,6 +30,10 @@ export const BUILTIN_PLUGIN: LoadedPlugin = {
     // the check trivially satisfied; bumps stay synchronous with the
     // host on purpose.
     apiVersion: PLUGIN_API_VERSION,
+    // Built-ins contribute actions, so they're a `function`-kind plugin —
+    // they're never installed/scanned, but the manifest must satisfy the
+    // PluginManifest shape.
+    kind: 'function',
     id: BUILTIN_PLUGIN_ID,
     name: 'Built-in Actions',
     version: '0.0.1',

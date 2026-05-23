@@ -10,9 +10,11 @@ import { describeError } from '../shared/errors.js';
 import {
   MIN_SUPPORTED_PLUGIN_API_VERSION,
   PLUGIN_API_VERSION,
+  PLUGIN_KINDS,
   type ActionContext,
   type ActionDescriptor,
   type ActionHandler,
+  type PluginKind,
   type PluginManifest,
   type PluginModule,
 } from '../shared/plugin-types.js';
@@ -21,15 +23,24 @@ import { dedupPreserveOrder } from '../shared/util.js';
 import type { DaemonClient } from './daemon-client.js';
 
 /**
- * Discover plugins under the standard XDG paths, validate their
- * manifest, and import their handler module.
+ * Discover, validate, and import plugins from the managed `extensions/`
+ * tree. Plugins live in a per-category subdirectory keyed by their
+ * manifest `kind`, so the layout is self-describing and future-proof:
  *
- * Search order (first hit wins per plugin id):
- *   1. $XDG_DATA_HOME/spaceux/plugins/<id>/
- *   2. ~/.local/share/spaceux/plugins/<id>/
- *   3. /usr/local/share/spaceux/plugins/<id>/
- *   4. /usr/share/spaceux/plugins/<id>/
- *   5. The repo-local `plugins/` directory (development convenience).
+ *   <root>/extensions/function/<id>/   — action / menu plugins (e.g. FreeCAD)
+ *   <root>/extensions/theme/<id>/      — pie theme/design plugins (#47)
+ *
+ * Search roots, highest precedence first (first hit wins per id, so a
+ * user copy shadows a system one):
+ *   1. $XDG_DATA_HOME/spaceux/extensions (else ~/.local/share/spaceux/
+ *      extensions) — the user-writable root the importer copies into.
+ *   2. /usr/local/share/spaceux/extensions
+ *   3. /usr/share/spaceux/extensions
+ *   4. <repo>/extensions  (development convenience)
+ *
+ * Users don't point the loader at arbitrary folders; they *import* a
+ * downloaded plugin (see plugin-installer), which copies it into the
+ * user-writable root under the right category.
  *
  * The loader never throws on a bad plugin — it logs and skips so one
  * misbehaving plugin can't take the whole UI down. Plugin authors get
@@ -47,23 +58,48 @@ export type LoadResult = {
   errors: { dir: string; reason: string }[];
 };
 
-export function pluginSearchPaths(repoRoot?: string): string[] {
+/** The user-writable extensions root — where the importer copies plugins and
+ *  the first place the loader looks. $XDG_DATA_HOME/spaceux/extensions, else
+ *  ~/.local/share/spaceux/extensions. */
+export function userExtensionsRoot(): string {
   const xdg = process.env.XDG_DATA_HOME?.trim();
-  const home = os.homedir();
+  const base = xdg && xdg.length > 0 ? xdg : path.join(os.homedir(), '.local', 'share');
+  return path.join(base, 'spaceux', 'extensions');
+}
+
+/** Every extensions root to search, highest precedence first. */
+export function extensionRoots(repoRoot?: string): string[] {
   return dedupPreserveOrder<string>([
-    xdg ? path.join(xdg, 'spaceux', 'plugins') : null,
-    path.join(home, '.local', 'share', 'spaceux', 'plugins'),
-    '/usr/local/share/spaceux/plugins',
-    '/usr/share/spaceux/plugins',
-    repoRoot ? path.join(repoRoot, 'plugins') : null,
+    userExtensionsRoot(),
+    '/usr/local/share/spaceux/extensions',
+    '/usr/share/spaceux/extensions',
+    repoRoot ? path.join(repoRoot, 'extensions') : null,
   ]);
 }
 
-export async function loadPlugins(searchPaths: string[]): Promise<LoadResult> {
+/** The per-category scan dirs (`<root>/<category>`) across every root. */
+export function pluginCategoryPaths(category: PluginKind, repoRoot?: string): string[] {
+  return extensionRoots(repoRoot).map((root) => path.join(root, category));
+}
+
+/** Absolute install directory for a plugin of the given kind + id in the
+ *  user-writable root — the importer's copy target and an uninstall's delete
+ *  target. */
+export function pluginInstallDir(kind: PluginKind, id: string): string {
+  return path.join(userExtensionsRoot(), kind, id);
+}
+
+/**
+ * Load every plugin of one category. `category` is both the subdirectory
+ * scanned under each root and the `kind` each manifest must declare — a
+ * mismatch (a plugin dropped in the wrong folder) is reported as an error
+ * rather than loaded, so the on-disk layout stays trustworthy.
+ */
+export async function loadPlugins(category: PluginKind, repoRoot?: string): Promise<LoadResult> {
   const out: LoadResult = { plugins: [], errors: [] };
   const seenIds = new Set<string>();
 
-  for (const root of searchPaths) {
+  for (const root of pluginCategoryPaths(category, repoRoot)) {
     let entries: string[];
     try {
       entries = await fs.readdir(root);
@@ -84,8 +120,18 @@ export async function loadPlugins(searchPaths: string[]): Promise<LoadResult> {
         out.errors.push({ dir, reason: result.reason });
         continue;
       }
+      if (result.manifest.kind !== category) {
+        // A plugin physically placed in the wrong category folder. The
+        // importer never does this, but a hand-edited tree could — flag it
+        // instead of silently treating it as the folder's category.
+        out.errors.push({
+          dir,
+          reason: `manifest kind "${result.manifest.kind}" does not match the "${category}" folder it is installed in`,
+        });
+        continue;
+      }
       if (seenIds.has(result.manifest.id)) {
-        // Earlier path won — that's the override semantics users
+        // Earlier root won — that's the override semantics users
         // expect ("my local copy shadows the system one").
         continue;
       }
@@ -180,31 +226,125 @@ export function validateManifest(value: unknown): string | null {
     return `manifest apiVersion ${m.apiVersion} is newer than this host supports (max ${PLUGIN_API_VERSION}); update SpaceUX`;
   }
 
+  // kind decides the category folder and which other fields apply, so it's
+  // checked before the kind-specific shape below.
+  if (typeof m.kind !== 'string' || !PLUGIN_KINDS.includes(m.kind as PluginKind)) {
+    return `manifest field "kind" must be one of: ${PLUGIN_KINDS.join(', ')}`;
+  }
+
   for (const key of ['id', 'name', 'version', 'license'] as const) {
     if (typeof m[key] !== 'string' || (m[key] as string).trim() === '') {
       return `manifest field "${key}" must be a non-empty string`;
     }
   }
-  if (!Array.isArray(m.actions) || m.actions.length === 0) {
-    return 'manifest field "actions" must be a non-empty array';
-  }
-  // Duplicates inside one manifest would silently overwrite each
-  // other in the per-plugin handler map at registration time (the
-  // second wins, the first disappears with no error). Reject up
-  // front so the failure surfaces against the manifest rather than
-  // as "this action does nothing" at runtime.
-  const seenNames = new Set<string>();
-  for (const action of m.actions as unknown[]) {
-    if (typeof action !== 'object' || action === null) return 'every action must be an object';
-    const a = action as Record<string, unknown>;
-    if (typeof a.name !== 'string' || a.name.trim() === '')
-      return 'action.name must be a non-empty string';
-    if (typeof a.label !== 'string' || a.label.trim() === '')
-      return 'action.label must be a non-empty string';
-    if (seenNames.has(a.name)) return `action.name "${a.name}" appears more than once`;
-    seenNames.add(a.name);
+
+  // `actions` is the function-plugin payload. Theme plugins (#47) carry a
+  // different, not-yet-defined shape, so the `actions` contract only applies
+  // to `kind: "function"`; a theme manifest without actions is valid here.
+  if (m.kind === 'function') {
+    if (!Array.isArray(m.actions) || m.actions.length === 0) {
+      return 'manifest field "actions" must be a non-empty array';
+    }
+    // Duplicates inside one manifest would silently overwrite each
+    // other in the per-plugin handler map at registration time (the
+    // second wins, the first disappears with no error). Reject up
+    // front so the failure surfaces against the manifest rather than
+    // as "this action does nothing" at runtime.
+    const seenNames = new Set<string>();
+    for (const action of m.actions as unknown[]) {
+      if (typeof action !== 'object' || action === null) return 'every action must be an object';
+      const a = action as Record<string, unknown>;
+      if (typeof a.name !== 'string' || a.name.trim() === '')
+        return 'action.name must be a non-empty string';
+      if (typeof a.label !== 'string' || a.label.trim() === '')
+        return 'action.label must be a non-empty string';
+      if (seenNames.has(a.name)) return `action.name "${a.name}" appears more than once`;
+      seenNames.add(a.name);
+    }
   }
   return null;
+}
+
+/**
+ * Read + validate a plugin's manifest without importing its code. The plugin
+ * manager uses this to list installed plugins — including categories the host
+ * doesn't execute yet (themes, #47) — where importing `index.js` is either
+ * pointless or absent.
+ */
+export type ReadManifestResult =
+  | { ok: true; manifest: PluginManifest }
+  | { ok: false; reason: string };
+
+export async function readPluginManifest(dir: string): Promise<ReadManifestResult> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(path.join(dir, 'manifest.json'), 'utf8');
+  } catch (err) {
+    return { ok: false, reason: `cannot read manifest.json: ${describeError(err)}` };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return { ok: false, reason: `manifest.json is not valid JSON: ${describeError(err)}` };
+  }
+  const manifestErr = validateManifest(parsed);
+  if (manifestErr) return { ok: false, reason: manifestErr };
+  // Explicit `ok` discriminant rather than `'reason' in result`: validateManifest
+  // doesn't reject unknown fields, so a manifest with a top-level "reason" key
+  // would otherwise be misread as a load failure.
+  return { ok: true, manifest: parsed as PluginManifest };
+}
+
+export type InstalledPlugin = { manifest: PluginManifest; dir: string };
+
+/**
+ * Scan one category for installed plugins, reading manifests only (no code
+ * import). Mirrors loadPlugins' precedence + kind-match + dedup rules so the
+ * manager's list matches what the loader would actually run, but works for
+ * non-executable categories too.
+ */
+export async function loadPluginManifests(
+  category: PluginKind,
+  repoRoot?: string,
+): Promise<{ plugins: InstalledPlugin[]; errors: { dir: string; reason: string }[] }> {
+  const plugins: InstalledPlugin[] = [];
+  const errors: { dir: string; reason: string }[] = [];
+  const seenIds = new Set<string>();
+
+  for (const root of pluginCategoryPaths(category, repoRoot)) {
+    let entries: string[];
+    try {
+      entries = await fs.readdir(root);
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const dir = path.join(root, entry);
+      try {
+        if (!(await fs.stat(dir)).isDirectory()) continue;
+      } catch {
+        continue;
+      }
+      const result = await readPluginManifest(dir);
+      if (!result.ok) {
+        errors.push({ dir, reason: result.reason });
+        continue;
+      }
+      const { manifest } = result;
+      if (manifest.kind !== category) {
+        errors.push({
+          dir,
+          reason: `manifest kind "${manifest.kind}" does not match the "${category}" folder it is installed in`,
+        });
+        continue;
+      }
+      if (seenIds.has(manifest.id)) continue;
+      seenIds.add(manifest.id);
+      plugins.push({ manifest, dir });
+    }
+  }
+  return { plugins, errors };
 }
 
 /** Build a per-plugin ActionContext. The logger prefixes every

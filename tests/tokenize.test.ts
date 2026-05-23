@@ -14,7 +14,7 @@ import { tokenize } from '../src/main/builtins/tokenize';
 // function shape; `@ts-expect-error` will fire if a future .d.ts
 // makes the suppression unnecessary.
 // @ts-expect-error -- plain-JS plugin module, no type declarations
-import { tokenize as pluginTokenize } from '../plugins/example-launch/index.js';
+import { tokenize as pluginTokenize } from '../extensions/function/example-launch/index.js';
 
 describe('tokenize', () => {
   it('returns empty array for empty or pure-whitespace input', () => {
@@ -95,7 +95,7 @@ describe('tokenize', () => {
 });
 
 describe('drift guard: built-in vs. example-plugin tokenize', () => {
-  // The example plugin in plugins/example-launch/ duplicates the
+  // The example plugin in extensions/function/example-launch/ duplicates the
   // tokenize function because plugins can't import host internals.
   // The two implementations must agree on every input; this
   // spec table runs the same cases through both and asserts

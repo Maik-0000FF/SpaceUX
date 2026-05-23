@@ -18,7 +18,7 @@ path = [
   "tsconfig.json",
   "tsconfig.electron.json",
   ".prettierrc.json",
-  "plugins/**/manifest.json",
+  "extensions/**/manifest.json",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Maik-0000FF"

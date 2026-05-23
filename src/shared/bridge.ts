@@ -26,6 +26,9 @@ import type {
   MenuOpenPayload,
   MenuWriteResult,
   PieAppearance,
+  PluginCategory,
+  PluginImportResult,
+  PluginsState,
   ProfileActionResult,
   ProfilesState,
   ThemeChoice,
@@ -114,6 +117,19 @@ export type EditorBridge = {
    *  mount, to populate the Action dropdown. Id = the composite
    *  `pluginId/actionName` key; label/description for display. */
   getAvailableActions(): Promise<EditorAction[]>;
+  /** Subscribe to "the action set changed" (plugins were re-loaded after an
+   *  import/uninstall). The handler should re-pull getAvailableActions.
+   *  Returns an unsubscribe fn. */
+  onActionsChanged(handler: () => void): () => void;
+  /** Pull the installed-plugins state (plugins + load errors) on mount. */
+  getPlugins(): Promise<PluginsState>;
+  /** Open a native folder picker and import the chosen plugin folder: main
+   *  validates the manifest, copies it into the managed tree by `kind`, and
+   *  reloads. Resolves with the outcome. */
+  importPlugin(): Promise<PluginImportResult>;
+  /** Uninstall an installed plugin (delete its managed folder) by kind + id;
+   *  resolves to the new state after the reload. */
+  uninstallPlugin(kind: PluginCategory, id: string): Promise<PluginsState>;
   /** Pull the per-device profile list + manual override on mount (#113). */
   getProfiles(): Promise<ProfilesState>;
   /** Subscribe to profile-list / override changes (create / delete /
