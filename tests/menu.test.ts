@@ -102,12 +102,24 @@ describe('validateMenuConfig', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('rejects a node with a blank label', () => {
+  it('rejects a node with a blank label and no icon', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       root: { label: '', branches: [{ label: '   ' }] },
     });
     expect(r.ok).toBe(false);
+  });
+
+  it('accepts an icon-only node (blank label + icon)', () => {
+    // An item identified by its icon alone is valid — a node only needs a
+    // non-empty label OR an icon, so icon-only menus (e.g. FreeCAD commands)
+    // are allowed.
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{ label: '', icon: 'data:image/png;base64,iVBOR' }] },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.root.branches?.[0]?.icon).toBe('data:image/png;base64,iVBOR');
   });
 
   it('accepts a node without a binding (label-only)', () => {

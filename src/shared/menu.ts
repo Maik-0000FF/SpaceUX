@@ -1009,8 +1009,18 @@ function validateNode(raw: unknown, where: string, depth = 0, isRoot = false): N
       label = s.label;
     }
   } else {
-    if (typeof s.label !== 'string' || s.label.trim() === '') {
-      return { ok: false, reason: `${where} field "label" must be a non-empty string` };
+    // A non-root node needs *something* to show: a non-empty label, or an
+    // icon. Icon-only items are allowed (e.g. a FreeCAD command shown by its
+    // icon alone) — but a node with neither would be invisible/unidentifiable.
+    const hasIcon = typeof s.icon === 'string' && s.icon.trim() !== '';
+    if (typeof s.label !== 'string') {
+      return { ok: false, reason: `${where} field "label" must be a string` };
+    }
+    if (s.label.trim() === '' && !hasIcon) {
+      return {
+        ok: false,
+        reason: `${where} field "label" must be non-empty unless the node has an icon`,
+      };
     }
     label = s.label;
   }
