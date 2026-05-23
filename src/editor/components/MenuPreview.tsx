@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
-import { navigationRingRotation } from '@/core/menu-nav';
+import { menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
   DEFAULT_PIE_GEOMETRY,
@@ -111,6 +111,13 @@ export function MenuPreview() {
   const parentRing = isDrilled ? ringBranches(config, viewPath.slice(0, -1)) : [];
   const drilledIntoIndex = isDrilled ? viewPath[viewPath.length - 1]! : -1;
 
+  // Depth dots (shared look with the live overlay): first dot = the centre,
+  // then one per ring level (1 + deepest path). Active = the centre when the
+  // centre is selected, else the current ring's dot. Centre dot is red when
+  // the centre is a cancel target.
+  const dotCount = 1 + menuTreeDepth(config);
+  const activeDot = Math.min(centerSelected ? 0 : viewPath.length + 1, dotCount - 1);
+
   // Same size formula as the live pie so the preview matches its on-screen
   // size and tracks the slider live. The `/ devicePixelRatio` is a
   // compositor-specific correction for this KDE Wayland setup's fractional
@@ -183,69 +190,121 @@ export function MenuPreview() {
   };
 
   return (
-    <svg
-      ref={svgRef}
-      className={styles.pie}
-      style={{ width: displaySize, height: displaySize }}
-      viewBox={`-${VIEW} -${VIEW} ${VIEW * 2} ${VIEW * 2}`}
-      role="group"
-      aria-label="Menu preview"
-      onPointerMove={(e) => {
-        if (dragFrom === null) return;
-        const to = sectorUnderPointer(e);
-        if (to !== null) setDropTo(to);
-      }}
-      onPointerUp={() => {
-        if (dragFrom === null) return;
-        const from = dragFrom;
-        const to = dropTo;
-        endDrag();
-        if (to !== null && to !== from) {
-          moveNode(viewPath, from, to);
-          selectNode(to);
-        } else if (currentRing[from]?.branches?.length) {
-          drillInto(from); // click a branch → go in (it becomes the outer ring)
-        } else {
-          selectNode(from); // click a leaf → select for editing
-        }
-      }}
-      onPointerCancel={endDrag}
-    >
-      {/* Breadcrumb ring (the parent menu) — only when drilled in. Dimmed
+    <div className={styles.previewWrap}>
+      <svg
+        ref={svgRef}
+        className={styles.pie}
+        style={{ width: displaySize, height: displaySize }}
+        viewBox={`-${VIEW} -${VIEW} ${VIEW * 2} ${VIEW * 2}`}
+        role="group"
+        aria-label="Menu preview"
+        onPointerMove={(e) => {
+          if (dragFrom === null) return;
+          const to = sectorUnderPointer(e);
+          if (to !== null) setDropTo(to);
+        }}
+        onPointerUp={() => {
+          if (dragFrom === null) return;
+          const from = dragFrom;
+          const to = dropTo;
+          endDrag();
+          if (to !== null && to !== from) {
+            moveNode(viewPath, from, to);
+            selectNode(to);
+          } else if (currentRing[from]?.branches?.length) {
+            drillInto(from); // click a branch → go in (it becomes the outer ring)
+          } else {
+            selectNode(from); // click a leaf → select for editing
+          }
+        }}
+        onPointerCancel={endDrag}
+      >
+        {/* Breadcrumb ring (the parent menu) — only when drilled in. Dimmed
           and clickable to navigate back up; the drilled-into node is
           marked brighter. */}
-      {isDrilled &&
-        parentRing.map((node, i) => {
-          const c = sectorCenterAngle(i, parentRing.length);
-          const h = Math.PI / parentRing.length;
-          const d = describeWedgePath(RADIUS, INNER_RADIUS, c - h, c + h);
-          const lx = Math.sin(c) * INNER_LABEL_RADIUS;
-          const ly = -Math.cos(c) * INNER_LABEL_RADIUS;
+        {isDrilled &&
+          parentRing.map((node, i) => {
+            const c = sectorCenterAngle(i, parentRing.length);
+            const h = Math.PI / parentRing.length;
+            const d = describeWedgePath(RADIUS, INNER_RADIUS, c - h, c + h);
+            const lx = Math.sin(c) * INNER_LABEL_RADIUS;
+            const ly = -Math.cos(c) * INNER_LABEL_RADIUS;
+            return (
+              <g
+                key={`crumb-${nodeKey(node)}`}
+                className={styles.breadcrumbGroup}
+                role="button"
+                tabIndex={0}
+                aria-label={`Back to ${node.label}`}
+                onClick={() => selectPath([...viewPath.slice(0, -1), i])}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    selectPath([...viewPath.slice(0, -1), i]);
+                  }
+                }}
+              >
+                <path
+                  d={d}
+                  className={`${styles.wedgeBreadcrumb} ${
+                    i === drilledIntoIndex ? styles.wedgeDrilledInto : ''
+                  }`}
+                />
+                <text
+                  x={lx}
+                  y={ly}
+                  className={styles.labelBreadcrumb}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                >
+                  {node.label}
+                </text>
+              </g>
+            );
+          })}
+
+        {/* Active ring (the current menu): select / drag-reorder / drill. */}
+        {currentRing.map((node, i) => {
+          const c = sectorCenterAngle(i, count) + activeRotation;
+          const d = describeWedgePath(activeOuter, activeInner, c - half, c + half);
+          // While live, the highlight follows the puck (liveSector); otherwise
+          // it's the click selection. The click selection still drives editing.
+          const selected = livePreview ? liveSector === i : selectedIndex === i;
+          const isDropTarget = dragFrom !== null && dropTo === i && dropTo !== dragFrom;
+          const lx = Math.sin(c) * activeLabel;
+          const ly = -Math.cos(c) * activeLabel;
           return (
             <g
-              key={`crumb-${nodeKey(node)}`}
-              className={styles.breadcrumbGroup}
-              role="button"
-              tabIndex={0}
-              aria-label={`Back to ${node.label}`}
-              onClick={() => selectPath([...viewPath.slice(0, -1), i])}
+              key={nodeKey(node)}
+              className={`${styles.wedgeGroup} ${dragFrom === i ? styles.dragging : ''}`}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                setDragFrom(i);
+                setDropTo(i);
+                svgRef.current?.setPointerCapture(e.pointerId);
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  selectPath([...viewPath.slice(0, -1), i]);
+                  if (currentRing[i]?.branches?.length) drillInto(i);
+                  else selectNode(i);
                 }
               }}
+              role="button"
+              tabIndex={0}
+              aria-label={`${node.branches?.length ? 'Open' : 'Select'} ${node.label}`}
+              aria-pressed={selected}
             >
               <path
                 d={d}
-                className={`${styles.wedgeBreadcrumb} ${
-                  i === drilledIntoIndex ? styles.wedgeDrilledInto : ''
-                }`}
+                className={`${styles.wedge} ${selected ? styles.wedgeSelected : ''} ${
+                  isDropTarget ? styles.wedgeDropTarget : ''
+                } ${isCancelNode(node) ? styles.wedgeCancel : ''}`}
               />
               <text
                 x={lx}
                 y={ly}
-                className={styles.labelBreadcrumb}
+                className={styles.label}
                 textAnchor="middle"
                 dominantBaseline="middle"
               >
@@ -255,93 +314,58 @@ export function MenuPreview() {
           );
         })}
 
-      {/* Active ring (the current menu): select / drag-reorder / drill. */}
-      {currentRing.map((node, i) => {
-        const c = sectorCenterAngle(i, count) + activeRotation;
-        const d = describeWedgePath(activeOuter, activeInner, c - half, c + half);
-        // While live, the highlight follows the puck (liveSector); otherwise
-        // it's the click selection. The click selection still drives editing.
-        const selected = livePreview ? liveSector === i : selectedIndex === i;
-        const isDropTarget = dragFrom !== null && dropTo === i && dropTo !== dragFrom;
-        const lx = Math.sin(c) * activeLabel;
-        const ly = -Math.cos(c) * activeLabel;
-        return (
-          <g
-            key={nodeKey(node)}
-            className={`${styles.wedgeGroup} ${dragFrom === i ? styles.dragging : ''}`}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return;
-              setDragFrom(i);
-              setDropTo(i);
-              svgRef.current?.setPointerCapture(e.pointerId);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                if (currentRing[i]?.branches?.length) drillInto(i);
-                else selectNode(i);
-              }
-            }}
-            role="button"
-            tabIndex={0}
-            aria-label={`${node.branches?.length ? 'Open' : 'Select'} ${node.label}`}
-            aria-pressed={selected}
-          >
-            <path
-              d={d}
-              className={`${styles.wedge} ${selected ? styles.wedgeSelected : ''} ${
-                isDropTarget ? styles.wedgeDropTarget : ''
-              } ${isCancelNode(node) ? styles.wedgeCancel : ''}`}
-            />
-            <text
-              x={lx}
-              y={ly}
-              className={styles.label}
-              textAnchor="middle"
-              dominantBaseline="middle"
-            >
-              {node.label}
-            </text>
-          </g>
-        );
-      })}
-
-      {/* Centre target — mirrors the live pie (PieMenu.tsx): the
+        {/* Centre target — mirrors the live pie (PieMenu.tsx): the
           configurable center field's label, falling back to the ✕ glyph
           when unset. Clickable here so its config opens in the Properties
           panel (the live pie's centre is non-interactive). */}
-      <g
-        className={styles.centerGroup}
-        role="button"
-        tabIndex={0}
-        aria-label="Edit center field"
-        aria-pressed={centerSelected}
-        onClick={selectCenter}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            selectCenter();
-          }
-        }}
-      >
-        <circle
-          className={`${styles.cancelCenter} ${centerSelected ? styles.cancelCenterSelected : ''} ${
-            isCancelNode(config.root) ? styles.cancelCenterCancel : ''
-          }`}
-          cx={0}
-          cy={0}
-          r={INNER_RADIUS}
-        />
-        <text
-          className={styles.cancelLabel}
-          x={0}
-          y={0}
-          textAnchor="middle"
-          dominantBaseline="central"
+        <g
+          className={styles.centerGroup}
+          role="button"
+          tabIndex={0}
+          aria-label="Edit center field"
+          aria-pressed={centerSelected}
+          onClick={selectCenter}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              selectCenter();
+            }
+          }}
         >
-          {config.root.label || '✕'}
-        </text>
-      </g>
-    </svg>
+          <circle
+            className={`${styles.cancelCenter} ${centerSelected ? styles.cancelCenterSelected : ''} ${
+              isCancelNode(config.root) ? styles.cancelCenterCancel : ''
+            }`}
+            cx={0}
+            cy={0}
+            r={INNER_RADIUS}
+          />
+          <text
+            className={styles.cancelLabel}
+            x={0}
+            y={0}
+            textAnchor="middle"
+            dominantBaseline="central"
+          >
+            {config.root.label || '✕'}
+          </text>
+        </g>
+      </svg>
+      <div
+        className="pie-depth-dots"
+        style={{ ['--depth-dot-size']: `${displaySize * 0.02}px` } as CSSProperties}
+        aria-hidden="true"
+      >
+        {Array.from({ length: dotCount }, (_, i) => {
+          const cancel = i === 0 && isCancelNode(config.root);
+          return (
+            <span
+              key={i}
+              className={`pie-depth-dot${i === activeDot ? ' is-active' : ''}${cancel ? ' is-cancel' : ''}`}
+            />
+          );
+        })}
+      </div>
+    </div>
   );
 }

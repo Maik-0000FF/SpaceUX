@@ -13,6 +13,16 @@
   fill: rgb(from #{$color} r g b / var(--pie-opacity, 0.6));
 }
 
+// Stacks the pie SVG and the depth-dots row below it, centred — mirroring
+// the live overlay where the dots sit just under the pie.
+.previewWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  // The dots row carries its own scaled top margin (shared .pie-depth-dots),
+  // so no fixed gap here — keeps the spacing proportional to the pie size.
+}
+
 .pie {
   // Size is set inline (config.scale / devicePixelRatio) so the preview
   // matches the live pie's on-screen size and tracks the size slider.

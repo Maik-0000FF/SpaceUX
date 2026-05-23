@@ -143,6 +143,25 @@ export function currentBranches(config: MenuConfig, navigation: readonly number[
 }
 
 /**
+ * Maximum ring depth of the menu — the number of nested ring levels on the
+ * deepest path from the root. The top-level ring is depth 1; a branch with
+ * its own (non-empty) branches adds a level. 0 when the root has no items
+ * (just the centre). Drives the depth-dots indicator: a fixed row of this
+ * many dots, with the dot for the current navigation depth highlighted.
+ *
+ * Pure: no React, no DOM.
+ */
+export function menuTreeDepth(config: MenuConfig): number {
+  const depthOf = (nodes: readonly MenuNode[] | undefined): number => {
+    if (!nodes || nodes.length === 0) return 0;
+    let deepest = 0;
+    for (const node of nodes) deepest = Math.max(deepest, depthOf(node.branches));
+    return 1 + deepest;
+  };
+  return depthOf(config.root.branches);
+}
+
+/**
  * Step the highlighted sector index by `step` (+1 = next/clockwise,
  * -1 = previous), wrapping at the ring's ends — the index maths behind
  * the twist-cycle gesture.

@@ -78,3 +78,58 @@
   --pie-cancel-bg-hover: rgb(216, 96, 96);
   --pie-cancel-label: rgb(160, 190, 220);
 }
+
+/*
+ * Depth-dots indicator (#…): a fixed row showing how deep in the menu you
+ * are. The first (left) dot is the centre, then one dot per ring level. The
+ * dot for the current position is full opacity, the rest half; the whole row
+ * is scaled by --pie-opacity (the appearance slider) like the wedge fills.
+ *
+ * Per-theme colour (--pie-bg gives near-white in light, dark in dark; spaceux
+ * uses the highlight border colour). The centre dot turns red when the centre
+ * is a cancel target — only that one dot, mirroring the red centre.
+ *
+ * `--depth-dot-size` is set inline by each renderer as a fraction of the pie's
+ * rendered size, so the dots / gap / offset scale with the size slider.
+ * Shared by the live overlay and the editor preview so they can't drift.
+ */
+.pie-depth-dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--depth-dot-size, 7px);
+  margin-top: calc(var(--depth-dot-size, 7px) * 1.4);
+}
+
+.pie-depth-dot {
+  width: var(--depth-dot-size, 7px);
+  height: var(--depth-dot-size, 7px);
+  border-radius: 50%;
+  /* Idle level: theme background colour (light theme → white-ish, dark →
+     dark), at half the slider opacity. */
+  background: rgb(from var(--pie-bg) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
+}
+
+.pie-depth-dot.is-active {
+  /* Current level: full slider opacity. */
+  background: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
+}
+
+/* SpaceUX: use the theme's highlight (border) colour for the dots. */
+:root[data-pie-theme='spaceux'] .pie-depth-dot {
+  background: rgb(from var(--pie-border) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
+}
+
+:root[data-pie-theme='spaceux'] .pie-depth-dot.is-active {
+  background: rgb(from var(--pie-border) r g b / var(--pie-opacity, 0.6));
+}
+
+/* Centre dot when the centre is a cancel target → red, overriding the theme
+ * colour. The `:root` prefix matches the spaceux rule's specificity, and
+ * being defined last it wins across every theme. */
+:root .pie-depth-dot.is-cancel {
+  background: rgb(from var(--pie-cancel-bg-active) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
+}
+
+:root .pie-depth-dot.is-cancel.is-active {
+  background: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
+}

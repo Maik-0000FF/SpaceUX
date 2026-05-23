@@ -3,7 +3,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 
-import { currentBranches, navigationRingRotation } from '@/core/menu-nav';
+import { currentBranches, menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
   DEFAULT_PIE_GEOMETRY,
@@ -209,6 +209,17 @@ export function PieMenu({
   const rootCancel = isCancelNode(config.root);
   const centerLabel = config.root.label || '✕';
 
+  // Depth dots: the first (leftmost) dot is the centre, then one dot per ring
+  // level — so the row is 1 + the tree's deepest path. The active dot is the
+  // centre when nothing is hovered at the top (you're "on" the centre), else
+  // the current ring's dot (top ring = second dot). The centre dot turns red
+  // when the centre is a cancel target.
+  // Memoised: PieMenu re-renders every axes frame, but the tree shape only
+  // changes when the config does.
+  const dotCount = useMemo(() => 1 + menuTreeDepth(config), [config]);
+  const atCentre = navigation.length === 0 && cancelActive;
+  const activeDot = Math.min(atCentre ? 0 : navigation.length + 1, dotCount - 1);
+
   // Mid-radius of the outer ring band, used to position outer-ring
   // labels in the visual centre of each wedge. Pre-computed because
   // both the wedge map and the label map below need it.
@@ -316,6 +327,23 @@ export function PieMenu({
           </g>
         )}
       </svg>
+      <div
+        className="pie-depth-dots"
+        // Dot size scales with the rendered pie so spacing stays proportional.
+        style={{ ['--depth-dot-size']: `${displaySize * 0.02}px` } as CSSProperties}
+        aria-hidden="true"
+      >
+        {Array.from({ length: dotCount }, (_, i) => {
+          // Dot 0 is the centre — red when the centre is a cancel target.
+          const cancel = i === 0 && rootCancel;
+          return (
+            <span
+              key={i}
+              className={`pie-depth-dot${i === activeDot ? ' is-active' : ''}${cancel ? ' is-cancel' : ''}`}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }
