@@ -69,6 +69,7 @@ describe('serializeMenuConfig', () => {
     const cfg: MenuConfig = {
       version: 1,
       navigation: {
+        aim: 'tilt',
         drillIn: { inputs: [{ kind: 'magnitude', source: 'tilt', threshold: 200 }] },
         back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'negative', threshold: 60 }] },
         cycle: {
@@ -83,6 +84,20 @@ describe('serializeMenuConfig', () => {
     const result = validateMenuConfig(parsed);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.config).toEqual(cfg);
+  });
+
+  it('omits the default push aim but emits a non-default one (#159)', () => {
+    const base = {
+      drillIn: { inputs: [] },
+      back: { inputs: [] },
+      cycle: { inputs: [], priority: 'lateral' as const },
+      commitCenter: { inputs: [] },
+    };
+    const root = { label: '', branches: [{ label: 'Solo' }] };
+    const pushed = serializeMenuConfig({ version: 1, navigation: { aim: 'push', ...base }, root });
+    expect(pushed).not.toContain('"aim"');
+    const tilted = serializeMenuConfig({ version: 1, navigation: { aim: 'tilt', ...base }, root });
+    expect(tilted).toContain('"aim": "tilt"');
   });
 
   it('round-trips a root with a centre label + action through the validator', () => {

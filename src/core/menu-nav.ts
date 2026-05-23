@@ -26,6 +26,7 @@
 // tsconfig.electron.json (which doesn't). Sticking to relative keeps
 // this module buildable under both without duplicating the alias.
 import {
+  aimAxes,
   axesToSector,
   backAxisEngaged,
   cycleStepFromInputs,
@@ -436,16 +437,23 @@ export function resolvePuckFrame(args: {
 
   const invert = resolveAxisInvert(menuConfig);
 
-  // Rotate the lateral axes so the puck-to-sector mapping respects the
-  // visual rotation of the drilled-in outer ring (0 at the top level).
+  // Resolve the configured aim source (#159 — push / tilt / both / twist,
+  // no longer hardwired to TX/TY). The 2D sources are rotated so the
+  // puck-to-sector mapping respects the visual rotation of the drilled-in
+  // outer ring (0 at the top level); `twist` has no lateral pointer
+  // (aimAxes → null) so no sector comes from deflection — the cycle/twist
+  // step below drives the selection alone.
   const ringRotation = navigationRingRotation(menuConfig, navigation);
-  const rotated = rotateAxes({ tx: axes.tx, ty: axes.ty }, -ringRotation);
-  const rawSec = axesToSector(rotated, {
-    ...DEFAULT_PIE_GEOMETRY,
-    sectorCount: current.length,
-    invertX: invert.x,
-    invertY: invert.y,
-  });
+  const aimed = aimAxes(nav.aim, axes);
+  const rawSec =
+    aimed === null
+      ? null
+      : axesToSector(rotateAxes(aimed, -ringRotation), {
+          ...DEFAULT_PIE_GEOMETRY,
+          sectorCount: current.length,
+          invertX: invert.x,
+          invertY: invert.y,
+        });
   // axesToSector clamps internal sectorCount to a minimum of 2, so a
   // 1-child ring can return index 1 — clamp out so sticky always lands
   // on an existing sector.

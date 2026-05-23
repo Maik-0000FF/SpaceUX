@@ -21,6 +21,7 @@
 
 import type {
   ActivationDirection,
+  AimSource,
   GestureBinding,
   InputBinding,
   MenuAxisName,
@@ -165,6 +166,35 @@ export function rotateAxes(axes: PieAxes, angle: number): PieAxes {
     tx: axes.tx * c - axes.ty * s,
     ty: axes.tx * s + axes.ty * c,
   };
+}
+
+/**
+ * Resolve the 2D aiming vector for the configured aim source (#159) —
+ * which axes steer the hovered sector. Replaces the previously hardwired
+ * `{ tx, ty }`:
+ *   - `push` → the lateral push (TX/TY), the historical behaviour;
+ *   - `tilt` → the rotational tilt (RX/RY);
+ *   - `both` → the two summed, so push and tilt aim equally and in
+ *     parallel (neither dominates);
+ *   - `twist` → `null`: there's no lateral pointer at all, so the caller
+ *     makes no sector from deflection and lets the cycle/twist step drive
+ *     the selection alone.
+ *
+ * For the 2D sources the result feeds the same `rotateAxes` →
+ * `axesToSector` pipeline, so ring rotation and per-axis inversion still
+ * apply downstream unchanged.
+ */
+export function aimAxes(source: AimSource, axes: SixAxes): PieAxes | null {
+  switch (source) {
+    case 'push':
+      return { tx: axes.tx, ty: axes.ty };
+    case 'tilt':
+      return { tx: axes.rx, ty: axes.ry };
+    case 'both':
+      return { tx: axes.tx + axes.rx, ty: axes.ty + axes.ry };
+    case 'twist':
+      return null;
+  }
 }
 
 /** Read a named axis from a six-axis snapshot. Thin indexed access,

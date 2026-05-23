@@ -215,6 +215,16 @@ export type InputKind = (typeof INPUT_KINDS)[number];
 export const MAGNITUDE_SOURCES = ['lateral', 'tilt'] as const;
 export type MagnitudeSource = (typeof MAGNITUDE_SOURCES)[number];
 
+/** Where aiming (which sector the puck hovers) reads from — the source
+ *  that steers the selection. `push` = TX/TY lateral push (the historical,
+ *  previously hardwired behaviour); `tilt` = RX/RY tilt; `both` sums the
+ *  two so push and tilt aim equally and in parallel — neither dominates.
+ *  `twist` turns lateral pointing off entirely and steps the selection by
+ *  RZ twist alone, via the `cycle` gesture (so that gesture must be bound
+ *  to an axis for twist-only to navigate). Issue #159. */
+export const AIM_SOURCES = ['push', 'tilt', 'both', 'twist'] as const;
+export type AimSource = (typeof AIM_SOURCES)[number];
+
 /** Press of a device button (zero-based index; valid range depends on
  *  the connected device's button count). */
 export type ButtonInput = { kind: 'button'; button: number };
@@ -253,6 +263,10 @@ export type CycleBinding = GestureBinding & {
  *  that trigger it. (Commit/open via the trigger button stays on
  *  `MenuConfig.triggerButton` for now — folded in by a later PR.) */
 export type MenuNavigation = {
+  /** Which 2D source steers lateral aiming (the hovered sector). Defaults
+   *  to `push` (TX/TY) — the historical hardwired behaviour. See
+   *  :type:`AimSource`. Issue #159. */
+  aim: AimSource;
   /** Drill into a hovered branch. Legacy: magnitudeDrill + tiltDrill + twistDrill. */
   drillIn: GestureBinding;
   /** Pop one level (drilled) or dismiss (top level). Legacy: TZ-back via tzDeadzone. */
@@ -285,6 +299,7 @@ function deepFreeze<T>(value: T): T {
  *  Deep-frozen: :func:`resolveNavigation` returns it by reference, so
  *  freezing guards the shared singleton against accidental mutation. */
 export const DEFAULT_NAVIGATION: MenuNavigation = deepFreeze({
+  aim: 'push',
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
@@ -469,7 +484,13 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'navigation',
   'root',
 ];
-const KNOWN_NAVIGATION_FIELDS: readonly string[] = ['drillIn', 'back', 'cycle', 'commitCenter'];
+const KNOWN_NAVIGATION_FIELDS: readonly string[] = [
+  'aim',
+  'drillIn',
+  'back',
+  'cycle',
+  'commitCenter',
+];
 const KNOWN_GESTURE_FIELDS: readonly string[] = ['inputs'];
 const KNOWN_CYCLE_GESTURE_FIELDS: readonly string[] = ['inputs', 'priority'];
 const KNOWN_BUTTON_INPUT_FIELDS: readonly string[] = ['kind', 'button'];
@@ -768,6 +789,15 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
     return { ok: false, reason: `${where} must be an object when present` };
   }
   const o = raw as Record<string, unknown>;
+  // Aim source: optional, defaults to the historical `push` (TX/TY) when
+  // omitted; a present value must be one of the known sources (#159).
+  let aim: AimSource = 'push';
+  if (o.aim !== undefined) {
+    if (typeof o.aim !== 'string' || !AIM_SOURCES.includes(o.aim as AimSource)) {
+      return { ok: false, reason: `${where} field "aim" must be one of ${AIM_SOURCES.join(', ')}` };
+    }
+    aim = o.aim as AimSource;
+  }
   const drillIn = validateGestureBinding(o.drillIn, `${where}.drillIn`);
   if (!drillIn.ok) return { ok: false, reason: drillIn.reason };
   const back = validateGestureBinding(o.back, `${where}.back`);
@@ -780,6 +810,7 @@ function validateNavigation(raw: unknown, where: string): NavigationValidation {
   return {
     ok: true,
     value: {
+      aim,
       drillIn: drillIn.value,
       back: back.value,
       cycle: cycle.value,
@@ -835,6 +866,16 @@ function warnNavigationConflicts(nav: MenuNavigation): void {
         }
       }
     }
+  }
+  // Twist-only aiming (#159) has no lateral pointer — the selection moves
+  // solely via the cycle/step gesture. Without an axis bound to `cycle`
+  // there's no way to move it, so the pie opens with nothing reachable.
+  // Warn (never reject) so the user can bind one (e.g. RZ).
+  if (nav.aim === 'twist' && !nav.cycle.inputs.some((input) => input.kind === 'axis')) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[menu-loader] navigation: aim is "twist" but no axis is bound to "cycle" (step) — the selection can\'t move; bind an axis (e.g. RZ) to step.',
+    );
   }
 }
 
@@ -1029,12 +1070,16 @@ function orderInput(input: InputBinding): Record<string, unknown> {
 /** Build a plain object for the navigation block with a fixed key
  *  order (gesture order + each input's keys), for stable diffs. */
 function orderNavigation(nav: MenuNavigation): Record<string, unknown> {
-  return {
-    drillIn: { inputs: nav.drillIn.inputs.map(orderInput) },
-    back: { inputs: nav.back.inputs.map(orderInput) },
-    cycle: { inputs: nav.cycle.inputs.map(orderInput), priority: nav.cycle.priority },
-    commitCenter: { inputs: nav.commitCenter.inputs.map(orderInput) },
-  };
+  const out: Record<string, unknown> = {};
+  // Omit the default 'push' so existing/default configs don't gain the
+  // field — only a non-default aim source is written (#159), keeping the
+  // additive field out of every serialized config.
+  if (nav.aim !== 'push') out.aim = nav.aim;
+  out.drillIn = { inputs: nav.drillIn.inputs.map(orderInput) };
+  out.back = { inputs: nav.back.inputs.map(orderInput) };
+  out.cycle = { inputs: nav.cycle.inputs.map(orderInput), priority: nav.cycle.priority };
+  out.commitCenter = { inputs: nav.commitCenter.inputs.map(orderInput) };
+  return out;
 }
 
 /** Build a plain object for one menu node with a fixed key order,

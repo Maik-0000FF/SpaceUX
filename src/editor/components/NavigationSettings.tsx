@@ -4,10 +4,12 @@
 import { Fragment } from 'react';
 
 import {
+  AIM_SOURCES,
   DEFAULT_GESTURE_THRESHOLD,
   DEFAULT_TWIST_CYCLE_THRESHOLD,
   TWIST_CYCLE_PRIORITIES,
   resolveNavigation,
+  type AimSource,
   type MenuNavigation,
   type TwistCyclePriority,
 } from '@/shared/menu';
@@ -48,6 +50,18 @@ const GESTURE_LABELS: Record<GestureKey, string> = {
   cycle: 'Step through items',
 };
 
+// Plain-language labels for the aim source (#159), naming the axes so the
+// user can match the dropdown to the way they move the puck. "Both" spells
+// out that the two contribute equally.
+const AIM_LABELS: Record<AimSource, string> = {
+  push: 'Push (TX / TY)',
+  tilt: 'Tilt (RX / RY)',
+  both: 'Push + Tilt (equal)',
+  // Lateral pointing off; the selection only moves by twisting (RZ),
+  // through the "Step through items" gesture below.
+  twist: 'Twist (RZ — step only)',
+};
+
 /** Default threshold to seed a fresh analog input with, per gesture:
  *  cycle sits below the drill range (gentle twist steps, firm twist
  *  drills), the rest use the shared gesture default. */
@@ -73,6 +87,23 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
   return (
     <>
       <div className={styles.heading}>Navigation</div>
+      <Row label="Aim with">
+        <select
+          className={styles.select}
+          value={nav.aim}
+          onChange={(e) =>
+            commit((n) => {
+              n.aim = e.target.value as AimSource;
+            })
+          }
+        >
+          {AIM_SOURCES.map((a) => (
+            <option key={a} value={a}>
+              {AIM_LABELS[a]}
+            </option>
+          ))}
+        </select>
+      </Row>
       {GESTURE_KEYS.map((key) => (
         <Fragment key={key}>
           <div className={styles.subheading}>{GESTURE_LABELS[key]}</div>

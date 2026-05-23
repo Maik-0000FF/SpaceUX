@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_PIE_GEOMETRY,
+  aimAxes,
   axesMagnitude,
   axesToSector,
   axisValue,
@@ -369,5 +370,25 @@ describe('gestureActive', () => {
 
   it('a gesture with no inputs is never active', () => {
     expect(gestureActive({ inputs: [] }, frame({ tz: 999 }))).toBe(false);
+  });
+});
+
+describe('aimAxes (#159)', () => {
+  const axes: SixAxes = { tx: 10, ty: 20, tz: 30, rx: 100, ry: 200, rz: 300 };
+
+  it('push reads the lateral push (TX/TY)', () => {
+    expect(aimAxes('push', axes)).toEqual({ tx: 10, ty: 20 });
+  });
+
+  it('tilt reads the rotational tilt (RX/RY)', () => {
+    expect(aimAxes('tilt', axes)).toEqual({ tx: 100, ty: 200 });
+  });
+
+  it('both sums push and tilt so neither dominates', () => {
+    expect(aimAxes('both', axes)).toEqual({ tx: 110, ty: 220 });
+  });
+
+  it('twist has no lateral pointer (null) — selection moves by stepping only', () => {
+    expect(aimAxes('twist', axes)).toBeNull();
   });
 });

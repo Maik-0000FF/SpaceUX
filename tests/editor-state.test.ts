@@ -448,6 +448,7 @@ describe('menu-settings navigation', () => {
       mtime: 1,
     });
     const nav: MenuNavigation = {
+      aim: 'push',
       drillIn: { inputs: [{ kind: 'magnitude', source: 'lateral', threshold: 250 }] },
       back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
       cycle: { inputs: [], priority: 'lateral' },

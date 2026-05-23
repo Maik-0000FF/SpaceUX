@@ -39,6 +39,7 @@ const FRESH: PuckEdges = {
 /** Full navigation block (resolveNavigation replaces wholesale, so a
  *  partial would drop the unspecified gestures). */
 const nav = (over: Partial<MenuNavigation>): MenuNavigation => ({
+  aim: 'push',
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },
@@ -342,6 +343,82 @@ describe('resolvePuckFrame — drill / hover / cycle', () => {
       edges: FRESH,
     });
     expect(r.outcome).toEqual({ kind: 'none' });
+  });
+});
+
+describe('resolvePuckFrame — aim source (#159)', () => {
+  const hover = (navigation: MenuNavigation, p: Partial<SixAxes>) =>
+    resolvePuckFrame({
+      menuConfig: config(navigation),
+      axes: axes(p),
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    }).outcome;
+
+  it('push (default) aims by TX/TY and ignores tilt', () => {
+    expect(hover(nav({ aim: 'push' }), { ty: -100 })).toEqual({ kind: 'hover', index: 0 });
+    // RX/RY don't steer when aiming by push.
+    expect(hover(nav({ aim: 'push' }), { ry: -100 })).toEqual({ kind: 'none' });
+  });
+
+  it('tilt aims by RX/RY and ignores push', () => {
+    expect(hover(nav({ aim: 'tilt' }), { ry: -100 })).toEqual({ kind: 'hover', index: 0 });
+    expect(hover(nav({ aim: 'tilt' }), { ty: -100 })).toEqual({ kind: 'none' });
+  });
+
+  it('both sums push and tilt — each alone below the deadzone, together over it', () => {
+    // -30 push and -30 tilt are each inside the 50 deadzone, but summed
+    // (-60) they cross it and aim the top sector — proving equal contribution.
+    expect(hover(nav({ aim: 'push' }), { ty: -30 })).toEqual({ kind: 'none' });
+    expect(hover(nav({ aim: 'both' }), { ty: -30, ry: -30 })).toEqual({ kind: 'hover', index: 0 });
+  });
+
+  it('twist turns lateral pointing off — push and tilt no longer aim', () => {
+    expect(hover(nav({ aim: 'twist' }), { ty: -100 })).toEqual({ kind: 'none' });
+    expect(hover(nav({ aim: 'twist' }), { rx: -100, ry: -100 })).toEqual({ kind: 'none' });
+  });
+
+  it('twist enters the ring from the centre (sticky=null) — the first twist lands on item 0', () => {
+    // The "I open at the centre, how do I reach the first item?" path: with
+    // no lateral pointer, a forward twist steps in from null → index 0.
+    const r = resolvePuckFrame({
+      menuConfig: config(
+        nav({
+          aim: 'twist',
+          cycle: {
+            inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
+            priority: 'lateral',
+          },
+        }),
+      ),
+      axes: axes({ rz: 200 }),
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'hover', index: 0 });
+    expect(r.edges.cycle).toBe(true);
+  });
+
+  it('twist then steps on from the current selection', () => {
+    const r = resolvePuckFrame({
+      menuConfig: config(
+        nav({
+          aim: 'twist',
+          cycle: {
+            inputs: [{ kind: 'axis', axis: 'rz', direction: 'both', threshold: 100 }],
+            priority: 'lateral',
+          },
+        }),
+      ),
+      axes: axes({ rz: 200 }),
+      navigation: [],
+      sticky: 0,
+      edges: FRESH,
+    });
+    expect(r.outcome).toEqual({ kind: 'hover', index: 1 });
+    expect(r.edges.cycle).toBe(true);
   });
 });
 

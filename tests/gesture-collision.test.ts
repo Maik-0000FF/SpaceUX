@@ -7,6 +7,7 @@ import { gestureShadows } from '../src/editor/state/gesture-collision';
 import type { GestureBinding, MenuNavigation } from '../src/shared/menu';
 
 const nav = (over: Partial<MenuNavigation>): MenuNavigation => ({
+  aim: 'push',
   drillIn: { inputs: [] },
   back: { inputs: [{ kind: 'axis', axis: 'tz', direction: 'both', threshold: 50 }] },
   cycle: { inputs: [], priority: 'lateral' },

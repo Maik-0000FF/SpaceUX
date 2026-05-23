@@ -10,12 +10,18 @@ import {
   INNER_LABEL_RATIO,
   OUTER_RING_INNER_RATIO,
   OUTER_RING_OUTER_RATIO,
+  aimAxes,
   axesToSector,
   rotateAxes,
   sectorCenterAngle,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import { DEFAULT_TRIGGER_BUTTON, isCancelNode, resolveAxisInvert } from '@/shared/menu';
+import {
+  DEFAULT_TRIGGER_BUTTON,
+  isCancelNode,
+  resolveAxisInvert,
+  resolveNavigation,
+} from '@/shared/menu';
 
 import { useEditorSpaceMouse } from '../hooks/useEditorSpaceMouse';
 import { useAppState } from '../state/app-state';
@@ -122,19 +128,34 @@ export function MenuPreview() {
   const activeLabel = isDrilled ? OUTER_LABEL_RADIUS : INNER_LABEL_RADIUS;
 
   // Live preview: the sector under the puck, mapped exactly like the live
-  // pie. Axes are un-rotated by the active ring's rotation first so the
-  // highlight lines up with the rendered (rotated) outer ring. Null inside
-  // the deadzone — so a centred puck highlights nothing, like the real pie.
+  // pie. The aim source (#159) picks which axes steer the highlight — so a
+  // tilt/both setting previews the same way the overlay aims. Axes are
+  // un-rotated by the active ring's rotation first so the highlight lines
+  // up with the rendered (rotated) outer ring. Null inside the deadzone —
+  // so a centred puck highlights nothing, like the real pie.
   const invert = resolveAxisInvert(config);
-  const liveSector =
+  const aim = resolveNavigation(config).aim;
+  // null for the twist source (no lateral pointer) — the preview then
+  // highlights nothing from deflection, matching the overlay.
+  const aimVec =
     livePreview && liveAxes
-      ? axesToSector(rotateAxes({ tx: liveAxes[0], ty: liveAxes[1] }, -activeRotation), {
-          ...DEFAULT_PIE_GEOMETRY,
-          sectorCount: count,
-          invertX: invert.x,
-          invertY: invert.y,
+      ? aimAxes(aim, {
+          tx: liveAxes[0],
+          ty: liveAxes[1],
+          tz: liveAxes[2],
+          rx: liveAxes[3],
+          ry: liveAxes[4],
+          rz: liveAxes[5],
         })
       : null;
+  const liveSector = aimVec
+    ? axesToSector(rotateAxes(aimVec, -activeRotation), {
+        ...DEFAULT_PIE_GEOMETRY,
+        sectorCount: count,
+        invertX: invert.x,
+        invertY: invert.y,
+      })
+    : null;
   liveSectorRef.current = liveSector;
 
   // Pointer angle → active-ring sector (undoing the ring's rotation; radius
