@@ -343,9 +343,9 @@ export function MenuList() {
                 aria-posinset={i + 1}
                 className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
                 aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Alt+ArrowUp Alt+ArrowDown"
-                title={node.label}
-                // Give icon-only rows (empty label) an accessible name so the
-                // tree isn't a list of blank treeitems.
+                // Give icon-only rows (empty label) a name for both hover and
+                // assistive tech, so the tree isn't a list of blank treeitems.
+                title={node.label.trim() === '' ? 'Unnamed item' : node.label}
                 aria-label={node.label.trim() === '' ? 'Unnamed item' : undefined}
                 onClick={() => (isBranch ? openNode(path) : selectPath(path))}
                 // Double-click the label to rename inline — single click still
