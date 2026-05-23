@@ -20,5 +20,26 @@
         }
       }
     }
-  ]
+  ],
+  "menu": {
+    "root": {
+      "label": "",
+      "branches": [
+        {
+          "label": "Files",
+          "action": {
+            "id": "org.spaceux.example-launch/launch",
+            "config": { "command": "xdg-open ." }
+          }
+        },
+        {
+          "label": "Browser",
+          "action": {
+            "id": "org.spaceux.example-launch/launch",
+            "config": { "command": "xdg-open https://example.com" }
+          }
+        }
+      ]
+    }
+  }
 }

@@ -145,6 +145,24 @@ describe('validateManifest — structural fields', () => {
     expect(reason).toMatch(/action\.name "launch" appears more than once/);
   });
 
+  it('accepts a function plugin with a menu (root is structurally an object)', () => {
+    // validateManifest only checks menu.root is an object; the deep node-tree
+    // validation runs in loadOne.
+    const m = manifestBase({ menu: { root: { label: '', branches: [{ label: 'x' }] } } });
+    expect(validateManifest(m)).toBeNull();
+  });
+
+  it('rejects a menu on a non-function plugin', () => {
+    const m = manifestBase({ kind: 'theme', menu: { root: {} } });
+    delete m.actions;
+    expect(validateManifest(m)).toMatch(/"menu" is only valid on a function plugin/);
+  });
+
+  it('rejects a malformed menu (not an object / no root object)', () => {
+    expect(validateManifest(manifestBase({ menu: 'nope' }))).toMatch(/"menu" must be an object/);
+    expect(validateManifest(manifestBase({ menu: {} }))).toMatch(/"menu.root" must be an object/);
+  });
+
   it('accepts multiple actions with distinct names', () => {
     expect(
       validateManifest(

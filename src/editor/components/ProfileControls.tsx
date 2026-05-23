@@ -22,8 +22,12 @@ type Feedback = { kind: 'ok' | 'error'; text: string };
  * specific profile force-loads it. The active profile (what auto actually
  * resolved to) is shown read-only by DeviceStatus.
  */
+/** A plugin-provided menu is selected with a `plugin:<id>` id; Save/Delete are
+ *  device-profile operations and don't apply while one is active. */
+const isPluginMenuId = (id: string | null): boolean => id !== null && id.startsWith('plugin:');
+
 export function ProfileControls() {
-  const { ids, override } = useProfiles();
+  const { ids, override, pluginMenus } = useProfiles();
   const device = useDeviceInfo();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
@@ -90,16 +94,27 @@ export function ProfileControls() {
             {id}
           </option>
         ))}
+        {pluginMenus.length > 0 && (
+          <optgroup label="Plugin menus">
+            {pluginMenus.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </optgroup>
+        )}
       </select>
       <button
         type="button"
         className={styles.button}
         onClick={save}
-        disabled={!hasDevice}
+        disabled={!hasDevice || isPluginMenuId(override)}
         title={
-          hasDevice
-            ? "Save the current config as this device's profile"
-            : 'Connect a device to save a profile for it'
+          isPluginMenuId(override)
+            ? 'A plugin menu is active — Save/Delete apply to device profiles'
+            : hasDevice
+              ? "Save the current config as this device's profile"
+              : 'Connect a device to save a profile for it'
         }
       >
         Save
@@ -108,11 +123,13 @@ export function ProfileControls() {
         type="button"
         className={styles.button}
         onClick={remove}
-        disabled={activeProfile === null}
+        disabled={activeProfile === null || isPluginMenuId(activeProfile)}
         title={
           activeProfile === null
             ? 'No profile is active to delete'
-            : `Delete the active profile (${activeProfile})`
+            : isPluginMenuId(activeProfile)
+              ? 'Uninstall plugin menus in the Plugins manager, not here'
+              : `Delete the active profile (${activeProfile})`
         }
       >
         Delete

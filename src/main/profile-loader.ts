@@ -7,7 +7,12 @@ import path from 'node:path';
 
 import { describeError } from '../shared/errors.js';
 import type { MenuWriteResult, PieAppearance } from '../shared/ipc.js';
-import { serializeMenuConfig, validateMenuConfig, type MenuConfig } from '../shared/menu.js';
+import {
+  serializeMenuConfig,
+  validateMenuConfig,
+  type MenuConfig,
+  type MenuNode,
+} from '../shared/menu.js';
 import { DEFAULT_PIE_APPEARANCE, sanitizePieAppearancePatch } from '../shared/pie-appearance.js';
 
 import { migrateAndValidateMenuConfig, spaceuxConfigDirs } from './menu-loader.js';
@@ -174,6 +179,29 @@ export function resolveActiveConfig(
     };
   }
   return { ...fallback, profileId: null, appearance: null };
+}
+
+/**
+ * Build the active config for a plugin-provided menu (#76): the user's base
+ * config (trigger / navigation / scale / everything) with the plugin's content
+ * swapped in as `root`. Non-destructive by construction — it overlays only the
+ * content and leaves the user's menu.json untouched. `source` is null, marking
+ * it read-only (not backed by a writable file), so the editor can't save over
+ * the user's config while a plugin menu is active. `appearance` stays null to
+ * keep the user's global look.
+ */
+export function resolvePluginMenuConfig(
+  root: MenuNode,
+  fallback: FallbackMenu,
+  id: string,
+): ActiveMenuConfig {
+  return {
+    config: { ...fallback.config, root },
+    mtime: null,
+    source: null,
+    profileId: id,
+    appearance: null,
+  };
 }
 
 /** A profile id filename: `<vid>-<pid>` in 4-digit lowercase hex. */

@@ -7,6 +7,7 @@ import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 
 import { describeError } from '../shared/errors.js';
+import { validateNode } from '../shared/menu.js';
 import {
   MIN_SUPPORTED_PLUGIN_API_VERSION,
   PLUGIN_API_VERSION,
@@ -162,6 +163,16 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   if (manifestErr) return { reason: manifestErr };
   const manifest = parsed as PluginManifest;
 
+  // Deep-validate + normalize a plugin-provided menu (#76). validateManifest
+  // only checked menu.root is an object; here we run the full node-tree
+  // validator (as a config root) and store the *normalized* tree, so the
+  // resolver downstream gets a clean MenuNode.
+  if (manifest.menu !== undefined) {
+    const v = validateNode(manifest.menu.root, 'plugin menu root', 0, true);
+    if (!v.ok) return { reason: `menu: ${v.reason}` };
+    manifest.menu = { ...manifest.menu, root: v.value };
+  }
+
   // Module resolution: relative file:// URL so ESM and CJS both work.
   const indexPath = path.join(dir, 'index.js');
   let mod: PluginModule;
@@ -260,6 +271,19 @@ export function validateManifest(value: unknown): string | null {
         return 'action.label must be a non-empty string';
       if (seenNames.has(a.name)) return `action.name "${a.name}" appears more than once`;
       seenNames.add(a.name);
+    }
+  }
+
+  // Optional plugin-provided menu (#76). Only a structural check here — the
+  // deep node-tree validation (and normalization) runs in loadOne via
+  // validateNode, where the menu module is available. Menus are a
+  // function-plugin feature.
+  if (m.menu !== undefined) {
+    if (m.kind !== 'function') return 'manifest field "menu" is only valid on a function plugin';
+    if (typeof m.menu !== 'object' || m.menu === null)
+      return 'manifest field "menu" must be an object';
+    if (typeof (m.menu as Record<string, unknown>).root !== 'object') {
+      return 'manifest field "menu.root" must be an object';
     }
   }
   return null;
