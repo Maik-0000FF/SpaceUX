@@ -140,7 +140,7 @@ export function NavigationSettings() {
             })
           }
         />
-        <span className={styles.navThreshold}>
+        <span className={styles.rangeValue}>
           {nav.hoverDeadzone} – {nav.deadzone}
         </span>
       </Row>

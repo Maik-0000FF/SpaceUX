@@ -52,6 +52,12 @@ export function DualRange({
         value={low}
         disabled={disabled}
         aria-label={lowLabel}
+        // The high input is rendered last (on top), so at the shared maximum
+        // its thumb covers the low one — and high can't move up to separate
+        // them — leaving the low handle un-grabbable by mouse. Bring the low
+        // input forward there so it stays draggable down. (Below max the two
+        // separate by dragging high up, so default stacking is fine.)
+        style={low >= max ? { zIndex: 1 } : undefined}
         // Can't pass the high handle — clamp up to it.
         onChange={(e) => onChange(Math.min(Number(e.target.value), high), high)}
       />
