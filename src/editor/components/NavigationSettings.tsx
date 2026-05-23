@@ -87,6 +87,12 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
     setNavigation(next);
   };
 
+  // Twist aiming has no lateral pointer — the selection can only move via a
+  // cycle step, which needs an axis. Flag the soft-lock inline so it's
+  // visible in Properties, not just a console warning at load (#160).
+  const twistNeedsCycle =
+    nav.aim === 'twist' && !nav.cycle.inputs.some((input) => input.kind === 'axis');
+
   return (
     <>
       <div className={styles.heading}>Navigation</div>
@@ -107,6 +113,12 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
           ))}
         </select>
       </Row>
+      {twistNeedsCycle && (
+        <div className={styles.warning}>
+          ⚠ Twist aiming moves the selection only by stepping — bind an axis (e.g. Twist&nbsp;RZ)
+          under “Step through items” below, or the selection can’t leave the centre.
+        </div>
+      )}
       {GESTURE_KEYS.map((key) => (
         <Fragment key={key}>
           <div className={styles.subheading}>{GESTURE_LABELS[key]}</div>
@@ -116,6 +128,9 @@ export function NavigationSettings({ buttonCount }: { buttonCount: number }) {
                 input={input}
                 offeredButtons={offeredButtons}
                 defaultThreshold={defaultThresholdFor(key)}
+                // Stepping needs a direction — only an axis can say which
+                // way to cycle, so the cycle picker offers axes only (#160).
+                axisOnly={key === 'cycle'}
                 onChange={(next) =>
                   commit((n) => {
                     n[key].inputs[i] = next;

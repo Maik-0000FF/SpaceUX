@@ -68,6 +68,7 @@ export function NavInputRow({
   input,
   offeredButtons,
   defaultThreshold,
+  axisOnly = false,
   onChange,
   onRemove,
 }: {
@@ -76,6 +77,12 @@ export function NavInputRow({
   offeredButtons: number;
   /** Threshold to seed a fresh analog input with when none carries over. */
   defaultThreshold: number;
+  /** Restrict the picker to directional axis inputs only — for gestures
+   *  that need a sign to act (the cycle step; a buttonless magnitude can't
+   *  say which way to step, so binding it silently does nothing). Offers
+   *  only None + Axes; a carried-over non-axis value stays visible as a
+   *  flagged, disabled option so it isn't silently dropped (#160). */
+  axisOnly?: boolean;
   onChange: (next: InputBinding) => void;
   onRemove: () => void;
 }) {
@@ -86,6 +93,10 @@ export function NavInputRow({
   // of silently falling back to the first entry.
   const staleButton =
     input.kind === 'button' && input.button >= offeredButtons ? input.button : null;
+  // Under axisOnly, a non-axis carried-over value (e.g. an old magnitude
+  // cycle binding) has no matching option — flag it disabled so the select
+  // shows it as selected and the user is nudged to pick a steppable axis.
+  const nonSteppable = axisOnly && input.kind !== 'axis' && input.kind !== 'none';
 
   return (
     <div className={styles.navInputRow}>
@@ -95,18 +106,25 @@ export function NavInputRow({
         onChange={(e) => onChange(inputFromValue(e.target.value, threshold, defaultThreshold))}
       >
         <option value="none">None</option>
-        <optgroup label="Buttons">
-          {Array.from({ length: offeredButtons }, (_, b) => (
-            <option key={b} value={`button:${b}`}>
-              Button {b}
-            </option>
-          ))}
-          {staleButton !== null && (
-            <option value={`button:${staleButton}`} disabled>
-              Button {staleButton} (unavailable)
-            </option>
-          )}
-        </optgroup>
+        {nonSteppable && (
+          <option value={inputValue(input)} disabled>
+            ⚠ Can’t step — pick an axis
+          </option>
+        )}
+        {!axisOnly && (
+          <optgroup label="Buttons">
+            {Array.from({ length: offeredButtons }, (_, b) => (
+              <option key={b} value={`button:${b}`}>
+                Button {b}
+              </option>
+            ))}
+            {staleButton !== null && (
+              <option value={`button:${staleButton}`} disabled>
+                Button {staleButton} (unavailable)
+              </option>
+            )}
+          </optgroup>
+        )}
         <optgroup label="Axes">
           {MENU_AXES.flatMap((axis) =>
             ACTIVATION_DIRECTIONS.map((dir) => (
@@ -116,13 +134,15 @@ export function NavInputRow({
             )),
           )}
         </optgroup>
-        <optgroup label="Magnitude">
-          {MAGNITUDE_SOURCES.map((source) => (
-            <option key={source} value={`magnitude:${source}`}>
-              {MAGNITUDE_LABEL[source]}
-            </option>
-          ))}
-        </optgroup>
+        {!axisOnly && (
+          <optgroup label="Magnitude">
+            {MAGNITUDE_SOURCES.map((source) => (
+              <option key={source} value={`magnitude:${source}`}>
+                {MAGNITUDE_LABEL[source]}
+              </option>
+            ))}
+          </optgroup>
+        )}
       </select>
       {threshold !== null && (
         <input
