@@ -17,6 +17,10 @@ describe('cancelLabelFor', () => {
     expect(cancelLabelFor(CANCEL, 'New item')).toBe('Cancel');
   });
 
+  it('suggests "Cancel" onto an auto-generated path label ("Item 1.2")', () => {
+    expect(cancelLabelFor(CANCEL, 'Item 1.2')).toBe('Cancel');
+  });
+
   it('leaves a custom label alone', () => {
     expect(cancelLabelFor(CANCEL, 'Abbrechen')).toBeNull();
   });

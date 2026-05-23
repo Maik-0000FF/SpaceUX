@@ -1031,9 +1031,12 @@ function validateNode(raw: unknown, where: string, depth = 0, isRoot = false): N
       reason: `${where} must declare either "action" or "branches", not both`,
     };
   }
-  // The root must always be a submenu (a non-empty top-level ring).
+  // The root always carries the top-level ring as an array — but it may be
+  // empty: deleting every item leaves just the centre (the pie shows the
+  // centre alone). A non-root submenu's branches must stay non-empty (an
+  // empty submenu is meaningless — remove the submenu node instead).
   if (isRoot && s.branches === undefined) {
-    return { ok: false, reason: `${where} field "branches" must be a non-empty array` };
+    return { ok: false, reason: `${where} field "branches" must be an array` };
   }
   if (s.action !== undefined) {
     const result = validateActionRef(s.action, `${where} action`);
@@ -1047,7 +1050,7 @@ function validateNode(raw: unknown, where: string, depth = 0, isRoot = false): N
         reason: `${where} field "branches" must be an array when present`,
       };
     }
-    if (s.branches.length === 0) {
+    if (!isRoot && s.branches.length === 0) {
       return {
         ok: false,
         reason: `${where} field "branches" must not be empty`,

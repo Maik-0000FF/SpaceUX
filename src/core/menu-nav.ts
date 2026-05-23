@@ -444,6 +444,14 @@ export function resolvePuckFrame(args: {
     return { outcome: { kind: 'none' }, edges };
   }
 
+  // An empty ring (the top-level ring can be emptied down to just the centre)
+  // has nothing to aim at, drill, or cycle — short-circuit before the sector
+  // maths so a 0-length ring can't produce a NaN index. The centre gestures
+  // above (commit / back) still close it.
+  if (current.length === 0) {
+    return { outcome: { kind: 'none' }, edges };
+  }
+
   const invert = resolveAxisInvert(menuConfig);
 
   // Resolve the configured aim source (#159 — push / tilt / both / twist,

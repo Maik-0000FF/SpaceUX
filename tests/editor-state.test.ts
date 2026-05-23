@@ -264,13 +264,25 @@ describe('menu-settings CRUD', () => {
       mtime: 1,
     });
 
-  it('addNode appends a default leaf to the top-level ring', () => {
+  it('addNode appends a leaf with the next free "Item N" label to the top-level ring', () => {
     load([{ label: 'A' }]);
     useMenuSettings.getState().addNode([]);
     const state = useMenuSettings.getState();
-    expect(state.config?.root.branches!.map((s) => s.label)).toEqual(['A', 'New item']);
+    // 'A' isn't an "Item N" label, so the first auto-item is "Item 1".
+    expect(state.config?.root.branches!.map((s) => s.label)).toEqual(['A', 'Item 1']);
     expect(state.origin).toBe('local');
     expect(state.dirty).toBe(true);
+  });
+
+  it('addNode numbers past the highest existing "Item N", avoiding collisions', () => {
+    load([{ label: 'Item 1' }, { label: 'Item 3' }]);
+    useMenuSettings.getState().addNode([]);
+    // Not "Item 3" again (index would) — one past the highest → "Item 4".
+    expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual([
+      'Item 1',
+      'Item 3',
+      'Item 4',
+    ]);
   });
 
   it('setScale clamps to [0.5, 2] and flags the change local + dirty', () => {
@@ -294,18 +306,33 @@ describe('menu-settings CRUD', () => {
       mtime: 1,
     });
     useMenuSettings.getState().addNode([0]); // into Branch's branches
+    // 'C0' isn't an "Item 1.N" label, so the first auto-item is "Item 1.1".
     expect(
       useMenuSettings.getState().config?.root.branches![0]?.branches?.map((s) => s.label),
-    ).toEqual(['C0', 'New item']);
+    ).toEqual(['C0', 'Item 1.1']);
   });
 
-  it('deleteNode removes within the ring but refuses to empty it', () => {
+  it('deleteNode empties the top-level ring down to just the centre (#160)', () => {
     load([{ label: 'A' }, { label: 'B' }]);
     useMenuSettings.getState().deleteNode([], 0);
     expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
-    // The last remaining node can't be deleted (validator needs ≥1).
+    // The top-level ring can now be emptied — leaves just the centre.
     useMenuSettings.getState().deleteNode([], 0);
-    expect(useMenuSettings.getState().config?.root.branches!.map((s) => s.label)).toEqual(['B']);
+    expect(useMenuSettings.getState().config?.root.branches).toEqual([]);
+  });
+
+  it('deleteNode keeps a deeper submenu ring non-empty (#160)', () => {
+    useMenuSettings.getState().setConfig({
+      config: {
+        version: DEFAULT_MENU_CONFIG.version,
+        root: { label: '', branches: [{ label: 'Branch', branches: [{ label: 'C0' }] }] },
+      },
+      mtime: 1,
+    });
+    useMenuSettings.getState().deleteNode([0], 0); // try to empty Branch's ring
+    expect(
+      useMenuSettings.getState().config?.root.branches![0]?.branches?.map((s) => s.label),
+    ).toEqual(['C0']); // unchanged — a submenu keeps its last item
   });
 
   it('setTriggerButton sets the trigger and flags local/dirty', () => {

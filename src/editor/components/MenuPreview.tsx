@@ -100,9 +100,12 @@ export function MenuPreview() {
   }, [livePreview, drillInto, selectNode]);
 
   const currentRing = config ? ringBranches(config, viewPath) : [];
-  if (!config || currentRing.length === 0) {
-    return <p className={styles.empty}>{config ? 'No nodes to preview.' : ''}</p>;
+  if (!config) {
+    return <p className={styles.empty} />;
   }
+  // An empty ring (the top-level ring deleted down to just the centre) is not
+  // an error — fall through and render the pie with no wedges, so the preview
+  // shows the centre alone, 1:1 with the live overlay.
 
   const isDrilled = viewPath.length > 0;
   const parentRing = isDrilled ? ringBranches(config, viewPath.slice(0, -1)) : [];
@@ -167,7 +170,7 @@ export function MenuPreview() {
   const sectorUnderPointer = (e: React.PointerEvent): number | null => {
     const svg = svgRef.current;
     const ctm = svg?.getScreenCTM();
-    if (!svg || !ctm) return null;
+    if (!svg || !ctm || count === 0) return null; // no wedges → nothing to hit
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
     let theta = Math.atan2(p.x, -p.y) - activeRotation;
     theta = ((theta % TAU) + TAU) % TAU;

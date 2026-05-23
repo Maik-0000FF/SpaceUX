@@ -44,12 +44,21 @@ describe('validateMenuConfig', () => {
     ).toBe(false);
   });
 
-  it('rejects a root with no branches', () => {
+  it('rejects a root with no branches field', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '' }, // branches missing entirely
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it('accepts a root with an empty branches array — just the centre (#160)', () => {
     const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
       root: { label: '', branches: [] },
     });
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.root.branches).toEqual([]);
   });
 
   it('accepts non-ASCII labels (emoji, CJK, RTL, accented, combining marks)', () => {
@@ -614,8 +623,7 @@ describe('validateMenuConfig — root centre', () => {
       [{ branches: [{ label: 'x' }], label: 42 }, /"label".*must be a string/],
       [{ branches: [{ label: 'x' }], icon: 42 }, /"icon".*must be a string/],
       [{ branches: [{ label: 'x' }], action: {} }, /action.*"id".*non-empty string/],
-      [{ label: 'x' }, /"branches".*non-empty array/], // root must have branches
-      [{ label: '', branches: [] }, /"branches".*must not be empty/],
+      [{ label: 'x' }, /"branches".*must be an array/], // root must have a branches array (may be empty)
     ];
     for (const [bad, pattern] of cases) {
       const r = validateMenuConfig({

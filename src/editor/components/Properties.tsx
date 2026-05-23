@@ -12,7 +12,7 @@ import { useMenuSettings } from '../state/menu-settings';
 import { moveTargets, pathOfNodeId } from '../state/move-targets';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 import { ringBranches, nodeAtPath, selectedPath } from '../state/selectors';
-import { nextNodeId } from '../state/node-keys';
+import { nextNodeId, uniqueItemLabel } from '../state/node-keys';
 
 import { ActionField } from './ActionField';
 import { RootSettings } from './RootSettings';
@@ -106,8 +106,11 @@ export function Properties() {
     });
   };
 
+  // The top-level ring can be emptied to just the centre; a submenu keeps
+  // its last item (delete the submenu node itself to remove it).
   const canDelete =
-    selectedIndex !== null && (config ? ringBranches(config, viewPath).length : 0) > 1;
+    selectedIndex !== null &&
+    (viewPath.length === 0 || (config ? ringBranches(config, viewPath).length : 0) > 1);
   const handleDelete = (): void => {
     if (selectedIndex === null) return;
     deleteNode(viewPath, selectedIndex);
@@ -190,7 +193,7 @@ export function Properties() {
                   updateNodeAt(path, (s) => {
                     if (e.target.value === 'submenu') {
                       if (s.branches === undefined) {
-                        s.branches = [{ label: 'New item', id: nextNodeId() }];
+                        s.branches = [{ label: uniqueItemLabel(path, []), id: nextNodeId() }];
                         delete s.action;
                         // keepOpen is a leaf-only flag — a branch always
                         // stays open (it drills), so drop a stale one.
@@ -390,7 +393,7 @@ export function Properties() {
               className={styles.deleteButton}
               onClick={handleDelete}
               disabled={!canDelete}
-              title={canDelete ? 'Delete this node' : 'A menu must keep at least one node'}
+              title={canDelete ? 'Delete this node' : 'A submenu must keep at least one item'}
             >
               Delete node
             </button>

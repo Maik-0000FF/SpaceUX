@@ -19,7 +19,7 @@ import {
 } from '@/shared/menu';
 
 import { eqPath, isPrefix, nodeHeight } from './move-targets';
-import { nextNodeId } from './node-keys';
+import { nextNodeId, uniqueItemLabel } from './node-keys';
 
 /**
  * The editor's working copy of the menu config plus the bookkeeping the
@@ -215,7 +215,15 @@ export const useMenuSettings = create<MenuSettingsState>()(
           if (!state.config) return;
           const ring = draftRingAt(state.config, ringPath);
           if (!ring) return;
-          ring.push({ label: 'New item', id: nextNodeId() });
+          // Next free "Item …" number in this ring → a unique default label
+          // (e.g. "Item 3.1") that won't collide with a sibling.
+          ring.push({
+            label: uniqueItemLabel(
+              ringPath,
+              ring.map((n) => n.label),
+            ),
+            id: nextNodeId(),
+          });
           state.origin = 'local';
           state.dirty = true;
         }),
@@ -223,8 +231,12 @@ export const useMenuSettings = create<MenuSettingsState>()(
         set((state) => {
           if (!state.config) return;
           const ring = draftRingAt(state.config, ringPath);
-          if (!ring || ring.length <= 1) return; // keep the ring non-empty
+          if (!ring) return;
           if (index < 0 || index >= ring.length) return;
+          // The top-level ring (ringPath []) can be emptied down to just the
+          // centre; a deeper submenu ring keeps ≥1 item (an empty submenu is
+          // meaningless — delete the submenu node in its parent instead).
+          if (ringPath.length > 0 && ring.length <= 1) return;
           ring.splice(index, 1);
           state.origin = 'local';
           state.dirty = true;

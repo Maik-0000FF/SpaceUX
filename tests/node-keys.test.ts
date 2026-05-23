@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { MenuNode } from '@/shared/menu';
 
-import { nodeKey } from '../src/editor/state/node-keys';
+import { isDefaultItemLabel, nodeKey, uniqueItemLabel } from '../src/editor/state/node-keys';
 
 // nodeKey backs the editor list/preview React keys. The contract is
 // pure object-identity, so it's exercised here without a DOM.
@@ -31,5 +31,41 @@ describe('nodeKey', () => {
 
     // Keys travel with the objects, not the positions.
     expect(ring.map(nodeKey)).toEqual([before[1], before[2], before[0]]);
+  });
+});
+
+describe('uniqueItemLabel', () => {
+  it('uses the next free number for the ring (one past the highest)', () => {
+    expect(uniqueItemLabel([], [])).toBe('Item 1');
+    expect(uniqueItemLabel([], ['Item 1'])).toBe('Item 2');
+    // Gaps don't matter — it goes past the highest, never reusing a number a
+    // sibling still holds (the post-deletion collision the path index had).
+    expect(uniqueItemLabel([], ['Item 1', 'Item 3'])).toBe('Item 4');
+  });
+
+  it('prefixes with the 1-based ring path for deeper rings', () => {
+    expect(uniqueItemLabel([2], [])).toBe('Item 3.1');
+    expect(uniqueItemLabel([0], ['Item 1.1', 'Item 1.2'])).toBe('Item 1.3');
+  });
+
+  it('ignores user-renamed siblings when numbering', () => {
+    expect(uniqueItemLabel([], ['Volume', 'Files'])).toBe('Item 1');
+    expect(uniqueItemLabel([0], ['C0'])).toBe('Item 1.1');
+  });
+});
+
+describe('isDefaultItemLabel', () => {
+  it('treats empty, "New item", and the path scheme as still-default', () => {
+    expect(isDefaultItemLabel('')).toBe(true);
+    expect(isDefaultItemLabel('New item')).toBe(true);
+    expect(isDefaultItemLabel('Item 1')).toBe(true);
+    expect(isDefaultItemLabel('Item 3.1.2')).toBe(true);
+  });
+
+  it('treats a customised label as not default', () => {
+    expect(isDefaultItemLabel('Volume')).toBe(false);
+    expect(isDefaultItemLabel('Item')).toBe(false); // no number
+    expect(isDefaultItemLabel('Item 1.')).toBe(false); // trailing dot
+    expect(isDefaultItemLabel('My Item 1')).toBe(false);
   });
 });

@@ -14,7 +14,7 @@ import type { MenuNode } from '@/shared/menu';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTarget } from '../state/reorder';
-import { nextNodeId, nodeKey } from '../state/node-keys';
+import { nextNodeId, nodeKey, uniqueItemLabel } from '../state/node-keys';
 import { ringBranches } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
@@ -146,7 +146,7 @@ export function MenuList() {
     } else {
       updateNodeAt(path, (s) => {
         delete s.action;
-        s.branches = [{ label: 'New item', id: nextNodeId() }];
+        s.branches = [{ label: uniqueItemLabel(path, []), id: nextNodeId() }];
       });
     }
     // Dive into the node so the preview shows its children (the active
@@ -157,11 +157,11 @@ export function MenuList() {
   };
 
   const removeItem = (ring: number[], index: number, ringLen: number): void => {
-    // Deleting the last child of a submenu would leave it empty (invalid),
+    // Deleting the last child of a *submenu* would leave it empty (invalid),
     // so instead drop the submenu level: the parent (at `ring`) becomes a
-    // plain leaf again. The root ring can't shrink to empty — its last
-    // item's delete button is disabled, so `ring` is non-empty here.
-    if (ringLen <= 1) {
+    // plain leaf again. The top-level ring (ring []) is exempt — it can be
+    // emptied down to just the centre, so it deletes normally below.
+    if (ring.length > 0 && ringLen <= 1) {
       updateNodeAt(ring, (s) => {
         delete s.branches;
       });
@@ -344,6 +344,13 @@ export function MenuList() {
                 aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Alt+ArrowUp Alt+ArrowDown"
                 title={node.label}
                 onClick={() => (isBranch ? openNode(path) : selectPath(path))}
+                // Double-click the label to rename inline — single click still
+                // opens/selects; the ✎ button does the same.
+                onDoubleClick={() => {
+                  renameCancelled.current = false;
+                  setRenaming(key);
+                  setRenameValue(node.label);
+                }}
                 onKeyDown={(e) => {
                   if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                     e.preventDefault();
@@ -383,13 +390,12 @@ export function MenuList() {
                   className={styles.actionBtn}
                   title={
                     ringPath.length === 0 && ringLen <= 1
-                      ? 'A menu must keep at least one item'
+                      ? 'Delete (leaves just the centre)'
                       : ringLen <= 1
                         ? 'Delete (turns the parent back into a normal item)'
                         : 'Delete'
                   }
                   aria-label={`Delete ${node.label}`}
-                  disabled={ringPath.length === 0 && ringLen <= 1}
                   onClick={() => removeItem(ringPath, i, ringLen)}
                 >
                   🗑
@@ -457,7 +463,7 @@ export function MenuList() {
             >
               {rootLabel}
             </button>
-            <span className={styles.actions}>
+            <span className={`${styles.actions} ${styles.actionsAlways}`}>
               <button
                 type="button"
                 className={styles.actionBtn}
