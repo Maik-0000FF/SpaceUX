@@ -261,6 +261,7 @@ export function MenuPreview() {
             const d = describeWedgePath(RADIUS, INNER_RADIUS, c - h, c + h);
             const lx = Math.sin(c) * INNER_LABEL_RADIUS;
             const ly = -Math.cos(c) * INNER_LABEL_RADIUS;
+            const labelText = truncatePieLabel(node.label);
             return (
               <g
                 key={`crumb-${nodeKey(node)}`}
@@ -290,10 +291,10 @@ export function MenuPreview() {
                   textAnchor="middle"
                   dominantBaseline="middle"
                   style={{
-                    fontSize: `calc(${segmentLabelFontPx(INNER_LABEL_RADIUS, parentRing.length)}px * var(--pie-label-scale, 1))`,
+                    fontSize: `calc(${segmentLabelFontPx(INNER_LABEL_RADIUS, parentRing.length, [...labelText].length)}px * var(--pie-label-scale, 1))`,
                   }}
                 >
-                  {truncatePieLabel(node.label)}
+                  {labelText}
                 </text>
               </g>
             );
@@ -309,6 +310,7 @@ export function MenuPreview() {
           const isDropTarget = dragFrom !== null && dropTo === i && dropTo !== dragFrom;
           const lx = Math.sin(c) * activeLabel;
           const ly = -Math.cos(c) * activeLabel;
+          const labelText = truncatePieLabel(node.label);
           return (
             <g
               key={nodeKey(node)}
@@ -345,10 +347,10 @@ export function MenuPreview() {
                 textAnchor="middle"
                 dominantBaseline="middle"
                 style={{
-                  fontSize: `calc(${segmentLabelFontPx(activeLabel, count)}px * var(--pie-label-scale, 1))`,
+                  fontSize: `calc(${segmentLabelFontPx(activeLabel, count, [...labelText].length)}px * var(--pie-label-scale, 1))`,
                 }}
               >
-                {truncatePieLabel(node.label)}
+                {labelText}
               </text>
             </g>
           );

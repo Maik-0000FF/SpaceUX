@@ -45,14 +45,21 @@ describe('truncatePieLabel', () => {
 
 describe('segmentLabelFontPx', () => {
   it('shrinks as the sector count grows (more, narrower segments)', () => {
-    const few = segmentLabelFontPx(150, 4);
-    const many = segmentLabelFontPx(150, 16);
+    const few = segmentLabelFontPx(150, 4, 6);
+    const many = segmentLabelFontPx(150, 16, 6);
     expect(many).toBeLessThan(few);
   });
 
+  it('sizes a shorter label larger (fills its wedge)', () => {
+    // Tight wedge so neither hits the max cap, isolating the char-count effect.
+    const short = segmentLabelFontPx(80, 12, 3);
+    const long = segmentLabelFontPx(80, 12, 6);
+    expect(short).toBeGreaterThan(long);
+  });
+
   it('stays within the [min, max] bounds', () => {
-    expect(segmentLabelFontPx(150, 2)).toBeLessThanOrEqual(20); // capped
-    expect(segmentLabelFontPx(150, 64)).toBeGreaterThanOrEqual(8); // floored
+    expect(segmentLabelFontPx(150, 2, 1)).toBeLessThanOrEqual(30); // capped
+    expect(segmentLabelFontPx(150, 64, 6)).toBeGreaterThanOrEqual(8); // floored
   });
 });
 

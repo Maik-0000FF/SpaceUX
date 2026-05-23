@@ -450,6 +450,10 @@ function SectorLabel({
   const hasLabel = node.label.trim().length > 0;
   const iconTop = hasLabel ? y - iconSize : y - iconSize / 2;
   const labelY = icon !== null && hasLabel ? y + iconSize * 0.5 : y;
+  // Truncate first, then size the font to the *displayed* length so a short
+  // label fills its wedge.
+  const text = truncatePieLabel(node.label);
+  const fontPx = segmentLabelFontPx(radius, sectorCount, [...text].length);
   return (
     <>
       {icon !== null && (
@@ -470,13 +474,10 @@ function SectorLabel({
         textAnchor="middle"
         dominantBaseline="middle"
         // Auto-fit the label to the segment (shrinks as sectors grow), then
-        // scale by the user's label-size fraction. Truncated to keep ≤10 chars
-        // inside the wedge.
-        style={{
-          fontSize: `calc(${segmentLabelFontPx(radius, sectorCount)}px * var(--pie-label-scale, 1))`,
-        }}
+        // scale by the user's label-size fraction.
+        style={{ fontSize: `calc(${fontPx}px * var(--pie-label-scale, 1))` }}
       >
-        {truncatePieLabel(node.label)}
+        {text}
       </text>
     </>
   );

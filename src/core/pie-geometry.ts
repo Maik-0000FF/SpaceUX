@@ -104,23 +104,30 @@ export function truncatePieLabel(label: string): string {
 
 // Label font-size bounds (px) for the per-segment fit below.
 const PIE_LABEL_FONT_MIN = 8;
-const PIE_LABEL_FONT_MAX = 20;
+const PIE_LABEL_FONT_MAX = 30;
+// Average glyph advance as a fraction of the font size (sans-serif ≈ 0.55em).
+const LABEL_CHAR_EM = 0.55;
 
 /**
- * Largest label font size (px) that keeps a {@link MAX_PIE_LABEL_CHARS}-char
- * label inside one wedge at `labelRadius`, for `sectorCount` sectors. Shrinks
- * as sectorCount grows (each wedge gets narrower), so labels never spill past
- * a segment boundary. The appearance label-scale (0–1) is applied on top by
- * the renderer as a fraction of this fit (`calc(fit * var(--pie-label-scale))`).
+ * Largest label font size (px) that keeps a `charCount`-glyph label inside one
+ * wedge at `labelRadius`, for `sectorCount` sectors. Sized to the *actual*
+ * (already truncated, ≤{@link MAX_PIE_LABEL_CHARS}) label length, so a short
+ * label fills its wedge rather than being sized for the worst case. Shrinks as
+ * sectorCount grows (each wedge narrower), so labels never spill past a
+ * boundary. The appearance label-scale (0–1) is applied on top by the renderer
+ * as a fraction of this fit (`calc(fit * var(--pie-label-scale))`).
  */
-export function segmentLabelFontPx(labelRadius: number, sectorCount: number): number {
+export function segmentLabelFontPx(
+  labelRadius: number,
+  sectorCount: number,
+  charCount: number,
+): number {
   if (sectorCount <= 0) return PIE_LABEL_FONT_MAX;
   // Tangential room a wedge has at this radius (chord of its angular slice),
-  // less ~10% so glyphs don't touch the wedge edges.
+  // less a little so glyphs don't touch the wedge edges.
   const chord = 2 * labelRadius * Math.sin(Math.PI / sectorCount);
-  const usable = chord * 0.9;
-  // ~MAX chars at an average glyph advance of ~0.55em.
-  const fit = usable / (MAX_PIE_LABEL_CHARS * 0.55);
+  const usable = chord * 0.95;
+  const fit = usable / (Math.max(1, charCount) * LABEL_CHAR_EM);
   return Math.max(PIE_LABEL_FONT_MIN, Math.min(PIE_LABEL_FONT_MAX, fit));
 }
 
