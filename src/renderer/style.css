@@ -70,7 +70,7 @@ body {
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  margin-top: 12px;
+  /* margin-top (scaled) comes from the shared .pie-depth-dots rule. */
 }
 
 /* Only the wedge *fill* carries the appearance slider's translucency

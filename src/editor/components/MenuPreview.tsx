@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 import { menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
@@ -111,10 +111,12 @@ export function MenuPreview() {
   const parentRing = isDrilled ? ringBranches(config, viewPath.slice(0, -1)) : [];
   const drilledIntoIndex = isDrilled ? viewPath[viewPath.length - 1]! : -1;
 
-  // Depth dots (shared look with the live overlay): a fixed row sized to the
-  // tree's deepest path, the dot for the current view depth highlighted.
-  const depth = menuTreeDepth(config);
-  const activeDepth = Math.min(viewPath.length, depth - 1);
+  // Depth dots (shared look with the live overlay): first dot = the centre,
+  // then one per ring level (1 + deepest path). Active = the centre when the
+  // centre is selected, else the current ring's dot. Centre dot is red when
+  // the centre is a cancel target.
+  const dotCount = 1 + menuTreeDepth(config);
+  const activeDot = Math.min(centerSelected ? 0 : viewPath.length + 1, dotCount - 1);
 
   // Same size formula as the live pie so the preview matches its on-screen
   // size and tracks the slider live. The `/ devicePixelRatio` is a
@@ -349,13 +351,20 @@ export function MenuPreview() {
           </text>
         </g>
       </svg>
-      {depth > 0 && (
-        <div className={`pie-depth-dots${isCancelNode(config.root) ? ' is-cancel' : ''}`}>
-          {Array.from({ length: depth }, (_, i) => (
-            <span key={i} className={`pie-depth-dot${i === activeDepth ? ' is-active' : ''}`} />
-          ))}
-        </div>
-      )}
+      <div
+        className="pie-depth-dots"
+        style={{ ['--depth-dot-size']: `${displaySize * 0.02}px` } as CSSProperties}
+      >
+        {Array.from({ length: dotCount }, (_, i) => {
+          const cancel = i === 0 && isCancelNode(config.root);
+          return (
+            <span
+              key={i}
+              className={`pie-depth-dot${i === activeDot ? ' is-active' : ''}${cancel ? ' is-cancel' : ''}`}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }

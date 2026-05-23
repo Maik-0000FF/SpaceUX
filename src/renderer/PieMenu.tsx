@@ -209,10 +209,14 @@ export function PieMenu({
   const rootCancel = isCancelNode(config.root);
   const centerLabel = config.root.label || '✕';
 
-  // Depth dots: a fixed row sized to the tree's deepest path, with the dot
-  // for the current navigation depth highlighted (top level = first dot).
-  const depth = menuTreeDepth(config);
-  const activeDepth = Math.min(navigation.length, depth - 1);
+  // Depth dots: the first (leftmost) dot is the centre, then one dot per ring
+  // level — so the row is 1 + the tree's deepest path. The active dot is the
+  // centre when nothing is hovered at the top (you're "on" the centre), else
+  // the current ring's dot (top ring = second dot). The centre dot turns red
+  // when the centre is a cancel target.
+  const dotCount = 1 + menuTreeDepth(config);
+  const atCentre = navigation.length === 0 && cancelActive;
+  const activeDot = Math.min(atCentre ? 0 : navigation.length + 1, dotCount - 1);
 
   // Mid-radius of the outer ring band, used to position outer-ring
   // labels in the visual centre of each wedge. Pre-computed because
@@ -321,13 +325,23 @@ export function PieMenu({
           </g>
         )}
       </svg>
-      {depth > 0 && (
-        <div className={`pie-depth-dots${rootCancel ? ' is-cancel' : ''}`} aria-hidden="true">
-          {Array.from({ length: depth }, (_, i) => (
-            <span key={i} className={`pie-depth-dot${i === activeDepth ? ' is-active' : ''}`} />
-          ))}
-        </div>
-      )}
+      <div
+        className="pie-depth-dots"
+        // Dot size scales with the rendered pie so spacing stays proportional.
+        style={{ ['--depth-dot-size']: `${displaySize * 0.02}px` } as CSSProperties}
+        aria-hidden="true"
+      >
+        {Array.from({ length: dotCount }, (_, i) => {
+          // Dot 0 is the centre — red when the centre is a cancel target.
+          const cancel = i === 0 && rootCancel;
+          return (
+            <span
+              key={i}
+              className={`pie-depth-dot${i === activeDot ? ' is-active' : ''}${cancel ? ' is-cancel' : ''}`}
+            />
+          );
+        })}
+      </div>
     </div>
   );
 }

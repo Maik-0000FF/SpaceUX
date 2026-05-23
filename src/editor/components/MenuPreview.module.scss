@@ -19,7 +19,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  // The dots row carries its own scaled top margin (shared .pie-depth-dots),
+  // so no fixed gap here — keeps the spacing proportional to the pie size.
 }
 
 .pie {
