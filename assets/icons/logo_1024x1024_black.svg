@@ -3,23 +3,12 @@ SPDX-FileCopyrightText: Maik-0000FF
 SPDX-License-Identifier: CC-BY-4.0
 -->
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="spaceGradient" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#7C4DFF"/>
-      <stop offset="50%" stop-color="#00D4FF"/>
-      <stop offset="100%" stop-color="#00FFA3"/>
-    </linearGradient>
-  </defs>
-
-  <!-- Background -->
-  <rect width="1024" height="1024" rx="120" fill="#070B16"/>
-
   <!-- Centered Group -->
   <g transform="translate(512 512)">
 
     <!-- Planet -->
     <circle cx="0" cy="0" r="240"
-            stroke="url(#spaceGradient)"
+            stroke="#000000"
             stroke-width="36"
             fill="none"/>
 
@@ -27,7 +16,7 @@ SPDX-License-Identifier: CC-BY-4.0
     <ellipse cx="0" cy="0"
              rx="390" ry="145"
              transform="rotate(-18)"
-             stroke="url(#spaceGradient)"
+             stroke="#000000"
              stroke-width="26"
              fill="none"/>
   </g>

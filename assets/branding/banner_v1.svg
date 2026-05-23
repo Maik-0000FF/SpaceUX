@@ -9,28 +9,17 @@ SPDX-License-Identifier: CC-BY-4.0
       <stop offset="50%" stop-color="#00D4FF"/>
       <stop offset="100%" stop-color="#00FFA3"/>
     </linearGradient>
-
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
-      <feMerge>
-        <feMergeNode in="blur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
   </defs>
 
   <!-- Planet -->
-  <circle cx="90" cy="90" r="38" stroke="url(#spaceGradient)" stroke-width="8" fill="#0B1020"/>
+  <circle cx="90" cy="90" r="38" stroke="url(#spaceGradient)" stroke-width="8" fill="none"/>
 
   <!-- Orbit -->
   <ellipse cx="90" cy="90" rx="62" ry="22"
            stroke="url(#spaceGradient)"
            stroke-width="5"
            transform="rotate(-18 90 90)"
-           filter="url(#glow)"/>
-
-  <!-- Orbit Dot -->
-  <circle cx="148" cy="68" r="7" fill="#00D4FF"/>
+           fill="none"/>
 
   <!-- Brand Name -->
   <text x="180" y="105"
@@ -39,7 +28,7 @@ SPDX-License-Identifier: CC-BY-4.0
         font-weight="700"
         fill="url(#spaceGradient)"
         letter-spacing="1">
-    SpaceUX
+    SpaceUI/UX
   </text>
 
   <!-- Subtitle -->
