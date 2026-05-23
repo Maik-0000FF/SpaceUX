@@ -22,6 +22,7 @@ export function PluginManager() {
   const [state, setState] = useState<PluginsState>(EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = (): void => {
     window.editor
@@ -37,11 +38,14 @@ export function PluginManager() {
   const doImport = (): void => {
     setBusy(true);
     setError(null);
+    setNotice(null);
     window.editor
       .importPlugin()
       .then((r) => {
-        if (r.ok === true) setState(r.state);
-        else if (r.ok === false) setError(r.reason);
+        if (r.ok === true) {
+          setState(r.state);
+          setNotice(`Imported ${r.installed.name} (${r.installed.kind}).`);
+        } else if (r.ok === false) setError(r.reason);
         // r.ok === 'cancelled' → the picker was dismissed; nothing to do.
       })
       .finally(() => setBusy(false));
@@ -50,6 +54,7 @@ export function PluginManager() {
   const remove = (kind: PluginCategory, id: string): void => {
     setBusy(true);
     setError(null);
+    setNotice(null);
     window.editor
       .uninstallPlugin(kind, id)
       .then(setState)
@@ -66,6 +71,11 @@ export function PluginManager() {
       {error !== null && (
         <p className={styles.error} role="alert">
           {error}
+        </p>
+      )}
+      {notice !== null && (
+        <p className={styles.notice} role="status">
+          {notice}
         </p>
       )}
 

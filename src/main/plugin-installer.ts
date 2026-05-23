@@ -42,10 +42,11 @@ function isSafePluginId(id: string): boolean {
 export async function importPluginFromFolder(srcDir: string): Promise<ImportOutcome> {
   const resolvedSrc = path.resolve(srcDir);
 
-  const manifest = await readPluginManifest(resolvedSrc);
-  if ('reason' in manifest) {
-    return { ok: false, reason: `not a valid plugin folder: ${manifest.reason}` };
+  const read = await readPluginManifest(resolvedSrc);
+  if (!read.ok) {
+    return { ok: false, reason: `not a valid plugin folder: ${read.reason}` };
   }
+  const { manifest } = read;
   if (!isSafePluginId(manifest.id)) {
     return { ok: false, reason: `manifest id "${manifest.id}" is not a valid plugin identifier` };
   }
@@ -59,13 +60,18 @@ export async function importPluginFromFolder(srcDir: string): Promise<ImportOutc
     return { ok: false, reason: 'that folder is already managed by SpaceUX' };
   }
 
+  // Copy to a sibling temp dir first, then swap it in with a single rename, so
+  // a mid-copy failure can't leave the previous install half-overwritten:
+  // either the whole new copy lands or the old one stays untouched.
+  const tmp = `${target}.import-${process.pid}-${Date.now()}`;
   try {
-    // Replace any existing copy so re-import is a clean update, not a merge
-    // that could leave orphaned files from a previous version.
-    await fs.rm(target, { recursive: true, force: true });
     await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.cp(resolvedSrc, target, { recursive: true });
+    await fs.rm(tmp, { recursive: true, force: true });
+    await fs.cp(resolvedSrc, tmp, { recursive: true });
+    await fs.rm(target, { recursive: true, force: true });
+    await fs.rename(tmp, target);
   } catch (err) {
+    await fs.rm(tmp, { recursive: true, force: true }).catch(() => {});
     return { ok: false, reason: `copy failed: ${describeError(err)}` };
   }
 

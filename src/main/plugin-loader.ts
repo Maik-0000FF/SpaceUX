@@ -271,24 +271,29 @@ export function validateManifest(value: unknown): string | null {
  * doesn't execute yet (themes, #47) — where importing `index.js` is either
  * pointless or absent.
  */
-export async function readPluginManifest(
-  dir: string,
-): Promise<PluginManifest | { reason: string }> {
+export type ReadManifestResult =
+  | { ok: true; manifest: PluginManifest }
+  | { ok: false; reason: string };
+
+export async function readPluginManifest(dir: string): Promise<ReadManifestResult> {
   let raw: string;
   try {
     raw = await fs.readFile(path.join(dir, 'manifest.json'), 'utf8');
   } catch (err) {
-    return { reason: `cannot read manifest.json: ${describeError(err)}` };
+    return { ok: false, reason: `cannot read manifest.json: ${describeError(err)}` };
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    return { reason: `manifest.json is not valid JSON: ${describeError(err)}` };
+    return { ok: false, reason: `manifest.json is not valid JSON: ${describeError(err)}` };
   }
   const manifestErr = validateManifest(parsed);
-  if (manifestErr) return { reason: manifestErr };
-  return parsed as PluginManifest;
+  if (manifestErr) return { ok: false, reason: manifestErr };
+  // Explicit `ok` discriminant rather than `'reason' in result`: validateManifest
+  // doesn't reject unknown fields, so a manifest with a top-level "reason" key
+  // would otherwise be misread as a load failure.
+  return { ok: true, manifest: parsed as PluginManifest };
 }
 
 export type InstalledPlugin = { manifest: PluginManifest; dir: string };
@@ -322,20 +327,21 @@ export async function loadPluginManifests(
         continue;
       }
       const result = await readPluginManifest(dir);
-      if ('reason' in result) {
+      if (!result.ok) {
         errors.push({ dir, reason: result.reason });
         continue;
       }
-      if (result.kind !== category) {
+      const { manifest } = result;
+      if (manifest.kind !== category) {
         errors.push({
           dir,
-          reason: `manifest kind "${result.kind}" does not match the "${category}" folder it is installed in`,
+          reason: `manifest kind "${manifest.kind}" does not match the "${category}" folder it is installed in`,
         });
         continue;
       }
-      if (seenIds.has(result.id)) continue;
-      seenIds.add(result.id);
-      plugins.push({ manifest: result, dir });
+      if (seenIds.has(manifest.id)) continue;
+      seenIds.add(manifest.id);
+      plugins.push({ manifest, dir });
     }
   }
   return { plugins, errors };

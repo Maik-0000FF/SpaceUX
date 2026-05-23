@@ -917,7 +917,9 @@ app.whenReady().then(async () => {
     importPlugin: async (srcDir) => {
       const outcome = await importPluginFromFolder(srcDir);
       if (!outcome.ok) return { ok: false, reason: outcome.reason };
-      await reloadFunctionPlugins();
+      // Only a function import changes the action index; a theme import just
+      // needs the fresh listing below, no rebuild / dropdown refresh.
+      if (outcome.manifest.kind === 'function') await reloadFunctionPlugins();
       const state = await buildPluginsState();
       const installed =
         state.plugins.find(

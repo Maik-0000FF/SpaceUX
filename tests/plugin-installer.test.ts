@@ -97,6 +97,18 @@ describe('importPluginFromFolder', () => {
     if (!result.ok) expect(result.reason).toMatch(/not a valid plugin folder/);
   });
 
+  it('imports a manifest carrying an unrelated top-level "reason" key', async () => {
+    // Guards the explicit `ok` discriminant in readPluginManifest: unknown
+    // fields are allowed, so a "reason" key must not be mistaken for a load
+    // failure (it would be under a `'reason' in result` check).
+    const src = await makeSrcPlugin('reasonkey', {
+      ...functionManifest('org.demo.reason'),
+      reason: 'just a field',
+    });
+    const result = await importPluginFromFolder(src);
+    expect(result.ok).toBe(true);
+  });
+
   it('rejects a manifest id that is unsafe as a path segment', async () => {
     const src = await makeSrcPlugin('eviltree', functionManifest('../../etc/evil'));
     const result = await importPluginFromFolder(src);
