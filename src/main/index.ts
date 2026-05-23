@@ -67,7 +67,11 @@ import {
   type LoadedPlugin,
 } from './plugin-loader.js';
 import { importPluginFromFolder, uninstallPlugin } from './plugin-installer.js';
-import type { PluginManifest } from '../shared/plugin-types.js';
+import {
+  PLUGIN_MENU_ID_PREFIX,
+  isPluginMenuId,
+  type PluginManifest,
+} from '../shared/plugin-types.js';
 import { createTray } from './tray.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -205,6 +209,11 @@ async function reloadFunctionPlugins(): Promise<void> {
   // The set of plugin-provided menus may have changed too — refresh the
   // dropdown, and if the *active* plugin menu was just uninstalled, re-resolve
   // so the live pie falls back instead of pointing at a gone menu.
+  //
+  // Static-scope limitation (C1): re-importing an updated plugin while its menu
+  // is active does NOT refresh the live pie's content here — the id is
+  // unchanged, so applyActiveProfile's change-gate wouldn't push it anyway. The
+  // user reselects to pick up new content; a live-refresh path is a follow-up.
   void pushEditorProfiles();
   if (
     activeProfileId !== null &&
@@ -237,23 +246,17 @@ function resolveProfileId(): string | null {
   return overrideProfileId ?? deviceProfileId(deviceVendor, deviceProduct);
 }
 
-// A plugin-provided menu is selected as the override with a `plugin:<id>` id,
-// distinguishing it from a device profile (`<vid>-<pid>`) in the same slot.
-const PLUGIN_MENU_PREFIX = 'plugin:';
-function isPluginMenuId(id: string): boolean {
-  return id.startsWith(PLUGIN_MENU_PREFIX);
-}
 /** The (normalized) root of the plugin menu named by a `plugin:<id>` id, or
  *  null when no loaded plugin with that id contributes a menu. */
 function pluginMenuRootFor(id: string): MenuNode | null {
-  const pid = id.slice(PLUGIN_MENU_PREFIX.length);
+  const pid = id.slice(PLUGIN_MENU_ID_PREFIX.length);
   return loadedPlugins.find((p) => p.manifest.id === pid)?.manifest.menu?.root ?? null;
 }
 /** Selectable plugin menus for the editor's profile dropdown. */
 function listPluginMenus(): { id: string; name: string }[] {
   return loadedPlugins
     .filter((p) => p.manifest.menu !== undefined)
-    .map((p) => ({ id: `${PLUGIN_MENU_PREFIX}${p.manifest.id}`, name: p.manifest.name }));
+    .map((p) => ({ id: `${PLUGIN_MENU_ID_PREFIX}${p.manifest.id}`, name: p.manifest.name }));
 }
 
 /**

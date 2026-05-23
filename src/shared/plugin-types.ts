@@ -116,6 +116,18 @@ export type PluginManifest = {
   menu?: PluginMenu;
 };
 
+/** The id prefix marking a profile-dropdown entry as a plugin-provided menu
+ *  (`plugin:<pluginId>`), distinguishing it from a device profile
+ *  (`<vid>-<pid>`) in the same override slot. Shared so main and the editor
+ *  renderer agree on the one literal across the process boundary. */
+export const PLUGIN_MENU_ID_PREFIX = 'plugin:';
+
+/** Whether an override id names a plugin-provided menu. Tolerates null/undefined
+ *  so callers can pass an optional override directly. */
+export function isPluginMenuId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && id.startsWith(PLUGIN_MENU_ID_PREFIX);
+}
+
 /** A plugin-contributed menu. C1 carries only the content (`root`); a plugin
  *  may later also *suggest* its own trigger/navigation/appearance, applied
  *  opt-in (the user is asked) and never overwriting their config. */

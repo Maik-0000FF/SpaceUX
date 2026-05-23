@@ -195,6 +195,11 @@ export function resolvePluginMenuConfig(
   fallback: FallbackMenu,
   id: string,
 ): ActiveMenuConfig {
+  // `root` is aliased from the plugin's loaded manifest (not deep-copied).
+  // Safe today: editor edits round-trip through IPC structured-clone and writes
+  // are blocked while a plugin menu is active, and nothing in main mutates
+  // menuConfig.root in place. Do not introduce in-place mutation of the active
+  // root, or it would corrupt the loaded manifest.
   return {
     config: { ...fallback.config, root },
     mtime: null,

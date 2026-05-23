@@ -3,6 +3,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { isPluginMenuId } from '@/shared/plugin-types';
+
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useProfiles } from '../hooks/useProfiles';
 
@@ -22,9 +24,9 @@ type Feedback = { kind: 'ok' | 'error'; text: string };
  * specific profile force-loads it. The active profile (what auto actually
  * resolved to) is shown read-only by DeviceStatus.
  */
-/** A plugin-provided menu is selected with a `plugin:<id>` id; Save/Delete are
- *  device-profile operations and don't apply while one is active. */
-const isPluginMenuId = (id: string | null): boolean => id !== null && id.startsWith('plugin:');
+// A plugin-provided menu is selected with a `plugin:<id>` id; Save/Delete are
+// device-profile operations and don't apply while one is active. The
+// predicate is shared with main (src/shared/plugin-types).
 
 export function ProfileControls() {
   const { ids, override, pluginMenus } = useProfiles();

@@ -169,8 +169,16 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   // resolver downstream gets a clean MenuNode.
   if (manifest.menu !== undefined) {
     const v = validateNode(manifest.menu.root, 'plugin menu root', 0, true);
-    if (!v.ok) return { reason: `menu: ${v.reason}` };
-    manifest.menu = { ...manifest.menu, root: v.value };
+    if (v.ok) {
+      manifest.menu = { ...manifest.menu, root: v.value };
+    } else {
+      // The menu is an optional add-on — a bad one must not take down the
+      // plugin's valid actions. Drop just the menu and warn (surfacing this in
+      // the Plugins manager UI is a follow-up).
+      // eslint-disable-next-line no-console
+      console.warn(`[plugin ${manifest.id}] menu disabled: ${v.reason}`);
+      manifest.menu = undefined;
+    }
   }
 
   // Module resolution: relative file:// URL so ESM and CJS both work.
