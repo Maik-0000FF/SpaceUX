@@ -165,13 +165,12 @@ export function App() {
         // just update local state. The next axes frame will start
         // picking nodes from the new (deeper) ring.
         //
-        // Land sticky on child[0]: with the outer-ring rotation
-        // alignment, sector 0 of the new ring sits at the parent
-        // sector's angle — i.e. exactly where the user's puck was
-        // pointing. Using the parent's index here would put the
-        // sticky on the opposite side of the new ring, producing a
-        // visible flash before the next axes frame corrects it.
-        dispatch({ type: 'drill', index: stickyChildIndex, nextSticky: 0 });
+        // Land at the child ring's centre (no selection) so entering a
+        // submenu is identical to entering the top ring from the centre —
+        // aim or twist onto an item. For continuous aiming the next axes
+        // frame re-hovers from the live puck; a twist style steps in from
+        // the centre.
+        dispatch({ type: 'drill', index: stickyChildIndex, nextSticky: null });
         return;
       }
       // Leaf (or label-only node with no action): close the menu

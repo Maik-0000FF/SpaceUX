@@ -180,10 +180,12 @@ export function useDrillNavigation(opts: {
         }
         break;
       case 'drill':
-        // child[0] aligns with the parent sector's angle thanks to the
-        // outer-ring rotation, so landing sticky on 0 matches the user's
-        // puck direction.
-        dispatch({ type: 'drill', index: outcome.index, nextSticky: 0 });
+        // Land at the child ring's centre (no selection) so entering a
+        // submenu works exactly like entering the top ring from the centre:
+        // you aim or twist onto an item. Continuous aiming (push/tilt)
+        // re-hovers from the live puck on the next frame; a twist style
+        // steps in from the centre, same as the first ring.
+        dispatch({ type: 'drill', index: outcome.index, nextSticky: null });
         break;
       case 'hover':
         dispatch({ type: 'hover', index: outcome.index });
