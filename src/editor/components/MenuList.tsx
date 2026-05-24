@@ -186,11 +186,14 @@ export function MenuList() {
       renameCancelled.current = false;
       return;
     }
+    // Write the label even when empty — an item can be icon-only (#168/#172),
+    // so clearing the label is valid. Mirrors the Properties label field,
+    // which also allows empty; the tree previously dropped an empty rename,
+    // so an icon-only item could only be cleared from Properties.
     const value = renameValue.trim();
-    if (value)
-      updateNodeAt(path, (s) => {
-        s.label = value;
-      });
+    updateNodeAt(path, (s) => {
+      s.label = value;
+    });
     setRenaming(null);
   };
 
