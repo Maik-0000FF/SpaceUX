@@ -34,6 +34,8 @@ import type {
   ProfileActionResult,
   ProfilesState,
   ThemeChoice,
+  WorkbenchMenusState,
+  WorkbenchSeedResult,
 } from './ipc';
 import type { MenuConfig } from './menu';
 
@@ -139,6 +141,13 @@ export type EditorBridge = {
    *  requests the complete set even when that's expensive (FreeCAD cycles
    *  every workbench). Resolves with the catalog or a failure reason. */
   getPluginCatalog(pluginId: string, loadAll: boolean): Promise<PluginCatalogResult>;
+  /** Pull the ids of curated per-workbench pies on mount (#193). */
+  getWorkbenchMenus(): Promise<WorkbenchMenusState>;
+  /** Subscribe to curated-pie add/remove changes. Returns an unsubscribe fn. */
+  onWorkbenchMenusChanged(handler: (state: WorkbenchMenusState) => void): () => void;
+  /** Seed a curated pie for a workbench from the live catalog (#193): resolves
+   *  with the new `wb:` id (set it as the override next), or a failure reason. */
+  seedWorkbench(pluginId: string, workbenchKey: string): Promise<WorkbenchSeedResult>;
   /** Pull the per-device profile list + manual override on mount (#113). */
   getProfiles(): Promise<ProfilesState>;
   /** Subscribe to profile-list / override changes (create / delete /

@@ -7,7 +7,7 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_MENU_CONFIG } from '@/shared/menu';
+import { DEFAULT_MENU_CONFIG, MENU_CONFIG_VERSION } from '@/shared/menu';
 import {
   isWorkbenchMenuId,
   makeWorkbenchMenuId,
@@ -20,6 +20,7 @@ import {
   listWorkbenchMenus,
   loadWorkbenchMenu,
   resolveWorkbenchMenuConfig,
+  seedWorkbenchConfig,
   workbenchMenuPath,
   writeWorkbenchMenu,
 } from '../src/main/workbench-loader';
@@ -164,5 +165,68 @@ describe('resolveWorkbenchMenuConfig', () => {
   it('returns null when there is no usable file (caller drops the override)', () => {
     expect(resolveWorkbenchMenuConfig(ID, { status: 'absent' })).toBeNull();
     expect(resolveWorkbenchMenuConfig(ID, { status: 'invalid', reason: 'bad' })).toBeNull();
+  });
+});
+
+describe('seedWorkbenchConfig', () => {
+  const group = {
+    key: 'PartDesignWorkbench',
+    name: 'Part Design',
+    commands: [
+      { command: 'PartDesign_Pad', label: 'Pad', icon: 'data:image/png;base64,AAA' },
+      { command: 'PartDesign_Pocket', label: 'Pocket' },
+      { command: 'PartDesign_X', label: 'X', icon: 'mdi:not-a-data-uri' },
+    ],
+  };
+
+  it('builds a flat ring of run-action leaves, keeping only renderable icons', () => {
+    const seeded = seedWorkbenchConfig(group, DEFAULT_MENU_CONFIG, 'org.spaceux.freecad');
+    expect(seeded.version).toBe(MENU_CONFIG_VERSION);
+    expect(seeded.root.label).toBe(''); // empty centre, like the dynamic pie
+    expect(seeded.root.branches).toEqual([
+      {
+        label: 'Pad',
+        icon: 'data:image/png;base64,AAA',
+        action: { id: 'org.spaceux.freecad/run', config: { command: 'PartDesign_Pad' } },
+      },
+      {
+        label: 'Pocket',
+        action: { id: 'org.spaceux.freecad/run', config: { command: 'PartDesign_Pocket' } },
+      },
+      {
+        // non-renderable icon dropped
+        label: 'X',
+        action: { id: 'org.spaceux.freecad/run', config: { command: 'PartDesign_X' } },
+      },
+    ]);
+    // The base's trigger / navigation / scale carry over for consistency.
+    expect(seeded.triggerButton).toBe(DEFAULT_MENU_CONFIG.triggerButton);
+    expect(seeded.scale).toBe(DEFAULT_MENU_CONFIG.scale);
+  });
+
+  it('skips commands missing a name or label (parity with the palette)', () => {
+    const seeded = seedWorkbenchConfig(
+      {
+        key: 'W',
+        name: 'W',
+        commands: [
+          { command: 'Good', label: 'Good' },
+          { command: 'NoLabel', label: '' }, // unsavable label-less, icon-less leaf
+          { command: '', label: 'NoCommand' },
+        ],
+      },
+      DEFAULT_MENU_CONFIG,
+      'p',
+    );
+    expect(seeded.root.branches!.map((b) => b.label)).toEqual(['Good']);
+  });
+
+  it('seeds an empty ring for a workbench with no commands', () => {
+    const seeded = seedWorkbenchConfig(
+      { key: 'Empty', name: 'Empty', commands: [] },
+      DEFAULT_MENU_CONFIG,
+      'p',
+    );
+    expect(seeded.root.branches).toEqual([]);
   });
 });

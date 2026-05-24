@@ -13,6 +13,7 @@ import {
   type DaemonStatusPayload,
   type EditorDeviceInfo,
   type MenuConfigChange,
+  type WorkbenchMenusState,
   type MenuOpenPayload,
   type PieAppearance,
   type PluginInfo,
@@ -72,13 +73,18 @@ import {
   PLUGIN_MENU_ID_PREFIX,
   isPluginMenuId,
   isWorkbenchMenuId,
+  makeWorkbenchMenuId,
+  type PluginCatalog,
   type PluginManifest,
 } from '../shared/plugin-types.js';
 import {
+  listWorkbenchMenus,
   loadWorkbenchMenu,
   resolveWorkbenchMenuConfig,
+  seedWorkbenchConfig,
   workbenchMenuPath,
   workbenchMenusDir,
+  writeWorkbenchMenu,
 } from './workbench-loader.js';
 import { createTray } from './tray.js';
 
@@ -374,6 +380,14 @@ async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
   applyActiveAppearance(next.appearance);
 }
 
+/** Push the curated-workbench-pie list to the editor (#193) after one is added
+ *  / removed, so the FreeCAD dropdown's "already curated" markers stay in sync. */
+async function pushEditorWorkbenchMenus(): Promise<void> {
+  sendToEditor(IpcChannel.EDITOR_WORKBENCH_MENUS_CHANGED, {
+    ids: await listWorkbenchMenus(),
+  } satisfies WorkbenchMenusState);
+}
+
 /** Push the profile list + current override to the editor (#113), after a
  *  create / delete / override change so its dropdown stays in sync. */
 async function pushEditorProfiles(): Promise<void> {
@@ -445,6 +459,9 @@ async function onProfilesChangedOnDisk(): Promise<void> {
  * re-resolve. Mirrors onProfilesChangedOnDisk's content-reload path.
  */
 async function onWorkbenchMenusChangedOnDisk(): Promise<void> {
+  // The set of curated pies may have changed (one was added/removed) regardless
+  // of the active source — refresh the FreeCAD dropdown's markers first.
+  void pushEditorWorkbenchMenus();
   const id = resolveProfileId();
   if (id === null || !isWorkbenchMenuId(id) || id !== activeProfileId) return;
   const load = await loadWorkbenchMenu(id);
@@ -1188,6 +1205,46 @@ app.whenReady().then(async () => {
       } catch (err) {
         return { ok: false, reason: describeError(err) };
       }
+    },
+    getWorkbenchMenus: () => listWorkbenchMenus(),
+    seedWorkbench: async (pluginId, workbenchKey) => {
+      const plugin = loadedPlugins.find((p) => p.manifest.id === pluginId);
+      if (!plugin?.provideCatalog) {
+        return { ok: false, reason: 'this plugin provides no command catalog' };
+      }
+      let catalog: PluginCatalog;
+      try {
+        const ctx = makeActionContext(plugin.manifest.id, daemon);
+        catalog = await withTimeout(
+          Promise.resolve(plugin.provideCatalog(ctx, { loadAll: false })),
+          5000,
+          'provideCatalog timed out',
+        );
+      } catch (err) {
+        return { ok: false, reason: describeError(err) };
+      }
+      const group = catalog.groups.find((g) => g.key === workbenchKey);
+      if (!group || group.commands.length === 0) {
+        return {
+          ok: false,
+          reason: `workbench "${workbenchKey}" has no commands loaded — open it in FreeCAD (or use Load all) first`,
+        };
+      }
+      // Seed from the global base (trigger / navigation / scale); writes fail
+      // with a conflict if a curated pie already exists (don't clobber it).
+      const base = fallbackMenu?.config ?? DEFAULT_MENU_CONFIG;
+      const id = makeWorkbenchMenuId(pluginId, workbenchKey);
+      const result = await writeWorkbenchMenu(id, seedWorkbenchConfig(group, base, pluginId), null);
+      if (result.ok !== true) {
+        return {
+          ok: false,
+          reason:
+            result.ok === 'conflict'
+              ? 'a curated pie already exists for this workbench'
+              : result.reason,
+        };
+      }
+      return { ok: true, id };
     },
   });
   wireAppIpc({
