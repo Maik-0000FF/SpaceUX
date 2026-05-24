@@ -1284,7 +1284,9 @@ app.whenReady().then(async () => {
           ok: false,
           reason:
             result.ok === 'conflict'
-              ? 'a curated pie already exists for this workbench'
+              ? overwrite
+                ? 'the curated pie changed on disk — try again'
+                : 'a curated pie already exists for this workbench'
               : result.reason,
         };
       }
