@@ -79,6 +79,18 @@
   min-height: 0;
 }
 
+// Left column stacks the menu tree (flex: 1, scrolls) and the FreeCAD command
+// palette (#76 D2b) below it. The column owns the divider + background so the
+// palette sits flush under the tree.
+.leftColumn {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--editor-panel-bg);
+  border-right: 1px solid var(--editor-border);
+}
+
 .center {
   display: flex;
   flex-direction: column;

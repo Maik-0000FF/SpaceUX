@@ -170,7 +170,7 @@ function pushEditorDevice(): void {
 }
 
 /** Map a loaded/installed plugin to the editor-facing {@link PluginInfo}. */
-function toPluginInfo(manifest: PluginManifest, dir: string): PluginInfo {
+function toPluginInfo(manifest: PluginManifest, dir: string, hasCatalog = false): PluginInfo {
   return {
     id: manifest.id,
     name: manifest.name,
@@ -178,6 +178,7 @@ function toPluginInfo(manifest: PluginManifest, dir: string): PluginInfo {
     kind: manifest.kind,
     dir,
     actionCount: manifest.actions?.length ?? 0,
+    hasCatalog,
   };
 }
 
@@ -185,7 +186,9 @@ function toPluginInfo(manifest: PluginManifest, dir: string): PluginInfo {
  *  `function` plugins (already loaded for the action index) plus the
  *  `theme` plugins, which are listed but not executed yet (#47). */
 async function buildPluginsState(): Promise<PluginsState> {
-  const fnPlugins = loadedPlugins.map((p) => toPluginInfo(p.manifest, p.dir));
+  const fnPlugins = loadedPlugins.map((p) =>
+    toPluginInfo(p.manifest, p.dir, p.provideCatalog !== undefined),
+  );
   const theme = await loadPluginManifests('theme', pluginRepoRoot);
   const themePlugins = theme.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
   return {

@@ -72,6 +72,10 @@ type MenuSettingsState = {
   /** Append a new default leaf node to the ring at `ringPath`
    *  (`[]` = top level). No-op if the path is stale. */
   addNode: (ringPath: readonly number[]) => void;
+  /** Append a fully-specified leaf (label + optional icon + action) to the
+   *  ring at `ringPath` — the command palette adds a FreeCAD command this way
+   *  (#76 D2b). No-op on a stale path. */
+  addItem: (ringPath: readonly number[], item: Pick<MenuNode, 'label' | 'icon' | 'action'>) => void;
   /** Remove the node at `index` within the ring at `ringPath`. No-op
    *  if it would empty the ring (the validator requires a non-empty
    *  menu / non-empty submenu) or the index/path is invalid. */
@@ -222,6 +226,20 @@ export const useMenuSettings = create<MenuSettingsState>()(
               ringPath,
               ring.map((n) => n.label),
             ),
+            id: nextNodeId(),
+          });
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      addItem: (ringPath, item) =>
+        set((state) => {
+          if (!state.config) return;
+          const ring = draftRingAt(state.config, ringPath);
+          if (!ring) return;
+          ring.push({
+            label: item.label,
+            ...(item.icon ? { icon: item.icon } : {}),
+            ...(item.action ? { action: item.action } : {}),
             id: nextNodeId(),
           });
           state.origin = 'local';
