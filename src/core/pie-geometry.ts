@@ -122,7 +122,12 @@ export function segmentLabelFontPx(
   sectorCount: number,
   charCount: number,
 ): number {
-  if (sectorCount <= 0) return PIE_LABEL_FONT_MAX;
+  // A single sector spans the full ring — it has no angular edges, so the
+  // chord (sin(π/1) = 0) doesn't bound it and only the font cap applies.
+  // Without this a lone item (e.g. a fresh one-child submenu) would collapse
+  // to the *minimum* font instead of the configured size. (< 2 also covers
+  // the degenerate 0-sector case.)
+  if (sectorCount < 2) return PIE_LABEL_FONT_MAX;
   // Tangential room a wedge has at this radius (chord of its angular slice),
   // less a little so glyphs don't touch the wedge edges.
   const chord = 2 * labelRadius * Math.sin(Math.PI / sectorCount);
