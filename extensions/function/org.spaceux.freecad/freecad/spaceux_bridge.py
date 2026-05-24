@@ -207,7 +207,7 @@ def _context():
         commands = _commands_from_items({tb_name: names}, actions)
         if commands:
             toolbars.append({"name": tb_name, "commands": commands})
-    return {"ok": True, "workbench": wb_id, "toolbars": toolbars}
+    return {"ok": True, "workbench": wb_id, "toolbars": toolbars, "appIcon": _app_icon()}
 
 
 # Workbenches the catalog never activates or lists: Start opens the welcome

@@ -65,6 +65,9 @@ export type PieMenuProps = {
    *  From the pie appearance; the icon is a JS-computed SVG dimension, so it
    *  can't ride a CSS var like the label scale. */
   iconScale?: number;
+  /** Active-plugin badge (#186): the app icon (data URI) of the plugin whose
+   *  pie is active, shown decoratively in the bottom-left corner, or null. */
+  badge?: string | null;
 };
 
 /**
@@ -87,6 +90,7 @@ export function PieMenu({
   geometryOverrides,
   radius = 240,
   iconScale = 1,
+  badge = null,
 }: PieMenuProps) {
   // Resolve ring roles from the navigation stack. At top level the
   // *inner* pie is the active selection target; once drilled in the
@@ -361,6 +365,20 @@ export function PieMenu({
               />
             ))}
           </g>
+        )}
+        {/* Active-plugin badge (#186): the app icon, centred in the bottom-left
+          corner outside the outer ring band. Decorative; rendered unaltered. */}
+        {badge && (
+          <image
+            href={badge}
+            x={-outerRingOuterRadius * 0.95}
+            y={outerRingOuterRadius * 0.65}
+            width={outerRingOuterRadius * 0.3}
+            height={outerRingOuterRadius * 0.3}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ pointerEvents: 'none' }}
+            aria-hidden="true"
+          />
         )}
       </svg>
       <div

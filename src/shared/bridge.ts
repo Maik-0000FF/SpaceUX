@@ -58,6 +58,9 @@ export type SpaceUxBridge = {
   onMenuConfig(handler: (config: MenuConfig) => void): () => void;
   /** Pie menu opened at the given anchor (renderer-window coords). */
   onMenuOpen(handler: (payload: MenuOpenPayload) => void): () => void;
+  /** Active-plugin badge (#186): the app icon (data URI) of the plugin whose
+   *  pie is active, or null. Pushed just before onMenuOpen. */
+  onPieBadge(handler: (badge: string | null) => void): () => void;
   /** Pie menu commit / dismiss request from main (no payload). */
   onMenuCommit(handler: () => void): () => void;
   invokeAction(key: string, config: Record<string, unknown>): Promise<void>;
