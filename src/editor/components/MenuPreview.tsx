@@ -152,14 +152,18 @@ export function MenuPreview() {
   const activeSector = livePreview ? liveSticky : selectedIndex;
   const centerActive = centerSelected || activeSector === null;
 
-  // Preview ring (top level only), mirroring the live overlay (PieMenu): when a
-  // branch sector is hovered, fade in its children as a dimmed, non-interactive
-  // outer ring so the author sees what's inside before drilling — the missing
-  // half of overlay parity (#177). Rotated so its sector 0 lines up with the
-  // hovered parent, exactly like the overlay's preview rotation. At depth > 0
-  // the outer band is the active ring itself, so no preview there (as overlay).
+  // Preview ring (live, top level only), mirroring the live overlay (PieMenu):
+  // when the puck hovers a branch sector, fade in its children as a dimmed,
+  // non-interactive outer ring so the author sees what's inside before drilling
+  // — the missing half of overlay parity (#177). Rotated so its sector 0 lines
+  // up with the hovered parent, exactly like the overlay's preview rotation.
+  // Gated on livePreview: the overlay has no click-selection, so a statically
+  // selected branch shouldn't conjure a child ring during normal editing. At
+  // depth > 0 the outer band is the active ring itself, so no preview (as overlay).
   const previewSectors =
-    !isDrilled && activeSector !== null ? currentRing[activeSector]?.branches : undefined;
+    livePreview && !isDrilled && activeSector !== null
+      ? currentRing[activeSector]?.branches
+      : undefined;
   const previewRotation =
     previewSectors && activeSector !== null ? sectorCenterAngle(activeSector, count) : 0;
   const previewIconSize = previewSectors
