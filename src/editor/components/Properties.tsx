@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import { BUILTIN_ACTION, builtinAction, resolveNavigation } from '@/shared/menu';
@@ -61,6 +61,9 @@ export function Properties() {
   const drillInto = useAppState((s) => s.drillInto);
   // Last node-icon pick error (too large / unsupported), shown under the row.
   const [iconError, setIconError] = useState<string | null>(null);
+  // The label as it was when the field gained focus, so a clear that would
+  // leave an icon-less node label-less (invalid → unsavable) reverts on blur.
+  const labelBeforeEdit = useRef('');
 
   // Connected device's button count (0 = none/unknown) → constrains the
   // activation input dropdown's button options (#66).
@@ -178,11 +181,26 @@ export function Properties() {
               <input
                 className={styles.input}
                 value={node.label}
+                // Write live so the preview tracks each keystroke.
                 onChange={(e) =>
                   updateNodeAt(path, (s) => {
                     s.label = e.target.value;
                   })
                 }
+                onFocus={() => {
+                  labelBeforeEdit.current = node.label;
+                }}
+                // A node needs a label or a renderable icon (the validator
+                // rejects neither — the save would fail). If the field is left
+                // empty on an icon-less node, restore the pre-edit label.
+                // Matches the tree's rename guard so both paths agree.
+                onBlur={() => {
+                  if (node.label.trim() === '' && !isRenderableIcon(node.icon)) {
+                    updateNodeAt(path, (s) => {
+                      s.label = labelBeforeEdit.current;
+                    });
+                  }
+                }}
               />
             </Row>
             <Row label="Icon">
