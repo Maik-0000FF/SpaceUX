@@ -153,8 +153,12 @@ export function segmentIconFitPx(
   bandOuter: number,
 ): number {
   if (sectorCount <= 0) return 0;
-  // Tangential room: the wedge's chord at the icon's radius.
-  const tangential = 2 * iconRadius * Math.sin(Math.PI / sectorCount);
+  // Tangential room: the wedge's chord at the icon's radius. A single sector
+  // spans the full ring — there are no angular edges to cross — so the chord
+  // bound doesn't apply and only the radial band limits the icon. (Without
+  // this, sin(π/1) = 0 would collapse the fit to zero and the icon would
+  // vanish, while the label survives via its font-size floor.)
+  const tangential = sectorCount < 2 ? Infinity : 2 * iconRadius * Math.sin(Math.PI / sectorCount);
   // Radial room: distance to the nearer band edge (inward bound is what the
   // stacked layout actually hits; the outward bound is the conservative twin).
   const radial = Math.min(iconRadius - bandInner, bandOuter - iconRadius);
