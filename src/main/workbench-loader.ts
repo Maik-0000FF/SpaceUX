@@ -225,12 +225,15 @@ export function resolveWorkbenchMenuConfig(
 
 /**
  * Build a seeded curated pie from a catalog group (#193): the user's `base`
- * config (trigger / navigation / scale kept for consistency) with the
- * workbench's commands as a flat ring of run-action leaves. Flat — one ring,
- * every command — per the "seed the full workbench, then edit down" decision;
- * a large workbench yields a large ring, deliberately (no truncation). The
- * centre label is empty, matching the dynamic pie. Icons are kept only when
- * renderable (same filter as the palette); validation happens on write.
+ * config (trigger / navigation / scale kept for consistency) with one submenu
+ * per toolbar, each holding that toolbar's commands as run-action leaves — so
+ * the curated editing tree mirrors the dynamic pie's structure (subfolders per
+ * toolbar) instead of one flat ring. The full workbench is seeded (no
+ * truncation); the user edits down. The centre label is empty, matching the
+ * dynamic pie. Icons are kept only when renderable (same filter as the
+ * palette), and commands missing a name/label are dropped (a label-less,
+ * icon-less leaf is unsavable); a toolbar left with no usable command is
+ * omitted (an empty submenu is invalid). Validation happens on write.
  */
 export function seedWorkbenchConfig(
   group: PluginCatalogGroup,
@@ -242,16 +245,21 @@ export function seedWorkbenchConfig(
     version: MENU_CONFIG_VERSION,
     root: {
       label: '',
-      branches: group.commands
-        // Skip a command missing its name or label (parity with the palette):
-        // a label-less, icon-less leaf is unsavable and would fail the whole
-        // seed at write-time validation rather than just being dropped.
-        .filter((c) => c.command && c.label)
-        .map((c) => ({
-          label: c.label,
-          ...(c.icon && isRenderableIcon(c.icon) ? { icon: c.icon } : {}),
-          action: { id: `${pluginId}/run`, config: { command: c.command } },
-        })),
+      branches: group.toolbars
+        // Skip an empty-named toolbar: the submenu label would be empty and
+        // (with no icon) unsavable — symmetric with the command-label filter.
+        .filter((tb) => tb.name.trim() !== '')
+        .map((tb) => ({
+          label: tb.name,
+          branches: tb.commands
+            .filter((c) => c.command && c.label)
+            .map((c) => ({
+              label: c.label,
+              ...(c.icon && isRenderableIcon(c.icon) ? { icon: c.icon } : {}),
+              action: { id: `${pluginId}/run`, config: { command: c.command } },
+            })),
+        }))
+        .filter((tb) => tb.branches.length > 0),
     },
   };
 }

@@ -228,9 +228,15 @@ def _catalog(load_all):
             items = wb.getToolbarItems()
         except Exception:  # noqa: BLE001 — a workbench that can't enumerate is skipped
             items = {}
-        commands = _commands_from_items(items, actions)
-        if commands:
-            workbenches.append({"key": key, "name": _workbench_label(wb, key), "commands": commands})
+        # Group by toolbar (like _context) so a curated pie can seed one submenu
+        # per toolbar, mirroring the dynamic pie's structure.
+        toolbars = []
+        for tb_name, names in items.items():
+            commands = _commands_from_items({tb_name: names}, actions)
+            if commands:
+                toolbars.append({"name": tb_name, "commands": commands})
+        if toolbars:
+            workbenches.append({"key": key, "name": _workbench_label(wb, key), "toolbars": toolbars})
     return {"ok": True, "loadedAll": bool(load_all), "workbenches": workbenches}
 
 

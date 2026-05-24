@@ -139,10 +139,15 @@ export async function provideCatalog(ctx, opts) {
           ? wb.name
           : 'Commands',
     name: typeof wb.name === 'string' ? wb.name : wb.key || 'Commands',
-    commands: (Array.isArray(wb.commands) ? wb.commands : []).map((c) => ({
-      command: c.name,
-      label: c.label || c.name,
-      ...(c.icon ? { icon: c.icon } : {}),
+    // Commands grouped by toolbar (#193) so a curated pie seeds one submenu per
+    // toolbar (mirrors the dynamic pie); the palette flattens these for search.
+    toolbars: (Array.isArray(wb.toolbars) ? wb.toolbars : []).map((tb) => ({
+      name: typeof tb.name === 'string' ? tb.name : 'Tools',
+      commands: (Array.isArray(tb.commands) ? tb.commands : []).map((c) => ({
+        command: c.name,
+        label: c.label || c.name,
+        ...(c.icon ? { icon: c.icon } : {}),
+      })),
     })),
   }));
   ctx.log(`catalog: ${groups.length} group(s), loadedAll=${resp.loadedAll === true}`);
