@@ -1,0 +1,112 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+/**
+ * FreeCAD plugin (#77, Phase D1) — a context-aware pie driven by the live
+ * FreeCAD session over a UNIX socket.
+ *
+ * The bridge addon (freecad/, installed into FreeCAD's Mod/) runs a socket
+ * server; this plugin connects per request:
+ *   - `provideMenu` (called by the host at each open) asks the bridge for the
+ *     active workbench's toolbars + commands and builds the pie: one branch
+ *     per toolbar, a leaf per command (label + icon, running the command on
+ *     commit). When FreeCAD or the bridge is down the connection fails and the
+ *     host falls back to the static placeholder menu (manifest.menu).
+ *   - the `run` action sends the command name back to the bridge to execute.
+ *
+ * Uses only `node:net` (a Node built-in) — no host internals — so it stays a
+ * self-contained, copyable plugin. The socket path mirrors the addon's:
+ * `$XDG_RUNTIME_DIR/spaceux/freecad.sock` (else /tmp).
+ */
+
+import net from 'node:net';
+import path from 'node:path';
+
+const PLUGIN_ID = 'org.spaceux.freecad';
+// Below the host's 2s provideMenu timeout, so a slow-but-alive bridge still
+// answers while a dead socket fails fast (ENOENT/ECONNREFUSED).
+const REQUEST_TIMEOUT_MS = 1500;
+
+function socketPath() {
+  const base = process.env.XDG_RUNTIME_DIR || '/tmp';
+  return path.join(base, 'spaceux', 'freecad.sock');
+}
+
+/** Send one newline-delimited JSON request and resolve its single JSON reply.
+ *  Rejects on connect error or timeout — the caller maps that to "bridge
+ *  unreachable". */
+function request(req) {
+  return new Promise((resolve, reject) => {
+    const conn = net.createConnection(socketPath());
+    let buf = '';
+    let settled = false;
+    const finish = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      conn.destroy();
+      fn(arg);
+    };
+    const timer = setTimeout(
+      () => finish(reject, new Error('bridge timed out')),
+      REQUEST_TIMEOUT_MS,
+    );
+    conn.on('connect', () => conn.write(JSON.stringify(req) + '\n'));
+    conn.on('data', (chunk) => {
+      buf += chunk.toString('utf8');
+      const nl = buf.indexOf('\n');
+      if (nl === -1) return;
+      try {
+        finish(resolve, JSON.parse(buf.slice(0, nl)));
+      } catch (err) {
+        finish(reject, err instanceof Error ? err : new Error(String(err)));
+      }
+    });
+    conn.on('error', (err) => finish(reject, err));
+  });
+}
+
+async function run(config, ctx) {
+  const name = typeof config.command === 'string' ? config.command.trim() : '';
+  if (!name) {
+    ctx.log('no FreeCAD command configured');
+    return;
+  }
+  try {
+    const resp = await request({ op: 'run', name });
+    if (!resp || resp.ok !== true) {
+      ctx.log(`run ${name} failed: ${resp && resp.error ? resp.error : 'unknown error'}`);
+    }
+  } catch (err) {
+    ctx.log(`FreeCAD bridge unreachable: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+export const actions = {
+  run,
+};
+
+/**
+ * Build the pie from the live FreeCAD context. One branch per toolbar, a leaf
+ * per command. Throws on a bridge error so the host falls back to the static
+ * placeholder menu (FreeCAD closed / addon not installed).
+ */
+export async function provideMenu(ctx) {
+  const resp = await request({ op: 'context' });
+  if (!resp || resp.ok !== true) {
+    throw new Error(resp && resp.error ? resp.error : 'bridge returned no context');
+  }
+  const branches = (Array.isArray(resp.toolbars) ? resp.toolbars : [])
+    .map((tb) => ({
+      label: typeof tb.name === 'string' ? tb.name : 'Tools',
+      branches: (Array.isArray(tb.commands) ? tb.commands : []).map((c) => ({
+        label: c.label || c.name,
+        ...(c.icon ? { icon: c.icon } : {}),
+        action: { id: `${PLUGIN_ID}/run`, config: { command: c.name } },
+      })),
+    }))
+    .filter((b) => b.branches.length > 0);
+  ctx.log(`workbench ${resp.workbench || '?'}: ${branches.length} toolbar(s)`);
+  // Empty centre label — the workbench-name indicator lands separately (#186).
+  return { label: '', branches };
+}
