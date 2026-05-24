@@ -4,11 +4,10 @@
 import { useState } from 'react';
 
 import { DeviceStatus } from './components/DeviceStatus';
-import { LiveToggle } from './components/LiveToggle';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
-import { NavigationStyle } from './components/NavigationStyle';
-import { PieDesignControls } from './components/PieDesignControls';
+import { PieSelectors } from './components/PieSelectors';
+import { PieSliders } from './components/PieSliders';
 import { ProfileControls } from './components/ProfileControls';
 import { Properties } from './components/Properties';
 import { SettingsPage } from './components/SettingsPage';
@@ -151,12 +150,9 @@ export function App() {
         <div className={styles.shell}>
           <MenuList />
           <main className={styles.center}>
-            <div className={styles.designBar}>
-              <div className={styles.designGroup}>
-                <PieDesignControls />
-                <NavigationStyle />
-              </div>
-              <LiveToggle />
+            <div className={styles.controlRow}>
+              <PieSelectors />
+              <PieSliders />
             </div>
             <div className={styles.previewArea}>
               <MenuPreview />

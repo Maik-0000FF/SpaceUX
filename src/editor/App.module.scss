@@ -86,26 +86,17 @@
   padding: 16px;
 }
 
-// Pie design controls + live-preview toggle, above the preview (#107).
-// `space-between` pushes the live toggle to the right of the design group;
-// wrap so a narrow window stacks them instead of overflowing.
-.designBar {
+// Two equal cards above the preview: selectors (left) and value sliders
+// (right). `stretch` makes them the same height; `flex: 1` (on each card)
+// the same width; `wrap` stacks them on a narrow window instead of letting
+// one slide over the other.
+.controlRow {
   flex: none;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: stretch;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-// Left group: pie design controls + the navigation-style quick-pick, kept
-// together so `space-between` pushes only the live toggle to the right.
-.designGroup {
-  display: inline-flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
 .previewArea {
