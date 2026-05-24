@@ -242,11 +242,16 @@ export function seedWorkbenchConfig(
     version: MENU_CONFIG_VERSION,
     root: {
       label: '',
-      branches: group.commands.map((c) => ({
-        label: c.label,
-        ...(c.icon && isRenderableIcon(c.icon) ? { icon: c.icon } : {}),
-        action: { id: `${pluginId}/run`, config: { command: c.command } },
-      })),
+      branches: group.commands
+        // Skip a command missing its name or label (parity with the palette):
+        // a label-less, icon-less leaf is unsavable and would fail the whole
+        // seed at write-time validation rather than just being dropped.
+        .filter((c) => c.command && c.label)
+        .map((c) => ({
+          label: c.label,
+          ...(c.icon && isRenderableIcon(c.icon) ? { icon: c.icon } : {}),
+          action: { id: `${pluginId}/run`, config: { command: c.command } },
+        })),
     },
   };
 }

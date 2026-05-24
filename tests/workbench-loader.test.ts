@@ -204,6 +204,23 @@ describe('seedWorkbenchConfig', () => {
     expect(seeded.scale).toBe(DEFAULT_MENU_CONFIG.scale);
   });
 
+  it('skips commands missing a name or label (parity with the palette)', () => {
+    const seeded = seedWorkbenchConfig(
+      {
+        key: 'W',
+        name: 'W',
+        commands: [
+          { command: 'Good', label: 'Good' },
+          { command: 'NoLabel', label: '' }, // unsavable label-less, icon-less leaf
+          { command: '', label: 'NoCommand' },
+        ],
+      },
+      DEFAULT_MENU_CONFIG,
+      'p',
+    );
+    expect(seeded.root.branches!.map((b) => b.label)).toEqual(['Good']);
+  });
+
   it('seeds an empty ring for a workbench with no commands', () => {
     const seeded = seedWorkbenchConfig(
       { key: 'Empty', name: 'Empty', commands: [] },
