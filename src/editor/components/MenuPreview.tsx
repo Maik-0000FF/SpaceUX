@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
-import { ICON_SIZE_RATIO, isRenderableIcon } from '@/core/icon';
+import { isRenderableIcon } from '@/core/icon';
 import { menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
@@ -15,6 +15,7 @@ import {
   axesToSector,
   rotateAxes,
   sectorCenterAngle,
+  segmentIconFitPx,
   segmentLabelFontPx,
   truncatePieLabel,
 } from '@/core/pie-geometry';
@@ -28,6 +29,7 @@ import {
 } from '@/shared/menu';
 
 import { useEditorSpaceMouse } from '../hooks/useEditorSpaceMouse';
+import { usePieAppearance } from '../hooks/usePieAppearance';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { nodeKey } from '../state/node-keys';
@@ -47,23 +49,22 @@ const OUTER_OUTER_RADIUS = RADIUS * OUTER_RING_OUTER_RATIO;
 const INNER_LABEL_RADIUS = RADIUS * INNER_LABEL_RATIO;
 const OUTER_LABEL_RADIUS = (OUTER_INNER_RADIUS + OUTER_OUTER_RADIUS) / 2;
 const VIEW = OUTER_OUTER_RADIUS; // viewBox half-extent (reserves the outer ring)
-const ICON_SIZE = RADIUS * ICON_SIZE_RATIO; // matches the live pie's icon size
 
 /** A node's icon as an `<image>`, or null when the node has no renderable
  *  icon. Stacked above the label point (cx, cy); with an empty label it
- *  centres on the point instead. Matches the live pie's layout so the preview
- *  is faithful. */
-function sectorIcon(node: MenuNode, cx: number, cy: number) {
+ *  centres on the point instead. `iconSize` is the appearance-scaled size, so
+ *  the preview tracks the live pie's icon size faithfully. */
+function sectorIcon(node: MenuNode, cx: number, cy: number, iconSize: number) {
   if (!isRenderableIcon(node.icon)) return null;
-  const top = node.label.trim().length > 0 ? cy - ICON_SIZE : cy - ICON_SIZE / 2;
+  const top = node.label.trim().length > 0 ? cy - iconSize : cy - iconSize / 2;
   return (
     <image
       className={styles.icon}
       href={node.icon}
-      x={cx - ICON_SIZE / 2}
+      x={cx - iconSize / 2}
       y={top}
-      width={ICON_SIZE}
-      height={ICON_SIZE}
+      width={iconSize}
+      height={iconSize}
       preserveAspectRatio="xMidYMid meet"
     />
   );
@@ -93,6 +94,10 @@ export function MenuPreview() {
   const drillInto = useAppState((s) => s.drillInto);
   const livePreview = useAppState((s) => s.livePreview);
   const liveAxes = useEditorSpaceMouse(livePreview);
+  // Icon size tracks the appearance slider (#169); the icon is a JS-computed
+  // SVG dimension, so unlike the label scale it can't ride a CSS var. The
+  // per-ring fit is computed below, once the ring geometry is known.
+  const { appearance } = usePieAppearance();
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
@@ -161,6 +166,14 @@ export function MenuPreview() {
   const activeOuter = isDrilled ? OUTER_OUTER_RADIUS : RADIUS;
   const activeInner = isDrilled ? OUTER_INNER_RADIUS : INNER_RADIUS;
   const activeLabel = isDrilled ? OUTER_LABEL_RADIUS : INNER_LABEL_RADIUS;
+  // Per-segment icon fit × the appearance icon-scale (100% = fills the wedge),
+  // one size per ring since the inner pie and outer ring have different room.
+  const activeIconSize =
+    segmentIconFitPx(activeLabel, count, activeInner, activeOuter) * appearance.iconScale;
+  const breadcrumbIconSize = isDrilled
+    ? segmentIconFitPx(INNER_LABEL_RADIUS, parentRing.length, INNER_RADIUS, RADIUS) *
+      appearance.iconScale
+    : 0;
 
   // Live preview: the sector under the puck, mapped exactly like the live
   // pie. The aim source (#159) picks which axes steer the highlight — so a
@@ -283,10 +296,10 @@ export function MenuPreview() {
                     i === drilledIntoIndex ? styles.wedgeDrilledInto : ''
                   }`}
                 />
-                {sectorIcon(node, lx, ly)}
+                {sectorIcon(node, lx, ly, breadcrumbIconSize)}
                 <text
                   x={lx}
-                  y={isRenderableIcon(node.icon) ? ly + ICON_SIZE * 0.5 : ly}
+                  y={isRenderableIcon(node.icon) ? ly + breadcrumbIconSize * 0.5 : ly}
                   className={styles.labelBreadcrumb}
                   textAnchor="middle"
                   dominantBaseline="middle"
@@ -339,10 +352,10 @@ export function MenuPreview() {
                   isDropTarget ? styles.wedgeDropTarget : ''
                 } ${isCancelNode(node) ? styles.wedgeCancel : ''}`}
               />
-              {sectorIcon(node, lx, ly)}
+              {sectorIcon(node, lx, ly, activeIconSize)}
               <text
                 x={lx}
-                y={isRenderableIcon(node.icon) ? ly + ICON_SIZE * 0.5 : ly}
+                y={isRenderableIcon(node.icon) ? ly + activeIconSize * 0.5 : ly}
                 className={styles.label}
                 textAnchor="middle"
                 dominantBaseline="middle"

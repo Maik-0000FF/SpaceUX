@@ -30,11 +30,25 @@ export const PIE_LABEL_SCALE_MIN = 0.2;
 export const PIE_LABEL_SCALE_MAX = 1;
 export const PIE_LABEL_SCALE_STEP = 0.05;
 
+/** Icon size as a *fraction of the per-segment fit* (1 = 100% = the largest
+ *  icon that fits a wedge without crossing its edges; less = smaller) — the
+ *  same contract as the label scale. Unlike the label, the icon is an SVG
+ *  `<image>` dimension computed in TSX, so the renderers multiply this factor
+ *  into the per-segment fit rather than reading a CSS var. */
+export const PIE_ICON_SCALE_MIN = 0.2;
+export const PIE_ICON_SCALE_MAX = 1;
+export const PIE_ICON_SCALE_STEP = 0.05;
+
 /** Defaults preserve the original look: dark palette, fills at ~60% (the
  *  palette's original baked translucency), labels filling the segment (100%).
  *  Opacity scales only the wedge fill alpha — strokes and labels are always
  *  fully opaque. */
-export const DEFAULT_PIE_APPEARANCE: PieAppearance = { theme: 'dark', opacity: 0.6, labelScale: 1 };
+export const DEFAULT_PIE_APPEARANCE: PieAppearance = {
+  theme: 'dark',
+  opacity: 0.6,
+  labelScale: 1,
+  iconScale: 0.5,
+};
 
 export function clampPieOpacity(n: number): number {
   return Math.min(PIE_OPACITY_MAX, Math.max(PIE_OPACITY_MIN, n));
@@ -42,6 +56,10 @@ export function clampPieOpacity(n: number): number {
 
 export function clampPieLabelScale(n: number): number {
   return Math.min(PIE_LABEL_SCALE_MAX, Math.max(PIE_LABEL_SCALE_MIN, n));
+}
+
+export function clampPieIconScale(n: number): number {
+  return Math.min(PIE_ICON_SCALE_MAX, Math.max(PIE_ICON_SCALE_MIN, n));
 }
 
 /**
@@ -63,6 +81,9 @@ export function sanitizePieAppearancePatch(patch: unknown): Partial<PieAppearanc
   }
   if (typeof p.labelScale === 'number' && Number.isFinite(p.labelScale)) {
     clean.labelScale = clampPieLabelScale(p.labelScale);
+  }
+  if (typeof p.iconScale === 'number' && Number.isFinite(p.iconScale)) {
+    clean.iconScale = clampPieIconScale(p.iconScale);
   }
   return clean;
 }

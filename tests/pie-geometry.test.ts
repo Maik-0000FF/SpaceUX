@@ -17,6 +17,7 @@ import {
   meetsActivation,
   rotateAxes,
   sectorCenterAngle,
+  segmentIconFitPx,
   segmentLabelFontPx,
   truncatePieLabel,
   twistCycleStep,
@@ -60,6 +61,41 @@ describe('segmentLabelFontPx', () => {
   it('stays within the [min, max] bounds', () => {
     expect(segmentLabelFontPx(150, 2, 1)).toBeLessThanOrEqual(30); // capped
     expect(segmentLabelFontPx(150, 64, 6)).toBeGreaterThanOrEqual(8); // floored
+  });
+});
+
+describe('segmentIconFitPx', () => {
+  // A roomy wedge: 4 sectors, icon at r=150 in a band 40..240.
+  it('shrinks as the sector count grows (narrower wedges, less tangential room)', () => {
+    const few = segmentIconFitPx(150, 4, 40, 240);
+    const many = segmentIconFitPx(150, 64, 40, 240);
+    expect(many).toBeLessThan(few);
+  });
+
+  it('never crosses the inner arc: the fit stays within the inward radial room', () => {
+    // Tiny sector count so the chord is huge and the radial bound binds. The
+    // icon stacks upward from the radius, so it must not reach past bandInner.
+    const fit = segmentIconFitPx(150, 2, 40, 240);
+    expect(fit).toBeLessThanOrEqual(150 - 40);
+  });
+
+  it('a thin outer band limits the icon more than a roomy inner pie', () => {
+    const inner = segmentIconFitPx(150, 8, 40, 240); // thick band
+    const outer = segmentIconFitPx(300, 8, 250, 360); // thin band, larger radius
+    expect(outer).toBeLessThan(inner);
+  });
+
+  it('returns 0 for a degenerate sector count', () => {
+    expect(segmentIconFitPx(150, 0, 40, 240)).toBe(0);
+  });
+
+  it('a single sector (full ring) is bounded only by the radial band, not a zero chord', () => {
+    // sin(π/1) = 0 would collapse a chord-based fit to 0 (icon vanishes). One
+    // sector has no angular edges, so only the radial room applies.
+    const single = segmentIconFitPx(150, 1, 40, 240);
+    expect(single).toBeGreaterThan(0);
+    // Same as the radial bound alone (min(150-40, 240-150) = 90, × 0.9 margin).
+    expect(single).toBeCloseTo(Math.min(150 - 40, 240 - 150) * 0.9, 5);
   });
 });
 

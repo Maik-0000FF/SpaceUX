@@ -42,7 +42,9 @@ function fireAction(action: ActionRef | undefined): void {
  */
 export function App() {
   const { axes, buttons, daemonStatus } = useSpaceMouse();
-  usePieAppearance(); // applies data-pie-theme + --pie-opacity to <html>
+  // Applies data-pie-theme + --pie-opacity to <html>; the returned value
+  // feeds iconScale into PieMenu (the icon is a JS-computed SVG dimension).
+  const pieAppearance = usePieAppearance();
   const [menuConfig, setMenuConfig] = useState<MenuConfig | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
 
@@ -204,6 +206,7 @@ export function App() {
           config={menuConfig}
           navigation={drillState.navigation}
           activeSector={drillState.stickyChildIndex}
+          iconScale={pieAppearance.iconScale}
         />
       )}
       <DaemonStatusIndicator status={daemonStatus} />

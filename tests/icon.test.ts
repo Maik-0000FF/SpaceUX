@@ -3,13 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  ICON_MIME,
-  ICON_SIZE_RATIO,
-  MAX_ICON_BYTES,
-  isRenderableIcon,
-  sanitizeSvg,
-} from '../src/core/icon';
+import { ICON_MIME, MAX_ICON_BYTES, isRenderableIcon, sanitizeSvg } from '../src/core/icon';
 
 describe('isRenderableIcon', () => {
   it('accepts inline image data URIs (the icon pipeline output)', () => {
@@ -27,11 +21,6 @@ describe('isRenderableIcon', () => {
     expect(isRenderableIcon('https://evil.example/x.png')).toBe(false);
     expect(isRenderableIcon('file:///etc/passwd')).toBe(false);
     expect(isRenderableIcon('data:text/html;base64,PHNjcmlwdD4=')).toBe(false);
-  });
-
-  it('keeps the icon size a sane fraction of the pie radius', () => {
-    expect(ICON_SIZE_RATIO).toBeGreaterThan(0);
-    expect(ICON_SIZE_RATIO).toBeLessThan(0.5);
   });
 });
 

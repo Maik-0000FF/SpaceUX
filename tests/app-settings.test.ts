@@ -69,22 +69,38 @@ describe('app-settings', () => {
   });
 
   describe('loadPieAppearance', () => {
-    it('fills defaults (dark / 0.6 / label 1) when nothing is persisted', async () => {
-      expect(await loadPieAppearance()).toEqual({ theme: 'dark', opacity: 0.6, labelScale: 1 });
+    it('fills defaults (dark / 0.6 / label 1 / icon 0.5) when nothing is persisted', async () => {
+      expect(await loadPieAppearance()).toEqual({
+        theme: 'dark',
+        opacity: 0.6,
+        labelScale: 1,
+        iconScale: 0.5,
+      });
     });
 
     it('applies persisted values over the defaults', async () => {
-      await saveAppSettings({ pieTheme: 'light', pieOpacity: 0.45, pieLabelScale: 0.6 });
+      await saveAppSettings({
+        pieTheme: 'light',
+        pieOpacity: 0.45,
+        pieLabelScale: 0.6,
+        pieIconScale: 0.8,
+      });
       expect(await loadPieAppearance()).toEqual({
         theme: 'light',
         opacity: 0.45,
         labelScale: 0.6,
+        iconScale: 0.8,
       });
     });
 
     it('falls back per-field when only one is persisted', async () => {
       await saveAppSettings({ pieTheme: 'spaceux' });
-      expect(await loadPieAppearance()).toEqual({ theme: 'spaceux', opacity: 0.6, labelScale: 1 });
+      expect(await loadPieAppearance()).toEqual({
+        theme: 'spaceux',
+        opacity: 0.6,
+        labelScale: 1,
+        iconScale: 0.5,
+      });
     });
   });
 });

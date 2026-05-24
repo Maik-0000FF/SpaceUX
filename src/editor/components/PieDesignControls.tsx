@@ -4,6 +4,9 @@
 import type { PieThemeChoice } from '@/shared/ipc';
 import { MAX_PIE_SCALE, MIN_PIE_SCALE } from '@/shared/menu';
 import {
+  PIE_ICON_SCALE_MAX,
+  PIE_ICON_SCALE_MIN,
+  PIE_ICON_SCALE_STEP,
   PIE_LABEL_SCALE_MAX,
   PIE_LABEL_SCALE_MIN,
   PIE_LABEL_SCALE_STEP,
@@ -30,7 +33,7 @@ const SCALE_STEP = 0.05;
  * <html>, so this component being always-mounted keeps the preview themed.
  */
 export function PieDesignControls() {
-  const { appearance: pie, setTheme, setOpacity, setLabelScale } = usePieAppearance();
+  const { appearance: pie, setTheme, setOpacity, setLabelScale, setIconScale } = usePieAppearance();
   const scale = useMenuSettings((s) => s.config?.scale ?? 1);
   const setScale = useMenuSettings((s) => s.setScale);
   const hasConfig = useMenuSettings((s) => s.config !== null);
@@ -89,6 +92,20 @@ export function PieDesignControls() {
           title="Label size as a fraction of the per-segment fit (100% = fill the segment)"
         />
         <span className={styles.value}>{Math.round(pie.labelScale * 100)}%</span>
+      </label>
+      <label className={styles.control}>
+        <span className={styles.label}>Icon</span>
+        <input
+          className={styles.slider}
+          type="range"
+          min={PIE_ICON_SCALE_MIN}
+          max={PIE_ICON_SCALE_MAX}
+          step={PIE_ICON_SCALE_STEP}
+          value={pie.iconScale}
+          onChange={(e) => setIconScale(Number(e.target.value))}
+          title="Icon size as a fraction of the per-segment fit (100% = fills the segment)"
+        />
+        <span className={styles.value}>{Math.round(pie.iconScale * 100)}%</span>
       </label>
     </div>
   );

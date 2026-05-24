@@ -3,7 +3,7 @@
 
 import { useMemo, type CSSProperties } from 'react';
 
-import { ICON_SIZE_RATIO, isRenderableIcon } from '@/core/icon';
+import { isRenderableIcon } from '@/core/icon';
 import { currentBranches, menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
@@ -14,6 +14,7 @@ import {
   axesToSector,
   clampPieAnchor,
   sectorCenterAngle,
+  segmentIconFitPx,
   segmentLabelFontPx,
   truncatePieLabel,
   type PieGeometryConfig,
@@ -60,6 +61,10 @@ export type PieMenuProps = {
    *  not the outer ring is currently rendered, so `clampPieAnchor`
    *  stays deterministic. */
   radius?: number;
+  /** Icon size as a fraction of the per-segment fit (1 = fills the wedge).
+   *  From the pie appearance; the icon is a JS-computed SVG dimension, so it
+   *  can't ride a CSS var like the label scale. */
+  iconScale?: number;
 };
 
 /**
@@ -81,6 +86,7 @@ export function PieMenu({
   activeSector: overrideSector = null,
   geometryOverrides,
   radius = 240,
+  iconScale = 1,
 }: PieMenuProps) {
   // Resolve ring roles from the navigation stack. At top level the
   // *inner* pie is the active selection target; once drilled in the
@@ -228,10 +234,21 @@ export function PieMenu({
   // both the wedge map and the label map below need it.
   const outerLabelRadius = ((OUTER_RING_INNER_RATIO + OUTER_RING_OUTER_RATIO) / 2) * radius;
   const innerLabelRadius = radius * INNER_LABEL_RATIO;
-  // Uniform icon size for both rings, scaled to the pie so it tracks the
-  // configured radius (not the per-ring label radius, which would make inner
-  // and outer icons different sizes).
-  const iconSize = radius * ICON_SIZE_RATIO;
+  // Icon size is the per-segment fit (largest icon that fits a wedge without
+  // crossing its edges) scaled by the appearance icon-scale — 100% fills the
+  // segment, like the label scale. Computed per ring because the inner pie and
+  // the thinner outer ring have different room, so their icons differ in size.
+  const innerIconSize =
+    segmentIconFitPx(innerLabelRadius, innerSectors.length, innerRadius, radius) * iconScale;
+  const outerIconSize =
+    outerSectors !== undefined
+      ? segmentIconFitPx(
+          outerLabelRadius,
+          outerSectors.length,
+          outerRingInnerRadius,
+          outerRingOuterRadius,
+        ) * iconScale
+      : 0;
 
   // Rotational alignment for the outer ring: spin it so its first
   // sector centres on whichever parent sector spawned it. Without
@@ -298,7 +315,7 @@ export function PieMenu({
             sectorCount={innerSectors.length}
             radius={innerLabelRadius}
             node={node}
-            iconSize={iconSize}
+            iconSize={innerIconSize}
             breadcrumb={isDrilled}
           />
         ))}
@@ -328,7 +345,7 @@ export function PieMenu({
                 sectorCount={outerSectors.length}
                 radius={outerLabelRadius}
                 node={node}
-                iconSize={iconSize}
+                iconSize={outerIconSize}
                 preview={!isDrilled}
                 rotation={outerRingRotation}
               />
