@@ -18,6 +18,8 @@ import {
   type PluginImportResult,
   type PluginsState,
   type ProfileActionResult,
+  type FreecadBridgeInstallResult,
+  type FreecadBridgeStatus,
   type ProfilesState,
   type ThemeChoice,
   type WorkbenchMenusState,
@@ -109,6 +111,15 @@ const bridge: EditorBridge = {
       pluginId,
       workbenchKey,
     ) as Promise<ProfileActionResult>,
+  getFreecadBridge: () =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_GET_FREECAD_BRIDGE) as Promise<FreecadBridgeStatus>,
+  installFreecadBridge: (pluginId: string) =>
+    ipcRenderer.invoke(
+      IpcChannel.EDITOR_INSTALL_FREECAD_BRIDGE,
+      pluginId,
+    ) as Promise<FreecadBridgeInstallResult>,
+  uninstallFreecadBridge: () =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_UNINSTALL_FREECAD_BRIDGE) as Promise<ProfileActionResult>,
   getProfiles: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_PROFILES) as Promise<ProfilesState>,
   onProfilesChanged: (handler) => {
     const listener = (_evt: IpcRendererEvent, state: ProfilesState) => handler(state);

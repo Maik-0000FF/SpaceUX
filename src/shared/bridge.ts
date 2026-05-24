@@ -31,6 +31,8 @@ import type {
   PluginCategory,
   PluginImportResult,
   PluginsState,
+  FreecadBridgeInstallResult,
+  FreecadBridgeStatus,
   ProfileActionResult,
   ProfilesState,
   ThemeChoice,
@@ -157,6 +159,14 @@ export type EditorBridge = {
   /** Delete a curated workbench pie (#207); clears the override if it was
    *  active. Resolves ok, or a failure reason. */
   deleteWorkbench(pluginId: string, workbenchKey: string): Promise<ProfileActionResult>;
+  /** Pull the FreeCAD bridge-addon install status (#189): resolved Mod dir +
+   *  whether the addon is installed, or why it can't be resolved. */
+  getFreecadBridge(): Promise<FreecadBridgeStatus>;
+  /** Install the bundled FreeCAD bridge addon into the resolved Mod dir (#189);
+   *  re-running updates it. Resolves the destination path or a reason. */
+  installFreecadBridge(pluginId: string): Promise<FreecadBridgeInstallResult>;
+  /** Remove the installed FreeCAD bridge addon (#189). */
+  uninstallFreecadBridge(): Promise<ProfileActionResult>;
   /** Pull the per-device profile list + manual override on mount (#113). */
   getProfiles(): Promise<ProfilesState>;
   /** Subscribe to profile-list / override changes (create / delete /

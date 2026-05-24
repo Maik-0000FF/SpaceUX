@@ -87,6 +87,12 @@ import {
   workbenchMenusDir,
   writeWorkbenchMenu,
 } from './workbench-loader.js';
+import {
+  bridgeInstalledAt,
+  installBridge,
+  resolveFreecadModDir,
+  uninstallBridge,
+} from './freecad-bridge.js';
 import { createTray } from './tray.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1304,6 +1310,30 @@ app.whenReady().then(async () => {
         await pushEditorProfiles();
       }
       return { ok: true };
+    },
+    getFreecadBridge: () => {
+      const r = resolveFreecadModDir();
+      return r.ok
+        ? {
+            resolved: true,
+            modDir: r.modDir,
+            label: r.label,
+            installed: bridgeInstalledAt(r.modDir),
+          }
+        : { resolved: false, reason: r.reason, sandbox: r.sandbox };
+    },
+    installFreecadBridge: async (pluginId) => {
+      const plugin = loadedPlugins.find((p) => p.manifest.id === pluginId);
+      if (!plugin) return { ok: false, reason: 'plugin not loaded' };
+      const r = resolveFreecadModDir();
+      if (!r.ok) return { ok: false, reason: r.reason };
+      // The addon ships in the plugin's freecad/ subdir.
+      return installBridge(path.join(plugin.dir, 'freecad'), r.modDir);
+    },
+    uninstallFreecadBridge: async () => {
+      const r = resolveFreecadModDir();
+      if (!r.ok) return { ok: false, reason: r.reason };
+      return uninstallBridge(r.modDir);
     },
   });
   wireAppIpc({

@@ -11,6 +11,8 @@ import { describeError } from '../shared/errors.js';
 import {
   IpcChannel,
   type EditorAction,
+  type FreecadBridgeInstallResult,
+  type FreecadBridgeStatus,
   type MenuConfigSnapshot,
   type PickIconResult,
   type PluginCatalogResult,
@@ -70,6 +72,12 @@ export interface EditorIpcDeps {
   ) => Promise<WorkbenchSeedResult>;
   /** Delete a curated workbench pie (#207); clears the override if active. */
   deleteWorkbench: (pluginId: string, workbenchKey: string) => Promise<ProfileActionResult>;
+  /** FreeCAD bridge-addon install status: resolved Mod dir + installed? (#189). */
+  getFreecadBridge: () => FreecadBridgeStatus;
+  /** Install the bundled FreeCAD bridge addon into the resolved Mod dir (#189). */
+  installFreecadBridge: (pluginId: string) => Promise<FreecadBridgeInstallResult>;
+  /** Remove the installed FreeCAD bridge addon (#189). */
+  uninstallFreecadBridge: () => Promise<ProfileActionResult>;
 }
 
 /**
@@ -154,6 +162,19 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
     IpcChannel.EDITOR_DELETE_WORKBENCH,
     (_evt, pluginId: string, workbenchKey: string): Promise<ProfileActionResult> =>
       deps.deleteWorkbench(pluginId, workbenchKey),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_GET_FREECAD_BRIDGE,
+    (): FreecadBridgeStatus => deps.getFreecadBridge(),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_INSTALL_FREECAD_BRIDGE,
+    (_evt, pluginId: string): Promise<FreecadBridgeInstallResult> =>
+      deps.installFreecadBridge(pluginId),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_UNINSTALL_FREECAD_BRIDGE,
+    (): Promise<ProfileActionResult> => deps.uninstallFreecadBridge(),
   );
 
   // Editor mounted. No-op: the editor pulls via EDITOR_GET_MENU_CONFIG;
