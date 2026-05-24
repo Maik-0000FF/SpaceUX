@@ -10,6 +10,7 @@
  */
 
 import type { MenuConfig } from './menu';
+import type { PluginCatalog } from './plugin-types';
 
 export const IpcChannel = {
   /** Renderer subscribes; main pushes every axes snapshot. */
@@ -145,6 +146,11 @@ export const IpcChannel = {
   /** Editor uninstalls an installed plugin (deletes its managed folder),
    *  identified by kind + id. invoke → the new {@link PluginsState}. */
   EDITOR_UNINSTALL_PLUGIN: 'spaceux:editor:plugins:uninstall',
+  /** Editor pulls a plugin's command catalog for the palette (#76 D2):
+   *  invoke({ pluginId, loadAll }) → {@link PluginCatalogResult}. Main calls
+   *  the plugin's `provideCatalog` (with a timeout); a plugin without one, or
+   *  an unreachable bridge, yields `{ ok: false, reason }`. */
+  EDITOR_GET_PLUGIN_CATALOG: 'spaceux:editor:plugins:catalog',
 
   // ── Pie appearance (own app setting, separate from menu.json and the
   //    editor UI theme; consumed by both the live pie and the editor
@@ -221,6 +227,13 @@ export type PluginsState = {
 export type PluginImportResult =
   | { ok: true; installed: PluginInfo; state: PluginsState }
   | { ok: 'cancelled' }
+  | { ok: false; reason: string };
+
+/** Result of an editor command-catalog pull (#76 D2). Failure (no such plugin,
+ *  no `provideCatalog`, or an unreachable bridge) carries a reason the palette
+ *  shows instead of commands. */
+export type PluginCatalogResult =
+  | { ok: true; catalog: PluginCatalog }
   | { ok: false; reason: string };
 
 /** The per-device profiles the editor knows about (#113): the ids of the

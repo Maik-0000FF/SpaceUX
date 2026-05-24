@@ -1088,6 +1088,25 @@ app.whenReady().then(async () => {
       await reloadFunctionPlugins();
       return buildPluginsState();
     },
+    getPluginCatalog: async (pluginId, loadAll) => {
+      const plugin = loadedPlugins.find((p) => p.manifest.id === pluginId);
+      if (!plugin?.provideCatalog) {
+        return { ok: false, reason: 'this plugin provides no command catalog' };
+      }
+      try {
+        const ctx = makeActionContext(plugin.manifest.id, daemon);
+        // loadAll can cycle every workbench (slow) — generous cap; the editor
+        // shows a spinner while it runs.
+        const catalog = await withTimeout(
+          Promise.resolve(plugin.provideCatalog(ctx, { loadAll })),
+          loadAll ? 60000 : 5000,
+          `provideCatalog timed out`,
+        );
+        return { ok: true, catalog };
+      } catch (err) {
+        return { ok: false, reason: describeError(err) };
+      }
+    },
   });
   wireAppIpc({
     getAppearance: () => pieAppearance,
