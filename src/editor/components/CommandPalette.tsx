@@ -5,8 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import type { PluginInfo } from '@/shared/ipc';
-import type { PluginCatalog } from '@/shared/plugin-types';
+import { isPluginMenuId, type PluginCatalog } from '@/shared/plugin-types';
 
+import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 
@@ -32,6 +33,11 @@ export function CommandPalette() {
   const addItem = useMenuSettings((s) => s.addItem);
   const hasConfig = useMenuSettings((s) => s.config !== null);
   const viewPath = useAppState((s) => s.viewPath);
+  // A plugin-provided menu is the active source → the config is a read-only
+  // overlay (main returns no writable target, index.ts:1051). Adds would mutate
+  // the draft and then fail the write-back with a cryptic banner, so disable
+  // them and say why instead. Mirrors main's getWriteTarget condition.
+  const readOnly = isPluginMenuId(useDeviceInfo().profileId);
 
   const [plugin, setPlugin] = useState<PluginInfo | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'loading' });
@@ -75,7 +81,10 @@ export function CommandPalette() {
       .map((g) => ({
         name: g.name,
         commands: g.commands
-          .filter((c) => typeof c.command === 'string' && c.command && typeof c.label === 'string')
+          .filter(
+            (c) =>
+              typeof c.command === 'string' && c.command && typeof c.label === 'string' && c.label,
+          )
           .filter((c) => q === '' || c.label.toLowerCase().includes(q))
           .map((c) => ({
             command: c.command,
@@ -114,6 +123,12 @@ export function CommandPalette() {
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
+      {readOnly && (
+        <p className={styles.note}>
+          The active pie is provided by a plugin and is read-only — switch the active source to add
+          commands.
+        </p>
+      )}
       {status.kind === 'loading' && <p className={styles.note}>Loading commands…</p>}
       {status.kind === 'error' && (
         <p className={styles.note}>
@@ -124,16 +139,22 @@ export function CommandPalette() {
         <p className={styles.note}>No matching commands.</p>
       )}
       <div className={styles.groups}>
-        {groups.map((g) => (
-          <div key={g.name} className={styles.group}>
+        {groups.map((g, i) => (
+          // Two workbenches can share a display name; the index keeps the key
+          // unique (the catalog drops the workbench's stable key in D2a).
+          <div key={`${i}-${g.name}`} className={styles.group}>
             <div className={styles.groupName}>{g.name}</div>
             {g.commands.map((c) => (
               <button
                 key={c.command}
                 type="button"
                 className={styles.command}
-                disabled={!hasConfig}
-                title={`Add "${c.label}" to the current ring`}
+                disabled={!hasConfig || readOnly}
+                title={
+                  readOnly
+                    ? 'The active pie is read-only (plugin-provided)'
+                    : `Add "${c.label}" to the current ring`
+                }
                 onClick={() => add(c.command, c.label, c.icon)}
               >
                 {c.icon ? (
