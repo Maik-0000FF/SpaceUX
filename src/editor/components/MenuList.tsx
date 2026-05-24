@@ -186,11 +186,18 @@ export function MenuList() {
       renameCancelled.current = false;
       return;
     }
-    // Write the label even when empty — an item can be icon-only (#168/#172),
-    // so clearing the label is valid. Mirrors the Properties label field,
-    // which also allows empty; the tree previously dropped an empty rename,
-    // so an icon-only item could only be cleared from Properties.
     const value = renameValue.trim();
+    // Clearing the label is allowed only for an icon-only item (#168/#172):
+    // the validator requires a non-empty label unless the node has a
+    // renderable icon, so emptying an icon-less node would fail the save.
+    // Reject the clear in that case (keep the old label) — a node must always
+    // show a label or an icon.
+    const cfg = useMenuSettings.getState().config;
+    const node = cfg ? ringBranches(cfg, path.slice(0, -1))[path[path.length - 1]!] : undefined;
+    if (value === '' && !isRenderableIcon(node?.icon)) {
+      setRenaming(null);
+      return;
+    }
     updateNodeAt(path, (s) => {
       s.label = value;
     });
