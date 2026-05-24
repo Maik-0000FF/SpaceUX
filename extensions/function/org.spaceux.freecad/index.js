@@ -169,5 +169,8 @@ export async function provideCatalog(ctx, opts) {
     })),
   }));
   ctx.log(`catalog: ${groups.length} group(s), loadedAll=${resp.loadedAll === true}`);
-  return { groups, complete: resp.loadedAll === true };
+  // FreeCAD's own app icon (#186), read live by the bridge — the active-plugin
+  // badge. Undefined when the bridge couldn't read it (older bridge / no icon).
+  const appBadge = typeof resp.appIcon === 'string' && resp.appIcon ? resp.appIcon : undefined;
+  return { groups, complete: resp.loadedAll === true, appBadge };
 }

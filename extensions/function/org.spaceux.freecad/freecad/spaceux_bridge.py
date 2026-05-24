@@ -174,6 +174,25 @@ def _commands_from_items(items, actions):
     return commands
 
 
+def _app_icon():
+    """PNG data-URI of FreeCAD's own app icon (the active-plugin badge, #186),
+    read live from the running FreeCAD so nothing is bundled/redistributed; ""
+    when unavailable. Same pixmap→PNG→base64 path as the command icons."""
+    try:
+        icon = Gui.getMainWindow().windowIcon()
+        if icon is None or icon.isNull():
+            return ""
+        pixmap = icon.pixmap(64, 64)
+        buf = QtCore.QBuffer()
+        buf.open(QtCore.QIODevice.WriteOnly)
+        ok = pixmap.save(buf, "PNG")
+        uri = "data:image/png;base64," + base64.b64encode(bytes(buf.data())).decode("ascii") if ok else ""
+        buf.close()
+        return uri
+    except Exception:  # noqa: BLE001 — no app icon is a benign "no badge"
+        return ""
+
+
 def _workbench_label(wb, key):
     # MenuText is the human-readable workbench name (e.g. "Part Design").
     return getattr(wb, "MenuText", None) or key
@@ -237,7 +256,12 @@ def _catalog(load_all):
                 toolbars.append({"name": tb_name, "commands": commands})
         if toolbars:
             workbenches.append({"key": key, "name": _workbench_label(wb, key), "toolbars": toolbars})
-    return {"ok": True, "loadedAll": bool(load_all), "workbenches": workbenches}
+    return {
+        "ok": True,
+        "loadedAll": bool(load_all),
+        "workbenches": workbenches,
+        "appIcon": _app_icon(),
+    }
 
 
 def _run(name):

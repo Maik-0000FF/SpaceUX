@@ -108,6 +108,12 @@ export type PluginManifest = {
   homepage?: string;
   /** List of every action this plugin exposes. */
   actions: ActionDescriptor[];
+  /** Optional badge icon (a plugin-dir-relative SVG path, e.g. `badge.svg`) —
+   *  the plugin's own app icon, shown in the pie's bottom-left corner while
+   *  this plugin's pie is the active source (#186), so the user sees which
+   *  plugin (FreeCAD / Blender / …) is active. The host bakes it to a data URI;
+   *  generic, so a new plugin just ships its own. */
+  badge?: string;
   /** Optional pie menu this plugin contributes (#76). When present, the menu
    *  is selectable as the active pie via the editor's profile dropdown
    *  (`plugin:<id>`). Selecting it is non-destructive: it overlays the
@@ -252,8 +258,14 @@ export type PluginCatalogToolbar = { name: string; commands: PluginCatalogComman
 export type PluginCatalogGroup = { key: string; name: string; toolbars: PluginCatalogToolbar[] };
 
 /** A plugin's full command catalog. `complete` is false when only a subset is
- *  loaded (e.g. FreeCAD lists only visited workbenches until `loadAll`). */
-export type PluginCatalog = { groups: PluginCatalogGroup[]; complete: boolean };
+ *  loaded (e.g. FreeCAD lists only visited workbenches until `loadAll`).
+ *  `appBadge` is the app's own icon (a data URI), read live so the active-plugin
+ *  badge (#186) needn't be bundled. */
+export type PluginCatalog = {
+  groups: PluginCatalogGroup[];
+  complete: boolean;
+  appBadge?: string;
+};
 
 /** Optional catalog provider (#76 D2). Returns the commands a plugin exposes
  *  for the editor palette; `opts.loadAll` asks for the complete set even if

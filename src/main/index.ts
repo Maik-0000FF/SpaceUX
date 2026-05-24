@@ -3,6 +3,7 @@
 
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -87,6 +88,7 @@ import {
   workbenchMenusDir,
   writeWorkbenchMenu,
 } from './workbench-loader.js';
+import { MAX_ICON_BYTES, sanitizeSvg } from '../core/icon.js';
 import {
   bridgeInstalledAt,
   installBridge,
@@ -191,6 +193,26 @@ function pushEditorDevice(): void {
 }
 
 /** Map a loaded/installed plugin to the editor-facing {@link PluginInfo}. */
+/** Bake a plugin's badge icon (#186) into a data URI for the renderers, or
+ *  undefined when there's none / it can't be read. SVG only for now (the badge
+ *  is a vector app icon); sanitised + size-guarded like a picked node icon. */
+function bakeBadge(dir: string, badge: string | undefined): string | undefined {
+  if (badge === undefined || !badge.toLowerCase().endsWith('.svg')) return undefined;
+  // Confine the badge to the plugin dir — a manifest `badge: "../../x.svg"`
+  // must not read an arbitrary file (consistency with workbench-loader; the
+  // plugin is trusted, but keep the path contained anyway).
+  const base = path.resolve(dir);
+  const file = path.resolve(base, badge);
+  if (file !== base && !file.startsWith(base + path.sep)) return undefined;
+  try {
+    const raw = fsSync.readFileSync(file, 'utf8');
+    if (Buffer.byteLength(raw) > MAX_ICON_BYTES) return undefined;
+    return `data:image/svg+xml;base64,${Buffer.from(sanitizeSvg(raw)).toString('base64')}`;
+  } catch {
+    return undefined;
+  }
+}
+
 function toPluginInfo(manifest: PluginManifest, dir: string, hasCatalog = false): PluginInfo {
   return {
     id: manifest.id,
@@ -200,6 +222,7 @@ function toPluginInfo(manifest: PluginManifest, dir: string, hasCatalog = false)
     dir,
     actionCount: manifest.actions?.length ?? 0,
     hasCatalog,
+    badge: bakeBadge(dir, manifest.badge),
   };
 }
 

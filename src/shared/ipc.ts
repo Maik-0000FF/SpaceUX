@@ -240,6 +240,9 @@ export type PluginInfo = {
    *  the editor offers its command palette. Only `function` plugins that are
    *  loaded can have one. */
   hasCatalog: boolean;
+  /** The plugin's badge icon as a baked data URI (#186), or undefined if it
+   *  ships none — shown in the pie corner while this plugin's pie is active. */
+  badge?: string;
 };
 
 /** A plugin directory that failed to load, with the loader's reason. */

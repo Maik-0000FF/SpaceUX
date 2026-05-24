@@ -250,3 +250,9 @@
   color: var(--editor-fg-dim);
   font-size: 13px;
 }
+
+// Active-plugin badge (#186): decorative. Rendered unaltered (no opacity /
+// effects) — the FreeCAD logo policy requires the logo not be modified.
+.pluginBadge {
+  pointer-events: none;
+}

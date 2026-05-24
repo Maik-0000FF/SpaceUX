@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useRef, useState, type CSSProperties } from 'react';
+import { useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
+import { PLUGIN_MENU_ID_PREFIX, parseWorkbenchMenuId } from '@/shared/plugin-types';
 import { menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
@@ -18,9 +19,11 @@ import {
 import { describeWedgePath } from '@/core/pie-path';
 import { isCancelNode, type MenuNode } from '@/shared/menu';
 
+import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useLivePreviewNavigation } from '../hooks/useLivePreviewNavigation';
 import { usePieAppearance } from '../hooks/usePieAppearance';
 import { useAppState } from '../state/app-state';
+import { useCatalog } from '../state/catalog';
 import { useMenuSettings } from '../state/menu-settings';
 import { nodeKey } from '../state/node-keys';
 import { ringBranches } from '../state/selectors';
@@ -92,6 +95,24 @@ export function MenuPreview() {
   // SVG dimension, so unlike the label scale it can't ride a CSS var. The
   // per-ring fit is computed below, once the ring geometry is known.
   const { appearance } = usePieAppearance();
+
+  // Active-plugin badge (#186): when this plugin's pie is the active source
+  // (its dynamic menu or a curated workbench pie), show its app icon in the
+  // bottom-left corner. Sourced from the catalog plugin (FreeCAD today); the
+  // mechanism is generic via the plugin's manifest `badge`.
+  const catalogPlugin = useCatalog((s) => s.plugin);
+  const appBadge = useCatalog((s) => s.appBadge);
+  const activeSource = useDeviceInfo().profileId;
+  const pluginBadge = useMemo(() => {
+    if (!catalogPlugin) return null;
+    const onPlugin =
+      activeSource === `${PLUGIN_MENU_ID_PREFIX}${catalogPlugin.id}` ||
+      parseWorkbenchMenuId(activeSource)?.pluginId === catalogPlugin.id;
+    if (!onPlugin) return null;
+    // Live app icon from the bridge (FreeCAD's own, not bundled — #186), else a
+    // plugin that ships a static manifest badge.
+    return appBadge ?? catalogPlugin.badge ?? null;
+  }, [catalogPlugin, appBadge, activeSource]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
@@ -413,6 +434,21 @@ export function MenuPreview() {
             {config.root.label || '✕'}
           </text>
         </g>
+
+        {/* Active-plugin badge (#186): the plugin's app icon, centred in the
+          bottom-left corner outside the outer ring band. Decorative. */}
+        {pluginBadge !== null && (
+          <image
+            className={styles.pluginBadge}
+            href={pluginBadge}
+            x={-VIEW * 0.95}
+            y={VIEW * 0.65}
+            width={VIEW * 0.3}
+            height={VIEW * 0.3}
+            preserveAspectRatio="xMidYMid meet"
+            aria-hidden="true"
+          />
+        )}
       </svg>
       <div
         className="pie-depth-dots"
