@@ -135,6 +135,11 @@ export function MenuPreview() {
   const count = currentRing.length;
   const half = Math.PI / count;
   const activeRotation = isDrilled ? navigationRingRotation(config, viewPath) : 0;
+  // The breadcrumb (parent ring shown inner when drilled) keeps the parent
+  // ring's own rotation, so its sectors stay where they sat while it was the
+  // active ring — otherwise the node you drilled from jumps to 12 o'clock the
+  // moment you go a level deeper. Mirrors the overlay (PieMenu).
+  const breadcrumbRotation = isDrilled ? navigationRingRotation(config, viewPath.slice(0, -1)) : 0;
   const activeOuter = isDrilled ? OUTER_OUTER_RADIUS : RADIUS;
   const activeInner = isDrilled ? OUTER_INNER_RADIUS : INNER_RADIUS;
   const activeLabel = isDrilled ? OUTER_LABEL_RADIUS : INNER_LABEL_RADIUS;
@@ -236,7 +241,7 @@ export function MenuPreview() {
           marked brighter. */}
         {isDrilled &&
           parentRing.map((node, i) => {
-            const c = sectorCenterAngle(i, parentRing.length);
+            const c = sectorCenterAngle(i, parentRing.length) + breadcrumbRotation;
             const h = Math.PI / parentRing.length;
             const d = describeWedgePath(RADIUS, INNER_RADIUS, c - h, c + h);
             const lx = Math.sin(c) * INNER_LABEL_RADIUS;

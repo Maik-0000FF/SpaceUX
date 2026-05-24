@@ -270,6 +270,14 @@ export function PieMenu({
     outerRingRotation = sectorCenterAngle(activeSector, activeRing.length);
   }
 
+  // When drilled in, the inner ring is the parent breadcrumb — rotate it by
+  // the parent ring's own rotation so its sectors stay exactly where they sat
+  // while it was the active ring. Without this the parent ring snaps back to
+  // an unrotated layout the moment you drill a level deeper (the node you came
+  // from jumps to 12 o'clock). Top level: the inner ring is the active pie, no
+  // rotation.
+  const innerRingRotation = isDrilled ? navigationRingRotation(config, navigation.slice(0, -1)) : 0;
+
   return (
     <div className="pie-menu" style={style}>
       <svg
@@ -291,6 +299,7 @@ export function PieMenu({
             cancel={isCancelNode(node)}
             breadcrumb={isDrilled}
             drilledInto={isDrilled && drilledIntoIndex === i}
+            rotation={innerRingRotation}
           />
         ))}
         <circle
@@ -317,6 +326,7 @@ export function PieMenu({
             node={node}
             iconSize={innerIconSize}
             breadcrumb={isDrilled}
+            rotation={innerRingRotation}
           />
         ))}
         {/* Outer ring: active selection target once drilled in, or
