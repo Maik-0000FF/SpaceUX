@@ -12,6 +12,7 @@ import {
   isWorkbenchMenuId,
   makeWorkbenchMenuId,
   parseWorkbenchMenuId,
+  workbenchKeyToLabel,
 } from '@/shared/plugin-types';
 
 import {
@@ -58,6 +59,18 @@ describe('workbench-menu id helpers', () => {
     expect(workbenchMenuPath('plugin:x', '/tmp')).toBeNull();
     expect(workbenchMenuPath('wb:bad/plugin:Key', '/tmp')).toBeNull(); // slash in plugin id
     expect(workbenchMenuPath('wb:org.spaceux.freecad:Bad Key', '/tmp')).toBeNull(); // space in key
+  });
+
+  it('derives a readable offline label from a workbench class key', () => {
+    expect(workbenchKeyToLabel('PartDesignWorkbench')).toBe('Part Design');
+    expect(workbenchKeyToLabel('MeshWorkbench')).toBe('Mesh');
+    expect(workbenchKeyToLabel('PartWorkbench')).toBe('Part');
+    expect(workbenchKeyToLabel('TechDrawWorkbench')).toBe('Tech Draw');
+    expect(workbenchKeyToLabel('OpenSCADWorkbench')).toBe('Open SCAD');
+    // No "Workbench" suffix / pure acronym: left intact.
+    expect(workbenchKeyToLabel('BIM')).toBe('BIM');
+    // Degenerate key collapses to empty → fall back to the raw key.
+    expect(workbenchKeyToLabel('Workbench')).toBe('Workbench');
   });
 });
 

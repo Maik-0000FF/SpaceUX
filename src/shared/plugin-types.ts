@@ -163,6 +163,21 @@ export function parseWorkbenchMenuId(
   return { pluginId: rest.slice(0, sep), workbenchKey: rest.slice(sep + 1) };
 }
 
+/** A readable display label for a workbench class key — the fallback the editor
+ *  shows when the bridge is offline and the catalog's display name (the real
+ *  source of truth) isn't available (#193). Drops a trailing `Workbench` and
+ *  splits CamelCase / acronym boundaries: `PartDesignWorkbench` → "Part Design",
+ *  `MeshWorkbench` → "Mesh", `OpenSCADWorkbench` → "Open SCAD". Falls back to
+ *  the raw key if the result would be empty. */
+export function workbenchKeyToLabel(key: string): string {
+  const label = key
+    .replace(/Workbench$/, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2') // camelCase boundary: "PartDesign" → "Part Design"
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2') // acronym→word: "SCADModel" → "SCAD Model"
+    .trim();
+  return label || key;
+}
+
 /** A plugin-contributed menu. C1 carries only the content (`root`); a plugin
  *  may later also *suggest* its own trigger/navigation/appearance, applied
  *  opt-in (the user is asked) and never overwriting their config. */
