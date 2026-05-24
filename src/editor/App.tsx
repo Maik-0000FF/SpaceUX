@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { CommandPalette } from './components/CommandPalette';
 import { DeviceStatus } from './components/DeviceStatus';
+import { FreecadSourceControls } from './components/FreecadSourceControls';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
 import { PieSelectors } from './components/PieSelectors';
@@ -180,6 +181,7 @@ export function App() {
       {tab === 'menu' ? (
         <div className={styles.shell}>
           <div className={styles.leftColumn}>
+            <FreecadSourceControls />
             <MenuList />
             <CommandPalette />
           </div>

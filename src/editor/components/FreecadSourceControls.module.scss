@@ -1,0 +1,103 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// FreeCAD pie source switch (#193 PR2c): Dynamic | Curated segmented toggle
+// plus a workbench dropdown, at the top of the editor's left column.
+
+.controls {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--editor-border);
+}
+
+.title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--editor-fg-dim);
+}
+
+.switch {
+  display: flex;
+  border: 1px solid var(--editor-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segment {
+  flex: 1;
+  padding: 4px 8px;
+  border: none;
+  background: var(--editor-input-bg);
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  & + & {
+    border-left: 1px solid var(--editor-border);
+  }
+  &:hover:not(.segmentOn) {
+    background: var(--editor-hover);
+  }
+}
+
+.segmentOn {
+  background: var(--editor-accent);
+  color: #fff;
+}
+
+.curatedRow {
+  display: flex;
+  gap: 6px;
+}
+
+.select {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 12px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--editor-accent);
+  }
+  &:disabled {
+    opacity: 0.5;
+  }
+}
+
+.loadAll {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--editor-hover);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.note {
+  font-size: 12px;
+  color: var(--editor-fg-dim);
+  margin: 2px 0 0;
+}
