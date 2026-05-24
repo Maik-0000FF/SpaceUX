@@ -122,6 +122,19 @@ describe('install / uninstall', () => {
     expect(bridgeInstalledAt(modDir)).toBe(false);
   });
 
+  it('a missing source on re-install leaves the existing addon intact', async () => {
+    await installBridge(src, modDir); // a good addon is installed
+    expect(bridgeInstalledAt(modDir)).toBe(true);
+    // Re-install with a missing source must NOT delete the existing addon: the
+    // guard returns before the rm(dest), so there's no rm-then-fail data loss.
+    const res = await installBridge(path.join(home, 'gone'), modDir);
+    expect(res.ok).toBe(false);
+    expect(bridgeInstalledAt(modDir)).toBe(true);
+    expect(await fs.readFile(path.join(modDir, 'SpaceUX', 'spaceux_bridge.py'), 'utf8')).toBe(
+      'bridge',
+    );
+  });
+
   it('uninstall removes the addon; a missing one is success', async () => {
     await installBridge(src, modDir);
     expect(await uninstallBridge(modDir)).toEqual({ ok: true });
