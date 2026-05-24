@@ -1,0 +1,56 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Right slider card in the control row above the preview, mirroring the
+// left-hand selector card (PieSelectors). Spans 3 of the row's 5 columns (the
+// wider share, for longer sliders); the row's `align-items: stretch` makes
+// both cards equal height.
+
+.panel {
+  grid-column: span 3;
+  min-width: 0; // let the card shrink within its grid track instead of overflowing
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--editor-border);
+  border-radius: 8px;
+  background: var(--editor-panel-bg);
+}
+
+.control {
+  display: grid;
+  // Each row is its own grid, so the label column must be a *fixed* width
+  // (not `auto`, which would size per-row and give the sliders different
+  // lengths). 64px fits the longest label ("Opacity", uppercase + tracking)
+  // without spilling, and every slider ends up the same length.
+  grid-template-columns: 64px 1fr 38px;
+  align-items: center;
+  gap: 10px;
+}
+
+.label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--editor-fg-dim);
+}
+
+.slider {
+  width: 100%;
+  height: 18px;
+  accent-color: var(--editor-accent);
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+}
+
+.value {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--editor-fg-dim);
+  text-align: right;
+}

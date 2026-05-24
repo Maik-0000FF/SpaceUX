@@ -1,9 +1,8 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
-// Navigation-style quick-pick in the left design bar (#160). Mirrors the
-// PieThemeSelect control/label/select so the two selectors sit flush beside
-// each other.
+// Pie theme quick-pick in the left design bar. Mirrors NavigationStyle's
+// control/label/select so the two selectors sit flush beside each other.
 
 .control {
   display: flex;

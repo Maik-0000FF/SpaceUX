@@ -17,12 +17,16 @@ export function LiveToggle() {
   return (
     <button
       type="button"
+      role="switch"
+      aria-checked={live}
       className={`${styles.toggle} ${live ? styles.on : ''}`}
-      aria-pressed={live}
       title="Drive the preview highlight with the live SpaceMouse puck"
       onClick={() => setLive(!live)}
     >
-      ● Live
+      <span className={styles.track}>
+        <span className={styles.knob} />
+      </span>
+      <span className={styles.text}>Live Preview</span>
     </button>
   );
 }

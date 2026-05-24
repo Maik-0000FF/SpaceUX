@@ -1,11 +1,16 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
+//
+// "Live" preview toggle, rendered as a switch (track + sliding knob) in the
+// left design bar beside the selectors.
 
 .toggle {
   flex: none;
-  margin-left: auto; // push to the right of the breadcrumb row
-  padding: 4px 10px;
-  border: 1px solid var(--editor-border);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 6px;
+  border: 1px solid transparent;
   border-radius: 5px;
   background: transparent;
   color: var(--editor-fg-dim);
@@ -14,14 +19,52 @@
   cursor: pointer;
 
   &:hover {
-    background: var(--editor-hover);
     color: var(--editor-fg);
   }
 }
 
-// Active state: accent border + tint so "live" reads as engaged.
+.text {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+// Track: a pill the knob slides within.
+.track {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--editor-input-bg);
+  border: 1px solid var(--editor-border);
+  transition: background 120ms ease;
+}
+
+// Knob: parked left when off, slides right when on.
+.knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--editor-fg-dim);
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
+}
+
+// Active state: accent track + the knob slid right and brightened.
 .on {
-  border-color: var(--editor-accent);
   color: var(--editor-fg);
-  background: rgba(80, 110, 180, 0.25);
+
+  .track {
+    background: rgba(80, 110, 180, 0.45);
+    border-color: var(--editor-accent);
+  }
+
+  .knob {
+    transform: translateX(14px);
+    background: var(--editor-fg);
+  }
 }
