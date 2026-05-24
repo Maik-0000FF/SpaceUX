@@ -6,8 +6,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { isRenderableIcon } from '@/core/icon';
 import { isWorkbenchMenuId, parseWorkbenchMenuId } from '@/shared/plugin-types';
 
+import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
-import { useProfiles } from '../hooks/useProfiles';
 import { useAppState } from '../state/app-state';
 import { useCatalog } from '../state/catalog';
 import { useMenuSettings } from '../state/menu-settings';
@@ -41,7 +41,9 @@ export function CommandPalette() {
   const ensureLoaded = useCatalog((s) => s.ensureLoaded);
   const loadAll = useCatalog((s) => s.loadAll);
 
-  const override = useProfiles().override;
+  // The resolved active source (same signal as useReadOnlySource) — single
+  // source of truth for "what's active", robust to a dropped/re-resolved override.
+  const activeSource = useDeviceInfo().profileId;
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -51,10 +53,10 @@ export function CommandPalette() {
   // When a curated per-workbench pie of this plugin is the active source, scope
   // the list to that workbench's key; otherwise show every workbench.
   const scopeKey = useMemo(() => {
-    if (!plugin || !isWorkbenchMenuId(override)) return null;
-    const parsed = parseWorkbenchMenuId(override);
+    if (!plugin || !isWorkbenchMenuId(activeSource)) return null;
+    const parsed = parseWorkbenchMenuId(activeSource);
     return parsed && parsed.pluginId === plugin.id ? parsed.workbenchKey : null;
-  }, [plugin, override]);
+  }, [plugin, activeSource]);
 
   // Sanitise + filter the raw catalog: scope to the active workbench (if any),
   // drop commands missing a command/label, keep only renderable icons, and

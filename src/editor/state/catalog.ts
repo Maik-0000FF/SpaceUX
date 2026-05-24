@@ -27,8 +27,10 @@ type CatalogState = {
   /** Whether every workbench is included (a `loadAll` pull ran). */
   complete: boolean;
   /** Discover the catalog plugin and pull its already-loaded catalog. Safe to
-   *  call from several components on mount — only the first (idle) call runs;
-   *  the rest see a non-idle status and no-op. */
+   *  call from several components on mount, and to re-call on remount: it
+   *  dedupes only while `loading`/`ready` (first caller wins), but retries from
+   *  `idle` *and* `error` — so the palette recovers when FreeCAD is started
+   *  after the editor (a remount, e.g. a tab switch, re-runs it). */
   ensureLoaded: () => Promise<void>;
   /** Cycle every workbench in FreeCAD so unloaded ones are listed too. */
   loadAll: () => Promise<void>;
@@ -41,7 +43,9 @@ export const useCatalog = create<CatalogState>((set, get) => ({
   groups: [],
   complete: false,
   ensureLoaded: async () => {
-    if (get().status !== 'idle') return; // first caller wins (effects run in order)
+    // Dedupe an in-flight / settled-good load (first caller wins), but allow a
+    // retry from idle or error so a remount recovers a prior failure.
+    if (get().status === 'loading' || get().status === 'ready') return;
     set({ status: 'loading' });
     const state = await window.editor.getPlugins().catch(() => null);
     const plugin = state?.plugins.find((p) => p.hasCatalog) ?? null;
