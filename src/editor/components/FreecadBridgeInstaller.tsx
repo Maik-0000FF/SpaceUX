@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { FreecadBridgeStatus } from '@/shared/ipc';
 
@@ -19,16 +19,30 @@ export function FreecadBridgeInstaller({ pluginId }: { pluginId: string }) {
   const [status, setStatus] = useState<FreecadBridgeStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  // Guard the async setState paths (mount pull + install/uninstall) so a late
+  // resolve after the panel unmounts (tab switch) doesn't set state on a gone
+  // component — matches the cancelled-flag pattern used elsewhere (useWorkbenchMenus).
+  const mounted = useRef(true);
 
   const refresh = useCallback(() => {
-    void window.editor.getFreecadBridge().then(setStatus);
+    void window.editor.getFreecadBridge().then((s) => {
+      if (mounted.current) setStatus(s);
+    });
   }, []);
-  useEffect(() => refresh(), [refresh]);
+
+  useEffect(() => {
+    mounted.current = true;
+    refresh();
+    return () => {
+      mounted.current = false;
+    };
+  }, [refresh]);
 
   const install = async (): Promise<void> => {
     setBusy(true);
     setNote(null);
     const res = await window.editor.installFreecadBridge(pluginId);
+    if (!mounted.current) return;
     setBusy(false);
     setNote(res.ok ? 'Installed — restart FreeCAD to load the bridge.' : res.reason);
     refresh();
@@ -38,6 +52,7 @@ export function FreecadBridgeInstaller({ pluginId }: { pluginId: string }) {
     setBusy(true);
     setNote(null);
     const res = await window.editor.uninstallFreecadBridge();
+    if (!mounted.current) return;
     setBusy(false);
     setNote(res.ok ? 'Removed — restart FreeCAD.' : res.reason);
     refresh();
