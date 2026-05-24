@@ -15,6 +15,7 @@ import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useWorkbenchMenus } from '../hooks/useWorkbenchMenus';
 import { useCatalog } from '../state/catalog';
 
+import { FreecadBridgeInstaller } from './FreecadBridgeInstaller';
 import styles from './FreecadSourceControls.module.scss';
 
 /**
@@ -259,6 +260,7 @@ export function FreecadSourceControls() {
           No workbenches — start FreeCAD with the bridge addon, or use “Load all”.
         </p>
       )}
+      <FreecadBridgeInstaller pluginId={plugin.id} />
     </section>
   );
 }

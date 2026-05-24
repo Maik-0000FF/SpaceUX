@@ -1,0 +1,49 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// FreeCAD bridge-addon status + install/uninstall (#189b), at the bottom of the
+// FreeCAD source panel, separated from the pie controls above.
+
+.bridge {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--editor-border);
+}
+
+.status {
+  font-size: 11px;
+  color: var(--editor-fg-dim);
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--editor-hover);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.note {
+  font-size: 11px;
+  color: var(--editor-fg-dim);
+}
