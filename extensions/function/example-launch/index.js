@@ -99,3 +99,36 @@ async function launch(config, ctx) {
 export const actions = {
   launch,
 };
+
+/**
+ * Dynamic menu provider (#76 C2). The host calls this at *each* pie open (with
+ * a timeout) and renders the returned root, so the menu can reflect live state
+ * — a real plugin (e.g. FreeCAD) would query external context here. This demo
+ * stamps the current time into a label to prove the tree is rebuilt per open
+ * rather than served from the static `manifest.menu`. The action id must be the
+ * composite `<pluginId>/<action>` so the host resolves it, same as the manifest
+ * menu. Returns the pie's root MenuNode (its `branches` are the sectors).
+ */
+export function provideMenu(ctx) {
+  const now = new Date().toLocaleTimeString();
+  ctx.log(`building dynamic menu (${now})`);
+  return {
+    label: '',
+    branches: [
+      {
+        label: 'Files',
+        action: { id: 'org.spaceux.example-launch/launch', config: { command: 'xdg-open .' } },
+      },
+      {
+        label: 'Browser',
+        action: {
+          id: 'org.spaceux.example-launch/launch',
+          config: { command: 'xdg-open https://example.com' },
+        },
+      },
+      // No-op leaf whose label changes every open — visible proof the provider
+      // runs live instead of the menu being a cached static tree.
+      { label: now },
+    ],
+  };
+}
