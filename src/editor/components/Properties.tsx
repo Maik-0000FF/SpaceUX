@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import { BUILTIN_ACTION, builtinAction, resolveNavigation } from '@/shared/menu';
@@ -15,7 +15,7 @@ import { useMenuSettings } from '../state/menu-settings';
 import { moveTargets, pathOfNodeId } from '../state/move-targets';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 import { ringBranches, nodeAtPath, selectedPath } from '../state/selectors';
-import { nextNodeId, uniqueItemLabel } from '../state/node-keys';
+import { nextNodeId, nodeKey, uniqueItemLabel } from '../state/node-keys';
 
 import { ActionField } from './ActionField';
 import { RootSettings } from './RootSettings';
@@ -61,9 +61,13 @@ export function Properties() {
   const drillInto = useAppState((s) => s.drillInto);
   // Last node-icon pick error (too large / unsupported), shown under the row.
   const [iconError, setIconError] = useState<string | null>(null);
-  // The label as it was when the field gained focus, so a clear that would
-  // leave an icon-less node label-less (invalid → unsavable) reverts on blur.
-  const labelBeforeEdit = useRef('');
+  // Local draft for the label field while it holds a value we deliberately
+  // don't persist: an empty label on an icon-less node is unsavable (the
+  // validator rejects it), so we keep it here instead of writing it to the
+  // config — the field can show empty (to retype) while the saved config keeps
+  // the old label and the debounced autosave never sees the invalid state.
+  // null = no override (show the node's own label).
+  const [labelDraft, setLabelDraft] = useState<string | null>(null);
 
   // Connected device's button count (0 = none/unknown) → constrains the
   // activation input dropdown's button options (#66).
@@ -77,6 +81,16 @@ export function Properties() {
   const path =
     selectedPath(viewPath, selectedIndex) ?? (viewPath.length > 0 ? [...viewPath] : null);
   const node = config && path ? nodeAtPath(config, path) : null;
+
+  // Drop a held label draft when the selection moves to another node, so a
+  // leftover empty draft can't bleed onto the newly-selected node (blur
+  // usually clears it first, but a programmatic selection change — undo,
+  // external sync — wouldn't blur the focused field).
+  const nodeKeyStr = node ? nodeKey(node) : null;
+  useEffect(() => {
+    setLabelDraft(null);
+  }, [nodeKeyStr]);
+
   const isExec = node?.action?.id === builtinAction(BUILTIN_ACTION.EXEC);
   // Global gestures this node's activation / exit shadow — the per-item
   // binding wins for this item, so flag the override rather than block it.
@@ -180,27 +194,27 @@ export function Properties() {
             <Row label="Label">
               <input
                 className={styles.input}
-                value={node.label}
-                // Write live so the preview tracks each keystroke.
-                onChange={(e) =>
-                  updateNodeAt(path, (s) => {
-                    s.label = e.target.value;
-                  })
-                }
-                onFocus={() => {
-                  labelBeforeEdit.current = node.label;
-                }}
-                // A node needs a label or a renderable icon (the validator
-                // rejects neither — the save would fail). If the field is left
-                // empty on an icon-less node, restore the pre-edit label.
-                // Matches the tree's rename guard so both paths agree.
-                onBlur={() => {
-                  if (node.label.trim() === '' && !isRenderableIcon(node.icon)) {
-                    updateNodeAt(path, (s) => {
-                      s.label = labelBeforeEdit.current;
-                    });
+                value={labelDraft ?? node.label}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // An empty label on an icon-less node is unsavable, and the
+                  // live autosave would flash a save error. Hold it in the
+                  // draft only — don't write it — so the config keeps the old
+                  // label until a valid one is typed. Any other value is
+                  // written live so the preview tracks each keystroke.
+                  if (value.trim() === '' && !isRenderableIcon(node.icon)) {
+                    setLabelDraft(value);
+                    return;
                   }
+                  setLabelDraft(null);
+                  updateNodeAt(path, (s) => {
+                    s.label = value;
+                  });
                 }}
+                // Drop a held empty draft on blur → the field falls back to the
+                // node's (preserved) label. Matches the tree: an icon-less node
+                // can't be left label-less.
+                onBlur={() => setLabelDraft(null)}
               />
             </Row>
             <Row label="Icon">
