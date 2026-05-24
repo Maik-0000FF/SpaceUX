@@ -1224,7 +1224,7 @@ app.whenReady().then(async () => {
         return { ok: false, reason: describeError(err) };
       }
       const group = catalog.groups.find((g) => g.key === workbenchKey);
-      if (!group || group.commands.length === 0) {
+      if (!group || group.toolbars.every((tb) => tb.commands.length === 0)) {
         return {
           ok: false,
           reason: `workbench "${workbenchKey}" has no commands loaded — open it in FreeCAD (or use Load all) first`,

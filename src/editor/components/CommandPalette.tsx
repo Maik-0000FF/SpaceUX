@@ -68,7 +68,10 @@ export function CommandPalette() {
       .map((g) => ({
         key: g.key,
         name: g.name,
-        commands: g.commands
+        // Flatten the toolbars into one searchable list per workbench (the
+        // toolbar grouping is for the seeded pie's tree, not the palette).
+        commands: g.toolbars
+          .flatMap((t) => t.commands)
           .filter(
             (c) =>
               typeof c.command === 'string' && c.command && typeof c.label === 'string' && c.label,

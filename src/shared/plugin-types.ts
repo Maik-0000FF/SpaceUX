@@ -238,12 +238,18 @@ export type PluginMenuProvider = (ctx: ActionContext) => MenuNode | Promise<Menu
  *  needs it to *execute*. */
 export type PluginCatalogCommand = { command: string; label: string; icon?: string };
 
-/** A named group of catalog commands (e.g. a FreeCAD workbench). `key` is the
- *  group's stable identifier (the workbench's class name, e.g.
- *  `PartDesignWorkbench`) — used to key curated per-workbench pies (#193) and
- *  to match the bridge's live active workbench; `name` is the display label
- *  only (two workbenches can share a display name). */
-export type PluginCatalogGroup = { key: string; name: string; commands: PluginCatalogCommand[] };
+/** A named sub-grouping of commands within a catalog group — a FreeCAD toolbar
+ *  (#193). Curated pies seed one submenu per toolbar so the editing tree mirrors
+ *  the dynamic pie's structure. */
+export type PluginCatalogToolbar = { name: string; commands: PluginCatalogCommand[] };
+
+/** A catalog group (e.g. a FreeCAD workbench), its commands sub-grouped by
+ *  toolbar. `key` is the group's stable identifier (the workbench's class name,
+ *  e.g. `PartDesignWorkbench`) — used to key curated per-workbench pies (#193)
+ *  and to match the bridge's live active workbench; `name` is the display label
+ *  only (two workbenches can share a display name). Consumers that want a flat
+ *  command list (the palette) flatten `toolbars`. */
+export type PluginCatalogGroup = { key: string; name: string; toolbars: PluginCatalogToolbar[] };
 
 /** A plugin's full command catalog. `complete` is false when only a subset is
  *  loaded (e.g. FreeCAD lists only visited workbenches until `loadAll`). */

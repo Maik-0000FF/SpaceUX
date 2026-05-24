@@ -172,31 +172,50 @@ describe('seedWorkbenchConfig', () => {
   const group = {
     key: 'PartDesignWorkbench',
     name: 'Part Design',
-    commands: [
-      { command: 'PartDesign_Pad', label: 'Pad', icon: 'data:image/png;base64,AAA' },
-      { command: 'PartDesign_Pocket', label: 'Pocket' },
-      { command: 'PartDesign_X', label: 'X', icon: 'mdi:not-a-data-uri' },
+    toolbars: [
+      {
+        name: 'PartDesign',
+        commands: [
+          { command: 'PartDesign_Pad', label: 'Pad', icon: 'data:image/png;base64,AAA' },
+          { command: 'PartDesign_Pocket', label: 'Pocket' },
+        ],
+      },
+      {
+        name: 'Sketch',
+        commands: [{ command: 'PartDesign_X', label: 'X', icon: 'mdi:not-a-data-uri' }],
+      },
     ],
   };
 
-  it('builds a flat ring of run-action leaves, keeping only renderable icons', () => {
+  it('seeds one submenu per toolbar, keeping only renderable icons', () => {
     const seeded = seedWorkbenchConfig(group, DEFAULT_MENU_CONFIG, 'org.spaceux.freecad');
     expect(seeded.version).toBe(MENU_CONFIG_VERSION);
     expect(seeded.root.label).toBe(''); // empty centre, like the dynamic pie
+    // Toolbar → submenu; commands → run-action leaves (mirrors the dynamic pie).
     expect(seeded.root.branches).toEqual([
       {
-        label: 'Pad',
-        icon: 'data:image/png;base64,AAA',
-        action: { id: 'org.spaceux.freecad/run', config: { command: 'PartDesign_Pad' } },
+        label: 'PartDesign',
+        branches: [
+          {
+            label: 'Pad',
+            icon: 'data:image/png;base64,AAA',
+            action: { id: 'org.spaceux.freecad/run', config: { command: 'PartDesign_Pad' } },
+          },
+          {
+            label: 'Pocket',
+            action: { id: 'org.spaceux.freecad/run', config: { command: 'PartDesign_Pocket' } },
+          },
+        ],
       },
       {
-        label: 'Pocket',
-        action: { id: 'org.spaceux.freecad/run', config: { command: 'PartDesign_Pocket' } },
-      },
-      {
-        // non-renderable icon dropped
-        label: 'X',
-        action: { id: 'org.spaceux.freecad/run', config: { command: 'PartDesign_X' } },
+        label: 'Sketch',
+        branches: [
+          {
+            // non-renderable icon dropped
+            label: 'X',
+            action: { id: 'org.spaceux.freecad/run', config: { command: 'PartDesign_X' } },
+          },
+        ],
       },
     ]);
     // The base's trigger / navigation / scale carry over for consistency.
@@ -204,26 +223,34 @@ describe('seedWorkbenchConfig', () => {
     expect(seeded.scale).toBe(DEFAULT_MENU_CONFIG.scale);
   });
 
-  it('skips commands missing a name or label (parity with the palette)', () => {
+  it('drops name/label-less commands, and a toolbar left empty by that', () => {
     const seeded = seedWorkbenchConfig(
       {
         key: 'W',
         name: 'W',
-        commands: [
-          { command: 'Good', label: 'Good' },
-          { command: 'NoLabel', label: '' }, // unsavable label-less, icon-less leaf
-          { command: '', label: 'NoCommand' },
+        toolbars: [
+          {
+            name: 'Good',
+            commands: [
+              { command: 'Good', label: 'Good' },
+              { command: 'NoLabel', label: '' }, // unsavable label-less, icon-less leaf
+              { command: '', label: 'NoCommand' },
+            ],
+          },
+          // Every command invalid → the whole toolbar (empty submenu) is omitted.
+          { name: 'AllBad', commands: [{ command: 'NoLabel', label: '' }] },
         ],
       },
       DEFAULT_MENU_CONFIG,
       'p',
     );
     expect(seeded.root.branches!.map((b) => b.label)).toEqual(['Good']);
+    expect(seeded.root.branches![0]!.branches!.map((b) => b.label)).toEqual(['Good']);
   });
 
-  it('seeds an empty ring for a workbench with no commands', () => {
+  it('seeds an empty ring for a workbench with no toolbars', () => {
     const seeded = seedWorkbenchConfig(
-      { key: 'Empty', name: 'Empty', commands: [] },
+      { key: 'Empty', name: 'Empty', toolbars: [] },
       DEFAULT_MENU_CONFIG,
       'p',
     );
