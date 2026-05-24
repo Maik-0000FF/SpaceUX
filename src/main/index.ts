@@ -613,8 +613,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
  * overlay before MENU_OPEN — so the menu reflects live context (e.g. FreeCAD's
  * active workbench). Best-effort: a provider that throws, times out, or returns
  * an invalid tree leaves the current (static `manifest.menu`) config in place,
- * so the pie still opens. Only the live overlay is updated; the editor keeps
- * showing the static placeholder.
+ * so the pie still opens. The dynamic tree is pushed *only* to the live overlay
+ * — the authoritative `menuConfig` global stays the static menu, so both
+ * pull-based getters (GET_MENU_CONFIG and the editor's EDITOR_GET_MENU_CONFIG,
+ * which read that global) keep returning the static placeholder. The overlay
+ * renders from the push; it only pulls the global once at mount.
  */
 async function refreshDynamicPluginMenu(): Promise<void> {
   const id = activeProfileId;
@@ -652,8 +655,9 @@ async function refreshDynamicPluginMenu(): Promise<void> {
 
   const fallback = fallbackMenu ?? { config: DEFAULT_MENU_CONFIG, mtime: null, source: null };
   const next = resolvePluginMenuConfig(v.value, fallback, id);
-  menuConfig = next.config;
-  menuConfigMtime = next.mtime;
+  // Push to the live overlay only — do NOT mutate the authoritative
+  // `menuConfig` global, so a pull (live pie or editor) still sees the static
+  // menu and the transient dynamic tree can't leak through GET_MENU_CONFIG.
   mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, next.config);
 }
 
