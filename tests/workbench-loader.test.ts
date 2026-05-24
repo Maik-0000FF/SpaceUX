@@ -239,6 +239,8 @@ describe('seedWorkbenchConfig', () => {
           },
           // Every command invalid → the whole toolbar (empty submenu) is omitted.
           { name: 'AllBad', commands: [{ command: 'NoLabel', label: '' }] },
+          // Empty-named toolbar → omitted (an empty submenu label is unsavable).
+          { name: '  ', commands: [{ command: 'Y', label: 'Y' }] },
         ],
       },
       DEFAULT_MENU_CONFIG,

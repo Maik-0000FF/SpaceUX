@@ -246,6 +246,9 @@ export function seedWorkbenchConfig(
     root: {
       label: '',
       branches: group.toolbars
+        // Skip an empty-named toolbar: the submenu label would be empty and
+        // (with no icon) unsavable — symmetric with the command-label filter.
+        .filter((tb) => tb.name.trim() !== '')
         .map((tb) => ({
           label: tb.name,
           branches: tb.commands
