@@ -272,6 +272,39 @@ describe('navigationRingRotation', () => {
     };
     expect(navigationRingRotation(cfg, [1])).toBeCloseTo(Math.PI);
   });
+
+  it('accumulates the parent ring rotation at depth ≥ 2 (no jump back to the top)', () => {
+    // 4-sector top; index 1 is at π/2 (3 o'clock). Drilling [1] rotates its
+    // ring by π/2. Drilling a second level [1, j] must ADD that π/2 to the
+    // local sector angle, otherwise the grandchild ring snaps back toward 12
+    // o'clock — the "jump to the top" bug.
+    const exec = (c: string) => ({ id: builtinAction('exec'), config: { command: c } });
+    const child = (label: string, branches?: unknown[]) =>
+      branches ? { label, branches } : { label, action: exec(label) };
+    const cfg: MenuConfig = {
+      version: MENU_CONFIG_VERSION,
+      root: {
+        label: '',
+        branches: [
+          child('a'),
+          child('b', [
+            // [1, 0] sub-children, drilled from sector 0 of the [1] ring
+            child('b0', [child('x'), child('y'), child('z'), child('w')]),
+            child('b1'),
+            child('b2'),
+            child('b3'),
+          ]),
+          child('c'),
+          child('d'),
+        ],
+      },
+    } as MenuConfig;
+    // [1] alone: π/2.
+    expect(navigationRingRotation(cfg, [1])).toBeCloseTo(Math.PI / 2);
+    // [1, 0]: parent π/2 + local sectorCenterAngle(0, 4)=0 → still π/2 (aligned
+    // with the parent sector, not snapped to 0).
+    expect(navigationRingRotation(cfg, [1, 0])).toBeCloseTo(Math.PI / 2);
+  });
 });
 
 describe('previewBranches', () => {

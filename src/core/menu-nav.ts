@@ -247,7 +247,16 @@ export function navigationRingRotation(config: MenuConfig, navigation: readonly 
   if (navigation.length === 0) return 0;
   const parentRing = currentBranches(config, navigation.slice(0, -1));
   const drilledIntoIndex = navigation[navigation.length - 1]!;
-  return sectorCenterAngle(drilledIntoIndex, parentRing.length);
+  // Accumulate the parent ring's own rotation. At depth ≥ 2 the parent ring is
+  // itself rotated, so a child ring must add that to its local sector angle to
+  // stay visually aligned with the parent sector it was drilled from. Without
+  // the parent term the child ring snaps back toward 12 o'clock — the
+  // disorienting "jump to the top" when drilling a second level in (the local
+  // angle alone ignores where the parent sector actually sits on screen).
+  return (
+    navigationRingRotation(config, navigation.slice(0, -1)) +
+    sectorCenterAngle(drilledIntoIndex, parentRing.length)
+  );
 }
 
 /**
