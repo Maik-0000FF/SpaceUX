@@ -19,6 +19,7 @@ import {
   deleteWorkbenchMenu,
   listWorkbenchMenus,
   loadWorkbenchMenu,
+  resolveWorkbenchMenuConfig,
   workbenchMenuPath,
   writeWorkbenchMenu,
 } from '../src/main/workbench-loader';
@@ -138,5 +139,30 @@ describe('workbench-menu storage', () => {
     expect((await loadWorkbenchMenu(ID, dir)).status).toBe('absent');
     expect(await deleteWorkbenchMenu(ID, dir)).toEqual({ ok: true }); // already gone
     expect(await deleteWorkbenchMenu('plugin:x', dir)).toEqual({ ok: true }); // malformed
+  });
+});
+
+describe('resolveWorkbenchMenuConfig', () => {
+  it('resolves a loaded pie to a WRITABLE active config (source = file, no appearance)', () => {
+    const resolved = resolveWorkbenchMenuConfig(ID, {
+      status: 'loaded',
+      config: DEFAULT_MENU_CONFIG,
+      mtime: 42,
+      path: '/cfg/workbench-menus/org.spaceux.freecad__PartDesignWorkbench.json',
+    });
+    expect(resolved).toEqual({
+      config: DEFAULT_MENU_CONFIG,
+      mtime: 42,
+      // source non-null → main's write target points at the file (writable),
+      // unlike a read-only plugin menu whose source is null.
+      source: '/cfg/workbench-menus/org.spaceux.freecad__PartDesignWorkbench.json',
+      profileId: ID,
+      appearance: null, // curated pies inherit the global appearance
+    });
+  });
+
+  it('returns null when there is no usable file (caller drops the override)', () => {
+    expect(resolveWorkbenchMenuConfig(ID, { status: 'absent' })).toBeNull();
+    expect(resolveWorkbenchMenuConfig(ID, { status: 'invalid', reason: 'bad' })).toBeNull();
   });
 });

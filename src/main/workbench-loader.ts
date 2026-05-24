@@ -15,6 +15,7 @@ import {
 
 import { migrateAndValidateMenuConfig, spaceuxConfigDirs } from './menu-loader.js';
 import { writeMenuConfig } from './menu-writer.js';
+import type { ActiveMenuConfig } from './profile-loader.js';
 
 /**
  * Curated per-workbench FreeCAD pies (#193).
@@ -194,6 +195,30 @@ export async function deleteWorkbenchMenu(
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return { ok: true };
     return { ok: false, reason: describeError(err) };
   }
+}
+
+/**
+ * Resolve a curated workbench pie to the active config, or null when there's no
+ * usable file (`absent` — not seeded yet — or `invalid`); the caller then drops
+ * the override and re-resolves normally, exactly like a gone plugin menu.
+ *
+ * A loaded pie is a *writable* source: `source` is its file path (so main's
+ * write target points at it — unlike a read-only `plugin:` menu whose source is
+ * null), and `appearance` is null so the curated pie inherits the global look
+ * (the file bundles none).
+ */
+export function resolveWorkbenchMenuConfig(
+  id: string,
+  load: WorkbenchMenuLoadResult,
+): ActiveMenuConfig | null {
+  if (load.status !== 'loaded') return null;
+  return {
+    config: load.config,
+    mtime: load.mtime,
+    source: load.path,
+    profileId: id,
+    appearance: null,
+  };
 }
 
 export { isWorkbenchMenuId, makeWorkbenchMenuId, parseWorkbenchMenuId };

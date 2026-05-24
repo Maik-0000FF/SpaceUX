@@ -71,8 +71,15 @@ import { importPluginFromFolder, uninstallPlugin } from './plugin-installer.js';
 import {
   PLUGIN_MENU_ID_PREFIX,
   isPluginMenuId,
+  isWorkbenchMenuId,
   type PluginManifest,
 } from '../shared/plugin-types.js';
+import {
+  loadWorkbenchMenu,
+  resolveWorkbenchMenuConfig,
+  workbenchMenuPath,
+  workbenchMenusDir,
+} from './workbench-loader.js';
 import { createTray } from './tray.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -130,6 +137,7 @@ let menuConfigSource: string | null = null;
 let menuSearchPaths: string[] = [];
 let stopMenuWatcher: (() => void) | null = null;
 let stopProfileWatcher: (() => void) | null = null;
+let stopWorkbenchWatcher: (() => void) | null = null;
 
 // The global fallback config (the menu.json load result), kept live by the
 // watcher. The active `menuConfig` above is this whenever no device profile
@@ -250,6 +258,15 @@ function resolveProfileId(): string | null {
   return overrideProfileId ?? deviceProfileId(deviceVendor, deviceProduct);
 }
 
+/** The active source as a *device profile* id, or null when it isn't one (no
+ *  override, or a plugin / curated-workbench source). Appearance edits persist
+ *  into a device profile file only in this case; for everything else they're
+ *  the global app-settings — writing them into a `plugin:`/`wb:` "profile"
+ *  would drop a stray file in the profiles dir. */
+function activeDeviceProfileId(): string | null {
+  return activeProfileId !== null && isProfileId(activeProfileId) ? activeProfileId : null;
+}
+
 /** The (normalized) root of the plugin menu named by a `plugin:<id>` id, or
  *  null when no loaded plugin with that id contributes a menu. */
 function pluginMenuRootFor(id: string): MenuNode | null {
@@ -295,6 +312,24 @@ async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
       return;
     }
     next = resolvePluginMenuConfig(root, fallback, id);
+  } else if (id !== null && isWorkbenchMenuId(id)) {
+    // A curated per-workbench pie (#193) is the override — a *writable* source,
+    // unlike the read-only plugin menu. Load its file; if there's none yet (not
+    // seeded) or it's broken, drop the override and re-resolve, exactly like a
+    // gone plugin menu. (PR2c seeds the file before selecting, so a loaded file
+    // is the normal path here.)
+    const load = await loadWorkbenchMenu(id);
+    if (resolveProfileId() !== id) return; // a switch landed while we were reading
+    const resolved = resolveWorkbenchMenuConfig(id, load);
+    if (resolved === null) {
+      if (load.status === 'invalid')
+        // eslint-disable-next-line no-console
+        console.warn(`[workbench] ${id}: ${load.reason} — dropping override`);
+      if (overrideProfileId === id) overrideProfileId = null;
+      await applyActiveProfile(cause);
+      return;
+    }
+    next = resolved;
   } else {
     let profile: ProfileLoadResult | null = null;
     if (id) {
@@ -400,6 +435,36 @@ async function onProfilesChangedOnDisk(): Promise<void> {
   if (prof.status === 'absent' && overrideProfileId === id) overrideProfileId = null;
   await applyActiveProfile('external');
 }
+
+/**
+ * React to an external change in the curated workbench-menus dir (#193). The
+ * editor's own write-back arms markSelfWrite, so this fires for edits made
+ * outside the editor. Only the *active* curated pie's content matters here (the
+ * dropdown-list refresh lands with the UI in PR2c): reload it in place with a
+ * fresh mtime, or — if its file vanished / broke — drop the override and
+ * re-resolve. Mirrors onProfilesChangedOnDisk's content-reload path.
+ */
+async function onWorkbenchMenusChangedOnDisk(): Promise<void> {
+  const id = resolveProfileId();
+  if (id === null || !isWorkbenchMenuId(id) || id !== activeProfileId) return;
+  const load = await loadWorkbenchMenu(id);
+  if (resolveProfileId() !== id) return; // a switch landed while we were reading
+  if (load.status === 'loaded') {
+    menuConfig = load.config;
+    menuConfigMtime = load.mtime;
+    menuConfigSource = load.path;
+    mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, load.config);
+    sendToEditor(IpcChannel.EDITOR_MENU_CONFIG_CHANGED, {
+      config: load.config,
+      mtime: load.mtime,
+      cause: 'external',
+    } satisfies MenuConfigChange);
+    return;
+  }
+  // Active curated file deleted/broke externally → drop the override + re-resolve.
+  if (overrideProfileId === id) overrideProfileId = null;
+  await applyActiveProfile('external');
+}
 // The active pie appearance (what the live pie + editor preview show). It's
 // the active profile's bundled appearance when one applies (#113 PR 3c-3),
 // else `globalAppearance`.
@@ -443,12 +508,13 @@ function applyActiveAppearance(profileAppearance: PieAppearance | null): void {
  * watcher doesn't echo our own write back as an external change.
  */
 async function persistActiveAppearance(): Promise<void> {
-  if (activeProfileId !== null && menuConfig) {
-    markSelfWrite(deviceProfilePath(activeProfileId));
-    const result = await writeDeviceProfile(activeProfileId, menuConfig, pieAppearance);
+  const profId = activeDeviceProfileId();
+  if (profId !== null && menuConfig) {
+    markSelfWrite(deviceProfilePath(profId));
+    const result = await writeDeviceProfile(profId, menuConfig, pieAppearance);
     if (result.ok !== true) {
       // eslint-disable-next-line no-console
-      console.warn(`[profile] failed to save appearance into ${activeProfileId}`);
+      console.warn(`[profile] failed to save appearance into ${profId}`);
     }
     return;
   }
@@ -882,7 +948,10 @@ function wireActionDispatch(): void {
       if (typeof id !== 'string') return;
       // Accept a device profile id, or a plugin-menu id that resolves to a
       // currently-loaded plugin menu. Reject anything else (stray IPC).
-      const valid = isProfileId(id) || (isPluginMenuId(id) && pluginMenuRootFor(id) !== null);
+      const valid =
+        isProfileId(id) ||
+        (isPluginMenuId(id) && pluginMenuRootFor(id) !== null) ||
+        (isWorkbenchMenuId(id) && workbenchMenuPath(id) !== null);
       if (!valid) return;
     }
     overrideProfileId = id;
@@ -1041,6 +1110,16 @@ app.whenReady().then(async () => {
     void onProfilesChangedOnDisk();
   });
 
+  // Watch the curated workbench-menus dir so an external edit to the *active*
+  // curated pie hot-reloads like a profile (#193). Create it first so the watch
+  // attaches even before the first curated pie exists. watchProfiles is
+  // dir-generic (any *.json dir, with the same self-write suppression).
+  const wbDir = workbenchMenusDir();
+  await fs.mkdir(wbDir, { recursive: true }).catch(() => {});
+  stopWorkbenchWatcher = watchProfiles(wbDir, () => {
+    void onWorkbenchMenusChangedOnDisk();
+  });
+
   wireActionDispatch();
   wireEditorIpc({
     getConfig: () => menuConfig,
@@ -1119,7 +1198,9 @@ app.whenReady().then(async () => {
       // while a profile is active is saved into that profile; otherwise it's
       // the global app-settings.
       pieAppearance = { ...pieAppearance, ...patch };
-      if (activeProfileId === null) globalAppearance = { ...globalAppearance, ...patch };
+      // Global unless a *device profile* is active (a plugin / curated-workbench
+      // source keeps appearance global — see activeDeviceProfileId).
+      if (activeDeviceProfileId() === null) globalAppearance = { ...globalAppearance, ...patch };
       // Broadcast the full value to both renderers at once: the live pie
       // hot-reloads and the editor preview (incl. the one that made the
       // edit) tracks it without waiting on the debounced disk write.
@@ -1151,8 +1232,9 @@ app.on('before-quit', () => {
     pieAppearanceSaveTimer = null;
     // Flush to the same place the debounced write would have (#113 PR 3c-3b):
     // the active profile, else the global app-settings.
-    if (activeProfileId !== null && menuConfig) {
-      writeDeviceProfileSync(activeProfileId, menuConfig, pieAppearance);
+    const profId = activeDeviceProfileId();
+    if (profId !== null && menuConfig) {
+      writeDeviceProfileSync(profId, menuConfig, pieAppearance);
     } else {
       saveAppSettingsSync({
         pieTheme: globalAppearance.theme,
@@ -1170,6 +1252,8 @@ app.on('window-all-closed', () => {
   stopMenuWatcher = null;
   stopProfileWatcher?.();
   stopProfileWatcher = null;
+  stopWorkbenchWatcher?.();
+  stopWorkbenchWatcher = null;
   if (process.platform !== 'darwin') app.quit();
 });
 
