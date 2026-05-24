@@ -29,6 +29,10 @@ export const IpcChannel = {
    *  later). The renderer treats this as authoritative for the
    *  current value. */
   MENU_CONFIG: 'spaceux:menu-config',
+  /** Main pushes the active-plugin badge (#186) to the pie renderer just
+   *  before MENU_OPEN — the active plugin's app icon (data URI) for the
+   *  bottom-left indicator, or null when no plugin source is active. */
+  PIE_BADGE: 'spaceux:pie-badge',
   /** Main signals the renderer to open the pie menu at the given anchor
    *  (renderer-window coordinates — main does the screen-to-window
    *  translation so the renderer never has to know about multi-monitor

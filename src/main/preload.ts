@@ -34,6 +34,7 @@ const bridge: SpaceUxBridge = {
   getMenuConfig: () => ipcRenderer.invoke(IpcChannel.GET_MENU_CONFIG) as Promise<MenuConfig>,
   onMenuConfig: (handler) => subscribe<MenuConfig>(IpcChannel.MENU_CONFIG, handler),
   onMenuOpen: (handler) => subscribe<MenuOpenPayload>(IpcChannel.MENU_OPEN, handler),
+  onPieBadge: (handler) => subscribe<string | null>(IpcChannel.PIE_BADGE, handler),
   // MENU_COMMIT has no payload — wrap the subscribe helper so the
   // handler signature stays () => void instead of (_: void) => void.
   onMenuCommit: (handler) => {

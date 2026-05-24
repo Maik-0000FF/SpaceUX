@@ -115,16 +115,17 @@ export async function provideMenu(ctx) {
 }
 
 /**
- * The live context key for #193 PR3 — FreeCAD's active workbench class name —
- * so the host can prefer a curated per-workbench pie over the dynamic menu.
- * Returns null when the bridge is unreachable or reports no workbench (the host
- * then falls back to the dynamic menu).
+ * The live context for #193 PR3 / #186: the active workbench class name (`key`,
+ * to pick a curated per-workbench pie) plus FreeCAD's own app icon (`badge`,
+ * for the active-plugin indicator). Returns null when the bridge is unreachable
+ * or reports no workbench (the host falls back to the dynamic menu, no badge).
  */
 export async function provideContext() {
   try {
     const resp = await request({ op: 'context' });
     if (resp && resp.ok === true && typeof resp.workbench === 'string' && resp.workbench) {
-      return resp.workbench;
+      const badge = typeof resp.appIcon === 'string' && resp.appIcon ? resp.appIcon : undefined;
+      return { key: resp.workbench, badge };
     }
   } catch {
     // Bridge down / no context → null; the host falls back to the dynamic menu.

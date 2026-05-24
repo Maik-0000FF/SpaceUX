@@ -47,6 +47,9 @@ export function App() {
   const pieAppearance = usePieAppearance();
   const [menuConfig, setMenuConfig] = useState<MenuConfig | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  // Active-plugin badge (#186): the app icon of the plugin whose pie is active,
+  // pushed by main just before MENU_OPEN. Shown in the pie's bottom-left corner.
+  const [pieBadge, setPieBadge] = useState<string | null>(null);
 
   // configRef lets the IPC commit listener and the puck-gesture
   // callbacks read the latest config without re-subscribing on every
@@ -132,6 +135,7 @@ export function App() {
     const offConfig = window.spaceux.onMenuConfig((config) => {
       setMenuConfig(config);
     });
+    const offBadge = window.spaceux.onPieBadge((badge) => setPieBadge(badge));
     const offOpen = window.spaceux.onMenuOpen(({ x, y }) => {
       // Every menu open starts with a clean slate so a previous
       // session's leftover (selection AND drilled-in depth) doesn't
@@ -192,6 +196,7 @@ export function App() {
 
     return () => {
       offConfig();
+      offBadge();
       offOpen();
       offCommit();
     };
@@ -207,6 +212,7 @@ export function App() {
           navigation={drillState.navigation}
           activeSector={drillState.stickyChildIndex}
           iconScale={pieAppearance.iconScale}
+          badge={pieBadge}
         />
       )}
       <DaemonStatusIndicator status={daemonStatus} />
