@@ -26,6 +26,9 @@ type CatalogState = {
   groups: PluginCatalogGroup[];
   /** Whether every workbench is included (a `loadAll` pull ran). */
   complete: boolean;
+  /** The active plugin's own app icon (data URI), read live — the bottom-left
+   *  badge (#186). Undefined when the plugin/bridge reports none. */
+  appBadge: string | undefined;
   /** Discover the catalog plugin and pull its already-loaded catalog. Safe to
    *  call from several components on mount, and to re-call on remount: it
    *  dedupes only while `loading`/`ready` (first caller wins), but retries from
@@ -42,6 +45,7 @@ export const useCatalog = create<CatalogState>((set, get) => ({
   reason: null,
   groups: [],
   complete: false,
+  appBadge: undefined,
   ensureLoaded: async () => {
     // Dedupe an in-flight / settled-good load (first caller wins), but allow a
     // retry from idle or error so a remount recovers a prior failure.
@@ -61,6 +65,7 @@ export const useCatalog = create<CatalogState>((set, get) => ({
         reason: null,
         groups: res.catalog.groups,
         complete: res.catalog.complete,
+        appBadge: res.catalog.appBadge,
       });
     } else {
       set({ plugin, status: 'error', reason: res.reason, groups: [], complete: false });
@@ -77,6 +82,7 @@ export const useCatalog = create<CatalogState>((set, get) => ({
         reason: null,
         groups: res.catalog.groups,
         complete: res.catalog.complete,
+        appBadge: res.catalog.appBadge,
       });
     } else {
       set({ status: 'error', reason: res.reason });
