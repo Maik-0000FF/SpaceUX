@@ -4,8 +4,8 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { currentBranches, resolvePuckFrame, type PuckEdges } from '@/core/menu-nav';
-import type { SixAxes } from '@/core/pie-geometry';
-import { DEFAULT_TRIGGER_BUTTON, type MenuConfig } from '@/shared/menu';
+import { aimAxes, axesMagnitude, type SixAxes } from '@/core/pie-geometry';
+import { DEFAULT_TRIGGER_BUTTON, resolveNavigation, type MenuConfig } from '@/shared/menu';
 
 import { useAppState } from '../state/app-state';
 
@@ -123,6 +123,14 @@ export function useLivePreviewNavigation(
       edges: edgesRef.current,
     });
     edgesRef.current = edges;
+    // For an aim-based source, the puck is back "at the centre" once its aim
+    // eases below the hover threshold — then no sector is the target and the
+    // centre is (so a cancel centre lights up), matching the overlay. A twist
+    // source has no aim vector (aimAxes → null) and keeps its cycle selection,
+    // so it's never treated as centred here.
+    const nav = resolveNavigation(config);
+    const aimed = aimAxes(nav.aim, axes);
+    const puckCentred = aimed !== null && axesMagnitude(aimed) <= nav.hoverDeadzone;
     switch (outcome.kind) {
       case 'hover':
         setSticky(outcome.index);
@@ -145,10 +153,14 @@ export function useLivePreviewNavigation(
         // Soft back to the centre: deselect, stay open.
         setSticky(null);
         break;
-      // Terminal commits are suppressed in the editor; 'none' does nothing.
+      case 'none':
+        // Back in the deadzone (aim source) → deselect so the centre becomes
+        // the active target and a cancel centre lights up, like the overlay.
+        if (puckCentred) setSticky(null);
+        break;
+      // Terminal commits are suppressed in the editor — no action, no close.
       case 'activate':
       case 'commitCenter':
-      case 'none':
         break;
     }
   }, [enabled, config, axes, buttons, drillInto, drillTo]);
