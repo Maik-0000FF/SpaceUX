@@ -1,34 +1,24 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import { menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
   CANCEL_RADIUS_RATIO,
-  DEFAULT_PIE_GEOMETRY,
   INNER_LABEL_RATIO,
   OUTER_RING_INNER_RATIO,
   OUTER_RING_OUTER_RATIO,
-  aimAxes,
-  axesToSector,
-  rotateAxes,
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
   truncatePieLabel,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import {
-  DEFAULT_TRIGGER_BUTTON,
-  isCancelNode,
-  resolveAxisInvert,
-  resolveNavigation,
-  type MenuNode,
-} from '@/shared/menu';
+import { isCancelNode, type MenuNode } from '@/shared/menu';
 
-import { useEditorSpaceMouse } from '../hooks/useEditorSpaceMouse';
+import { useLivePreviewNavigation } from '../hooks/useLivePreviewNavigation';
 import { usePieAppearance } from '../hooks/usePieAppearance';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
@@ -93,7 +83,11 @@ export function MenuPreview() {
   const centerSelected = useAppState((s) => s.centerSelected);
   const drillInto = useAppState((s) => s.drillInto);
   const livePreview = useAppState((s) => s.livePreview);
-  const liveAxes = useEditorSpaceMouse(livePreview);
+  // While live, the full configured navigation runs against the puck (#177):
+  // drill / cycle / twist / back / aim, driving the editor's own viewPath plus
+  // this highlighted sector — but the terminal commits (close / fire action)
+  // are suppressed, so the preview is a non-destructive sandbox.
+  const liveSticky = useLivePreviewNavigation(livePreview, config);
   // Icon size tracks the appearance slider (#169); the icon is a JS-computed
   // SVG dimension, so unlike the label scale it can't ride a CSS var. The
   // per-ring fit is computed below, once the ring geometry is known.
@@ -102,32 +96,6 @@ export function MenuPreview() {
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropTo, setDropTo] = useState<number | null>(null);
-  // Latest live-highlighted sector, read by the trigger-button handler
-  // (which is subscribed once, so it can't close over a render value).
-  const liveSectorRef = useRef<number | null>(null);
-
-  // While live, the trigger button commits the highlighted sector — drill
-  // into a branch, select a leaf — so the puck navigates the menu like the
-  // real pie (going back up is the breadcrumb).
-  useEffect(() => {
-    if (!livePreview) return;
-    return window.editor.onButton(({ bnum, pressed }) => {
-      if (!pressed) return;
-      const cfg = useMenuSettings.getState().config;
-      if (!cfg) return;
-      if (bnum !== (cfg.triggerButton ?? DEFAULT_TRIGGER_BUTTON)) return;
-      const sector = liveSectorRef.current;
-      if (sector === null) return;
-      const ring = ringBranches(cfg, useAppState.getState().viewPath);
-      if (ring.length === 0) return;
-      // axesToSector clamps its internal sectorCount to a minimum of 2, so a
-      // 1-child ring can yield index 1 → out of bounds. Wrap into range, the
-      // same guard the live pie uses (useDrillNavigation: rawSec % length).
-      const idx = sector % ring.length;
-      if (ring[idx]?.branches?.length) drillInto(idx);
-      else selectNode(idx);
-    });
-  }, [livePreview, drillInto, selectNode]);
 
   const currentRing = config ? ringBranches(config, viewPath) : [];
   if (!config) {
@@ -175,46 +143,13 @@ export function MenuPreview() {
       appearance.iconScale
     : 0;
 
-  // Live preview: the sector under the puck, mapped exactly like the live
-  // pie. The aim source (#159) picks which axes steer the highlight — so a
-  // tilt/both setting previews the same way the overlay aims. Axes are
-  // un-rotated by the active ring's rotation first so the highlight lines
-  // up with the rendered (rotated) outer ring. Null inside the deadzone —
-  // so a centred puck highlights nothing, like the real pie.
-  const invert = resolveAxisInvert(config);
-  const nav = resolveNavigation(config);
-  const aim = nav.aim;
-  // null for the twist source (no lateral pointer) — the preview then
-  // highlights nothing from deflection, matching the overlay.
-  const aimVec =
-    livePreview && liveAxes
-      ? aimAxes(aim, {
-          tx: liveAxes[0],
-          ty: liveAxes[1],
-          tz: liveAxes[2],
-          rx: liveAxes[3],
-          ry: liveAxes[4],
-          rz: liveAxes[5],
-        })
-      : null;
-  const liveSector = aimVec
-    ? axesToSector(rotateAxes(aimVec, -activeRotation), {
-        ...DEFAULT_PIE_GEOMETRY,
-        sectorCount: count,
-        // The preview highlights the *hovered* sector, so it lights up at the
-        // hover threshold (low) — the deadzone field is the open-submenu (high).
-        deadzone: nav.hoverDeadzone,
-        invertX: invert.x,
-        invertY: invert.y,
-      })
-    : null;
-  liveSectorRef.current = liveSector;
-
   // The centre is the *active* target whenever no sector is — mirroring the
   // live overlay (cancelActive = activeSector === null), so a cancel centre
   // shows its bright/active red right away instead of only after it's clicked
   // (the idle red is near-black and reads as "no centre, just a full ring").
-  const activeSector = livePreview ? liveSector : selectedIndex;
+  // While live, the highlight is the puck-driven sticky (the navigation hook
+  // resolves the aim source / deadzone / cycling); otherwise the click select.
+  const activeSector = livePreview ? liveSticky : selectedIndex;
   const centerActive = centerSelected || activeSector === null;
 
   // Pointer angle → active-ring sector (undoing the ring's rotation; radius
@@ -317,9 +252,9 @@ export function MenuPreview() {
         {currentRing.map((node, i) => {
           const c = sectorCenterAngle(i, count) + activeRotation;
           const d = describeWedgePath(activeOuter, activeInner, c - half, c + half);
-          // While live, the highlight follows the puck (liveSector); otherwise
+          // While live, the highlight follows the puck (liveSticky); otherwise
           // it's the click selection. The click selection still drives editing.
-          const selected = livePreview ? liveSector === i : selectedIndex === i;
+          const selected = livePreview ? liveSticky === i : selectedIndex === i;
           const isDropTarget = dragFrom !== null && dropTo === i && dropTo !== dragFrom;
           const lx = Math.sin(c) * activeLabel;
           const ly = -Math.cos(c) * activeLabel;
