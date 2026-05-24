@@ -5,9 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import type { PluginInfo } from '@/shared/ipc';
-import { isPluginMenuId, type PluginCatalog } from '@/shared/plugin-types';
+import type { PluginCatalog } from '@/shared/plugin-types';
 
-import { useDeviceInfo } from '../hooks/useDeviceInfo';
+import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 
@@ -36,8 +36,9 @@ export function CommandPalette() {
   // A plugin-provided menu is the active source → the config is a read-only
   // overlay (main returns no writable target, index.ts:1051). Adds would mutate
   // the draft and then fail the write-back with a cryptic banner, so disable
-  // them and say why instead. Mirrors main's getWriteTarget condition.
-  const readOnly = isPluginMenuId(useDeviceInfo().profileId);
+  // them and say why instead. Shared hook = same source of truth as the rest
+  // of the editor's read-only affordance (App banner, MenuList, sliders).
+  const readOnly = useReadOnlySource();
 
   const [plugin, setPlugin] = useState<PluginInfo | null>(null);
   const [status, setStatus] = useState<Status>({ kind: 'loading' });
