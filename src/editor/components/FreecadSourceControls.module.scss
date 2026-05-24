@@ -101,3 +101,37 @@
   color: var(--editor-fg-dim);
   margin: 2px 0 0;
 }
+
+// Re-seed / Delete actions (+ inline confirm) for the active curated pie (#207).
+.curatedActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.confirmText {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--editor-fg-dim);
+}
+
+.actionBtn {
+  flex: none;
+  padding: 2px 8px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--editor-hover);
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}

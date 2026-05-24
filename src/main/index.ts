@@ -78,6 +78,7 @@ import {
   type PluginManifest,
 } from '../shared/plugin-types.js';
 import {
+  deleteWorkbenchMenu,
   listWorkbenchMenus,
   loadWorkbenchMenu,
   resolveWorkbenchMenuConfig,
@@ -1238,7 +1239,7 @@ app.whenReady().then(async () => {
       }
     },
     getWorkbenchMenus: () => listWorkbenchMenus(),
-    seedWorkbench: async (pluginId, workbenchKey) => {
+    seedWorkbench: async (pluginId, workbenchKey, overwrite) => {
       const plugin = loadedPlugins.find((p) => p.manifest.id === pluginId);
       if (!plugin?.provideCatalog) {
         return { ok: false, reason: 'this plugin provides no command catalog' };
@@ -1261,21 +1262,48 @@ app.whenReady().then(async () => {
           reason: `workbench "${workbenchKey}" has no commands loaded — open it in FreeCAD (or use Load all) first`,
         };
       }
-      // Seed from the global base (trigger / navigation / scale); writes fail
-      // with a conflict if a curated pie already exists (don't clobber it).
+      // Seed from the global base (trigger / navigation / scale). For a fresh
+      // seed (expectedMtime null) the write conflicts if a pie already exists;
+      // re-seed (overwrite) writes against the existing mtime so it replaces
+      // the file — but only here, after a successful pull, so a bridge error
+      // above leaves the current curated pie intact (#207).
       const base = fallbackMenu?.config ?? DEFAULT_MENU_CONFIG;
       const id = makeWorkbenchMenuId(pluginId, workbenchKey);
-      const result = await writeWorkbenchMenu(id, seedWorkbenchConfig(group, base, pluginId), null);
+      let expectedMtime: number | null = null;
+      if (overwrite) {
+        const existing = await loadWorkbenchMenu(id);
+        if (existing.status === 'loaded') expectedMtime = existing.mtime;
+      }
+      const result = await writeWorkbenchMenu(
+        id,
+        seedWorkbenchConfig(group, base, pluginId),
+        expectedMtime,
+      );
       if (result.ok !== true) {
         return {
           ok: false,
           reason:
             result.ok === 'conflict'
-              ? 'a curated pie already exists for this workbench'
+              ? overwrite
+                ? 'the curated pie changed on disk — try again'
+                : 'a curated pie already exists for this workbench'
               : result.reason,
         };
       }
       return { ok: true, id };
+    },
+    deleteWorkbench: async (pluginId, workbenchKey) => {
+      const id = makeWorkbenchMenuId(pluginId, workbenchKey);
+      const result = await deleteWorkbenchMenu(id);
+      if (!result.ok) return result;
+      // If the deleted pie was the active source, drop the override and
+      // re-resolve so the editor/live pie don't keep showing a gone source.
+      if (overrideProfileId === id) {
+        overrideProfileId = null;
+        await applyActiveProfile('profile');
+        await pushEditorProfiles();
+      }
+      return { ok: true };
     },
   });
   wireAppIpc({

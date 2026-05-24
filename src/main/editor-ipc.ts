@@ -17,6 +17,7 @@ import {
   type PluginCategory,
   type PluginImportResult,
   type PluginsState,
+  type ProfileActionResult,
   type ThemeChoice,
   type WorkbenchMenusState,
   type WorkbenchSeedResult,
@@ -59,9 +60,16 @@ export interface EditorIpcDeps {
   /** Ids of curated per-workbench pies that exist on disk (#193). */
   getWorkbenchMenus: () => Promise<string[]>;
   /** Seed a curated pie for a workbench from the live catalog (#193): pull the
-   *  catalog, build a flat pie of its commands, write the file. Resolves with
-   *  the new `wb:` id, or a failure reason (bridge down / workbench missing). */
-  seedWorkbench: (pluginId: string, workbenchKey: string) => Promise<WorkbenchSeedResult>;
+   *  catalog, build the pie, write the file. `overwrite` re-seeds an existing
+   *  pie (only on a successful pull). Resolves with the new `wb:` id, or a
+   *  failure reason (bridge down / workbench missing). */
+  seedWorkbench: (
+    pluginId: string,
+    workbenchKey: string,
+    overwrite: boolean,
+  ) => Promise<WorkbenchSeedResult>;
+  /** Delete a curated workbench pie (#207); clears the override if active. */
+  deleteWorkbench: (pluginId: string, workbenchKey: string) => Promise<ProfileActionResult>;
 }
 
 /**
@@ -135,8 +143,17 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
   );
   ipcMain.handle(
     IpcChannel.EDITOR_SEED_WORKBENCH,
-    (_evt, pluginId: string, workbenchKey: string): Promise<WorkbenchSeedResult> =>
-      deps.seedWorkbench(pluginId, workbenchKey),
+    (
+      _evt,
+      pluginId: string,
+      workbenchKey: string,
+      overwrite: boolean,
+    ): Promise<WorkbenchSeedResult> => deps.seedWorkbench(pluginId, workbenchKey, overwrite),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_DELETE_WORKBENCH,
+    (_evt, pluginId: string, workbenchKey: string): Promise<ProfileActionResult> =>
+      deps.deleteWorkbench(pluginId, workbenchKey),
   );
 
   // Editor mounted. No-op: the editor pulls via EDITOR_GET_MENU_CONFIG;

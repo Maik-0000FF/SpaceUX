@@ -159,10 +159,15 @@ export const IpcChannel = {
    *  removed on disk, so the dropdown's markers stay in sync. */
   EDITOR_WORKBENCH_MENUS_CHANGED: 'spaceux:editor:workbench-menus:changed',
   /** Editor seeds a curated pie for a workbench from the live catalog (#193):
-   *  invoke({ pluginId, workbenchKey }) → {@link WorkbenchSeedResult}. Main
-   *  pulls the catalog, builds a flat pie of the workbench's commands, and
-   *  writes the file; needs the bridge running, so it can fail with a reason. */
+   *  invoke({ pluginId, workbenchKey, overwrite }) → {@link WorkbenchSeedResult}.
+   *  Main pulls the catalog, builds the pie, and writes the file; `overwrite`
+   *  re-seeds an existing curated pie (only on a successful pull, so a bridge
+   *  error leaves the current file intact). Needs the bridge running. */
   EDITOR_SEED_WORKBENCH: 'spaceux:editor:workbench-menus:seed',
+  /** Editor deletes a curated workbench pie (#207): invoke({ pluginId,
+   *  workbenchKey }) → {@link ProfileActionResult}. Removes the file; if it was
+   *  the active source, main clears the override and re-resolves. */
+  EDITOR_DELETE_WORKBENCH: 'spaceux:editor:workbench-menus:delete',
 
   // ── Pie appearance (own app setting, separate from menu.json and the
   //    editor UI theme; consumed by both the live pie and the editor

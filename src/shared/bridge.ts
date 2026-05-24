@@ -146,8 +146,17 @@ export type EditorBridge = {
   /** Subscribe to curated-pie add/remove changes. Returns an unsubscribe fn. */
   onWorkbenchMenusChanged(handler: (state: WorkbenchMenusState) => void): () => void;
   /** Seed a curated pie for a workbench from the live catalog (#193): resolves
-   *  with the new `wb:` id (set it as the override next), or a failure reason. */
-  seedWorkbench(pluginId: string, workbenchKey: string): Promise<WorkbenchSeedResult>;
+   *  with the new `wb:` id (set it as the override next), or a failure reason.
+   *  `overwrite` re-seeds an existing pie — only on a successful catalog pull,
+   *  so a bridge error leaves the current file intact (#207). */
+  seedWorkbench(
+    pluginId: string,
+    workbenchKey: string,
+    overwrite?: boolean,
+  ): Promise<WorkbenchSeedResult>;
+  /** Delete a curated workbench pie (#207); clears the override if it was
+   *  active. Resolves ok, or a failure reason. */
+  deleteWorkbench(pluginId: string, workbenchKey: string): Promise<ProfileActionResult>;
   /** Pull the per-device profile list + manual override on mount (#113). */
   getProfiles(): Promise<ProfilesState>;
   /** Subscribe to profile-list / override changes (create / delete /
