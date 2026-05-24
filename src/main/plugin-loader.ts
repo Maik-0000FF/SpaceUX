@@ -17,6 +17,7 @@ import {
   type ActionHandler,
   type PluginKind,
   type PluginManifest,
+  type PluginMenuProvider,
   type PluginModule,
 } from '../shared/plugin-types.js';
 import { dedupPreserveOrder } from '../shared/util.js';
@@ -52,6 +53,10 @@ export type LoadedPlugin = {
   manifest: PluginManifest;
   dir: string;
   handlers: Record<string, ActionHandler>;
+  /** Dynamic menu provider exported by index.js (#76 C2), if any — the host
+   *  calls it at each pie open to build a live menu. Undefined for plugins
+   *  that only ship a static `manifest.menu` (or no menu at all). */
+  provideMenu?: PluginMenuProvider;
 };
 
 export type LoadResult = {
@@ -208,7 +213,12 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
     handlers[action.name] = fn;
   }
 
-  return { manifest, dir, handlers };
+  // Optional dynamic menu provider (#76 C2). A non-function export is ignored
+  // (the plugin simply has no live menu) rather than failing the load — the
+  // static manifest.menu, if any, still works.
+  const provideMenu = typeof mod.provideMenu === 'function' ? mod.provideMenu : undefined;
+
+  return { manifest, dir, handlers, provideMenu };
 }
 
 /**

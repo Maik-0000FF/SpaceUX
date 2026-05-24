@@ -166,7 +166,23 @@ export type ActionHandler = (
   ctx: ActionContext,
 ) => Promise<void> | void;
 
+/**
+ * Dynamic menu provider (#76 C2). A function plugin's index.js may export this
+ * alongside `actions`; the host calls it *at each pie open* (with a timeout)
+ * and renders the returned root, so the menu can reflect live external context
+ * — e.g. FreeCAD's active workbench and its commands. Returns the pie's root
+ * MenuNode (its `branches` are the sectors); the host validates + normalises it
+ * exactly like a static `manifest.menu.root`.
+ *
+ * The plugin must still declare a (placeholder) `manifest.menu` so it's
+ * selectable in the profile dropdown — that static menu is also the graceful
+ * fallback shown when the provider errors or times out.
+ */
+export type PluginMenuProvider = (ctx: ActionContext) => MenuNode | Promise<MenuNode>;
+
 /** Shape of `module.exports` (or `export default`) from a plugin's index.js. */
 export type PluginModule = {
   actions: Record<string, ActionHandler>;
+  /** Optional dynamic menu provider — see {@link PluginMenuProvider}. */
+  provideMenu?: PluginMenuProvider;
 };

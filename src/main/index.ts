@@ -24,6 +24,7 @@ import {
   DEFAULT_MENU_CONFIG,
   DEFAULT_TRIGGER_BUTTON,
   DEFAULT_TRIGGER_MODE,
+  validateNode,
   type MenuConfig,
   type MenuNode,
 } from '../shared/menu.js';
@@ -583,6 +584,79 @@ async function getCursor(): Promise<{ x: number; y: number }> {
  * every trigger would just confuse the developer flow, and the
  * cursor is almost certainly already inside the dev window anyway.
  */
+/** A plugin provider that hangs (e.g. an unresponsive FreeCAD socket) must not
+ *  freeze the pie open — cap how long we wait for the dynamic menu. */
+const DYNAMIC_MENU_TIMEOUT_MS = 2000;
+
+/** Resolve `promise`, or reject with `message` after `ms`. The original
+ *  promise is left to settle on its own (no cancellation primitive in the
+ *  plugin contract); its late result is simply ignored. */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      },
+    );
+  });
+}
+
+/**
+ * When the active source is a plugin menu with a dynamic provider (#76 C2),
+ * rebuild the pie from the provider at open time and push it to the live
+ * overlay before MENU_OPEN — so the menu reflects live context (e.g. FreeCAD's
+ * active workbench). Best-effort: a provider that throws, times out, or returns
+ * an invalid tree leaves the current (static `manifest.menu`) config in place,
+ * so the pie still opens. Only the live overlay is updated; the editor keeps
+ * showing the static placeholder.
+ */
+async function refreshDynamicPluginMenu(): Promise<void> {
+  const id = activeProfileId;
+  if (id === null || !isPluginMenuId(id)) return;
+  const pid = id.slice(PLUGIN_MENU_ID_PREFIX.length);
+  const plugin = loadedPlugins.find((p) => p.manifest.id === pid);
+  if (!plugin?.provideMenu) return; // static-only plugin menu — nothing to refresh
+
+  let root: MenuNode;
+  try {
+    const ctx = makeActionContext(plugin.manifest.id, daemon);
+    root = await withTimeout(
+      Promise.resolve(plugin.provideMenu(ctx)),
+      DYNAMIC_MENU_TIMEOUT_MS,
+      `provideMenu timed out after ${DYNAMIC_MENU_TIMEOUT_MS}ms`,
+    );
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[plugin ${plugin.manifest.id}] dynamic menu failed: ${describeError(err)} — using the static menu`,
+    );
+    return;
+  }
+
+  // Validate + normalise exactly like a static plugin menu root, so a bad
+  // dynamic tree degrades to the static fallback instead of rendering garbage.
+  const v = validateNode(root, 'plugin dynamic menu root', 0, true);
+  if (!v.ok) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[plugin ${plugin.manifest.id}] dynamic menu invalid: ${v.reason} — using the static menu`,
+    );
+    return;
+  }
+
+  const fallback = fallbackMenu ?? { config: DEFAULT_MENU_CONFIG, mtime: null, source: null };
+  const next = resolvePluginMenuConfig(v.value, fallback, id);
+  menuConfig = next.config;
+  menuConfigMtime = next.mtime;
+  mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, next.config);
+}
+
 async function openMenuAtCursor(window: BrowserWindow): Promise<void> {
   const cursor = await getCursor();
   let originX: number;
@@ -604,6 +678,11 @@ async function openMenuAtCursor(window: BrowserWindow): Promise<void> {
     originX = bounds.x;
     originY = bounds.y;
   }
+  // Rebuild a dynamic plugin menu (#76 C2) before opening, so the live pie
+  // reflects current context. No-op unless the active source is a plugin menu
+  // with a provider; awaited so the fresh config is pushed before MENU_OPEN.
+  await refreshDynamicPluginMenu();
+
   const payload: MenuOpenPayload = {
     x: cursor.x - originX,
     y: cursor.y - originY,
