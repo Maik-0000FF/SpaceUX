@@ -19,9 +19,11 @@
 
 .control {
   display: grid;
-  // `auto` sizes the label column to the widest label ("Opacity") so the
-  // text never spills into the gap; all rows share it and stay aligned.
-  grid-template-columns: auto 1fr 38px;
+  // Each row is its own grid, so the label column must be a *fixed* width
+  // (not `auto`, which would size per-row and give the sliders different
+  // lengths). 64px fits the longest label ("Opacity", uppercase + tracking)
+  // without spilling, and every slider ends up the same length.
+  grid-template-columns: 64px 1fr 38px;
   align-items: center;
   gap: 10px;
 }
