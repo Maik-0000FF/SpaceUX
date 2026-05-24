@@ -21,15 +21,29 @@ It has two halves that talk over a local UNIX socket
 
 ### 1. The FreeCAD bridge addon
 
-Copy the `freecad/` folder of this plugin into FreeCAD's `Mod/` directory,
-renamed to `SpaceUX`:
+Copy the `freecad/` folder of this plugin into FreeCAD's user `Mod/` directory,
+renamed to `SpaceUX`.
+
+**Find the right Mod directory** — it is **version-specific**, so don't assume
+a fixed path. In FreeCAD's Python console run:
+
+```python
+import FreeCAD; print(FreeCAD.getUserAppDataDir())
+```
+
+That prints your user data dir, e.g. `~/.local/share/FreeCAD/v1-2/` on
+FreeCAD 1.2 (older builds use the unversioned `~/.local/share/FreeCAD/`; a
+Flatpak/Snap install differs again). The addon goes in `<that dir>/Mod/SpaceUX`:
 
 ```
-cp -r freecad/ ~/.local/share/FreeCAD/Mod/SpaceUX
+cp -r freecad/ "<UserAppDataDir>/Mod/SpaceUX"
+# e.g. FreeCAD 1.2:
+cp -r freecad/ ~/.local/share/FreeCAD/v1-2/Mod/SpaceUX
 ```
 
-(so you have `~/.local/share/FreeCAD/Mod/SpaceUX/InitGui.py` and
-`spaceux_bridge.py`). Restart FreeCAD. The Report view should show:
+(so you have `…/Mod/SpaceUX/InitGui.py` and `spaceux_bridge.py`). An in-app
+installer that resolves this path for you is tracked in #189. Restart FreeCAD.
+The Report view should show:
 
 ```
 SpaceUX bridge listening on /run/user/<uid>/spaceux/freecad.sock
