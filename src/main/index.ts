@@ -198,8 +198,14 @@ function pushEditorDevice(): void {
  *  is a vector app icon); sanitised + size-guarded like a picked node icon. */
 function bakeBadge(dir: string, badge: string | undefined): string | undefined {
   if (badge === undefined || !badge.toLowerCase().endsWith('.svg')) return undefined;
+  // Confine the badge to the plugin dir — a manifest `badge: "../../x.svg"`
+  // must not read an arbitrary file (consistency with workbench-loader; the
+  // plugin is trusted, but keep the path contained anyway).
+  const base = path.resolve(dir);
+  const file = path.resolve(base, badge);
+  if (file !== base && !file.startsWith(base + path.sep)) return undefined;
   try {
-    const raw = fsSync.readFileSync(path.join(dir, badge), 'utf8');
+    const raw = fsSync.readFileSync(file, 'utf8');
     if (Buffer.byteLength(raw) > MAX_ICON_BYTES) return undefined;
     return `data:image/svg+xml;base64,${Buffer.from(sanitizeSvg(raw)).toString('base64')}`;
   } catch {
