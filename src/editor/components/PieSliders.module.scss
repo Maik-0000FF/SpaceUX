@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Right slider card in the control row above the preview, mirroring the
-// left-hand selector card (PieSelectors). `flex: 1` makes the two cards equal
-// width; the row's `align-items: stretch` makes them equal height.
+// left-hand selector card (PieSelectors). Spans 3 of the row's 5 columns (the
+// wider share, for longer sliders); the row's `align-items: stretch` makes
+// both cards equal height.
 
 .panel {
-  flex: 1 1 0;
-  min-width: 240px; // below this the row wraps the cards instead of overlapping
+  grid-column: span 3;
+  min-width: 0; // let the card shrink within its grid track instead of overflowing
   display: flex;
   flex-direction: column;
   gap: 16px;

@@ -86,16 +86,16 @@
   padding: 16px;
 }
 
-// Two equal cards above the preview: selectors (left) and value sliders
-// (right). `stretch` makes them the same height; `flex: 1` (on each card)
-// the same width; `wrap` stacks them on a narrow window instead of letting
-// one slide over the other.
+// Two cards above the preview on a 5-column grid: the selector card spans 2
+// columns (left), the slider card spans 3 (right) so the sliders get the
+// wider share. `stretch` makes both the same height; the grid keeps them
+// from overlapping at any width (cells just shrink, never collide).
 .controlRow {
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   align-items: stretch;
   gap: 12px;
-  flex-wrap: wrap;
   margin-bottom: 12px;
 }
 
