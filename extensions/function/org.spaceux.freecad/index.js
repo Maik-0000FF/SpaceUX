@@ -28,7 +28,10 @@ const PLUGIN_ID = 'org.spaceux.freecad';
 const REQUEST_TIMEOUT_MS = 1500;
 // The editor catalog (esp. loadAll, which cycles every workbench) is a
 // deliberate, non-interactive request — give it far longer than a pie open.
-const CATALOG_TIMEOUT_MS = 30000;
+// Sits just above the host's loadAll cap (60s in index.ts) so the host stays
+// the authoritative timeout (it reports the failure reason to the editor);
+// this only guards against a truly hung socket.
+const CATALOG_TIMEOUT_MS = 65000;
 
 function socketPath() {
   const base = process.env.XDG_RUNTIME_DIR || '/tmp';
