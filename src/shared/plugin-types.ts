@@ -128,6 +128,56 @@ export function isPluginMenuId(id: string | null | undefined): boolean {
   return typeof id === 'string' && id.startsWith(PLUGIN_MENU_ID_PREFIX);
 }
 
+/** The id prefix marking an active-source override as a *curated*, per-workbench
+ *  FreeCAD pie (#193): `wb:<pluginId>:<workbench-key>`. Distinct from a dynamic
+ *  plugin menu (`plugin:<id>`, read-only): a curated workbench pie is a normal
+ *  *writable* config the user edits and that's stored on disk. The workbench
+ *  part is the bridge's stable workbench key (e.g. `PartDesignWorkbench`), never
+ *  its display name, so it matches the live active workbench at runtime (#193
+ *  PR3). Shared so main and the renderer agree on the one literal. */
+export const WB_MENU_ID_PREFIX = 'wb:';
+
+/** Build the active-source id for the curated pie of `workbenchKey` under
+ *  `pluginId`. The id's `:` separator is unambiguous: a reverse-DNS plugin id
+ *  and a workbench class key both contain no `:`. */
+export function makeWorkbenchMenuId(pluginId: string, workbenchKey: string): string {
+  return `${WB_MENU_ID_PREFIX}${pluginId}:${workbenchKey}`;
+}
+
+/** Whether `id` names a curated workbench pie. Tolerates null/undefined so
+ *  callers can pass an optional override directly (mirrors isPluginMenuId). */
+export function isWorkbenchMenuId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && id.startsWith(WB_MENU_ID_PREFIX);
+}
+
+/** Parse a curated-workbench id into its plugin id + workbench key, or null if
+ *  it isn't one / is malformed. The first `:` after the prefix is the separator
+ *  (neither part contains a colon). */
+export function parseWorkbenchMenuId(
+  id: string | null | undefined,
+): { pluginId: string; workbenchKey: string } | null {
+  if (!isWorkbenchMenuId(id)) return null;
+  const rest = (id as string).slice(WB_MENU_ID_PREFIX.length);
+  const sep = rest.indexOf(':');
+  if (sep <= 0 || sep >= rest.length - 1) return null;
+  return { pluginId: rest.slice(0, sep), workbenchKey: rest.slice(sep + 1) };
+}
+
+/** A readable display label for a workbench class key — the fallback the editor
+ *  shows when the bridge is offline and the catalog's display name (the real
+ *  source of truth) isn't available (#193). Drops a trailing `Workbench` and
+ *  splits CamelCase / acronym boundaries: `PartDesignWorkbench` → "Part Design",
+ *  `MeshWorkbench` → "Mesh", `OpenSCADWorkbench` → "Open SCAD". Falls back to
+ *  the raw key if the result would be empty. */
+export function workbenchKeyToLabel(key: string): string {
+  const label = key
+    .replace(/Workbench$/, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2') // camelCase boundary: "PartDesign" → "Part Design"
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2') // acronym→word: "SCADModel" → "SCAD Model"
+    .trim();
+  return label || key;
+}
+
 /** A plugin-contributed menu. C1 carries only the content (`root`); a plugin
  *  may later also *suggest* its own trigger/navigation/appearance, applied
  *  opt-in (the user is asked) and never overwriting their config. */
@@ -188,8 +238,12 @@ export type PluginMenuProvider = (ctx: ActionContext) => MenuNode | Promise<Menu
  *  needs it to *execute*. */
 export type PluginCatalogCommand = { command: string; label: string; icon?: string };
 
-/** A named group of catalog commands (e.g. a FreeCAD workbench). */
-export type PluginCatalogGroup = { name: string; commands: PluginCatalogCommand[] };
+/** A named group of catalog commands (e.g. a FreeCAD workbench). `key` is the
+ *  group's stable identifier (the workbench's class name, e.g.
+ *  `PartDesignWorkbench`) — used to key curated per-workbench pies (#193) and
+ *  to match the bridge's live active workbench; `name` is the display label
+ *  only (two workbenches can share a display name). */
+export type PluginCatalogGroup = { key: string; name: string; commands: PluginCatalogCommand[] };
 
 /** A plugin's full command catalog. `complete` is false when only a subset is
  *  loaded (e.g. FreeCAD lists only visited workbenches until `loadAll`). */
