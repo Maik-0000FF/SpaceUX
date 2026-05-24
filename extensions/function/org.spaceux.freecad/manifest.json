@@ -1,0 +1,30 @@
+{
+  "apiVersion": 1,
+  "kind": "function",
+  "id": "org.spaceux.freecad",
+  "name": "FreeCAD",
+  "version": "0.1.0",
+  "author": "Maik-0000FF",
+  "license": "GPL-3.0-or-later",
+  "actions": [
+    {
+      "name": "run",
+      "label": "Run FreeCAD command",
+      "description": "Run a FreeCAD command by its internal name via the SpaceUX bridge addon.",
+      "config": {
+        "command": {
+          "kind": "string",
+          "label": "Command name",
+          "placeholder": "Sketcher_NewSketch",
+          "default": ""
+        }
+      }
+    }
+  ],
+  "menu": {
+    "root": {
+      "label": "",
+      "branches": [{ "label": "FreeCAD" }]
+    }
+  }
+}
