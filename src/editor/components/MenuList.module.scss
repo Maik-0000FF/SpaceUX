@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 .sidebar {
-  background: var(--editor-panel-bg);
-  border-right: 1px solid var(--editor-border);
+  // Background + the column divider live on the wrapping .leftColumn now, so
+  // the command palette below shares them. The tree takes the available height
+  // and scrolls; the palette (below it) gets the rest.
+  flex: 1;
+  min-height: 0;
   // Scroll both ways: deep rows can grow past the panel width, and we want
   // the full label reachable rather than truncated by the indent.
   overflow: auto;

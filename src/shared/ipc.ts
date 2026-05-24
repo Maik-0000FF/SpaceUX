@@ -209,6 +209,10 @@ export type PluginInfo = {
   dir: string;
   /** How many actions the manifest declares. */
   actionCount: number;
+  /** Whether the plugin exports a command catalog (#76 D2) — drives whether
+   *  the editor offers its command palette. Only `function` plugins that are
+   *  loaded can have one. */
+  hasCatalog: boolean;
 };
 
 /** A plugin directory that failed to load, with the loader's reason. */

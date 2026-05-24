@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 
+import { CommandPalette } from './components/CommandPalette';
 import { DeviceStatus } from './components/DeviceStatus';
 import { MenuList } from './components/MenuList';
 import { MenuPreview } from './components/MenuPreview';
@@ -148,7 +149,10 @@ export function App() {
 
       {tab === 'menu' ? (
         <div className={styles.shell}>
-          <MenuList />
+          <div className={styles.leftColumn}>
+            <MenuList />
+            <CommandPalette />
+          </div>
           <main className={styles.center}>
             <div className={styles.controlRow}>
               <PieSelectors />
