@@ -111,10 +111,14 @@ export function MenuPreview() {
 
   // Depth dots (shared look with the live overlay): first dot = the centre,
   // then one per ring level (1 + deepest path). Active = the centre when the
-  // centre is selected, else the current ring's dot. Centre dot is red when
-  // the centre is a cancel target.
+  // centre is the focus, else the current ring's dot. Centre dot is red when
+  // the centre is a cancel target. While live, the focus follows the puck
+  // (centre = no sector hovered at the top), like the overlay's depth dots —
+  // not the click-selection `centerSelected`, which would stick on dot 0 after
+  // clicking the centre and skip the first ring's dot during puck navigation.
   const dotCount = 1 + menuTreeDepth(config);
-  const activeDot = Math.min(centerSelected ? 0 : viewPath.length + 1, dotCount - 1);
+  const atCentreDot = livePreview ? viewPath.length === 0 && liveSticky === null : centerSelected;
+  const activeDot = Math.min(atCentreDot ? 0 : viewPath.length + 1, dotCount - 1);
 
   // Same size formula as the live pie so the preview matches its on-screen
   // size and tracks the slider live. The `/ devicePixelRatio` is a
@@ -150,7 +154,12 @@ export function MenuPreview() {
   // While live, the highlight is the puck-driven sticky (the navigation hook
   // resolves the aim source / deadzone / cycling); otherwise the click select.
   const activeSector = livePreview ? liveSticky : selectedIndex;
-  const centerActive = centerSelected || activeSector === null;
+  // While live, the centre lights from the puck alone (no sector hovered), like
+  // the overlay — not from the click-selection `centerSelected`, which would
+  // keep the centre stuck active after clicking it during a live session.
+  const centerActive = livePreview
+    ? activeSector === null
+    : centerSelected || activeSector === null;
 
   // Preview ring (live, top level only), mirroring the live overlay (PieMenu):
   // when the puck hovers a branch sector, fade in its children as a dimmed,
