@@ -130,6 +130,14 @@ export async function provideCatalog(ctx, opts) {
     throw new Error(resp && resp.error ? resp.error : 'bridge returned no catalog');
   }
   const groups = (Array.isArray(resp.workbenches) ? resp.workbenches : []).map((wb) => ({
+    // Stable key (workbench class name) — used to key curated per-workbench
+    // pies (#193) and match the live active workbench; falls back to the name.
+    key:
+      typeof wb.key === 'string' && wb.key
+        ? wb.key
+        : typeof wb.name === 'string'
+          ? wb.name
+          : 'Commands',
     name: typeof wb.name === 'string' ? wb.name : wb.key || 'Commands',
     commands: (Array.isArray(wb.commands) ? wb.commands : []).map((c) => ({
       command: c.name,
