@@ -111,10 +111,14 @@ export function MenuPreview() {
 
   // Depth dots (shared look with the live overlay): first dot = the centre,
   // then one per ring level (1 + deepest path). Active = the centre when the
-  // centre is selected, else the current ring's dot. Centre dot is red when
-  // the centre is a cancel target.
+  // centre is the focus, else the current ring's dot. Centre dot is red when
+  // the centre is a cancel target. While live, the focus follows the puck
+  // (centre = no sector hovered at the top), like the overlay's depth dots —
+  // not the click-selection `centerSelected`, which would stick on dot 0 after
+  // clicking the centre and skip the first ring's dot during puck navigation.
   const dotCount = 1 + menuTreeDepth(config);
-  const activeDot = Math.min(centerSelected ? 0 : viewPath.length + 1, dotCount - 1);
+  const atCentreDot = livePreview ? viewPath.length === 0 && liveSticky === null : centerSelected;
+  const activeDot = Math.min(atCentreDot ? 0 : viewPath.length + 1, dotCount - 1);
 
   // Same size formula as the live pie so the preview matches its on-screen
   // size and tracks the slider live. The `/ devicePixelRatio` is a
@@ -150,7 +154,35 @@ export function MenuPreview() {
   // While live, the highlight is the puck-driven sticky (the navigation hook
   // resolves the aim source / deadzone / cycling); otherwise the click select.
   const activeSector = livePreview ? liveSticky : selectedIndex;
-  const centerActive = centerSelected || activeSector === null;
+  // While live, the centre lights from the puck alone (no sector hovered), like
+  // the overlay — not from the click-selection `centerSelected`, which would
+  // keep the centre stuck active after clicking it during a live session.
+  const centerActive = livePreview
+    ? activeSector === null
+    : centerSelected || activeSector === null;
+
+  // Preview ring (live, top level only), mirroring the live overlay (PieMenu):
+  // when the puck hovers a branch sector, fade in its children as a dimmed,
+  // non-interactive outer ring so the author sees what's inside before drilling
+  // — the missing half of overlay parity (#177). Rotated so its sector 0 lines
+  // up with the hovered parent, exactly like the overlay's preview rotation.
+  // Gated on livePreview: the overlay has no click-selection, so a statically
+  // selected branch shouldn't conjure a child ring during normal editing. At
+  // depth > 0 the outer band is the active ring itself, so no preview (as overlay).
+  const previewSectors =
+    livePreview && !isDrilled && activeSector !== null
+      ? currentRing[activeSector]?.branches
+      : undefined;
+  const previewRotation =
+    previewSectors && activeSector !== null ? sectorCenterAngle(activeSector, count) : 0;
+  const previewIconSize = previewSectors
+    ? segmentIconFitPx(
+        OUTER_LABEL_RADIUS,
+        previewSectors.length,
+        OUTER_INNER_RADIUS,
+        OUTER_OUTER_RADIUS,
+      ) * appearance.iconScale
+    : 0;
 
   // Pointer angle → active-ring sector (undoing the ring's rotation; radius
   // irrelevant since reorder is angular).
@@ -303,6 +335,42 @@ export function MenuPreview() {
             </g>
           );
         })}
+
+        {/* Preview ring: the hovered branch's children, dimmed and
+          non-interactive, in the outer band — overlay parity so the author
+          sees what's inside before drilling. */}
+        {previewSectors &&
+          previewSectors.length > 0 &&
+          previewSectors.map((node, i) => {
+            const c = sectorCenterAngle(i, previewSectors.length) + previewRotation;
+            const h = Math.PI / previewSectors.length;
+            const d = describeWedgePath(OUTER_OUTER_RADIUS, OUTER_INNER_RADIUS, c - h, c + h);
+            const lx = Math.sin(c) * OUTER_LABEL_RADIUS;
+            const ly = -Math.cos(c) * OUTER_LABEL_RADIUS;
+            const labelText = truncatePieLabel(node.label);
+            return (
+              <g
+                key={`preview-${nodeKey(node)}`}
+                className={styles.previewGroup}
+                aria-hidden="true"
+              >
+                <path d={d} className={styles.wedgePreview} />
+                {sectorIcon(node, lx, ly, previewIconSize)}
+                <text
+                  x={lx}
+                  y={isRenderableIcon(node.icon) ? ly + previewIconSize * 0.5 : ly}
+                  className={styles.labelPreview}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  style={{
+                    fontSize: `calc(${segmentLabelFontPx(OUTER_LABEL_RADIUS, previewSectors.length, [...labelText].length)}px * var(--pie-label-scale, 1))`,
+                  }}
+                >
+                  {labelText}
+                </text>
+              </g>
+            );
+          })}
 
         {/* Centre target — mirrors the live pie (PieMenu.tsx): the
           configurable center field's label, falling back to the ✕ glyph

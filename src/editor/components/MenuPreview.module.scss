@@ -223,6 +223,29 @@
   pointer-events: none;
 }
 
+// Preview ring — the hovered branch's children faded into the outer band
+// before drilling in. Non-interactive; mirrors the overlay's
+// .pie-wedge.is-preview / .pie-label.is-preview (dimmed, but more present than
+// the breadcrumb so it reads as "what you're about to open").
+.previewGroup {
+  pointer-events: none;
+}
+
+.wedgePreview {
+  @include pieFill(var(--pie-bg));
+  stroke: var(--pie-border);
+  stroke-width: 1.5;
+  fill-rule: evenodd;
+  opacity: 0.55;
+}
+
+.labelPreview {
+  fill: var(--pie-label);
+  font-weight: 600;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
 .empty {
   color: var(--editor-fg-dim);
   font-size: 13px;
