@@ -56,6 +56,12 @@ type MenuSettingsState = {
    *  wording (#113, PR 3c-2). */
   conflictCause: ConfigChangeCause | null;
   saveError: string | null;
+  /** The active source is read-only (a plugin-provided menu, e.g. the dynamic
+   *  FreeCAD pie): main has no writable target for it, so every menu-config
+   *  mutation below is a no-op while this is true — the edit is blocked up
+   *  front instead of mutating the draft and then failing the write-back with a
+   *  cryptic error. Synced from useReadOnlySource by App; not undoable. */
+  readOnly: boolean;
   /** Adopt a snapshot (initial load or external change with no unsaved
    *  edits). Clears dirty + conflict; origin = 'remote'. */
   setConfig: (snapshot: MenuConfigSnapshot) => void;
@@ -66,6 +72,8 @@ type MenuSettingsState = {
   setConflict: (external: MenuConfigSnapshot, cause: ConfigChangeCause) => void;
   clearConflict: () => void;
   setSaveError: (saveError: string | null) => void;
+  /** Set the read-only flag (App syncs it from the active source). */
+  setReadOnly: (readOnly: boolean) => void;
   /** Mutate the node at `path` in place (immer). Tags the change
    *  `local` and dirty so it is written back. No-op on a stale path. */
   updateNodeAt: (path: readonly number[], updater: (node: Draft<MenuNode>) => void) => void;
@@ -166,6 +174,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
       conflict: null,
       conflictCause: null,
       saveError: null,
+      readOnly: false,
       setConfig: (snapshot) =>
         set((state) => {
           state.config = withNodeIds(snapshot.config);
@@ -197,9 +206,13 @@ export const useMenuSettings = create<MenuSettingsState>()(
         set((state) => {
           state.saveError = saveError;
         }),
+      setReadOnly: (readOnly) =>
+        set((state) => {
+          state.readOnly = readOnly;
+        }),
       updateNodeAt: (path, updater) =>
         set((state) => {
-          if (!state.config || path.length === 0) return;
+          if (state.readOnly || !state.config || path.length === 0) return;
           const top = state.config.root.branches;
           if (!top) return;
           let ring: Draft<MenuNode>[] = top;
@@ -216,7 +229,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
         }),
       addNode: (ringPath) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           const ring = draftRingAt(state.config, ringPath);
           if (!ring) return;
           // Next free "Item …" number in this ring → a unique default label
@@ -233,7 +246,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
         }),
       addItem: (ringPath, item) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           const ring = draftRingAt(state.config, ringPath);
           if (!ring) return;
           ring.push({
@@ -247,7 +260,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
         }),
       deleteNode: (ringPath, index) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           const ring = draftRingAt(state.config, ringPath);
           if (!ring) return;
           if (index < 0 || index >= ring.length) return;
@@ -261,7 +274,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
         }),
       moveNode: (ringPath, from, to) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           const ring = draftRingAt(state.config, ringPath);
           if (!ring) return;
           if (from < 0 || from >= ring.length) return;
@@ -273,7 +286,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
         }),
       moveNodeBetween: (fromPath, toRingPath) =>
         set((state) => {
-          if (!state.config || fromPath.length === 0) return;
+          if (state.readOnly || !state.config || fromPath.length === 0) return;
           if (isPrefix(fromPath, toRingPath)) return; // target inside the subtree (cycle)
           const fromRingPath = fromPath.slice(0, -1);
           if (eqPath(fromRingPath, toRingPath)) return; // same ring → use moveNode
@@ -302,28 +315,28 @@ export const useMenuSettings = create<MenuSettingsState>()(
         }),
       setTriggerButton: (button) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           state.config.triggerButton = button;
           state.origin = 'local';
           state.dirty = true;
         }),
       setTriggerMode: (mode) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           state.config.triggerMode = mode;
           state.origin = 'local';
           state.dirty = true;
         }),
       setScale: (scale) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           state.config.scale = Math.min(MAX_PIE_SCALE, Math.max(MIN_PIE_SCALE, scale));
           state.origin = 'local';
           state.dirty = true;
         }),
       setRootLabel: (label) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           // The root label is required by the type but may be empty; an
           // empty/blank value normalises to '' (renderer falls back to ✕).
           // Whitespace-only collapses to '' so the renderer shows the ✕
@@ -334,7 +347,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
         }),
       setRootAction: (id) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           const root = state.config.root;
           if (id === null) delete root.action;
           else if (root.action) root.action.id = id;
@@ -344,6 +357,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
         }),
       setRootActionConfig: (config) =>
         set((state) => {
+          if (state.readOnly) return;
           const action = state.config?.root.action;
           if (!action) return; // config is meaningless without an action
           if (config === undefined) delete action.config;
@@ -353,7 +367,7 @@ export const useMenuSettings = create<MenuSettingsState>()(
         }),
       setNavigation: (navigation) =>
         set((state) => {
-          if (!state.config) return;
+          if (state.readOnly || !state.config) return;
           state.config.navigation = navigation;
           state.origin = 'local';
           state.dirty = true;

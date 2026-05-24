@@ -12,6 +12,7 @@ import {
 import { isRenderableIcon } from '@/core/icon';
 import type { MenuNode } from '@/shared/menu';
 
+import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTarget } from '../state/reorder';
@@ -54,6 +55,10 @@ type VisRow = {
  * Cross-ring moves are a separate concern (#55).
  */
 export function MenuList() {
+  // A plugin-provided menu is the active source → the config is read-only.
+  // The store already blocks mutations; disable the editing affordances too so
+  // the tree visibly reads as locked (no add/rename/delete, drag, or reorder).
+  const readOnly = useReadOnlySource();
   const config = useMenuSettings((s) => s.config);
   const addNode = useMenuSettings((s) => s.addNode);
   const moveNode = useMenuSettings((s) => s.moveNode);
@@ -282,7 +287,7 @@ export function MenuList() {
         <li
           key={key}
           role="none"
-          draggable={!isRenaming}
+          draggable={!isRenaming && !readOnly}
           onDragStart={() => setDrag({ ring: ringPath, index: i })}
           onDragOver={(e) => {
             if (!inDragRing) return; // siblings only
@@ -359,8 +364,10 @@ export function MenuList() {
                 aria-label={node.label.trim() === '' ? 'Unnamed item' : undefined}
                 onClick={() => (isBranch ? openNode(path) : selectPath(path))}
                 // Double-click the label to rename inline — single click still
-                // opens/selects; the ✎ button does the same.
+                // opens/selects; the ✎ button does the same. (Not while
+                // read-only: the menu is plugin-provided and not editable.)
                 onDoubleClick={() => {
+                  if (readOnly) return;
                   renameCancelled.current = false;
                   setRenaming(key);
                   setRenameValue(node.label);
@@ -368,7 +375,8 @@ export function MenuList() {
                 onKeyDown={(e) => {
                   if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                     e.preventDefault();
-                    moveWithin(ringPath, i, e.key === 'ArrowUp' ? i - 1 : i + 1, ringLen);
+                    if (!readOnly)
+                      moveWithin(ringPath, i, e.key === 'ArrowUp' ? i - 1 : i + 1, ringLen);
                   } else if (treeNav(e, key)) {
                     e.preventDefault();
                   }
@@ -385,6 +393,7 @@ export function MenuList() {
                   className={styles.actionBtn}
                   title="Add child"
                   aria-label={`Add child to ${node.label}`}
+                  disabled={readOnly}
                   onClick={() => addItem(path, isBranch, key)}
                 >
                   ＋
@@ -394,6 +403,7 @@ export function MenuList() {
                   className={styles.actionBtn}
                   title="Rename"
                   aria-label={`Rename ${node.label}`}
+                  disabled={readOnly}
                   onClick={() => {
                     renameCancelled.current = false;
                     setRenaming(key);
@@ -413,6 +423,7 @@ export function MenuList() {
                         : 'Delete'
                   }
                   aria-label={`Delete ${node.label}`}
+                  disabled={readOnly}
                   onClick={() => removeItem(ringPath, i, ringLen)}
                 >
                   🗑
@@ -486,6 +497,7 @@ export function MenuList() {
                 className={styles.actionBtn}
                 title="Add top-level node"
                 aria-label="Add top-level node"
+                disabled={readOnly}
                 onClick={addTopLevel}
               >
                 ＋

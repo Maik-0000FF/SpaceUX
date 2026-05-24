@@ -15,6 +15,7 @@ import {
 } from '@/shared/pie-appearance';
 
 import { usePieAppearance } from '../hooks/usePieAppearance';
+import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { useMenuSettings } from '../state/menu-settings';
 
 import styles from './PieSliders.module.scss';
@@ -36,6 +37,9 @@ export function PieSliders() {
   const scale = useMenuSettings((s) => s.config?.scale ?? 1);
   const setScale = useMenuSettings((s) => s.setScale);
   const hasConfig = useMenuSettings((s) => s.config !== null);
+  // Size is the menu.json `scale` → blocked on a read-only source. The other
+  // sliders are app-level appearance (not the menu config), so they stay live.
+  const readOnly = useReadOnlySource();
 
   return (
     <div className={styles.panel}>
@@ -48,7 +52,7 @@ export function PieSliders() {
           max={MAX_PIE_SCALE}
           step={SCALE_STEP}
           value={scale}
-          disabled={!hasConfig}
+          disabled={!hasConfig || readOnly}
           onChange={(e) => setScale(Number(e.target.value))}
         />
         <span className={styles.value}>{Math.round(scale * 100)}%</span>
