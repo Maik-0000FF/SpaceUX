@@ -115,6 +115,24 @@ export async function provideMenu(ctx) {
 }
 
 /**
+ * The live context key for #193 PR3 — FreeCAD's active workbench class name —
+ * so the host can prefer a curated per-workbench pie over the dynamic menu.
+ * Returns null when the bridge is unreachable or reports no workbench (the host
+ * then falls back to the dynamic menu).
+ */
+export async function provideContext() {
+  try {
+    const resp = await request({ op: 'context' });
+    if (resp && resp.ok === true && typeof resp.workbench === 'string' && resp.workbench) {
+      return resp.workbench;
+    }
+  } catch {
+    // Bridge down / no context → null; the host falls back to the dynamic menu.
+  }
+  return null;
+}
+
+/**
  * Command catalog for the editor's palette (#76 D2): every workbench's commands
  * grouped by workbench. `opts.loadAll` makes FreeCAD briefly activate every
  * workbench so unloaded ones are included too (the GUI cycles through them) —

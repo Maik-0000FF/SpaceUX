@@ -710,7 +710,38 @@ async function refreshDynamicPluginMenu(): Promise<void> {
   if (id === null || !isPluginMenuId(id)) return;
   const pid = id.slice(PLUGIN_MENU_ID_PREFIX.length);
   const plugin = loadedPlugins.find((p) => p.manifest.id === pid);
-  if (!plugin?.provideMenu) return; // static-only plugin menu — nothing to refresh
+  if (!plugin) return;
+  const fallback = fallbackMenu ?? { config: DEFAULT_MENU_CONFIG, mtime: null, source: null };
+
+  // #193 PR3: if the plugin reports a live context (FreeCAD's active workbench)
+  // for which the user has a curated pie, open THAT instead of the dynamic menu
+  // — overlay-only, like the dynamic path below. Best-effort: any failure falls
+  // through to the dynamic menu. The curated root is already validated on load.
+  if (plugin.provideContext) {
+    try {
+      const ctx = makeActionContext(plugin.manifest.id, daemon);
+      const key = await withTimeout(
+        Promise.resolve(plugin.provideContext(ctx)),
+        DYNAMIC_MENU_TIMEOUT_MS,
+        `provideContext timed out after ${DYNAMIC_MENU_TIMEOUT_MS}ms`,
+      );
+      if (key) {
+        const curated = await loadWorkbenchMenu(makeWorkbenchMenuId(pid, key));
+        if (curated.status === 'loaded') {
+          const next = resolvePluginMenuConfig(curated.config.root, fallback, id);
+          mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, next.config);
+          return;
+        }
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[plugin ${plugin.manifest.id}] context probe failed: ${describeError(err)} — using the dynamic menu`,
+      );
+    }
+  }
+
+  if (!plugin.provideMenu) return; // static-only plugin menu — nothing to refresh
 
   let root: MenuNode;
   try {
@@ -739,7 +770,6 @@ async function refreshDynamicPluginMenu(): Promise<void> {
     return;
   }
 
-  const fallback = fallbackMenu ?? { config: DEFAULT_MENU_CONFIG, mtime: null, source: null };
   const next = resolvePluginMenuConfig(v.value, fallback, id);
   // Push to the live overlay only — do NOT mutate the authoritative
   // `menuConfig` global, so a pull (live pie or editor) still sees the static
