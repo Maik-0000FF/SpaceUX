@@ -19,7 +19,9 @@
 
 .control {
   display: grid;
-  grid-template-columns: 48px 1fr 38px;
+  // `auto` sizes the label column to the widest label ("Opacity") so the
+  // text never spills into the gap; all rows share it and stay aligned.
+  grid-template-columns: auto 1fr 38px;
   align-items: center;
   gap: 10px;
 }
