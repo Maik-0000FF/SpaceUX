@@ -51,6 +51,20 @@ export function FreecadSourceControls() {
     void ensureLoaded();
   }, [ensureLoaded]);
 
+  // Drop a pending "Curated" intent once the active source leaves FreeCAD (e.g.
+  // the user picked Auto / a device profile in the Profile dropdown), so the
+  // Curated segment doesn't stay highlighted over a non-FreeCAD source. Only
+  // fires on a real source change — clicking Curated doesn't touch activeSource.
+  useEffect(() => {
+    if (!plugin) return;
+    const dynId = `${PLUGIN_MENU_ID_PREFIX}${plugin.id}`;
+    const onFreecad =
+      activeSource === dynId ||
+      (isWorkbenchMenuId(activeSource) &&
+        parseWorkbenchMenuId(activeSource)?.pluginId === plugin.id);
+    if (!onFreecad) setIntentCurated(false);
+  }, [activeSource, plugin]);
+
   // The selectable workbenches: catalog groups (display name), merged with any
   // curated-but-not-in-catalog workbench (bridge offline → label from the key).
   const workbenches = useMemo(() => {
@@ -114,8 +128,10 @@ export function FreecadSourceControls() {
       <div className={styles.switch} role="group" aria-label="FreeCAD pie mode">
         <button
           type="button"
-          className={isDynamic ? `${styles.segment} ${styles.segmentOn}` : styles.segment}
-          aria-pressed={isDynamic}
+          className={
+            isDynamic && !showCurated ? `${styles.segment} ${styles.segmentOn}` : styles.segment
+          }
+          aria-pressed={isDynamic && !showCurated}
           onClick={chooseDynamic}
           title="Live pie that follows FreeCAD's active workbench (read-only)"
         >
