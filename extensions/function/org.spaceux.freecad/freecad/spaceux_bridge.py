@@ -46,6 +46,11 @@ QAction = getattr(QtGui, "QAction", None) or getattr(QtWidgets, "QAction", None)
 
 PROTOCOL_VERSION = 1
 
+# Cap how long a worker thread waits for the GUI main thread to run a marshalled
+# call. The SpaceUX side gives up at 1.5s; this frees the worker (instead of
+# leaking a blocked daemon thread) if the GUI is wedged, e.g. behind a modal.
+GUI_CALL_TIMEOUT_S = 5.0
+
 # Module-level refs keep the server objects alive for the FreeCAD session.
 _invoker = None
 _server_sock = None
@@ -58,6 +63,14 @@ def socket_path():
     base = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
     directory = os.path.join(base, "spaceux")
     os.makedirs(directory, exist_ok=True)
+    # Lock the directory to the owner. Matters for the /tmp fallback, where
+    # makedirs honours a permissive umask and would let other local users
+    # traverse to the socket — which can run FreeCAD commands. XDG_RUNTIME_DIR
+    # is already 0700, so this is a no-op there.
+    try:
+        os.chmod(directory, 0o700)
+    except OSError:
+        pass
     return os.path.join(directory, "freecad.sock")
 
 
@@ -83,9 +96,12 @@ class _GuiInvoker(QtCore.QObject):
     def call(self, fn):
         holder = {"event": threading.Event()}
         self._invoke.emit(fn, holder)
-        # The GUI thread always pumps its event loop, so this resolves quickly;
-        # the SpaceUX side caps the whole request with its own timeout.
-        holder["event"].wait()
+        # The GUI thread pumps its event loop, so this normally resolves at
+        # once. Bound the wait so a wedged GUI (modal dialog, busy op) frees the
+        # worker thread instead of leaking it; a late completion afterwards just
+        # discards the orphaned holder.
+        if not holder["event"].wait(GUI_CALL_TIMEOUT_S):
+            raise RuntimeError("GUI thread did not respond within %ss" % GUI_CALL_TIMEOUT_S)
         if "error" in holder:
             raise RuntimeError(holder["error"])
         return holder.get("result")
