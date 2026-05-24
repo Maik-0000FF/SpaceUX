@@ -3,10 +3,11 @@
 
 import { useEffect, useState } from 'react';
 
-import { isPluginMenuId } from '@/shared/plugin-types';
+import { PLUGIN_MENU_ID_PREFIX, isPluginMenuId, parseWorkbenchMenuId } from '@/shared/plugin-types';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useProfiles } from '../hooks/useProfiles';
+import { useCatalog } from '../state/catalog';
 
 import styles from './ProfileControls.module.scss';
 
@@ -32,6 +33,20 @@ export function ProfileControls() {
   const { ids, override, pluginMenus } = useProfiles();
   const device = useDeviceInfo();
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+
+  // The catalog plugin (FreeCAD) owns its Dynamic/Curated choice via the
+  // FreecadSourceControls switch (#193), so drop its `plugin:` entry here to
+  // avoid two competing source controls. While a FreeCAD source (its dynamic
+  // menu or a curated `wb:` pie) is active, the override won't match any listed
+  // option — show a single "FreeCAD pie" entry so the dropdown stays coherent
+  // and the user switches FreeCAD modes in that panel, Auto/profiles here.
+  const catalogPluginId = useCatalog((s) => s.plugin?.id) ?? null;
+  const dynamicId = catalogPluginId === null ? null : `${PLUGIN_MENU_ID_PREFIX}${catalogPluginId}`;
+  const freecadActive =
+    override !== null &&
+    catalogPluginId !== null &&
+    (override === dynamicId || parseWorkbenchMenuId(override)?.pluginId === catalogPluginId);
+  const otherPluginMenus = pluginMenus.filter((m) => m.id !== dynamicId);
 
   const hasDevice = device.vendor !== 0 || device.product !== 0;
   const deviceLabel = device.name || 'this device';
@@ -91,14 +106,18 @@ export function ProfileControls() {
         title="Which profile drives the live config (Auto = follow the connected device)"
       >
         <option value={AUTO}>Auto</option>
+        {/* A FreeCAD source is active (owned by the FreeCAD panel) — a single
+            entry keeps the dropdown's value coherent; pick Auto/a profile to
+            leave it. */}
+        {freecadActive && override !== null && <option value={override}>FreeCAD pie</option>}
         {ids.map((id) => (
           <option key={id} value={id}>
             {id}
           </option>
         ))}
-        {pluginMenus.length > 0 && (
+        {otherPluginMenus.length > 0 && (
           <optgroup label="Plugin menus">
-            {pluginMenus.map((m) => (
+            {otherPluginMenus.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.name}
               </option>
