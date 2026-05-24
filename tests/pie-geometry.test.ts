@@ -62,6 +62,12 @@ describe('segmentLabelFontPx', () => {
     expect(segmentLabelFontPx(150, 2, 1)).toBeLessThanOrEqual(30); // capped
     expect(segmentLabelFontPx(150, 64, 6)).toBeGreaterThanOrEqual(8); // floored
   });
+
+  it('gives a single sector (full ring) the max font, not the collapsed minimum', () => {
+    // sin(π/1) = 0 would zero the chord and floor the font to the minimum —
+    // a lone item (fresh one-child submenu) must read at the configured size.
+    expect(segmentLabelFontPx(150, 1, 6)).toBe(30); // PIE_LABEL_FONT_MAX
+  });
 });
 
 describe('segmentIconFitPx', () => {
