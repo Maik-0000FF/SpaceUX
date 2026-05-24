@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { CommandPalette } from './components/CommandPalette';
 import { DeviceStatus } from './components/DeviceStatus';
@@ -14,6 +14,7 @@ import { Properties } from './components/Properties';
 import { SettingsPage } from './components/SettingsPage';
 import { useDeviceInfo } from './hooks/useDeviceInfo';
 import { useExternalSync } from './hooks/useExternalSync';
+import { useReadOnlySource } from './hooks/useReadOnlySource';
 import { useThemePreference } from './hooks/useThemePreference';
 import { useUndoRedoShortcuts } from './hooks/useUndoRedoShortcuts';
 import { useWriteBack } from './hooks/useWriteBack';
@@ -33,6 +34,14 @@ export function App() {
   const saveError = useMenuSettings((s) => s.saveError);
   const device = useDeviceInfo();
   const [tab, setTab] = useState<'menu' | 'settings'>('menu');
+
+  // A plugin-provided menu (e.g. the dynamic FreeCAD pie) is the active source
+  // → the config is a read-only overlay. Sync that into the store so its
+  // mutation guard blocks edits up front, and surface it in the banner below.
+  const readOnly = useReadOnlySource();
+  useEffect(() => {
+    useMenuSettings.getState().setReadOnly(readOnly);
+  }, [readOnly]);
 
   const { theme, changeTheme } = useThemePreference();
   useExternalSync();
@@ -146,6 +155,27 @@ export function App() {
           </button>
         </div>
       ) : null}
+
+      {/* Read-only source: a plugin-provided menu (the dynamic FreeCAD pie,
+          #77) is active. Its content is generated live and isn't editable —
+          the edit controls are disabled and the store blocks mutations. Offer
+          a one-click way back to an editable source (Auto = follow the device
+          / menu.json). Persistent (no dismiss): it's a state, not an alert. */}
+      {readOnly && (
+        <div className={styles.bannerReadOnly} role="status">
+          <span className={styles.bannerText}>
+            This pie is provided by a plugin and is read-only — its content follows the live app.
+            Switch the active source to edit your own pie.
+          </span>
+          <button
+            type="button"
+            className={styles.bannerButton}
+            onClick={() => void window.editor.setProfileOverride(null)}
+          >
+            Switch to Auto
+          </button>
+        </div>
+      )}
 
       {tab === 'menu' ? (
         <div className={styles.shell}>

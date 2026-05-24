@@ -152,6 +152,12 @@ describe('ringBranches', () => {
 });
 
 describe('menu-settings', () => {
+  // readOnly isn't reset by setConfig (it tracks the active source, not the
+  // document), so clear it between tests to keep mutation tests isolated.
+  beforeEach(() => {
+    useMenuSettings.getState().setReadOnly(false);
+  });
+
   it('setConfig adopts the snapshot as a clean remote change', () => {
     useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 123 });
     const state = useMenuSettings.getState();
@@ -175,6 +181,29 @@ describe('menu-settings', () => {
     expect(state.dirty).toBe(true);
     // Immutable update — the shipped default constant is untouched.
     expect(DEFAULT_MENU_CONFIG.root.branches![0]?.label).not.toBe('Renamed');
+  });
+
+  it('readOnly blocks menu-config mutations (no edit, stays clean)', () => {
+    useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
+    const labelBefore = useMenuSettings.getState().config?.root.branches![0]?.label;
+    const countBefore = useMenuSettings.getState().config?.root.branches!.length;
+    const scaleBefore = useMenuSettings.getState().config?.scale;
+
+    useMenuSettings.getState().setReadOnly(true);
+    // A read-only source (plugin-provided menu) → every mutation is a no-op,
+    // so an edit can't be made and then fail the write-back.
+    useMenuSettings.getState().updateNodeAt([0], (s) => {
+      s.label = 'Nope';
+    });
+    useMenuSettings.getState().addNode([]);
+    useMenuSettings.getState().setScale(2);
+
+    const state = useMenuSettings.getState();
+    expect(state.config?.root.branches![0]?.label).toBe(labelBefore);
+    expect(state.config?.root.branches!.length).toBe(countBefore);
+    expect(state.config?.scale).toBe(scaleBefore);
+    // Nothing was flagged dirty → the write-back subscription won't fire.
+    expect(state.dirty).toBe(false);
   });
 
   it('setConfig bumps remoteRev (so derived editors remount), markSaved does not', () => {
