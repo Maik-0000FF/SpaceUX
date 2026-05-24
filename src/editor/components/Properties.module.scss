@@ -33,6 +33,20 @@
   gap: 12px;
 }
 
+// Wraps all the edit controls so one disabled fieldset locks them while the
+// active source is read-only. Box reset → no layout change vs. the bare
+// children; dimmed when disabled so the panel reads as not-editable.
+.editLock {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+
+  &:disabled {
+    opacity: 0.55;
+  }
+}
+
 // Always-present menu-wide settings (trigger + global navigation), shown
 // above the contextual editor for whatever is selected. Collapsible so it
 // can fold out of the way while editing items; a bottom rule separates it

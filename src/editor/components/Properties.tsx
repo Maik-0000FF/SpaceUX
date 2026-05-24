@@ -8,6 +8,7 @@ import { BUILTIN_ACTION, builtinAction, resolveNavigation } from '@/shared/menu'
 
 import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
+import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { cancelLabelFor } from '../state/cancel-label';
 import { gestureShadows } from '../state/gesture-collision';
 import { useAppState } from '../state/app-state';
@@ -74,6 +75,11 @@ export function Properties() {
   const { buttons: buttonCount } = useDeviceInfo();
   const offeredButtons = buttonCount > 0 ? buttonCount : FALLBACK_BUTTON_COUNT;
   const availableActions = useAvailableActions();
+  // A plugin-provided menu is the active source → read-only. The store already
+  // blocks every menu-config mutation; a disabled fieldset greys out and locks
+  // all the edit controls below (incl. MenuSettings/Navigation/RootSettings) so
+  // the panel visibly reads as not-editable.
+  const readOnly = useReadOnlySource();
 
   // Edit the in-ring selection; or, when a branch has been drilled into
   // (nothing selected within its ring), edit that drilled-in node itself —
@@ -146,334 +152,340 @@ export function Properties() {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Properties</div>
-      {/* Menu-wide settings — the trigger button + what it does once open.
+      {/* Everything below edits the menu config — disabled (and greyed) while
+          the active source is a plugin-provided, read-only menu. */}
+      <fieldset className={styles.editLock} disabled={readOnly}>
+        {/* Menu-wide settings — the trigger button + what it does once open.
           Always present (collapsible) so they're reachable whatever is
           selected. The navigation gestures live in their own section below. */}
-      {config && (
-        <details className={styles.globalSection} open>
-          <summary className={styles.globalSummary}>Menu settings</summary>
-          <div className={styles.fields}>
-            <MenuSettings />
-          </div>
-        </details>
-      )}
-      {/* Navigation — the global gestures + aim/deadzone a navigation style
+        {config && (
+          <details className={styles.globalSection} open>
+            <summary className={styles.globalSummary}>Menu settings</summary>
+            <div className={styles.fields}>
+              <MenuSettings />
+            </div>
+          </details>
+        )}
+        {/* Navigation — the global gestures + aim/deadzone a navigation style
           configures. Its own section (sibling of Menu settings) so everything
           style-related lives under one "Navigation" heading. */}
-      {config && (
-        <details className={styles.globalSection} open>
-          <summary className={styles.globalSummary}>Navigation</summary>
+        {config && (
+          <details className={styles.globalSection} open>
+            <summary className={styles.globalSummary}>Navigation</summary>
+            <div className={styles.fields}>
+              <NavigationSettings />
+            </div>
+          </details>
+        )}
+        {config && centerSelected ? (
+          // Root row / preview centre selected → edit the root node.
           <div className={styles.fields}>
-            <NavigationSettings />
+            <RootSettings />
           </div>
-        </details>
-      )}
-      {config && centerSelected ? (
-        // Root row / preview centre selected → edit the root node.
-        <div className={styles.fields}>
-          <RootSettings />
-        </div>
-      ) : !node || !path ? (
-        <p className={styles.empty}>Select a node to edit it.</p>
-      ) : (
-        <div className={styles.fields}>
-          {/* The item is edited along the flow you run with the puck:
+        ) : !node || !path ? (
+          <p className={styles.empty}>Select a node to edit it.</p>
+        ) : (
+          <div className={styles.fields}>
+            {/* The item is edited along the flow you run with the puck:
               how you reach it (Entry), what it does (Behavior), how you
               leave it (Exit). Entry/Exit only describe the global model
               for now — per-item gesture overrides land with #105. */}
-          <section className={styles.flowSection}>
-            <div className={styles.flowHeading}>↳ Entry</div>
-            <p className={styles.sectionNote}>
-              Reached with the global navigation gestures — aim the puck at this node, or cycle to
-              step onto it. A per-item entry gesture lands later.
-            </p>
-          </section>
+            <section className={styles.flowSection}>
+              <div className={styles.flowHeading}>↳ Entry</div>
+              <p className={styles.sectionNote}>
+                Reached with the global navigation gestures — aim the puck at this node, or cycle to
+                step onto it. A per-item entry gesture lands later.
+              </p>
+            </section>
 
-          <section className={styles.flowSection}>
-            <div className={styles.flowHeading}>Behavior</div>
-            <Row label="Label">
-              <input
-                className={styles.input}
-                value={labelDraft ?? node.label}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  // An empty label on an icon-less node is unsavable, and the
-                  // live autosave would flash a save error. Hold it in the
-                  // draft only — don't write it — so the config keeps the old
-                  // label until a valid one is typed. Any other value is
-                  // written live so the preview tracks each keystroke.
-                  if (value.trim() === '' && !isRenderableIcon(node.icon)) {
-                    setLabelDraft(value);
-                    return;
-                  }
-                  setLabelDraft(null);
-                  updateNodeAt(path, (s) => {
-                    s.label = value;
-                  });
-                }}
-                // Drop a held empty draft on blur → the field falls back to the
-                // node's (preserved) label. Matches the tree: an icon-less node
-                // can't be left label-less.
-                onBlur={() => setLabelDraft(null)}
-              />
-            </Row>
-            <Row label="Icon">
-              <div className={styles.iconRow}>
-                {isRenderableIcon(node.icon) && (
-                  <img className={styles.iconPreview} src={node.icon} alt="" />
-                )}
-                <button
-                  type="button"
-                  className={styles.openButton}
-                  onClick={() => {
-                    setIconError(null);
-                    void window.editor.pickIcon().then((r) => {
-                      if (r.ok === true)
-                        updateNodeAt(path, (s) => {
-                          s.icon = r.dataUri;
-                        });
-                      else if (r.ok === false) setIconError(r.reason);
+            <section className={styles.flowSection}>
+              <div className={styles.flowHeading}>Behavior</div>
+              <Row label="Label">
+                <input
+                  className={styles.input}
+                  value={labelDraft ?? node.label}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // An empty label on an icon-less node is unsavable, and the
+                    // live autosave would flash a save error. Hold it in the
+                    // draft only — don't write it — so the config keeps the old
+                    // label until a valid one is typed. Any other value is
+                    // written live so the preview tracks each keystroke.
+                    if (value.trim() === '' && !isRenderableIcon(node.icon)) {
+                      setLabelDraft(value);
+                      return;
+                    }
+                    setLabelDraft(null);
+                    updateNodeAt(path, (s) => {
+                      s.label = value;
                     });
                   }}
-                >
-                  {isRenderableIcon(node.icon) ? 'Replace…' : 'Choose…'}
-                </button>
-                {node.icon !== undefined && (
-                  <button
-                    type="button"
-                    className={styles.openButton}
-                    onClick={() =>
-                      updateNodeAt(path, (s) => {
-                        delete s.icon;
-                      })
-                    }
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            </Row>
-            {iconError !== null && <p className={styles.warning}>{iconError}</p>}
-            <Row label="Type">
-              <select
-                className={styles.select}
-                value={node.branches !== undefined ? 'submenu' : 'action'}
-                title={
-                  node.branches !== undefined
-                    ? 'Switching to Action discards this submenu and its items'
-                    : undefined
-                }
-                onChange={(e) =>
-                  updateNodeAt(path, (s) => {
-                    if (e.target.value === 'submenu') {
-                      if (s.branches === undefined) {
-                        s.branches = [{ label: uniqueItemLabel(path, []), id: nextNodeId() }];
-                        delete s.action;
-                        // keepOpen is a leaf-only flag — a branch always
-                        // stays open (it drills), so drop a stale one.
-                        delete s.keepOpen;
-                      }
-                    } else {
-                      delete s.branches;
-                    }
-                  })
-                }
-              >
-                <option value="action">Action</option>
-                <option value="submenu">Submenu</option>
-              </select>
-            </Row>
-            {node.branches !== undefined && (
-              <>
-                <Row label="Submenu items">
-                  <span className={styles.readonly}>{node.branches.length}</span>
-                </Row>
-                {node.branches.length > 0 && (
+                  // Drop a held empty draft on blur → the field falls back to the
+                  // node's (preserved) label. Matches the tree: an icon-less node
+                  // can't be left label-less.
+                  onBlur={() => setLabelDraft(null)}
+                />
+              </Row>
+              <Row label="Icon">
+                <div className={styles.iconRow}>
+                  {isRenderableIcon(node.icon) && (
+                    <img className={styles.iconPreview} src={node.icon} alt="" />
+                  )}
                   <button
                     type="button"
                     className={styles.openButton}
                     onClick={() => {
-                      if (selectedIndex !== null) drillInto(selectedIndex);
+                      setIconError(null);
+                      void window.editor.pickIcon().then((r) => {
+                        if (r.ok === true)
+                          updateNodeAt(path, (s) => {
+                            s.icon = r.dataUri;
+                          });
+                        else if (r.ok === false) setIconError(r.reason);
+                      });
                     }}
                   >
-                    Open submenu →
+                    {isRenderableIcon(node.icon) ? 'Replace…' : 'Choose…'}
                   </button>
-                )}
-              </>
-            )}
-            {node.branches === undefined && (
-              <>
-                {/* Keyed on the selection so ActionField's local "custom
-                    mode" resets when you switch to another node. */}
-                <ActionField
-                  key={path.join('.')}
-                  action={node.action}
-                  actions={availableActions}
-                  onPick={(id) =>
-                    updateNodeAt(path, (s) => {
-                      if (s.action) s.action.id = id;
-                      else s.action = { id };
-                      // Picking Cancel onto a still-default label fills in
-                      // "Cancel" (editable); a custom label is left alone.
-                      const auto = cancelLabelFor(id, s.label);
-                      if (auto !== null) s.label = auto;
-                    })
-                  }
-                  onCustomChange={(text) =>
-                    updateNodeAt(path, (s) => {
-                      if (s.action) s.action.id = text;
-                      else s.action = { id: text };
-                    })
-                  }
-                  onClear={() =>
-                    updateNodeAt(path, (s) => {
-                      delete s.action;
-                    })
-                  }
-                />
-                {isExec && (
-                  <button type="button" className={styles.openButton} onClick={handleBrowse}>
-                    Browse for file…
-                  </button>
-                )}
-                {node.action !== undefined && (
-                  <>
-                    {/* Keyed on the selection + remoteRev so the local JSON
-                        text remounts on an external adoption, not while typing. */}
-                    <ConfigEditor
-                      key={`${path.join('.')}-${remoteRev}`}
-                      value={node.action.config}
-                      onChange={(cfg) =>
+                  {node.icon !== undefined && (
+                    <button
+                      type="button"
+                      className={styles.openButton}
+                      onClick={() =>
                         updateNodeAt(path, (s) => {
-                          if (!s.action) return;
-                          if (cfg === undefined) delete s.action.config;
-                          else s.action.config = cfg;
+                          delete s.icon;
                         })
                       }
-                    />
-                    {/* keepOpen only makes sense for a leaf that actually
-                        fires something — a label-only leaf commits to nothing,
-                        so keeping the menu open there would strand the user. */}
-                    <Row label="After action">
-                      <select
-                        className={styles.select}
-                        value={node.keepOpen ? 'keep' : 'close'}
-                        title="Keep the menu open after this action fires — e.g. to nudge volume repeatedly with the same gesture"
-                        onChange={(e) =>
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </Row>
+              {iconError !== null && <p className={styles.warning}>{iconError}</p>}
+              <Row label="Type">
+                <select
+                  className={styles.select}
+                  value={node.branches !== undefined ? 'submenu' : 'action'}
+                  title={
+                    node.branches !== undefined
+                      ? 'Switching to Action discards this submenu and its items'
+                      : undefined
+                  }
+                  onChange={(e) =>
+                    updateNodeAt(path, (s) => {
+                      if (e.target.value === 'submenu') {
+                        if (s.branches === undefined) {
+                          s.branches = [{ label: uniqueItemLabel(path, []), id: nextNodeId() }];
+                          delete s.action;
+                          // keepOpen is a leaf-only flag — a branch always
+                          // stays open (it drills), so drop a stale one.
+                          delete s.keepOpen;
+                        }
+                      } else {
+                        delete s.branches;
+                      }
+                    })
+                  }
+                >
+                  <option value="action">Action</option>
+                  <option value="submenu">Submenu</option>
+                </select>
+              </Row>
+              {node.branches !== undefined && (
+                <>
+                  <Row label="Submenu items">
+                    <span className={styles.readonly}>{node.branches.length}</span>
+                  </Row>
+                  {node.branches.length > 0 && (
+                    <button
+                      type="button"
+                      className={styles.openButton}
+                      onClick={() => {
+                        if (selectedIndex !== null) drillInto(selectedIndex);
+                      }}
+                    >
+                      Open submenu →
+                    </button>
+                  )}
+                </>
+              )}
+              {node.branches === undefined && (
+                <>
+                  {/* Keyed on the selection so ActionField's local "custom
+                    mode" resets when you switch to another node. */}
+                  <ActionField
+                    key={path.join('.')}
+                    action={node.action}
+                    actions={availableActions}
+                    onPick={(id) =>
+                      updateNodeAt(path, (s) => {
+                        if (s.action) s.action.id = id;
+                        else s.action = { id };
+                        // Picking Cancel onto a still-default label fills in
+                        // "Cancel" (editable); a custom label is left alone.
+                        const auto = cancelLabelFor(id, s.label);
+                        if (auto !== null) s.label = auto;
+                      })
+                    }
+                    onCustomChange={(text) =>
+                      updateNodeAt(path, (s) => {
+                        if (s.action) s.action.id = text;
+                        else s.action = { id: text };
+                      })
+                    }
+                    onClear={() =>
+                      updateNodeAt(path, (s) => {
+                        delete s.action;
+                      })
+                    }
+                  />
+                  {isExec && (
+                    <button type="button" className={styles.openButton} onClick={handleBrowse}>
+                      Browse for file…
+                    </button>
+                  )}
+                  {node.action !== undefined && (
+                    <>
+                      {/* Keyed on the selection + remoteRev so the local JSON
+                        text remounts on an external adoption, not while typing. */}
+                      <ConfigEditor
+                        key={`${path.join('.')}-${remoteRev}`}
+                        value={node.action.config}
+                        onChange={(cfg) =>
                           updateNodeAt(path, (s) => {
-                            if (e.target.value === 'keep') s.keepOpen = true;
-                            else delete s.keepOpen;
+                            if (!s.action) return;
+                            if (cfg === undefined) delete s.action.config;
+                            else s.action.config = cfg;
                           })
                         }
-                      >
-                        <option value="close">Close menu</option>
-                        <option value="keep">Keep menu open</option>
-                      </select>
-                    </Row>
-                    {/* Per-item activation: an input that fires THIS item's
+                      />
+                      {/* keepOpen only makes sense for a leaf that actually
+                        fires something — a label-only leaf commits to nothing,
+                        so keeping the menu open there would strand the user. */}
+                      <Row label="After action">
+                        <select
+                          className={styles.select}
+                          value={node.keepOpen ? 'keep' : 'close'}
+                          title="Keep the menu open after this action fires — e.g. to nudge volume repeatedly with the same gesture"
+                          onChange={(e) =>
+                            updateNodeAt(path, (s) => {
+                              if (e.target.value === 'keep') s.keepOpen = true;
+                              else delete s.keepOpen;
+                            })
+                          }
+                        >
+                          <option value="close">Close menu</option>
+                          <option value="keep">Keep menu open</option>
+                        </select>
+                      </Row>
+                      {/* Per-item activation: an input that fires THIS item's
                         binding while it's hovered, on top of the global
                         trigger. Resolved ahead of the global gestures, so it
                         wins on a shared input (flagged below). */}
-                    <GestureInputList
-                      heading="Activate with"
-                      binding={node.activation}
-                      offeredButtons={offeredButtons}
-                      shadows={activationShadows}
-                      verb="activation"
-                      onChangeInput={(i, next) =>
-                        updateNodeAt(path, (s) => {
-                          if (s.activation) s.activation.inputs[i] = next;
-                        })
-                      }
-                      onRemoveInput={(i) =>
-                        updateNodeAt(path, (s) => {
-                          s.activation?.inputs.splice(i, 1);
-                          if (s.activation && s.activation.inputs.length === 0) delete s.activation;
-                        })
-                      }
-                      onAddInput={() =>
-                        updateNodeAt(path, (s) => {
-                          if (!s.activation) s.activation = { inputs: [] };
-                          s.activation.inputs.push({ kind: 'none' });
-                        })
-                      }
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </section>
+                      <GestureInputList
+                        heading="Activate with"
+                        binding={node.activation}
+                        offeredButtons={offeredButtons}
+                        shadows={activationShadows}
+                        verb="activation"
+                        onChangeInput={(i, next) =>
+                          updateNodeAt(path, (s) => {
+                            if (s.activation) s.activation.inputs[i] = next;
+                          })
+                        }
+                        onRemoveInput={(i) =>
+                          updateNodeAt(path, (s) => {
+                            s.activation?.inputs.splice(i, 1);
+                            if (s.activation && s.activation.inputs.length === 0)
+                              delete s.activation;
+                          })
+                        }
+                        onAddInput={() =>
+                          updateNodeAt(path, (s) => {
+                            if (!s.activation) s.activation = { inputs: [] };
+                            s.activation.inputs.push({ kind: 'none' });
+                          })
+                        }
+                      />
+                    </>
+                  )}
+                </>
+              )}
+            </section>
 
-          <section className={styles.flowSection}>
-            <div className={styles.flowHeading}>↱ Exit</div>
-            <p className={styles.sectionNote}>
-              The global “Go back” gesture pops to the parent ring (or dismisses at the top level).
-              A per-item exit input instead returns focus to the centre — deselects, the menu stays
-              open — useful as the alternative way out when an activation has shadowed Go back here.
-            </p>
-            {/* Per-item exit: an input that, while this node is hovered,
+            <section className={styles.flowSection}>
+              <div className={styles.flowHeading}>↱ Exit</div>
+              <p className={styles.sectionNote}>
+                The global “Go back” gesture pops to the parent ring (or dismisses at the top
+                level). A per-item exit input instead returns focus to the centre — deselects, the
+                menu stays open — useful as the alternative way out when an activation has shadowed
+                Go back here.
+              </p>
+              {/* Per-item exit: an input that, while this node is hovered,
                 deselects to the centre. Applies to any node (leaf or
                 submenu); resolved ahead of the global gestures, so it wins
                 on a shared input (flagged below). */}
-            <GestureInputList
-              heading="Exit with"
-              binding={node.exit}
-              offeredButtons={offeredButtons}
-              shadows={exitShadows}
-              verb="exit"
-              onChangeInput={(i, next) =>
-                updateNodeAt(path, (s) => {
-                  if (s.exit) s.exit.inputs[i] = next;
-                })
-              }
-              onRemoveInput={(i) =>
-                updateNodeAt(path, (s) => {
-                  s.exit?.inputs.splice(i, 1);
-                  if (s.exit && s.exit.inputs.length === 0) delete s.exit;
-                })
-              }
-              onAddInput={() =>
-                updateNodeAt(path, (s) => {
-                  if (!s.exit) s.exit = { inputs: [] };
-                  s.exit.inputs.push({ kind: 'none' });
-                })
-              }
-            />
-          </section>
+              <GestureInputList
+                heading="Exit with"
+                binding={node.exit}
+                offeredButtons={offeredButtons}
+                shadows={exitShadows}
+                verb="exit"
+                onChangeInput={(i, next) =>
+                  updateNodeAt(path, (s) => {
+                    if (s.exit) s.exit.inputs[i] = next;
+                  })
+                }
+                onRemoveInput={(i) =>
+                  updateNodeAt(path, (s) => {
+                    s.exit?.inputs.splice(i, 1);
+                    if (s.exit && s.exit.inputs.length === 0) delete s.exit;
+                  })
+                }
+                onAddInput={() =>
+                  updateNodeAt(path, (s) => {
+                    if (!s.exit) s.exit = { inputs: [] };
+                    s.exit.inputs.push({ kind: 'none' });
+                  })
+                }
+              />
+            </section>
 
-          <section className={styles.flowSection}>
-            {targets.length > 0 && (
-              <Row label="Move to">
-                <select
-                  className={styles.select}
-                  value=""
-                  title="Move this item into another submenu (or the top level)"
-                  onChange={(e) => {
-                    if (e.target.value === '') return;
-                    handleMove(targets[Number(e.target.value)]!.path);
-                  }}
-                >
-                  <option value="">Move to submenu…</option>
-                  {targets.map((t, i) => (
-                    <option key={t.path.join('.')} value={i}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </Row>
-            )}
-            <button
-              type="button"
-              className={styles.deleteButton}
-              onClick={handleDelete}
-              disabled={!canDelete}
-              title={canDelete ? 'Delete this node' : 'A submenu must keep at least one item'}
-            >
-              Delete node
-            </button>
-          </section>
-        </div>
-      )}
+            <section className={styles.flowSection}>
+              {targets.length > 0 && (
+                <Row label="Move to">
+                  <select
+                    className={styles.select}
+                    value=""
+                    title="Move this item into another submenu (or the top level)"
+                    onChange={(e) => {
+                      if (e.target.value === '') return;
+                      handleMove(targets[Number(e.target.value)]!.path);
+                    }}
+                  >
+                    <option value="">Move to submenu…</option>
+                    {targets.map((t, i) => (
+                      <option key={t.path.join('.')} value={i}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </Row>
+              )}
+              <button
+                type="button"
+                className={styles.deleteButton}
+                onClick={handleDelete}
+                disabled={!canDelete}
+                title={canDelete ? 'Delete this node' : 'A submenu must keep at least one item'}
+              >
+                Delete node
+              </button>
+            </section>
+          </div>
+        )}
+      </fieldset>
     </aside>
   );
 }
