@@ -714,9 +714,11 @@ async function refreshDynamicPluginMenu(): Promise<void> {
   const fallback = fallbackMenu ?? { config: DEFAULT_MENU_CONFIG, mtime: null, source: null };
 
   // #193 PR3: if the plugin reports a live context (FreeCAD's active workbench)
-  // for which the user has a curated pie, open THAT instead of the dynamic menu
-  // — overlay-only, like the dynamic path below. Best-effort: any failure falls
-  // through to the dynamic menu. The curated root is already validated on load.
+  // for which the user has a curated pie, open THAT instead of the dynamic menu.
+  // Push the full curated config (not just its root over the base) so it renders
+  // identically to selecting it directly — its own scale / navigation apply.
+  // Overlay-only (no menuConfig mutation). Best-effort: any failure / no curated
+  // pie falls through to the dynamic menu. The config is validated on load.
   if (plugin.provideContext) {
     try {
       const ctx = makeActionContext(plugin.manifest.id, daemon);
@@ -728,8 +730,7 @@ async function refreshDynamicPluginMenu(): Promise<void> {
       if (key) {
         const curated = await loadWorkbenchMenu(makeWorkbenchMenuId(pid, key));
         if (curated.status === 'loaded') {
-          const next = resolvePluginMenuConfig(curated.config.root, fallback, id);
-          mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, next.config);
+          mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, curated.config);
           return;
         }
       }
