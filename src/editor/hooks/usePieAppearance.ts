@@ -18,6 +18,7 @@ export function usePieAppearance(): {
   setTheme: (theme: PieThemeChoice) => void;
   setOpacity: (opacity: number) => void;
   setLabelScale: (labelScale: number) => void;
+  setIconScale: (iconScale: number) => void;
 } {
   const [appearance, setAppearance] = useState<PieAppearance>(DEFAULT_PIE_APPEARANCE);
 
@@ -55,5 +56,10 @@ export function usePieAppearance(): {
     window.editor.setPieAppearance({ labelScale });
   }, []);
 
-  return { appearance, setTheme, setOpacity, setLabelScale };
+  const setIconScale = useCallback((iconScale: number) => {
+    setAppearance((a) => ({ ...a, iconScale }));
+    window.editor.setPieAppearance({ iconScale });
+  }, []);
+
+  return { appearance, setTheme, setOpacity, setLabelScale, setIconScale };
 }

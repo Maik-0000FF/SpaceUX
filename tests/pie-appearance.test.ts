@@ -4,8 +4,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clampPieIconScale,
   clampPieLabelScale,
   clampPieOpacity,
+  PIE_ICON_SCALE_MAX,
+  PIE_ICON_SCALE_MIN,
   PIE_LABEL_SCALE_MAX,
   PIE_LABEL_SCALE_MIN,
   PIE_OPACITY_MAX,
@@ -26,6 +29,14 @@ describe('clampPieLabelScale', () => {
     expect(clampPieLabelScale(5)).toBe(PIE_LABEL_SCALE_MAX);
     expect(clampPieLabelScale(0)).toBe(PIE_LABEL_SCALE_MIN);
     expect(clampPieLabelScale(0.6)).toBe(0.6);
+  });
+});
+
+describe('clampPieIconScale', () => {
+  it('clamps to the icon-scale band', () => {
+    expect(clampPieIconScale(9)).toBe(PIE_ICON_SCALE_MAX);
+    expect(clampPieIconScale(0)).toBe(PIE_ICON_SCALE_MIN);
+    expect(clampPieIconScale(0.6)).toBe(0.6);
   });
 });
 
@@ -60,6 +71,14 @@ describe('sanitizePieAppearancePatch', () => {
       labelScale: PIE_LABEL_SCALE_MAX,
     });
     expect(sanitizePieAppearancePatch({ labelScale: NaN })).toEqual({});
+  });
+
+  it('keeps + clamps iconScale, drops a non-finite one', () => {
+    expect(sanitizePieAppearancePatch({ iconScale: 0.6 })).toEqual({ iconScale: 0.6 });
+    expect(sanitizePieAppearancePatch({ iconScale: 9 })).toEqual({
+      iconScale: PIE_ICON_SCALE_MAX,
+    });
+    expect(sanitizePieAppearancePatch({ iconScale: NaN })).toEqual({});
   });
 
   it('returns an empty patch for non-object input', () => {

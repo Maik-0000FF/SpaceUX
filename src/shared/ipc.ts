@@ -269,6 +269,11 @@ export type PieAppearance = {
    *  segment; less = smaller). Applied in both the live pie and the editor
    *  preview via `--pie-label-scale`. */
   labelScale: number;
+  /** Icon size as a fraction of the per-segment fit (1 = 100% = the largest
+   *  icon that fits a wedge without crossing its edges; less = smaller).
+   *  Applied in both the live pie and the editor preview by multiplying the
+   *  per-segment fit into the SVG `<image>` dimension. */
+  iconScale: number;
 };
 
 /** Config plus the on-disk mtime it was read at. The editor snapshots

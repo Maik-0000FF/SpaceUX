@@ -18,11 +18,6 @@
 // from one icon module.
 export { isRenderableIcon } from '../shared/icon.js';
 
-/** Icon edge length as a fraction of the pie's base radius. Kept here so the
- *  overlay and the editor preview (both 240-unit based) render icons at the
- *  same proportion. */
-export const ICON_SIZE_RATIO = 0.14;
-
 /** Image file extensions the icon picker accepts, mapped to their MIME type. */
 export const ICON_MIME: Record<string, string> = {
   '.svg': 'image/svg+xml',

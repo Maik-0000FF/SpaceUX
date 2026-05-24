@@ -131,6 +131,36 @@ export function segmentLabelFontPx(
   return Math.max(PIE_LABEL_FONT_MIN, Math.min(PIE_LABEL_FONT_MAX, fit));
 }
 
+// Keep the largest icon a hair off the wedge edges so it never visually
+// touches the borders (mirrors the label's 0.95 chord margin).
+const ICON_FIT_MARGIN = 0.9;
+
+/**
+ * Largest square-icon edge (px) that fits inside one wedge centred at
+ * `iconRadius`, bounded by *both* the wedge's tangential room (the chord of
+ * its angular slice) and its radial band (`bandInner`..`bandOuter`) — so the
+ * icon never crosses an angular edge nor the inner/outer arcs. The icon is
+ * stacked above the label (top at `iconRadius - edge`), so the binding radial
+ * limit is the room inward to `bandInner`. The appearance icon-scale (0–1) is
+ * applied on top by the renderer as a fraction of this fit — 100% = fills the
+ * segment, exactly like the label scale. Differs per ring because the inner
+ * pie and the thinner outer ring have different room.
+ */
+export function segmentIconFitPx(
+  iconRadius: number,
+  sectorCount: number,
+  bandInner: number,
+  bandOuter: number,
+): number {
+  if (sectorCount <= 0) return 0;
+  // Tangential room: the wedge's chord at the icon's radius.
+  const tangential = 2 * iconRadius * Math.sin(Math.PI / sectorCount);
+  // Radial room: distance to the nearer band edge (inward bound is what the
+  // stacked layout actually hits; the outward bound is the conservative twin).
+  const radial = Math.min(iconRadius - bandInner, bandOuter - iconRadius);
+  return Math.max(0, Math.min(tangential, radial) * ICON_FIT_MARGIN);
+}
+
 /**
  * Map raw axes to a sector index 0..sectorCount-1, or null if inside
  * the deadzone. The angle is computed relative to "12 o'clock" so

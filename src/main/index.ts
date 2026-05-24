@@ -410,7 +410,12 @@ let pieAppearanceSaveTimer: NodeJS.Timeout | null = null;
 
 /** Whether two appearances are value-equal (avoids redundant pushes). */
 function appearanceEqual(a: PieAppearance, b: PieAppearance): boolean {
-  return a.theme === b.theme && a.opacity === b.opacity;
+  return (
+    a.theme === b.theme &&
+    a.opacity === b.opacity &&
+    a.labelScale === b.labelScale &&
+    a.iconScale === b.iconScale
+  );
 }
 
 /**
@@ -447,6 +452,7 @@ async function persistActiveAppearance(): Promise<void> {
     pieTheme: globalAppearance.theme,
     pieOpacity: globalAppearance.opacity,
     pieLabelScale: globalAppearance.labelScale,
+    pieIconScale: globalAppearance.iconScale,
   });
 }
 
@@ -1047,6 +1053,7 @@ app.on('before-quit', () => {
         pieTheme: globalAppearance.theme,
         pieOpacity: globalAppearance.opacity,
         pieLabelScale: globalAppearance.labelScale,
+        pieIconScale: globalAppearance.iconScale,
       });
     }
   }
