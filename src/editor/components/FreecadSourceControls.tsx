@@ -46,6 +46,9 @@ export function FreecadSourceControls() {
   const [intentCurated, setIntentCurated] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Pending destructive action on the active curated pie (#207), awaiting an
+  // inline confirm: re-seed (discards edits) or delete.
+  const [pending, setPending] = useState<'reseed' | 'delete' | null>(null);
 
   useEffect(() => {
     void ensureLoaded();
@@ -122,6 +125,23 @@ export function FreecadSourceControls() {
     else setError(res.reason);
   };
 
+  // Run the pending destructive action on the active curated workbench (#207).
+  // Re-seed overwrites the file from the live catalog (only on a successful
+  // pull → a bridge error leaves it intact); delete removes it (main clears the
+  // override). Both propagate via the workbench-menus watcher / profile push.
+  const confirmPending = async (): Promise<void> => {
+    if (activeWorkbench === null) return;
+    setBusy(true);
+    setError(null);
+    const res =
+      pending === 'reseed'
+        ? await window.editor.seedWorkbench(plugin.id, activeWorkbench, true)
+        : await window.editor.deleteWorkbench(plugin.id, activeWorkbench);
+    setBusy(false);
+    if (!res.ok) setError(res.reason);
+    else setPending(null);
+  };
+
   return (
     <section className={styles.controls} aria-label={`${plugin.name} pie source`}>
       <span className={styles.title}>{plugin.name} pie</span>
@@ -178,7 +198,61 @@ export function FreecadSourceControls() {
           </button>
         </div>
       )}
-      {busy && <p className={styles.note}>Seeding the workbench…</p>}
+      {activeWorkbench !== null && (
+        <div className={styles.curatedActions}>
+          {pending === null ? (
+            <>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                disabled={busy}
+                onClick={() => {
+                  setError(null);
+                  setPending('reseed');
+                }}
+                title="Rebuild this curated pie from the live workbench (discards your edits)"
+              >
+                Re-seed
+              </button>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                disabled={busy}
+                onClick={() => {
+                  setError(null);
+                  setPending('delete');
+                }}
+                title="Delete this curated pie"
+              >
+                Delete
+              </button>
+            </>
+          ) : (
+            <>
+              <span className={styles.confirmText}>
+                {pending === 'reseed' ? 'Re-seed (discards edits)?' : 'Delete this curated pie?'}
+              </span>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                disabled={busy}
+                onClick={() => void confirmPending()}
+              >
+                {pending === 'reseed' ? 'Re-seed' : 'Delete'}
+              </button>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                disabled={busy}
+                onClick={() => setPending(null)}
+              >
+                Cancel
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {busy && <p className={styles.note}>{pending === 'delete' ? 'Deleting…' : 'Seeding…'}</p>}
       {error !== null && <p className={styles.note}>{error}</p>}
       {showCurated && !busy && workbenches.length === 0 && status !== 'loading' && (
         <p className={styles.note}>

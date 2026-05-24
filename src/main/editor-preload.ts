@@ -96,12 +96,19 @@ const bridge: EditorBridge = {
     ipcRenderer.on(IpcChannel.EDITOR_WORKBENCH_MENUS_CHANGED, listener);
     return () => ipcRenderer.off(IpcChannel.EDITOR_WORKBENCH_MENUS_CHANGED, listener);
   },
-  seedWorkbench: (pluginId: string, workbenchKey: string) =>
+  seedWorkbench: (pluginId: string, workbenchKey: string, overwrite?: boolean) =>
     ipcRenderer.invoke(
       IpcChannel.EDITOR_SEED_WORKBENCH,
       pluginId,
       workbenchKey,
+      overwrite === true,
     ) as Promise<WorkbenchSeedResult>,
+  deleteWorkbench: (pluginId: string, workbenchKey: string) =>
+    ipcRenderer.invoke(
+      IpcChannel.EDITOR_DELETE_WORKBENCH,
+      pluginId,
+      workbenchKey,
+    ) as Promise<ProfileActionResult>,
   getProfiles: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_PROFILES) as Promise<ProfilesState>,
   onProfilesChanged: (handler) => {
     const listener = (_evt: IpcRendererEvent, state: ProfilesState) => handler(state);
