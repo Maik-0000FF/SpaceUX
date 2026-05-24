@@ -17,6 +17,7 @@ import {
   type ActionHandler,
   type PluginKind,
   type PluginCatalogProvider,
+  type PluginContextProvider,
   type PluginManifest,
   type PluginMenuProvider,
   type PluginModule,
@@ -62,6 +63,10 @@ export type LoadedPlugin = {
    *  editor calls it to populate the command palette. Undefined for plugins
    *  without a catalog. */
   provideCatalog?: PluginCatalogProvider;
+  /** Context provider exported by index.js (#193 PR3), if any — the host calls
+   *  it at pie open to learn the live context key (FreeCAD's active workbench)
+   *  and prefer a curated per-context pie. Undefined for plugins without one. */
+  provideContext?: PluginContextProvider;
 };
 
 export type LoadResult = {
@@ -223,8 +228,9 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   // static manifest.menu, if any, still works.
   const provideMenu = typeof mod.provideMenu === 'function' ? mod.provideMenu : undefined;
   const provideCatalog = typeof mod.provideCatalog === 'function' ? mod.provideCatalog : undefined;
+  const provideContext = typeof mod.provideContext === 'function' ? mod.provideContext : undefined;
 
-  return { manifest, dir, handlers, provideMenu, provideCatalog };
+  return { manifest, dir, handlers, provideMenu, provideCatalog, provideContext };
 }
 
 /**

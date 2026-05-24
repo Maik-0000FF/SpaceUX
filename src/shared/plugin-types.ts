@@ -264,6 +264,13 @@ export type PluginCatalogProvider = (
   opts: { loadAll: boolean },
 ) => PluginCatalog | Promise<PluginCatalog>;
 
+/** Optional context provider (#193 PR3). Returns the plugin's current context
+ *  key — for FreeCAD, the active workbench's class name (the same key the
+ *  catalog groups and curated `wb:` pies use) — or null when there's none. The
+ *  host calls it at pie-open time to prefer a curated per-context pie over the
+ *  dynamic menu. Best-effort, invoked with a timeout like the other providers. */
+export type PluginContextProvider = (ctx: ActionContext) => string | null | Promise<string | null>;
+
 /** Shape of `module.exports` (or `export default`) from a plugin's index.js. */
 export type PluginModule = {
   actions: Record<string, ActionHandler>;
@@ -271,4 +278,6 @@ export type PluginModule = {
   provideMenu?: PluginMenuProvider;
   /** Optional command-catalog provider — see {@link PluginCatalogProvider}. */
   provideCatalog?: PluginCatalogProvider;
+  /** Optional context provider — see {@link PluginContextProvider}. */
+  provideContext?: PluginContextProvider;
 };
