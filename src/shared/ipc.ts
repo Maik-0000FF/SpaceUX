@@ -168,6 +168,16 @@ export const IpcChannel = {
    *  workbenchKey }) → {@link ProfileActionResult}. Removes the file; if it was
    *  the active source, main clears the override and re-resolves. */
   EDITOR_DELETE_WORKBENCH: 'spaceux:editor:workbench-menus:delete',
+  /** Editor pulls the FreeCAD bridge-addon install status (#189): invoke →
+   *  {@link FreecadBridgeStatus} (resolved Mod dir + whether the addon is
+   *  installed, or why it can't be resolved). */
+  EDITOR_GET_FREECAD_BRIDGE: 'spaceux:editor:freecad-bridge:get',
+  /** Editor installs the bundled FreeCAD bridge addon into the resolved Mod
+   *  dir (#189): invoke({ pluginId }) → {@link FreecadBridgeInstallResult}. */
+  EDITOR_INSTALL_FREECAD_BRIDGE: 'spaceux:editor:freecad-bridge:install',
+  /** Editor removes the installed FreeCAD bridge addon (#189): invoke →
+   *  {@link ProfileActionResult}. */
+  EDITOR_UNINSTALL_FREECAD_BRIDGE: 'spaceux:editor:freecad-bridge:uninstall',
 
   // ── Pie appearance (own app setting, separate from menu.json and the
   //    editor UI theme; consumed by both the live pie and the editor
@@ -280,6 +290,18 @@ export type WorkbenchMenusState = { ids: string[] };
  *  `wb:` id (the editor then sets it as the override); failure carries a reason
  *  (e.g. the bridge is unreachable, or the workbench isn't loaded). */
 export type WorkbenchSeedResult = { ok: true; id: string } | { ok: false; reason: string };
+
+/** FreeCAD bridge-addon install status (#189). `resolved` false when no usable
+ *  FreeCAD Mod dir was found — `sandbox` distinguishes a Flatpak/Snap install
+ *  (the socket can't cross it) from "FreeCAD not found". When resolved, carries
+ *  the Mod dir, a human label (e.g. `v1-2`), and whether the addon is present. */
+export type FreecadBridgeStatus =
+  | { resolved: false; reason: string; sandbox: boolean }
+  | { resolved: true; modDir: string; label: string; installed: boolean };
+
+/** Outcome of installing the FreeCAD bridge addon (#189): the destination path
+ *  on success, or a reason (no Mod dir resolved / copy failed). */
+export type FreecadBridgeInstallResult = { ok: true; dest: string } | { ok: false; reason: string };
 
 /** Result of a profile save/delete action. */
 export type ProfileActionResult = { ok: true } | { ok: false; reason: string };
