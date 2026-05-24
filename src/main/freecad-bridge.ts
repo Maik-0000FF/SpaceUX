@@ -119,6 +119,11 @@ export async function installBridge(
   modDir: string,
 ): Promise<{ ok: true; dest: string } | { ok: false; reason: string }> {
   const dest = path.join(modDir, ADDON_NAME);
+  // Guard the addon source up front so a misconfigured plugin (no bundled
+  // freecad/ dir) gives a clear reason rather than a raw ENOENT from cp.
+  if (!isDir(srcAddonDir)) {
+    return { ok: false, reason: `bridge addon not found in the plugin (${srcAddonDir})` };
+  }
   try {
     await fs.rm(dest, { recursive: true, force: true });
     await fs.mkdir(modDir, { recursive: true });

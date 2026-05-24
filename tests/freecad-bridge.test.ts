@@ -115,6 +115,13 @@ describe('install / uninstall', () => {
     );
   });
 
+  it('reports a clear reason when the plugin has no bridge addon dir', async () => {
+    const res = await installBridge(path.join(home, 'does-not-exist'), modDir);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toMatch(/bridge addon not found/);
+    expect(bridgeInstalledAt(modDir)).toBe(false);
+  });
+
   it('uninstall removes the addon; a missing one is success', async () => {
     await installBridge(src, modDir);
     expect(await uninstallBridge(modDir)).toEqual({ ok: true });
