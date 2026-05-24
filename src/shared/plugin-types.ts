@@ -180,9 +180,35 @@ export type ActionHandler = (
  */
 export type PluginMenuProvider = (ctx: ActionContext) => MenuNode | Promise<MenuNode>;
 
+/** One command a plugin can offer in the editor's command palette (#76 D2):
+ *  a label + optional baked icon (data-URI), and the `command` string that the
+ *  plugin's run-action takes as config. The editor turns this into a normal
+ *  menu item — `{ label, icon, action: { id: "<pluginId>/run", config: {
+ *  command } } }` — so the curated pie renders without the bridge and only
+ *  needs it to *execute*. */
+export type PluginCatalogCommand = { command: string; label: string; icon?: string };
+
+/** A named group of catalog commands (e.g. a FreeCAD workbench). */
+export type PluginCatalogGroup = { name: string; commands: PluginCatalogCommand[] };
+
+/** A plugin's full command catalog. `complete` is false when only a subset is
+ *  loaded (e.g. FreeCAD lists only visited workbenches until `loadAll`). */
+export type PluginCatalog = { groups: PluginCatalogGroup[]; complete: boolean };
+
+/** Optional catalog provider (#76 D2). Returns the commands a plugin exposes
+ *  for the editor palette; `opts.loadAll` asks for the complete set even if
+ *  that's expensive (FreeCAD cycles every workbench). Like provideMenu, the
+ *  host invokes it with a timeout and surfaces errors to the editor. */
+export type PluginCatalogProvider = (
+  ctx: ActionContext,
+  opts: { loadAll: boolean },
+) => PluginCatalog | Promise<PluginCatalog>;
+
 /** Shape of `module.exports` (or `export default`) from a plugin's index.js. */
 export type PluginModule = {
   actions: Record<string, ActionHandler>;
   /** Optional dynamic menu provider — see {@link PluginMenuProvider}. */
   provideMenu?: PluginMenuProvider;
+  /** Optional command-catalog provider — see {@link PluginCatalogProvider}. */
+  provideCatalog?: PluginCatalogProvider;
 };

@@ -13,6 +13,7 @@ import {
   type MenuWriteResult,
   type PickIconResult,
   type PieAppearance,
+  type PluginCatalogResult,
   type PluginCategory,
   type PluginImportResult,
   type PluginsState,
@@ -80,6 +81,12 @@ const bridge: EditorBridge = {
     ipcRenderer.invoke(IpcChannel.EDITOR_IMPORT_PLUGIN) as Promise<PluginImportResult>,
   uninstallPlugin: (kind: PluginCategory, id: string) =>
     ipcRenderer.invoke(IpcChannel.EDITOR_UNINSTALL_PLUGIN, kind, id) as Promise<PluginsState>,
+  getPluginCatalog: (pluginId: string, loadAll: boolean) =>
+    ipcRenderer.invoke(
+      IpcChannel.EDITOR_GET_PLUGIN_CATALOG,
+      pluginId,
+      loadAll,
+    ) as Promise<PluginCatalogResult>,
   getProfiles: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_PROFILES) as Promise<ProfilesState>,
   onProfilesChanged: (handler) => {
     const listener = (_evt: IpcRendererEvent, state: ProfilesState) => handler(state);

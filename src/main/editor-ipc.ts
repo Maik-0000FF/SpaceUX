@@ -13,6 +13,7 @@ import {
   type EditorAction,
   type MenuConfigSnapshot,
   type PickIconResult,
+  type PluginCatalogResult,
   type PluginCategory,
   type PluginImportResult,
   type PluginsState,
@@ -50,6 +51,9 @@ export interface EditorIpcDeps {
   /** Uninstall a plugin (delete its managed folder) and reload; resolves to
    *  the refreshed state. */
   uninstallPlugin: (kind: PluginCategory, id: string) => Promise<PluginsState>;
+  /** Pull a plugin's command catalog for the editor palette (#76 D2): invokes
+   *  the plugin's `provideCatalog` with a timeout. */
+  getPluginCatalog: (pluginId: string, loadAll: boolean) => Promise<PluginCatalogResult>;
 }
 
 /**
@@ -111,6 +115,11 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
     IpcChannel.EDITOR_UNINSTALL_PLUGIN,
     (_evt, kind: PluginCategory, id: string): Promise<PluginsState> =>
       deps.uninstallPlugin(kind, id),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_GET_PLUGIN_CATALOG,
+    (_evt, pluginId: string, loadAll: boolean): Promise<PluginCatalogResult> =>
+      deps.getPluginCatalog(pluginId, loadAll),
   );
 
   // Editor mounted. No-op: the editor pulls via EDITOR_GET_MENU_CONFIG;

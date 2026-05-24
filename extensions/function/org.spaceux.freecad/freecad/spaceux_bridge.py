@@ -18,6 +18,10 @@ Protocol — newline-delimited JSON, one request → one response:
   {"op":"context"}            -> {"ok":true,"workbench":"<id>",
                                   "toolbars":[{"name":"<tb>",
                                     "commands":[{"name","label","icon"}]}]}
+  {"op":"catalog","loadAll":<bool>}
+                              -> {"ok":true,"loadedAll":<bool>,
+                                  "workbenches":[{"key","name",
+                                    "commands":[{"name","label","icon"}]}]}
   {"op":"run","name":"<cmd>"} -> {"ok":true} | {"ok":false,"error":"<msg>"}
 
 `icon` is a `data:image/png;base64,...` string (or "" when none). Global
@@ -143,13 +147,36 @@ def _icon_data_uri(name, actions):
 
 
 def _command_entry(name, actions):
+    """One command's {name,label,icon}, or None when the command isn't
+    registered yet — i.e. its workbench hasn't been loaded this session."""
     cmd = Gui.Command.get(name)
-    label = name
-    if cmd is not None:
-        info = cmd.getInfo()
-        # menuText carries an accelerator "&" we don't want in a pie label.
-        label = (info.get("menuText") or name).replace("&", "")
+    if cmd is None:
+        return None
+    info = cmd.getInfo()
+    # menuText carries an accelerator "&" we don't want in a label.
+    label = (info.get("menuText") or name).replace("&", "")
     return {"name": name, "label": label, "icon": _icon_data_uri(name, actions)}
+
+
+def _commands_from_items(items, actions):
+    """Flatten a workbench's getToolbarItems() into command entries, dropping
+    separators, the global Std_* set, duplicates, and not-yet-registered ones."""
+    commands = []
+    seen = set()
+    for names in items.values():
+        for name in names:
+            if name == "Separator" or name.startswith("Std_") or name in seen:
+                continue
+            seen.add(name)
+            entry = _command_entry(name, actions)
+            if entry is not None:
+                commands.append(entry)
+    return commands
+
+
+def _workbench_label(wb, key):
+    # MenuText is the human-readable workbench name (e.g. "Part Design").
+    return getattr(wb, "MenuText", None) or key
 
 
 def _context():
@@ -158,16 +185,53 @@ def _context():
     actions = _actions_by_name()
     toolbars = []
     for tb_name, names in wb.getToolbarItems().items():
-        commands = []
-        for name in names:
-            # Drop visual separators and the global Std_* set — the pie shows
-            # the workbench's own tools, grouped by toolbar.
-            if name == "Separator" or name.startswith("Std_"):
-                continue
-            commands.append(_command_entry(name, actions))
+        commands = _commands_from_items({tb_name: names}, actions)
         if commands:
             toolbars.append({"name": tb_name, "commands": commands})
     return {"ok": True, "workbench": wb_id, "toolbars": toolbars}
+
+
+# Workbenches the catalog never activates or lists: Start opens the welcome
+# page (intrusive, no pie-useful commands), None is the empty placeholder.
+_SKIP_WORKBENCHES = {"StartWorkbench", "NoneWorkbench"}
+
+
+def _catalog(load_all):
+    """Every workbench's commands, for the editor's command palette. Commands
+    register only once their workbench has been activated, so by default this
+    lists whatever is already loaded. With load_all, briefly activate each
+    workbench (then restore the original) to register them all — that is what
+    makes the GUI cycle through workbenches, hence only on explicit request.
+    StartWorkbench is skipped so the cycle doesn't pop the welcome page."""
+    wbs = Gui.listWorkbenches()
+    if load_all:
+        active = Gui.activeWorkbench()
+        original = next((k for k, v in wbs.items() if v is active), None)
+        for key in list(wbs.keys()):
+            if key in _SKIP_WORKBENCHES:
+                continue
+            try:
+                Gui.activateWorkbench(key)
+            except Exception:  # noqa: BLE001 — skip a workbench that won't load
+                pass
+        if original is not None:
+            try:
+                Gui.activateWorkbench(original)
+            except Exception:  # noqa: BLE001
+                pass
+    actions = _actions_by_name()
+    workbenches = []
+    for key, wb in wbs.items():
+        if key in _SKIP_WORKBENCHES:
+            continue
+        try:
+            items = wb.getToolbarItems()
+        except Exception:  # noqa: BLE001 — a workbench that can't enumerate is skipped
+            items = {}
+        commands = _commands_from_items(items, actions)
+        if commands:
+            workbenches.append({"key": key, "name": _workbench_label(wb, key), "commands": commands})
+    return {"ok": True, "loadedAll": bool(load_all), "workbenches": workbenches}
 
 
 def _run(name):
@@ -181,6 +245,9 @@ def _dispatch(req):
         return {"ok": True, "version": PROTOCOL_VERSION}
     if op == "context":
         return _invoker.call(_context)
+    if op == "catalog":
+        load_all = bool(req.get("loadAll"))
+        return _invoker.call(lambda: _catalog(load_all))
     if op == "run":
         name = req.get("name")
         if not isinstance(name, str) or not name:

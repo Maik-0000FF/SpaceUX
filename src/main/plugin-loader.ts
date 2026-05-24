@@ -16,6 +16,7 @@ import {
   type ActionDescriptor,
   type ActionHandler,
   type PluginKind,
+  type PluginCatalogProvider,
   type PluginManifest,
   type PluginMenuProvider,
   type PluginModule,
@@ -57,6 +58,10 @@ export type LoadedPlugin = {
    *  calls it at each pie open to build a live menu. Undefined for plugins
    *  that only ship a static `manifest.menu` (or no menu at all). */
   provideMenu?: PluginMenuProvider;
+  /** Command-catalog provider exported by index.js (#76 D2), if any — the
+   *  editor calls it to populate the command palette. Undefined for plugins
+   *  without a catalog. */
+  provideCatalog?: PluginCatalogProvider;
 };
 
 export type LoadResult = {
@@ -217,8 +222,9 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   // (the plugin simply has no live menu) rather than failing the load — the
   // static manifest.menu, if any, still works.
   const provideMenu = typeof mod.provideMenu === 'function' ? mod.provideMenu : undefined;
+  const provideCatalog = typeof mod.provideCatalog === 'function' ? mod.provideCatalog : undefined;
 
-  return { manifest, dir, handlers, provideMenu };
+  return { manifest, dir, handlers, provideMenu, provideCatalog };
 }
 
 /**

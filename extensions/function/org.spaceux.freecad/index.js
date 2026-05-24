@@ -26,6 +26,12 @@ const PLUGIN_ID = 'org.spaceux.freecad';
 // Below the host's 2s provideMenu timeout, so a slow-but-alive bridge still
 // answers while a dead socket fails fast (ENOENT/ECONNREFUSED).
 const REQUEST_TIMEOUT_MS = 1500;
+// The editor catalog (esp. loadAll, which cycles every workbench) is a
+// deliberate, non-interactive request — give it far longer than a pie open.
+// Sits just above the host's loadAll cap (60s in index.ts) so the host stays
+// the authoritative timeout (it reports the failure reason to the editor);
+// this only guards against a truly hung socket.
+const CATALOG_TIMEOUT_MS = 65000;
 
 function socketPath() {
   const base = process.env.XDG_RUNTIME_DIR || '/tmp';
@@ -35,7 +41,7 @@ function socketPath() {
 /** Send one newline-delimited JSON request and resolve its single JSON reply.
  *  Rejects on connect error or timeout — the caller maps that to "bridge
  *  unreachable". */
-function request(req) {
+function request(req, timeoutMs = REQUEST_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     const conn = net.createConnection(socketPath());
     let buf = '';
@@ -47,10 +53,7 @@ function request(req) {
       conn.destroy();
       fn(arg);
     };
-    const timer = setTimeout(
-      () => finish(reject, new Error('bridge timed out')),
-      REQUEST_TIMEOUT_MS,
-    );
+    const timer = setTimeout(() => finish(reject, new Error('bridge timed out')), timeoutMs);
     conn.on('connect', () => conn.write(JSON.stringify(req) + '\n'));
     conn.on('data', (chunk) => {
       buf += chunk.toString('utf8');
@@ -109,4 +112,31 @@ export async function provideMenu(ctx) {
   ctx.log(`workbench ${resp.workbench || '?'}: ${branches.length} toolbar(s)`);
   // Empty centre label — the workbench-name indicator lands separately (#186).
   return { label: '', branches };
+}
+
+/**
+ * Command catalog for the editor's palette (#76 D2): every workbench's commands
+ * grouped by workbench. `opts.loadAll` makes FreeCAD briefly activate every
+ * workbench so unloaded ones are included too (the GUI cycles through them) —
+ * only on explicit request; without it, only already-loaded workbenches appear.
+ * Each command carries the `run` action's config value (`command`) + a baked
+ * icon, so the editor can drop it straight into a menu as a normal item.
+ * Throws when the bridge is unreachable (FreeCAD closed / addon not installed).
+ */
+export async function provideCatalog(ctx, opts) {
+  const loadAll = !!(opts && opts.loadAll);
+  const resp = await request({ op: 'catalog', loadAll }, CATALOG_TIMEOUT_MS);
+  if (!resp || resp.ok !== true) {
+    throw new Error(resp && resp.error ? resp.error : 'bridge returned no catalog');
+  }
+  const groups = (Array.isArray(resp.workbenches) ? resp.workbenches : []).map((wb) => ({
+    name: typeof wb.name === 'string' ? wb.name : wb.key || 'Commands',
+    commands: (Array.isArray(wb.commands) ? wb.commands : []).map((c) => ({
+      command: c.name,
+      label: c.label || c.name,
+      ...(c.icon ? { icon: c.icon } : {}),
+    })),
+  }));
+  ctx.log(`catalog: ${groups.length} group(s), loadedAll=${resp.loadedAll === true}`);
+  return { groups, complete: resp.loadedAll === true };
 }
