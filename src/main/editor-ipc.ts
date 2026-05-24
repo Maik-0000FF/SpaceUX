@@ -18,6 +18,8 @@ import {
   type PluginImportResult,
   type PluginsState,
   type ThemeChoice,
+  type WorkbenchMenusState,
+  type WorkbenchSeedResult,
 } from '../shared/ipc.js';
 import { DEFAULT_MENU_CONFIG, type MenuConfig } from '../shared/menu.js';
 
@@ -54,6 +56,12 @@ export interface EditorIpcDeps {
   /** Pull a plugin's command catalog for the editor palette (#76 D2): invokes
    *  the plugin's `provideCatalog` with a timeout. */
   getPluginCatalog: (pluginId: string, loadAll: boolean) => Promise<PluginCatalogResult>;
+  /** Ids of curated per-workbench pies that exist on disk (#193). */
+  getWorkbenchMenus: () => Promise<string[]>;
+  /** Seed a curated pie for a workbench from the live catalog (#193): pull the
+   *  catalog, build a flat pie of its commands, write the file. Resolves with
+   *  the new `wb:` id, or a failure reason (bridge down / workbench missing). */
+  seedWorkbench: (pluginId: string, workbenchKey: string) => Promise<WorkbenchSeedResult>;
 }
 
 /**
@@ -120,6 +128,15 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
     IpcChannel.EDITOR_GET_PLUGIN_CATALOG,
     (_evt, pluginId: string, loadAll: boolean): Promise<PluginCatalogResult> =>
       deps.getPluginCatalog(pluginId, loadAll),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_GET_WORKBENCH_MENUS,
+    async (): Promise<WorkbenchMenusState> => ({ ids: await deps.getWorkbenchMenus() }),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_SEED_WORKBENCH,
+    (_evt, pluginId: string, workbenchKey: string): Promise<WorkbenchSeedResult> =>
+      deps.seedWorkbench(pluginId, workbenchKey),
   );
 
   // Editor mounted. No-op: the editor pulls via EDITOR_GET_MENU_CONFIG;

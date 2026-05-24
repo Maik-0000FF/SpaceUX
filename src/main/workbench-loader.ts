@@ -4,13 +4,15 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { isRenderableIcon } from '../core/icon.js';
 import { describeError } from '../shared/errors.js';
 import type { MenuWriteResult } from '../shared/ipc.js';
-import { type MenuConfig } from '../shared/menu.js';
+import { MENU_CONFIG_VERSION, type MenuConfig } from '../shared/menu.js';
 import {
   isWorkbenchMenuId,
   makeWorkbenchMenuId,
   parseWorkbenchMenuId,
+  type PluginCatalogGroup,
 } from '../shared/plugin-types.js';
 
 import { migrateAndValidateMenuConfig, spaceuxConfigDirs } from './menu-loader.js';
@@ -218,6 +220,34 @@ export function resolveWorkbenchMenuConfig(
     source: load.path,
     profileId: id,
     appearance: null,
+  };
+}
+
+/**
+ * Build a seeded curated pie from a catalog group (#193): the user's `base`
+ * config (trigger / navigation / scale kept for consistency) with the
+ * workbench's commands as a flat ring of run-action leaves. Flat — one ring,
+ * every command — per the "seed the full workbench, then edit down" decision;
+ * a large workbench yields a large ring, deliberately (no truncation). The
+ * centre label is empty, matching the dynamic pie. Icons are kept only when
+ * renderable (same filter as the palette); validation happens on write.
+ */
+export function seedWorkbenchConfig(
+  group: PluginCatalogGroup,
+  base: MenuConfig,
+  pluginId: string,
+): MenuConfig {
+  return {
+    ...base,
+    version: MENU_CONFIG_VERSION,
+    root: {
+      label: '',
+      branches: group.commands.map((c) => ({
+        label: c.label,
+        ...(c.icon && isRenderableIcon(c.icon) ? { icon: c.icon } : {}),
+        action: { id: `${pluginId}/run`, config: { command: c.command } },
+      })),
+    },
   };
 }
 

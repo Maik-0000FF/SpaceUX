@@ -20,6 +20,8 @@ import {
   type ProfileActionResult,
   type ProfilesState,
   type ThemeChoice,
+  type WorkbenchMenusState,
+  type WorkbenchSeedResult,
 } from '../shared/ipc.js';
 import type { MenuConfig } from '../shared/menu.js';
 
@@ -87,6 +89,19 @@ const bridge: EditorBridge = {
       pluginId,
       loadAll,
     ) as Promise<PluginCatalogResult>,
+  getWorkbenchMenus: () =>
+    ipcRenderer.invoke(IpcChannel.EDITOR_GET_WORKBENCH_MENUS) as Promise<WorkbenchMenusState>,
+  onWorkbenchMenusChanged: (handler) => {
+    const listener = (_evt: IpcRendererEvent, state: WorkbenchMenusState) => handler(state);
+    ipcRenderer.on(IpcChannel.EDITOR_WORKBENCH_MENUS_CHANGED, listener);
+    return () => ipcRenderer.off(IpcChannel.EDITOR_WORKBENCH_MENUS_CHANGED, listener);
+  },
+  seedWorkbench: (pluginId: string, workbenchKey: string) =>
+    ipcRenderer.invoke(
+      IpcChannel.EDITOR_SEED_WORKBENCH,
+      pluginId,
+      workbenchKey,
+    ) as Promise<WorkbenchSeedResult>,
   getProfiles: () => ipcRenderer.invoke(IpcChannel.EDITOR_GET_PROFILES) as Promise<ProfilesState>,
   onProfilesChanged: (handler) => {
     const listener = (_evt: IpcRendererEvent, state: ProfilesState) => handler(state);

@@ -151,6 +151,18 @@ export const IpcChannel = {
    *  the plugin's `provideCatalog` (with a timeout); a plugin without one, or
    *  an unreachable bridge, yields `{ ok: false, reason }`. */
   EDITOR_GET_PLUGIN_CATALOG: 'spaceux:editor:plugins:catalog',
+  /** Editor pulls the ids of curated per-workbench pies on mount (#193, PR2c):
+   *  invoke → {@link WorkbenchMenusState}. Tells the FreeCAD dropdown which
+   *  workbenches already have a curated pie. */
+  EDITOR_GET_WORKBENCH_MENUS: 'spaceux:editor:workbench-menus:get',
+  /** Main pushes {@link WorkbenchMenusState} when a curated pie is added /
+   *  removed on disk, so the dropdown's markers stay in sync. */
+  EDITOR_WORKBENCH_MENUS_CHANGED: 'spaceux:editor:workbench-menus:changed',
+  /** Editor seeds a curated pie for a workbench from the live catalog (#193):
+   *  invoke({ pluginId, workbenchKey }) → {@link WorkbenchSeedResult}. Main
+   *  pulls the catalog, builds a flat pie of the workbench's commands, and
+   *  writes the file; needs the bridge running, so it can fail with a reason. */
+  EDITOR_SEED_WORKBENCH: 'spaceux:editor:workbench-menus:seed',
 
   // ── Pie appearance (own app setting, separate from menu.json and the
   //    editor UI theme; consumed by both the live pie and the editor
@@ -253,6 +265,16 @@ export type ProfilesState = {
    *  `plugin:<pluginId>`. */
   pluginMenus: { id: string; name: string }[];
 };
+
+/** The curated per-workbench pies that exist on disk (#193, PR2c): their
+ *  `wb:<pluginId>:<workbenchKey>` ids. Lets the FreeCAD workbench dropdown mark
+ *  which workbenches already have a curated pie (vs. needing a seed). */
+export type WorkbenchMenusState = { ids: string[] };
+
+/** Outcome of seeding a curated workbench pie (#193). Success carries the new
+ *  `wb:` id (the editor then sets it as the override); failure carries a reason
+ *  (e.g. the bridge is unreachable, or the workbench isn't loaded). */
+export type WorkbenchSeedResult = { ok: true; id: string } | { ok: false; reason: string };
 
 /** Result of a profile save/delete action. */
 export type ProfileActionResult = { ok: true } | { ok: false; reason: string };
