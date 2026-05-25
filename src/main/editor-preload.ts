@@ -17,6 +17,7 @@ import {
   type PluginCategory,
   type PluginImportResult,
   type PluginsState,
+  type PluginUninstallResult,
   type ProfileActionResult,
   type FreecadBridgeInstallResult,
   type FreecadBridgeStatus,
@@ -84,7 +85,11 @@ const bridge: EditorBridge = {
   importPlugin: () =>
     ipcRenderer.invoke(IpcChannel.EDITOR_IMPORT_PLUGIN) as Promise<PluginImportResult>,
   uninstallPlugin: (kind: PluginCategory, id: string) =>
-    ipcRenderer.invoke(IpcChannel.EDITOR_UNINSTALL_PLUGIN, kind, id) as Promise<PluginsState>,
+    ipcRenderer.invoke(
+      IpcChannel.EDITOR_UNINSTALL_PLUGIN,
+      kind,
+      id,
+    ) as Promise<PluginUninstallResult>,
   getPluginCatalog: (pluginId: string, loadAll: boolean) =>
     ipcRenderer.invoke(
       IpcChannel.EDITOR_GET_PLUGIN_CATALOG,

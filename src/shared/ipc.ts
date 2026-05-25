@@ -238,6 +238,11 @@ export type PluginInfo = {
   kind: PluginCategory;
   /** Absolute directory the plugin was loaded from. */
   dir: string;
+  /** Whether the editor can uninstall it: true only when it lives in the
+   *  user-writable managed extensions dir (an imported plugin). A plugin loaded
+   *  from the repo dev-fallback or a system dir is bundled and not removable
+   *  here, so the UI disables Remove instead of silently no-op'ing (#221). */
+  removable: boolean;
   /** How many actions the manifest declares. */
   actionCount: number;
   /** Whether the plugin exports a command catalog (#76 D2) — drives whether
@@ -266,6 +271,13 @@ export type PluginImportResult =
   | { ok: true; installed: PluginInfo; state: PluginsState }
   | { ok: 'cancelled' }
   | { ok: false; reason: string };
+
+/** Outcome of an uninstall. Always carries the refreshed state (so the list
+ *  updates either way); `ok:false` surfaces a real delete error to the UI
+ *  instead of swallowing it (#221). */
+export type PluginUninstallResult =
+  | { ok: true; state: PluginsState }
+  | { ok: false; reason: string; state: PluginsState };
 
 /** Result of an editor command-catalog pull (#76 D2). Failure (no such plugin,
  *  no `provideCatalog`, or an unreachable bridge) carries a reason the palette

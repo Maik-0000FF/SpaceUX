@@ -67,6 +67,7 @@ import {
   loadPluginManifests,
   loadPlugins,
   makeActionContext,
+  userExtensionsRoot,
   type LoadedPlugin,
 } from './plugin-loader.js';
 import { importPluginFromFolder, uninstallPlugin } from './plugin-installer.js';
@@ -220,6 +221,9 @@ function toPluginInfo(manifest: PluginManifest, dir: string, hasCatalog = false)
     version: manifest.version,
     kind: manifest.kind,
     dir,
+    // Removable only when it lives in the user-writable managed dir (imported);
+    // a repo-dev / system plugin isn't deletable from here (#221).
+    removable: dir === userExtensionsRoot() || dir.startsWith(userExtensionsRoot() + path.sep),
     actionCount: manifest.actions?.length ?? 0,
     hasCatalog,
     badge: bakeBadge(dir, manifest.badge),
@@ -1381,9 +1385,11 @@ app.whenReady().then(async () => {
       return { ok: true, installed, state };
     },
     uninstallPlugin: async (kind, id) => {
-      await uninstallPlugin(kind, id);
+      const result = await uninstallPlugin(kind, id);
       await reloadFunctionPlugins();
-      return buildPluginsState();
+      const state = await buildPluginsState();
+      // Always return the refreshed state; surface a real delete error (#221).
+      return result.ok ? { ok: true, state } : { ok: false, reason: result.reason, state };
     },
     getPluginCatalog: async (pluginId, loadAll) => {
       const plugin = loadedPlugins.find((p) => p.manifest.id === pluginId);
