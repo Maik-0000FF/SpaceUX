@@ -40,11 +40,20 @@ export function CommandPalette() {
   const catalogGroups = useCatalog((s) => s.groups);
   const ensureLoaded = useCatalog((s) => s.ensureLoaded);
   const loadAll = useCatalog((s) => s.loadAll);
+  const refresh = useCatalog((s) => s.refresh);
 
   // The resolved active source (same signal as useReadOnlySource) — single
   // source of truth for "what's active", robust to a dropped/re-resolved override.
   const activeSource = useDeviceInfo().profileId;
   const [query, setQuery] = useState('');
+  // "Currently usable" filter (#217): show only commands enabled in the live
+  // FreeCAD state. Turning it on re-fetches the catalog so the `enabled` flags
+  // reflect the current state (not the stale load-time snapshot).
+  const [enabledOnly, setEnabledOnly] = useState(false);
+  const toggleEnabledOnly = (on: boolean): void => {
+    setEnabledOnly(on);
+    if (on) void refresh();
+  };
 
   useEffect(() => {
     void ensureLoaded();
@@ -79,6 +88,9 @@ export function CommandPalette() {
             (c) =>
               typeof c.command === 'string' && c.command && typeof c.label === 'string' && c.label,
           )
+          // "Currently usable" (#217): drop disabled commands; undefined enabled
+          // (older bridge) counts as usable so nothing vanishes unexpectedly.
+          .filter((c) => !enabledOnly || c.enabled !== false)
           .filter((c) => q === '' || c.label.toLowerCase().includes(q))
           .map((c) => ({
             command: c.command,
@@ -87,7 +99,7 @@ export function CommandPalette() {
           })),
       }))
       .filter((g) => g.commands.length > 0);
-  }, [catalogGroups, scopeKey, query]);
+  }, [catalogGroups, scopeKey, query, enabledOnly]);
 
   if (!plugin) return null; // no catalog-capable plugin loaded → no palette
 
@@ -100,6 +112,18 @@ export function CommandPalette() {
     <section className={styles.palette} aria-label={`${plugin.name} commands`}>
       <header className={styles.header}>
         <span className={styles.title}>{plugin.name} commands</span>
+        <label
+          className={styles.enabledToggle}
+          title="Show only commands currently usable in FreeCAD (refreshes from the live state)"
+        >
+          <input
+            type="checkbox"
+            checked={enabledOnly}
+            disabled={status === 'loading'}
+            onChange={(e) => toggleEnabledOnly(e.target.checked)}
+          />
+          Usable now
+        </label>
         <button
           type="button"
           className={styles.loadAll}

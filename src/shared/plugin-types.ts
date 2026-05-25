@@ -252,6 +252,11 @@ export type PluginCatalogCommand = {
   label: string;
   icon?: string;
   members?: PluginCatalogCommand[];
+  /** Whether the command is currently usable in the live app (its QAction is
+   *  enabled). Lets the editor offer a "currently usable" filter (#217); a
+   *  snapshot from catalog-fetch time, meaningful for the active workbench.
+   *  Undefined from an older bridge → treated as enabled. */
+  enabled?: boolean;
 };
 
 /** A named sub-grouping of commands within a catalog group — a FreeCAD toolbar

@@ -33,6 +33,24 @@
   color: var(--editor-fg-dim);
 }
 
+.enabledToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--editor-fg-dim);
+  cursor: pointer;
+  white-space: nowrap;
+
+  input {
+    cursor: pointer;
+  }
+  input:disabled {
+    cursor: default;
+  }
+}
+
 .loadAll {
   padding: 2px 8px;
   border: 1px solid var(--editor-border);

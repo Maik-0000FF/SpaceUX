@@ -28,9 +28,12 @@ Protocol — newline-delimited JSON, one request → one response:
   {"op":"release-button","button":<n>}
                               -> {"ok":true,"released":<n>,"previous":<...>}
 
-`icon` is a `data:image/png;base64,...` string (or "" when none). Global
-`Std_*` commands and `Separator` entries are filtered out so the pie shows the
-workbench's own tools.
+`icon` is a `data:image/png;base64,...` string (or "" when none). `Separator`
+entries are dropped. All commands pass — including global `Std_*` (e.g. the View
+orientation commands) — so the pie can show them too (#217). The live `context`
+additionally drops commands whose QAction is currently *disabled* (no function in
+the present FreeCAD state); `catalog` keeps everything (it also reports each
+command's `enabled` flag so the editor can offer the same filter when selecting).
 
 `members` (#208) is present when a toolbar item is a command group (a dropdown
 button bundling sub-commands, e.g. Part primitives): it carries the member
@@ -167,15 +170,22 @@ def _icon_data_uri(name, actions):
 
 
 def _command_entry(name, actions):
-    """One command's {name,label,icon}, or None when the command isn't
-    registered yet — i.e. its workbench hasn't been loaded this session."""
+    """One command's {name,label,icon,enabled}, or None when the command isn't
+    registered yet — i.e. its workbench hasn't been loaded this session.
+    `enabled` is the QAction's current state, so the editor can offer a
+    "currently usable" filter (#217)."""
     cmd = Gui.Command.get(name)
     if cmd is None:
         return None
     info = cmd.getInfo()
     # menuText carries an accelerator "&" we don't want in a label.
     label = (info.get("menuText") or name).replace("&", "")
-    return {"name": name, "label": label, "icon": _icon_data_uri(name, actions)}
+    return {
+        "name": name,
+        "label": label,
+        "icon": _icon_data_uri(name, actions),
+        "enabled": _is_enabled(name, actions),
+    }
 
 
 def _toolbutton_menus():
@@ -198,43 +208,62 @@ def _toolbutton_menus():
     return out
 
 
-def _group_members(menu, actions):
+def _is_enabled(name, actions):
+    """Whether the command's QAction is currently enabled (usable in the live
+    FreeCAD state). Unknown (no QAction found) → treated as enabled, so we never
+    hide a command we simply can't assess (#217)."""
+    action = actions.get(name)
+    return action is None or action.isEnabled()
+
+
+def _group_members(menu, actions, enabled_only=False):
     """Member entries of a command group's dropdown menu (#208). Each member is
     a child QAction; its objectName is the run target. Members without an
     objectName (e.g. the selection-filter toggles) can't be addressed by name,
-    so they're skipped — as are separators and the global Std_* set. Label/icon
-    come straight from the child QAction: group members like the PartDesign
-    primitives aren't registered Gui.Commands, so _command_entry would drop
-    them; the run side triggers their QAction by name instead."""
+    so they're skipped — as are separators. Label/icon come straight from the
+    child QAction: group members like the PartDesign primitives aren't registered
+    Gui.Commands, so _command_entry would drop them; the run side triggers their
+    QAction by name instead. `enabled_only` (the live pie) drops currently-disabled
+    members so the pie reflects what's usable now (#217)."""
     members = []
     seen = set()
     for child in menu.actions():
         if child.isSeparator():
             continue
         name = child.objectName()
-        if not name or name.startswith("Std_") or name in seen:
+        if not name or name in seen:
             continue
         seen.add(name)
+        enabled = child.isEnabled()
+        if enabled_only and not enabled:
+            continue
         label = (child.text() or name).replace("&", "")
-        members.append({"name": name, "label": label, "icon": _icon_data_uri(name, actions)})
+        members.append(
+            {"name": name, "label": label, "icon": _icon_data_uri(name, actions), "enabled": enabled}
+        )
     return members
 
 
-def _commands_from_items(items, actions, groups):
+def _commands_from_items(items, actions, groups, enabled_only=False):
     """Flatten a workbench's getToolbarItems() into command entries, dropping
-    separators, the global Std_* set, and duplicates. A toolbar item that is a
-    command group (#208) becomes a nested entry `{name,label,icon,members}` — a
-    third pie level; its members come from the dropdown menu in `groups`. A
-    plain command yields `{name,label,icon}` (dropped if not yet registered)."""
+    separators and duplicates. All commands pass (no Std_* prefix filter, #217)
+    so global tools like the View-orientation commands reach the pie. A toolbar
+    item that is a command group (#208) becomes a nested entry
+    `{name,label,icon,members}` — a third pie level; its members come from the
+    dropdown menu in `groups`. A plain command yields `{name,label,icon}`
+    (dropped if not yet registered). `enabled_only` (set for the live pie, NOT
+    the catalog) drops commands whose QAction is currently disabled — the pie
+    then shows only what's usable in the current FreeCAD context (#217); the
+    catalog lists everything so a curated pie can include any command."""
     commands = []
     seen = set()
     for names in items.values():
         for name in names:
-            if name == "Separator" or name.startswith("Std_") or name in seen:
+            if name == "Separator" or name in seen:
                 continue
             seen.add(name)
             menu = groups.get(name)
-            members = _group_members(menu, actions) if menu is not None else []
+            members = _group_members(menu, actions, enabled_only) if menu is not None else []
             if members:
                 # Group node: label/icon from the group command's own QAction
                 # (the group command itself may not be a registered Gui.Command).
@@ -245,9 +274,14 @@ def _commands_from_items(items, actions, groups):
                         "name": name,
                         "label": label,
                         "icon": _icon_data_uri(name, actions),
+                        "enabled": _is_enabled(name, actions),
                         "members": members,
                     }
                 )
+                continue
+            # Plain command (or a group with no usable members): in the live pie
+            # drop it when its QAction is currently disabled (#217).
+            if enabled_only and not _is_enabled(name, actions):
                 continue
             entry = _command_entry(name, actions)
             if entry is not None:
@@ -286,7 +320,8 @@ def _context():
     groups = _toolbutton_menus()
     toolbars = []
     for tb_name, names in wb.getToolbarItems().items():
-        commands = _commands_from_items({tb_name: names}, actions, groups)
+        # Live pie: only currently-enabled commands (#217).
+        commands = _commands_from_items({tb_name: names}, actions, groups, enabled_only=True)
         if commands:
             toolbars.append({"name": tb_name, "commands": commands})
     return {"ok": True, "workbench": wb_id, "toolbars": toolbars, "appIcon": _app_icon()}

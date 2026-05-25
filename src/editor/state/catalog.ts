@@ -37,6 +37,10 @@ type CatalogState = {
   ensureLoaded: () => Promise<void>;
   /** Cycle every workbench in FreeCAD so unloaded ones are listed too. */
   loadAll: () => Promise<void>;
+  /** Force a re-fetch (unlike ensureLoaded, runs even when `ready`), preserving
+   *  the current load scope (`complete`). Used by the "currently usable" filter
+   *  to refresh each command's live `enabled` state (#217). */
+  refresh: () => Promise<void>;
 };
 
 export const useCatalog = create<CatalogState>((set, get) => ({
@@ -76,6 +80,26 @@ export const useCatalog = create<CatalogState>((set, get) => ({
     if (!plugin) return;
     set({ status: 'loading' });
     const res = await window.editor.getPluginCatalog(plugin.id, true);
+    if (res.ok) {
+      set({
+        status: 'ready',
+        reason: null,
+        groups: res.catalog.groups,
+        complete: res.catalog.complete,
+        appBadge: res.catalog.appBadge,
+      });
+    } else {
+      set({ status: 'error', reason: res.reason });
+    }
+  },
+  refresh: async () => {
+    // No plugin discovered yet → fall back to first-time discovery.
+    if (!get().plugin) return get().ensureLoaded();
+    const { plugin, complete } = get();
+    set({ status: 'loading' });
+    // Re-fetch at the same scope so the catalog's contents stay stable and only
+    // the live `enabled` flags refresh (loadAll re-cycles workbenches).
+    const res = await window.editor.getPluginCatalog(plugin!.id, complete);
     if (res.ok) {
       set({
         status: 'ready',
