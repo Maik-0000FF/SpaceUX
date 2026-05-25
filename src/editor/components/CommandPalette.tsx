@@ -3,13 +3,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { isRenderableIcon } from '@/core/icon';
 import { isWorkbenchMenuId, parseWorkbenchMenuId } from '@/shared/plugin-types';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { useAppState } from '../state/app-state';
 import { useCatalog } from '../state/catalog';
+import { flattenCatalogCommands } from '../state/catalog-filter';
 import { useMenuSettings } from '../state/menu-settings';
 
 import styles from './CommandPalette.module.scss';
@@ -67,39 +67,12 @@ export function CommandPalette() {
     return parsed && parsed.pluginId === plugin.id ? parsed.workbenchKey : null;
   }, [plugin, activeSource]);
 
-  // Sanitise + filter the raw catalog: scope to the active workbench (if any),
-  // drop commands missing a command/label, keep only renderable icons, and
-  // match the search query on the label.
-  const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return catalogGroups
-      .filter((g) => scopeKey === null || g.key === scopeKey)
-      .map((g) => ({
-        key: g.key,
-        name: g.name,
-        // Flatten the toolbars into one searchable list per workbench (the
-        // toolbar grouping is for the seeded pie's tree, not the palette).
-        // Expand command groups (#208) into their members — the group node
-        // itself isn't runnable, its members are the addable commands.
-        commands: g.toolbars
-          .flatMap((t) => t.commands)
-          .flatMap((c) => (c.members && c.members.length ? c.members : [c]))
-          .filter(
-            (c) =>
-              typeof c.command === 'string' && c.command && typeof c.label === 'string' && c.label,
-          )
-          // "Currently usable" (#217): drop disabled commands; undefined enabled
-          // (older bridge) counts as usable so nothing vanishes unexpectedly.
-          .filter((c) => !enabledOnly || c.enabled !== false)
-          .filter((c) => q === '' || c.label.toLowerCase().includes(q))
-          .map((c) => ({
-            command: c.command,
-            label: c.label,
-            icon: c.icon && isRenderableIcon(c.icon) ? c.icon : undefined,
-          })),
-      }))
-      .filter((g) => g.commands.length > 0);
-  }, [catalogGroups, scopeKey, query, enabledOnly]);
+  // Scope + flatten + filter the raw catalog into the renderable command list
+  // (pure logic in flattenCatalogCommands — see there for the rules).
+  const groups = useMemo(
+    () => flattenCatalogCommands(catalogGroups, { scopeKey, query, enabledOnly }),
+    [catalogGroups, scopeKey, query, enabledOnly],
+  );
 
   if (!plugin) return null; // no catalog-capable plugin loaded → no palette
 
