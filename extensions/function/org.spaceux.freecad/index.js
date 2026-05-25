@@ -182,6 +182,8 @@ export async function provideCatalog(ctx, opts) {
           ? wb.name
           : 'Commands',
     name: typeof wb.name === 'string' ? wb.name : wb.key || 'Commands',
+    // The workbench's own icon (#229), if the bridge resolved one.
+    ...(typeof wb.icon === 'string' && wb.icon ? { icon: wb.icon } : {}),
     // Commands grouped by toolbar (#193) so a curated pie seeds one submenu per
     // toolbar (mirrors the dynamic pie); the palette flattens these for search.
     toolbars: (Array.isArray(wb.toolbars) ? wb.toolbars : []).map((tb) => ({

@@ -71,17 +71,22 @@ export function FreecadSourceControls() {
   // curated-but-not-in-catalog workbench (bridge offline → label from the key).
   const workbenches = useMemo(() => {
     if (!plugin) return [];
-    const byKey = new Map<string, { key: string; label: string; curated: boolean }>();
+    const byKey = new Map<
+      string,
+      { key: string; label: string; curated: boolean; icon?: string }
+    >();
     for (const g of groups) {
       byKey.set(g.key, {
         key: g.key,
         label: g.name,
         curated: curatedIds.includes(makeWorkbenchMenuId(plugin.id, g.key)),
+        icon: g.icon, // the workbench's own icon (#229), if the bridge resolved one
       });
     }
     for (const id of curatedIds) {
       const parsed = parseWorkbenchMenuId(id);
       if (parsed && parsed.pluginId === plugin.id && !byKey.has(parsed.workbenchKey)) {
+        // Curated offline (not in the live catalog) → no icon, label from the key.
         byKey.set(parsed.workbenchKey, {
           key: parsed.workbenchKey,
           label: workbenchKeyToLabel(parsed.workbenchKey),
@@ -100,6 +105,10 @@ export function FreecadSourceControls() {
   const activeWorkbench =
     parsedActive && parsedActive.pluginId === plugin.id ? parsedActive.workbenchKey : null;
   const showCurated = activeWorkbench !== null || intentCurated;
+  // The active curated workbench's catalog entry (icon + name) for the header
+  // above the tree (#229). Null in Dynamic mode (no specific workbench here).
+  const activeWb =
+    activeWorkbench === null ? null : (workbenches.find((w) => w.key === activeWorkbench) ?? null);
 
   const chooseDynamic = (): void => {
     setIntentCurated(false);
@@ -159,6 +168,14 @@ export function FreecadSourceControls() {
   return (
     <section className={styles.controls} aria-label={`${plugin.name} pie source`}>
       <span className={styles.title}>{plugin.name} pie</span>
+      {activeWb && (
+        // Header above the tree (#229): which workbench you're editing, with its
+        // own icon when the bridge resolved one.
+        <div className={styles.activeWb}>
+          {activeWb.icon && <img className={styles.activeWbIcon} src={activeWb.icon} alt="" />}
+          <span className={styles.activeWbName}>{activeWb.label}</span>
+        </div>
+      )}
       <div className={styles.switch} role="group" aria-label="FreeCAD pie mode">
         <button
           type="button"

@@ -20,8 +20,8 @@ Protocol — newline-delimited JSON, one request → one response:
                                     "commands":[{"name","label","icon"[,"members"]}]}]}
   {"op":"catalog","loadAll":<bool>}
                               -> {"ok":true,"loadedAll":<bool>,
-                                  "workbenches":[{"key","name",
-                                    "commands":[{"name","label","icon"[,"members"]}]}]}
+                                  "workbenches":[{"key","name","icon",
+                                    "toolbars":[{"name","commands":[...]}]}]}
   {"op":"run","name":"<cmd>"} -> {"ok":true} | {"ok":false,"error":"<msg>"}
   {"op":"reserve-button","button":<n>}
                               -> {"ok":true,"reserved":<n>,"previous":<...>}
@@ -313,6 +313,38 @@ def _workbench_label(wb, key):
     return getattr(wb, "MenuText", None) or key
 
 
+_wb_icon_cache = {}
+
+
+def _workbench_icon(key, wb):
+    """PNG data-URI of a workbench's own icon (#229), or "" — cached per key.
+    The workbench's `Icon` is usually a Qt resource path (or file path); load it
+    through QIcon/QPixmap and re-encode as PNG, the same family as the command
+    icons. The path route covers nearly all installed workbenches; one that ships
+    inline XPM content instead (a string QPixmap reads as a filename) resolves to
+    "" and degrades to name-only — acceptable."""
+    if key in _wb_icon_cache:
+        return _wb_icon_cache[key]
+    uri = ""
+    src = getattr(wb, "Icon", None)
+    if isinstance(src, str) and src and QtGui is not None:
+        pixmap = QtGui.QPixmap(src)
+        if pixmap.isNull() and QtGui.QIcon is not None:
+            pixmap = QtGui.QIcon(src).pixmap(32, 32)
+        if not pixmap.isNull():
+            if pixmap.width() > 32 or pixmap.height() > 32:
+                pixmap = pixmap.scaled(
+                    32, 32, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
+                )
+            buf = QtCore.QBuffer()
+            buf.open(QtCore.QIODevice.WriteOnly)
+            if pixmap.save(buf, "PNG"):
+                uri = "data:image/png;base64," + base64.b64encode(bytes(buf.data())).decode("ascii")
+            buf.close()
+    _wb_icon_cache[key] = uri
+    return uri
+
+
 def _context():
     wb = Gui.activeWorkbench()
     wb_id = wb.__class__.__name__
@@ -377,7 +409,14 @@ def _catalog(load_all):
             if commands:
                 toolbars.append({"name": tb_name, "commands": commands})
         if toolbars:
-            workbenches.append({"key": key, "name": _workbench_label(wb, key), "toolbars": toolbars})
+            workbenches.append(
+                {
+                    "key": key,
+                    "name": _workbench_label(wb, key),
+                    "icon": _workbench_icon(key, wb),
+                    "toolbars": toolbars,
+                }
+            )
     return {
         "ok": True,
         "loadedAll": bool(load_all),
