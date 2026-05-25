@@ -18,6 +18,7 @@ import { confirm } from '../state/confirm';
 import { notify } from '../state/toasts';
 
 import { FreecadBridgeInstaller } from './FreecadBridgeInstaller';
+import { WorkbenchSelect } from './WorkbenchSelect';
 import styles from './FreecadSourceControls.module.scss';
 
 /**
@@ -200,21 +201,12 @@ export function FreecadSourceControls() {
       </div>
       {showCurated && (
         <div className={styles.curatedRow}>
-          <select
-            className={styles.select}
-            value={activeWorkbench ?? ''}
+          <WorkbenchSelect
+            workbenches={workbenches}
+            value={activeWorkbench}
             disabled={busy}
-            onChange={(e) => void selectWorkbench(e.target.value)}
-            title="Pick a workbench to edit its curated pie (● = already curated)"
-          >
-            <option value="">Select a workbench…</option>
-            {workbenches.map((w) => (
-              <option key={w.key} value={w.key}>
-                {w.curated ? '● ' : ''}
-                {w.label}
-              </option>
-            ))}
-          </select>
+            onSelect={(key) => void selectWorkbench(key)}
+          />
           <button
             type="button"
             className={styles.loadAll}
