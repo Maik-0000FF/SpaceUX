@@ -630,8 +630,9 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
   }
   // `scale` moved to the global PieAppearance (#186 follow-up). It stays in
   // KNOWN_MENU_CONFIG_FIELDS as a tolerated legacy field so an old menu.json
-  // still loads (the value is ignored here; main lifts the dev's global one
-  // into app-settings once). No version bump — clean break while pre-release.
+  // still loads — the value is simply dropped (not migrated): the only existing
+  // install (the dev's) had no scale set, and pie size now starts from the
+  // appearance default. No version bump — clean break while pre-release.
   if (obj.axisInvert !== undefined) {
     if (
       typeof obj.axisInvert !== 'object' ||
