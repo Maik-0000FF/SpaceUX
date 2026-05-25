@@ -75,7 +75,6 @@ import {
   isPluginMenuId,
   isWorkbenchMenuId,
   makeWorkbenchMenuId,
-  parseWorkbenchMenuId,
   type PluginCatalog,
   type PluginManifest,
 } from '../shared/plugin-types.js';
@@ -271,6 +270,9 @@ async function reloadFunctionPlugins(): Promise<void> {
   ) {
     void applyActiveProfile('profile');
   }
+  // A reserving plugin (FreeCAD) may have just been installed or removed — (dis)arm
+  // the trigger-button reservation accordingly (#191).
+  syncTriggerReservation();
 }
 
 // Single point that latches the reported device. Re-resolves the active
@@ -409,11 +411,10 @@ async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
   // Apply the profile's bundled appearance (or restore the global one when
   // it has none / on fallback). Independent of the menu-changed gate above.
   applyActiveAppearance(next.appearance);
-  // Reserve / release the pie-trigger button for a FreeCAD-style plugin source
-  // (#191). Run on every resolution (not just `changed`): the effective trigger
-  // button can move while the same source stays active. Best-effort, awaited so
-  // a switch fully settles its reservation before the next one.
-  await syncTriggerReservation(next.config.triggerButton ?? DEFAULT_TRIGGER_BUTTON);
+  // Keep the trigger-button reservation in sync (#191): the active config (and
+  // thus its trigger button) just changed. Source-independent + poll-driven, so
+  // it's fire-and-forget here.
+  syncTriggerReservation();
 }
 
 /** Push the curated-workbench-pie list to the editor (#193) after one is added
@@ -729,32 +730,33 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   });
 }
 
-// #191 — the plugin that currently holds a trigger-button reservation, and the
-// button it reserved. A FreeCAD-style plugin shares the SpaceMouse with its own
-// app; while its menu is the active source we ask it to suppress its app's
-// binding for the pie-trigger button so a press doesn't both open the pie and
-// fire a command in that app. Tracked so the next source switch can release it.
-let reservedTriggerPluginId: string | null = null;
-let reservedTriggerButton: number | null = null;
+// #191 — the pie-trigger button is global: it opens the SpaceUX pie regardless
+// of the focused app or the active pie. So while SpaceUX and FreeCAD both run,
+// FreeCAD must not *also* act on that button (it reads the same SpaceMouse via
+// spacenavd). We therefore reserve the trigger button in any loaded plugin that
+// can suppress its app's binding (the FreeCAD plugin) — independent of which
+// SpaceUX source is active, so it covers dynamic, curated, and ordinary pies.
+//
+// The plugin's bridge is only reachable while its app runs, and a source switch
+// usually isn't that moment, so we poll: reserve (idempotently) on a heartbeat
+// until it lands, and again after the app restarts. Release is best-effort on a
+// button change / shutdown — the FreeCAD bridge's own atexit restores the
+// binding when it closes, so a missed release while it's down is harmless.
+let desiredReservation: { plugin: LoadedPlugin; button: number } | null = null;
+let reservationConfirmed = false;
+let reservationPollTimer: ReturnType<typeof setInterval> | null = null;
+const RESERVE_POLL_MS = 3000;
 
-/** The plugin id behind an active-source id, for both source kinds that can be
- *  plugin-backed: `plugin:<id>` (dynamic) and `wb:<id>:<workbench>` (curated).
- *  Null for device profiles / fallback / a malformed id. */
-function pluginIdForSource(id: string | null): string | null {
-  if (id === null) return null;
-  if (isPluginMenuId(id)) return id.slice(PLUGIN_MENU_ID_PREFIX.length);
-  return parseWorkbenchMenuId(id)?.pluginId ?? null;
-}
-
-/** Invoke a plugin's optional trigger reserver (#191). Best-effort: a missing
- *  reserver, a throw, or a timeout is logged and swallowed — failing to reserve
- *  must never block a source switch. */
+/** Ask a plugin to reserve / release the trigger button (#191). Returns whether
+ *  the call reached the bridge; failures (the app is just closed) resolve false
+ *  and are silent — pollReservation / syncTriggerReservation log on a *state*
+ *  change so a closed FreeCAD doesn't spam the console every heartbeat. */
 async function callReserveTrigger(
   plugin: LoadedPlugin,
   button: number,
   reserve: boolean,
-): Promise<void> {
-  if (!plugin.reserveTrigger) return;
+): Promise<boolean> {
+  if (!plugin.reserveTrigger) return false;
   try {
     const ctx = makeActionContext(plugin.manifest.id, daemon);
     await withTimeout(
@@ -762,47 +764,78 @@ async function callReserveTrigger(
       DYNAMIC_MENU_TIMEOUT_MS,
       `reserveTrigger timed out after ${DYNAMIC_MENU_TIMEOUT_MS}ms`,
     );
-  } catch (err) {
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** One heartbeat: (re-)reserve the desired button. Idempotent on the bridge, so
+ *  repeats are cheap; logs only when the confirmed state flips. */
+async function pollReservation(): Promise<void> {
+  const want = desiredReservation;
+  if (!want) return;
+  const ok = await callReserveTrigger(want.plugin, want.button, true);
+  if (ok && !reservationConfirmed) {
+    reservationConfirmed = true;
     // eslint-disable-next-line no-console
-    console.warn(
-      `[plugin ${plugin.manifest.id}] trigger ${reserve ? 'reserve' : 'release'} failed: ${describeError(err)}`,
+    console.info(
+      `[plugin ${want.plugin.manifest.id}] reserved trigger button ${want.button} in FreeCAD`,
+    );
+  } else if (!ok && reservationConfirmed) {
+    reservationConfirmed = false; // app went away — keep polling to re-reserve
+    // eslint-disable-next-line no-console
+    console.info(
+      `[plugin ${want.plugin.manifest.id}] trigger reservation lost (FreeCAD closed?) — retrying`,
     );
   }
 }
 
+function startReservationPoll(): void {
+  if (reservationPollTimer === null) {
+    reservationPollTimer = setInterval(() => void pollReservation(), RESERVE_POLL_MS);
+  }
+  void pollReservation(); // attempt immediately, don't wait a full interval
+}
+
+function stopReservationPoll(): void {
+  if (reservationPollTimer !== null) {
+    clearInterval(reservationPollTimer);
+    reservationPollTimer = null;
+  }
+}
+
 /**
- * Keep the trigger-button reservation in sync with the active source (#191).
- * Called from applyActiveProfile after the source has changed: if the new
- * source is backed by a plugin that can reserve the trigger button, ask it to
- * (and release any previous reservation first); otherwise release whatever was
- * held. Also re-reserves when the trigger button itself changed under the same
- * plugin. `button` is the active config's effective trigger button.
+ * Re-derive the desired trigger-button reservation (#191) from the loaded
+ * plugins + the active trigger button, and (re)arm the poll. Source-independent:
+ * if any loaded plugin can reserve (the FreeCAD plugin), we want the current
+ * trigger button reserved in it the whole time. Call after anything that can
+ * change either input: a config/profile resolution or a plugin (re)load.
  */
-async function syncTriggerReservation(button: number): Promise<void> {
-  const pid = pluginIdForSource(activeProfileId);
-  const next = pid ? (loadedPlugins.find((p) => p.manifest.id === pid) ?? null) : null;
-  const nextPluginId = next?.reserveTrigger ? next.manifest.id : null;
+function syncTriggerReservation(): void {
+  const reserver = loadedPlugins.find((p) => p.reserveTrigger) ?? null;
+  const button = menuConfig?.triggerButton ?? DEFAULT_TRIGGER_BUTTON;
 
-  // Release the previous reservation when the reserving plugin or the button
-  // changed (a no-op when nothing was held).
-  if (
-    reservedTriggerPluginId !== null &&
-    (reservedTriggerPluginId !== nextPluginId || reservedTriggerButton !== button)
-  ) {
-    const prev = loadedPlugins.find((p) => p.manifest.id === reservedTriggerPluginId);
-    if (prev && reservedTriggerButton !== null) {
-      await callReserveTrigger(prev, reservedTriggerButton, false);
-    }
-    reservedTriggerPluginId = null;
-    reservedTriggerButton = null;
+  const prev = desiredReservation;
+  if (prev?.plugin.manifest.id === reserver?.manifest.id && prev?.button === button) {
+    if (reserver && reservationPollTimer === null) startReservationPoll(); // re-arm if it stopped
+    return;
   }
 
-  // Reserve for the new source if it can and we aren't already holding it.
-  if (next && nextPluginId !== null && reservedTriggerPluginId === null) {
-    await callReserveTrigger(next, button, true);
-    reservedTriggerPluginId = nextPluginId;
-    reservedTriggerButton = button;
+  // Release a stale reservation (different button, or the plugin went away).
+  if (prev) {
+    const p = prev;
+    void callReserveTrigger(p.plugin, p.button, false).then((ok) => {
+      if (ok)
+        // eslint-disable-next-line no-console
+        console.info(`[plugin ${p.plugin.manifest.id}] released trigger button ${p.button}`);
+    });
   }
+
+  reservationConfirmed = false;
+  desiredReservation = reserver ? { plugin: reserver, button } : null;
+  if (desiredReservation) startReservationPoll();
+  else stopReservationPoll();
 }
 
 /**
@@ -1510,6 +1543,7 @@ app.on('before-quit', () => {
 
 app.on('window-all-closed', () => {
   daemon.stop();
+  stopReservationPoll();
   stopMenuWatcher?.();
   stopMenuWatcher = null;
   stopProfileWatcher?.();

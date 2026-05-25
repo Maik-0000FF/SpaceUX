@@ -289,6 +289,19 @@ _BUTTONS_PARAM = "User parameter:BaseApp/Spaceball/Buttons"
 _RESERVED_PARAM = "User parameter:BaseApp/Spaceux/ReservedButtons"
 
 
+def _dump_buttons():
+    """All currently-configured Spaceball button → command bindings, as a dict
+    {button_key: command}. Used for the diagnostic log (and to surface FreeCAD's
+    own button numbering, which need not match SpaceUX's evdev index)."""
+    buttons = FreeCAD.ParamGet(_BUTTONS_PARAM)
+    out = {}
+    for key in buttons.GetGroups():
+        cmd = buttons.GetGroup(key).GetString("Command", "")
+        if cmd:
+            out[key] = cmd
+    return out
+
+
 def _reserve_button(n):
     """Clear FreeCAD's binding for spaceball button `n` while SpaceUX uses it as
     the pie trigger, saving the original command so release (or a later session)
@@ -300,12 +313,20 @@ def _reserve_button(n):
     buttons = FreeCAD.ParamGet(_BUTTONS_PARAM)
     reserved = FreeCAD.ParamGet(_RESERVED_PARAM)
     if reserved.HasGroup(key):
+        # Already reserved — idempotent no-op (the host polls this; stay quiet).
         saved = reserved.GetGroup(key).GetString("OriginalCommand", "")
         return {"ok": True, "reserved": int(n), "previous": _binding(saved)}
     original = buttons.GetGroup(key).GetString("Command", "") if buttons.HasGroup(key) else ""
     reserved.GetGroup(key).SetString("OriginalCommand", original)
     if original:  # only touch FreeCAD's config when there was a binding to clear
         buttons.GetGroup(key).SetString("Command", "")
+    # Log only on the real first reserve (#191): FreeCAD's button numbering need
+    # not match SpaceUX's evdev index, so show what we cleared + the binding table
+    # so the Report view confirms we cleared the button that actually fires.
+    FreeCAD.Console.PrintMessage(
+        "SpaceUX: reserved spaceball button %s (was: %s); bindings now: %s\n"
+        % (key, original or "unbound", _dump_buttons())
+    )
     return {"ok": True, "reserved": int(n), "previous": _binding(original)}
 
 
