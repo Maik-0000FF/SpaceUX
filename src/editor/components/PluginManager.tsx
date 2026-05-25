@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 
 import type { PluginCategory, PluginsState } from '@/shared/ipc';
 
+import { confirm } from '../state/confirm';
+import { notify } from '../state/toasts';
+
 import styles from './PluginManager.module.scss';
 
 const EMPTY: PluginsState = { plugins: [], errors: [] };
@@ -21,11 +24,6 @@ const EMPTY: PluginsState = { plugins: [], errors: [] };
 export function PluginManager() {
   const [state, setState] = useState<PluginsState>(EMPTY);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  // The plugin awaiting an inline "Remove? Confirm/Cancel" confirmation, keyed
-  // by `${kind}/${id}`; null when nothing is pending.
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const refresh = (): void => {
     window.editor
@@ -40,33 +38,34 @@ export function PluginManager() {
 
   const doImport = (): void => {
     setBusy(true);
-    setError(null);
-    setNotice(null);
     window.editor
       .importPlugin()
       .then((r) => {
         if (r.ok === true) {
           setState(r.state);
-          setNotice(`Imported ${r.installed.name} (${r.installed.kind}).`);
-        } else if (r.ok === false) setError(r.reason);
+          notify('success', `Imported ${r.installed.name} (${r.installed.kind}).`);
+        } else if (r.ok === false) notify('error', r.reason);
         // r.ok === 'cancelled' → the picker was dismissed; nothing to do.
       })
       .finally(() => setBusy(false));
   };
 
-  const remove = (kind: PluginCategory, id: string, name: string): void => {
+  const remove = async (kind: PluginCategory, id: string, name: string): Promise<void> => {
+    const ok = await confirm({
+      title: 'Remove plugin?',
+      message: `Remove "${name}"? This deletes its installed files.`,
+      confirmLabel: 'Remove',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
-    setError(null);
-    setNotice(null);
-    setConfirmingId(null);
-    window.editor
-      .uninstallPlugin(kind, id)
-      .then((r) => {
-        setState(r.state);
-        if (r.ok) setNotice(`Removed ${name}.`);
-        else setError(r.reason);
-      })
-      .finally(() => setBusy(false));
+    try {
+      const r = await window.editor.uninstallPlugin(kind, id);
+      setState(r.state);
+      notify(r.ok ? 'success' : 'error', r.ok ? `Removed ${name}.` : r.reason);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -76,17 +75,6 @@ export function PluginManager() {
           Import plugin…
         </button>
       </div>
-      {error !== null && (
-        <p className={styles.error} role="alert">
-          {error}
-        </p>
-      )}
-      {notice !== null && (
-        <p className={styles.notice} role="status">
-          {notice}
-        </p>
-      )}
-
       {state.plugins.length === 0 ? (
         <p className={styles.empty}>No plugins installed yet.</p>
       ) : (
@@ -107,41 +95,21 @@ export function PluginManager() {
                   </span>
                 )}
               </div>
-              {!p.removable ? (
+              {p.removable ? (
+                <button
+                  type="button"
+                  className={styles.removeButton}
+                  onClick={() => void remove(p.kind, p.id, p.name)}
+                  disabled={busy}
+                >
+                  Remove
+                </button>
+              ) : (
                 <button
                   type="button"
                   className={styles.removeButton}
                   disabled
                   title="Bundled with the app (loaded from the project or a system folder) — not removable here."
-                >
-                  Remove
-                </button>
-              ) : confirmingId === `${p.kind}/${p.id}` ? (
-                <div className={styles.confirmRow}>
-                  <span className={styles.confirmText}>Remove?</span>
-                  <button
-                    type="button"
-                    className={styles.confirmButton}
-                    onClick={() => remove(p.kind, p.id, p.name)}
-                    disabled={busy}
-                  >
-                    Remove
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.cancelButton}
-                    onClick={() => setConfirmingId(null)}
-                    disabled={busy}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.removeButton}
-                  onClick={() => setConfirmingId(`${p.kind}/${p.id}`)}
-                  disabled={busy}
                 >
                   Remove
                 </button>

@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 
 import { CommandPalette } from './components/CommandPalette';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { DeviceStatus } from './components/DeviceStatus';
 import { FreecadSourceControls } from './components/FreecadSourceControls';
 import { MenuList } from './components/MenuList';
@@ -13,6 +14,7 @@ import { PieSliders } from './components/PieSliders';
 import { ProfileControls } from './components/ProfileControls';
 import { Properties } from './components/Properties';
 import { SettingsPage } from './components/SettingsPage';
+import { ToastStack } from './components/ToastStack';
 import { useDeviceInfo } from './hooks/useDeviceInfo';
 import { useExternalSync } from './hooks/useExternalSync';
 import { useReadOnlySource } from './hooks/useReadOnlySource';
@@ -199,6 +201,11 @@ export function App() {
       ) : (
         <SettingsPage theme={theme} changeTheme={changeTheme} />
       )}
+
+      {/* App-wide hosts (#223): one toast stack + one confirm dialog for the
+          whole editor, so components don't roll their own. */}
+      <ToastStack />
+      <ConfirmDialog />
     </div>
   );
 }

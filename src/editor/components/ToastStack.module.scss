@@ -1,0 +1,56 @@
+.stack {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--editor-border);
+  border-left-width: 3px;
+  border-radius: 7px;
+  background: var(--editor-panel-bg);
+  color: var(--editor-fg);
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.text {
+  flex: 1;
+  word-break: break-word;
+}
+
+.close {
+  flex: none;
+  padding: 0 2px;
+  border: none;
+  background: transparent;
+  color: var(--editor-fg-dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--editor-fg);
+  }
+}
+
+// Left-border accent per kind.
+.success {
+  border-left-color: rgb(120, 200, 130);
+}
+.info {
+  border-left-color: var(--editor-accent);
+}
+.error {
+  border-left-color: rgb(255, 120, 120);
+}
