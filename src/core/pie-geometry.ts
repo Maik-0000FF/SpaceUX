@@ -86,6 +86,11 @@ export const OUTER_RING_OUTER_RATIO = 1.5;
  *  outer radius (between the cancel hole and the rim). */
 export const INNER_LABEL_RATIO = 0.62;
 
+/** Active-plugin badge (#186) edge length, as a fraction of the outer-ring
+ *  outer radius. Sized off the pie geometry (so it scales with the pie size,
+ *  not the item icon-scale — it's part of the pie style). */
+export const PLUGIN_BADGE_RATIO = 0.18;
+
 const TAU = Math.PI * 2;
 
 /** Pie-segment labels are capped at this many characters (counted by code

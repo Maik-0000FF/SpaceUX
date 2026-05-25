@@ -11,6 +11,7 @@ import {
   INNER_LABEL_RATIO,
   OUTER_RING_INNER_RATIO,
   OUTER_RING_OUTER_RATIO,
+  PLUGIN_BADGE_RATIO,
   axesToSector,
   clampPieAnchor,
   sectorCenterAngle,
@@ -366,15 +367,16 @@ export function PieMenu({
             ))}
           </g>
         )}
-        {/* Active-plugin badge (#186): the app icon, centred in the bottom-left
-          corner outside the outer ring band. Decorative; rendered unaltered. */}
+        {/* Active-plugin badge (#186): the app icon in the bottom-left corner
+          outside the outer ring band. Sized off the pie geometry, so it scales
+          with the pie size (not the item icon-scale). Decorative. */}
         {badge && (
           <image
             href={badge}
             x={-outerRingOuterRadius * 0.95}
-            y={outerRingOuterRadius * 0.65}
-            width={outerRingOuterRadius * 0.3}
-            height={outerRingOuterRadius * 0.3}
+            y={outerRingOuterRadius * 0.95 - outerRingOuterRadius * PLUGIN_BADGE_RATIO}
+            width={outerRingOuterRadius * PLUGIN_BADGE_RATIO}
+            height={outerRingOuterRadius * PLUGIN_BADGE_RATIO}
             preserveAspectRatio="xMidYMid meet"
             style={{ pointerEvents: 'none' }}
             aria-hidden="true"

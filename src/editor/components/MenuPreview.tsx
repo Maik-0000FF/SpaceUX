@@ -11,6 +11,7 @@ import {
   INNER_LABEL_RATIO,
   OUTER_RING_INNER_RATIO,
   OUTER_RING_OUTER_RATIO,
+  PLUGIN_BADGE_RATIO,
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
@@ -435,16 +436,17 @@ export function MenuPreview() {
           </text>
         </g>
 
-        {/* Active-plugin badge (#186): the plugin's app icon, centred in the
-          bottom-left corner outside the outer ring band. Decorative. */}
+        {/* Active-plugin badge (#186): the plugin's app icon in the bottom-left
+          corner outside the outer ring band. Sized off the pie geometry, so it
+          scales with the pie size (not the item icon-scale). Decorative. */}
         {pluginBadge !== null && (
           <image
             className={styles.pluginBadge}
             href={pluginBadge}
             x={-VIEW * 0.95}
-            y={VIEW * 0.65}
-            width={VIEW * 0.3}
-            height={VIEW * 0.3}
+            y={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
+            width={VIEW * PLUGIN_BADGE_RATIO}
+            height={VIEW * PLUGIN_BADGE_RATIO}
             preserveAspectRatio="xMidYMid meet"
             aria-hidden="true"
           />
