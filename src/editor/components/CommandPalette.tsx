@@ -3,13 +3,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-import { isRenderableIcon } from '@/core/icon';
 import { isWorkbenchMenuId, parseWorkbenchMenuId } from '@/shared/plugin-types';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { useAppState } from '../state/app-state';
 import { useCatalog } from '../state/catalog';
+import { flattenCatalogCommands } from '../state/catalog-filter';
 import { useMenuSettings } from '../state/menu-settings';
 
 import styles from './CommandPalette.module.scss';
@@ -40,11 +40,20 @@ export function CommandPalette() {
   const catalogGroups = useCatalog((s) => s.groups);
   const ensureLoaded = useCatalog((s) => s.ensureLoaded);
   const loadAll = useCatalog((s) => s.loadAll);
+  const refresh = useCatalog((s) => s.refresh);
 
   // The resolved active source (same signal as useReadOnlySource) — single
   // source of truth for "what's active", robust to a dropped/re-resolved override.
   const activeSource = useDeviceInfo().profileId;
   const [query, setQuery] = useState('');
+  // "Currently usable" filter (#217): show only commands enabled in the live
+  // FreeCAD state. Turning it on re-fetches the catalog so the `enabled` flags
+  // reflect the current state (not the stale load-time snapshot).
+  const [enabledOnly, setEnabledOnly] = useState(false);
+  const toggleEnabledOnly = (on: boolean): void => {
+    setEnabledOnly(on);
+    if (on) void refresh();
+  };
 
   useEffect(() => {
     void ensureLoaded();
@@ -58,36 +67,12 @@ export function CommandPalette() {
     return parsed && parsed.pluginId === plugin.id ? parsed.workbenchKey : null;
   }, [plugin, activeSource]);
 
-  // Sanitise + filter the raw catalog: scope to the active workbench (if any),
-  // drop commands missing a command/label, keep only renderable icons, and
-  // match the search query on the label.
-  const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return catalogGroups
-      .filter((g) => scopeKey === null || g.key === scopeKey)
-      .map((g) => ({
-        key: g.key,
-        name: g.name,
-        // Flatten the toolbars into one searchable list per workbench (the
-        // toolbar grouping is for the seeded pie's tree, not the palette).
-        // Expand command groups (#208) into their members — the group node
-        // itself isn't runnable, its members are the addable commands.
-        commands: g.toolbars
-          .flatMap((t) => t.commands)
-          .flatMap((c) => (c.members && c.members.length ? c.members : [c]))
-          .filter(
-            (c) =>
-              typeof c.command === 'string' && c.command && typeof c.label === 'string' && c.label,
-          )
-          .filter((c) => q === '' || c.label.toLowerCase().includes(q))
-          .map((c) => ({
-            command: c.command,
-            label: c.label,
-            icon: c.icon && isRenderableIcon(c.icon) ? c.icon : undefined,
-          })),
-      }))
-      .filter((g) => g.commands.length > 0);
-  }, [catalogGroups, scopeKey, query]);
+  // Scope + flatten + filter the raw catalog into the renderable command list
+  // (pure logic in flattenCatalogCommands — see there for the rules).
+  const groups = useMemo(
+    () => flattenCatalogCommands(catalogGroups, { scopeKey, query, enabledOnly }),
+    [catalogGroups, scopeKey, query, enabledOnly],
+  );
 
   if (!plugin) return null; // no catalog-capable plugin loaded → no palette
 
@@ -100,6 +85,18 @@ export function CommandPalette() {
     <section className={styles.palette} aria-label={`${plugin.name} commands`}>
       <header className={styles.header}>
         <span className={styles.title}>{plugin.name} commands</span>
+        <label
+          className={styles.enabledToggle}
+          title="Show only commands currently usable in FreeCAD (refreshes from the live state)"
+        >
+          <input
+            type="checkbox"
+            checked={enabledOnly}
+            disabled={status === 'loading'}
+            onChange={(e) => toggleEnabledOnly(e.target.checked)}
+          />
+          Usable now
+        </label>
         <button
           type="button"
           className={styles.loadAll}

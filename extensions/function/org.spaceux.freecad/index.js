@@ -133,6 +133,7 @@ function itemToNode(c) {
 function catalogCmd(c) {
   const out = { command: c.name, label: c.label || c.name };
   if (c.icon) out.icon = c.icon;
+  if (typeof c.enabled === 'boolean') out.enabled = c.enabled;
   if (Array.isArray(c.members) && c.members.length) out.members = c.members.map(catalogCmd);
   return out;
 }
