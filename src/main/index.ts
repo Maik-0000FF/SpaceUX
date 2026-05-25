@@ -75,6 +75,7 @@ import {
   isPluginMenuId,
   isWorkbenchMenuId,
   makeWorkbenchMenuId,
+  parseWorkbenchMenuId,
   type PluginCatalog,
   type PluginManifest,
 } from '../shared/plugin-types.js';
@@ -408,6 +409,11 @@ async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
   // Apply the profile's bundled appearance (or restore the global one when
   // it has none / on fallback). Independent of the menu-changed gate above.
   applyActiveAppearance(next.appearance);
+  // Reserve / release the pie-trigger button for a FreeCAD-style plugin source
+  // (#191). Run on every resolution (not just `changed`): the effective trigger
+  // button can move while the same source stays active. Best-effort, awaited so
+  // a switch fully settles its reservation before the next one.
+  await syncTriggerReservation(next.config.triggerButton ?? DEFAULT_TRIGGER_BUTTON);
 }
 
 /** Push the curated-workbench-pie list to the editor (#193) after one is added
@@ -721,6 +727,82 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
       },
     );
   });
+}
+
+// #191 — the plugin that currently holds a trigger-button reservation, and the
+// button it reserved. A FreeCAD-style plugin shares the SpaceMouse with its own
+// app; while its menu is the active source we ask it to suppress its app's
+// binding for the pie-trigger button so a press doesn't both open the pie and
+// fire a command in that app. Tracked so the next source switch can release it.
+let reservedTriggerPluginId: string | null = null;
+let reservedTriggerButton: number | null = null;
+
+/** The plugin id behind an active-source id, for both source kinds that can be
+ *  plugin-backed: `plugin:<id>` (dynamic) and `wb:<id>:<workbench>` (curated).
+ *  Null for device profiles / fallback / a malformed id. */
+function pluginIdForSource(id: string | null): string | null {
+  if (id === null) return null;
+  if (isPluginMenuId(id)) return id.slice(PLUGIN_MENU_ID_PREFIX.length);
+  return parseWorkbenchMenuId(id)?.pluginId ?? null;
+}
+
+/** Invoke a plugin's optional trigger reserver (#191). Best-effort: a missing
+ *  reserver, a throw, or a timeout is logged and swallowed — failing to reserve
+ *  must never block a source switch. */
+async function callReserveTrigger(
+  plugin: LoadedPlugin,
+  button: number,
+  reserve: boolean,
+): Promise<void> {
+  if (!plugin.reserveTrigger) return;
+  try {
+    const ctx = makeActionContext(plugin.manifest.id, daemon);
+    await withTimeout(
+      Promise.resolve(plugin.reserveTrigger(ctx, { button, reserve })),
+      DYNAMIC_MENU_TIMEOUT_MS,
+      `reserveTrigger timed out after ${DYNAMIC_MENU_TIMEOUT_MS}ms`,
+    );
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[plugin ${plugin.manifest.id}] trigger ${reserve ? 'reserve' : 'release'} failed: ${describeError(err)}`,
+    );
+  }
+}
+
+/**
+ * Keep the trigger-button reservation in sync with the active source (#191).
+ * Called from applyActiveProfile after the source has changed: if the new
+ * source is backed by a plugin that can reserve the trigger button, ask it to
+ * (and release any previous reservation first); otherwise release whatever was
+ * held. Also re-reserves when the trigger button itself changed under the same
+ * plugin. `button` is the active config's effective trigger button.
+ */
+async function syncTriggerReservation(button: number): Promise<void> {
+  const pid = pluginIdForSource(activeProfileId);
+  const next = pid ? (loadedPlugins.find((p) => p.manifest.id === pid) ?? null) : null;
+  const nextPluginId = next?.reserveTrigger ? next.manifest.id : null;
+
+  // Release the previous reservation when the reserving plugin or the button
+  // changed (a no-op when nothing was held).
+  if (
+    reservedTriggerPluginId !== null &&
+    (reservedTriggerPluginId !== nextPluginId || reservedTriggerButton !== button)
+  ) {
+    const prev = loadedPlugins.find((p) => p.manifest.id === reservedTriggerPluginId);
+    if (prev && reservedTriggerButton !== null) {
+      await callReserveTrigger(prev, reservedTriggerButton, false);
+    }
+    reservedTriggerPluginId = null;
+    reservedTriggerButton = null;
+  }
+
+  // Reserve for the new source if it can and we aren't already holding it.
+  if (next && nextPluginId !== null && reservedTriggerPluginId === null) {
+    await callReserveTrigger(next, button, true);
+    reservedTriggerPluginId = nextPluginId;
+    reservedTriggerButton = button;
+  }
 }
 
 /**

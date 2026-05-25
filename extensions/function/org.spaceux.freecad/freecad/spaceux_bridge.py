@@ -23,12 +23,23 @@ Protocol — newline-delimited JSON, one request → one response:
                                   "workbenches":[{"key","name",
                                     "commands":[{"name","label","icon"}]}]}
   {"op":"run","name":"<cmd>"} -> {"ok":true} | {"ok":false,"error":"<msg>"}
+  {"op":"reserve-button","button":<n>}
+                              -> {"ok":true,"reserved":<n>,"previous":<...>}
+  {"op":"release-button","button":<n>}
+                              -> {"ok":true,"released":<n>,"previous":<...>}
 
 `icon` is a `data:image/png;base64,...` string (or "" when none). Global
 `Std_*` commands and `Separator` entries are filtered out so the pie shows the
 workbench's own tools.
+
+`reserve-button` / `release-button` (#191) clear / restore FreeCAD's own
+Spaceball binding for a button while SpaceUX owns it as the pie trigger — see
+_reserve_button. The original command is parked in FreeCAD's parameter store, so
+the reservation is idempotent and survives a bridge/FreeCAD restart; an atexit
+hook hands every still-held button back when FreeCAD closes.
 """
 
+import atexit
 import base64
 import json
 import os
@@ -269,6 +280,71 @@ def _run(name):
     return {"ok": True}
 
 
+# FreeCAD stores Spaceball button → command bindings here, one subgroup per
+# button index ("0", "1", ...) with a "Command" string. SpaceUX parks the
+# original it cleared in its own group so a reservation is recoverable even if
+# release never arrives (SpaceUX crash) — the saved command lives in FreeCAD's
+# config, not just bridge memory.
+_BUTTONS_PARAM = "User parameter:BaseApp/Spaceball/Buttons"
+_RESERVED_PARAM = "User parameter:BaseApp/Spaceux/ReservedButtons"
+
+
+def _reserve_button(n):
+    """Clear FreeCAD's binding for spaceball button `n` while SpaceUX uses it as
+    the pie trigger, saving the original command so release (or a later session)
+    restores it. Idempotent: re-reserving an already-reserved button preserves
+    the saved original instead of overwriting it with our cleared value. A button
+    FreeCAD never had a command on is recorded as reserved but its (absent) group
+    is left untouched."""
+    key = str(int(n))
+    buttons = FreeCAD.ParamGet(_BUTTONS_PARAM)
+    reserved = FreeCAD.ParamGet(_RESERVED_PARAM)
+    if reserved.HasGroup(key):
+        saved = reserved.GetGroup(key).GetString("OriginalCommand", "")
+        return {"ok": True, "reserved": int(n), "previous": _binding(saved)}
+    original = buttons.GetGroup(key).GetString("Command", "") if buttons.HasGroup(key) else ""
+    reserved.GetGroup(key).SetString("OriginalCommand", original)
+    if original:  # only touch FreeCAD's config when there was a binding to clear
+        buttons.GetGroup(key).SetString("Command", "")
+    return {"ok": True, "reserved": int(n), "previous": _binding(original)}
+
+
+def _release_button(n):
+    """Restore FreeCAD's original binding for button `n` (if SpaceUX reserved it)
+    and drop the saved record. A no-op when nothing was reserved."""
+    key = str(int(n))
+    reserved = FreeCAD.ParamGet(_RESERVED_PARAM)
+    if not reserved.HasGroup(key):
+        return {"ok": True, "released": int(n), "previous": None}
+    original = reserved.GetGroup(key).GetString("OriginalCommand", "")
+    if original:
+        FreeCAD.ParamGet(_BUTTONS_PARAM).GetGroup(key).SetString("Command", original)
+    reserved.RemGroup(key)
+    return {"ok": True, "released": int(n), "previous": _binding(original)}
+
+
+def _binding(command):
+    """A reserved button's prior binding for the JSON reply (None = was unbound),
+    for SpaceUX-side logging only."""
+    return {"command": command} if command else None
+
+
+def _restore_all_reservations():
+    """Hand every still-held button back to FreeCAD. Registered with atexit so
+    closing FreeCAD restores the user's Spaceball config even when SpaceUX never
+    sent release (still running, or crashed). Best-effort — runs on interpreter
+    shutdown, after the Qt loop is likely gone, so no marshalling and no raising."""
+    try:
+        reserved = FreeCAD.ParamGet(_RESERVED_PARAM)
+        for key in list(reserved.GetGroups()):
+            original = reserved.GetGroup(key).GetString("OriginalCommand", "")
+            if original:
+                FreeCAD.ParamGet(_BUTTONS_PARAM).GetGroup(key).SetString("Command", original)
+            reserved.RemGroup(key)
+    except Exception:  # noqa: BLE001 — never raise out of an atexit hook
+        pass
+
+
 def _dispatch(req):
     op = req.get("op")
     if op == "ping":
@@ -283,6 +359,12 @@ def _dispatch(req):
         if not isinstance(name, str) or not name:
             return {"ok": False, "error": "run requires a non-empty string 'name'"}
         return _invoker.call(lambda: _run(name))
+    if op in ("reserve-button", "release-button"):
+        n = req.get("button")
+        if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+            return {"ok": False, "error": "%s requires a non-negative integer 'button'" % op}
+        fn = _reserve_button if op == "reserve-button" else _release_button
+        return _invoker.call(lambda: fn(n))
     return {"ok": False, "error": "unknown op: %r" % (op,)}
 
 
@@ -336,5 +418,8 @@ def start():
     sock.listen(8)
     _server_sock = sock
     _invoker = _GuiInvoker()  # created here, on the GUI main thread
+    # Restore any button SpaceUX reserved if FreeCAD closes while it still holds
+    # one (#191) — so a FreeCAD-only session keeps the user's own binding.
+    atexit.register(_restore_all_reservations)
     threading.Thread(target=_serve, args=(sock,), daemon=True).start()
     FreeCAD.Console.PrintMessage("SpaceUX bridge listening on %s\n" % path)

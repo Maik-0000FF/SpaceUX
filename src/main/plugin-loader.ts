@@ -21,6 +21,7 @@ import {
   type PluginManifest,
   type PluginMenuProvider,
   type PluginModule,
+  type PluginTriggerReserver,
 } from '../shared/plugin-types.js';
 import { dedupPreserveOrder } from '../shared/util.js';
 
@@ -67,6 +68,11 @@ export type LoadedPlugin = {
    *  it at pie open to learn the live context key (FreeCAD's active workbench)
    *  and prefer a curated per-context pie. Undefined for plugins without one. */
   provideContext?: PluginContextProvider;
+  /** Trigger-button reserver exported by index.js (#191), if any — the host
+   *  calls it when the plugin becomes / stops being the active source so the
+   *  plugin's app (FreeCAD) doesn't also act on the pie-trigger button.
+   *  Undefined for plugins that don't share the puck. */
+  reserveTrigger?: PluginTriggerReserver;
 };
 
 export type LoadResult = {
@@ -229,8 +235,9 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   const provideMenu = typeof mod.provideMenu === 'function' ? mod.provideMenu : undefined;
   const provideCatalog = typeof mod.provideCatalog === 'function' ? mod.provideCatalog : undefined;
   const provideContext = typeof mod.provideContext === 'function' ? mod.provideContext : undefined;
+  const reserveTrigger = typeof mod.reserveTrigger === 'function' ? mod.reserveTrigger : undefined;
 
-  return { manifest, dir, handlers, provideMenu, provideCatalog, provideContext };
+  return { manifest, dir, handlers, provideMenu, provideCatalog, provideContext, reserveTrigger };
 }
 
 /**
