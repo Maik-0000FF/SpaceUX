@@ -113,44 +113,6 @@
   }
 }
 
-.confirmRow {
-  grid-area: remove;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.confirmText {
-  font-size: 11px;
-  color: var(--editor-fg-dim);
-  white-space: nowrap;
-}
-
-.confirmButton,
-.cancelButton {
-  padding: 4px 10px;
-  border: 1px solid var(--editor-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--editor-fg);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: var(--editor-hover);
-  }
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-}
-
-// Destructive accent on the confirming Remove.
-.confirmButton {
-  border-color: rgba(255, 120, 120, 0.5);
-}
-
 .errorsSection {
   border-top: 1px solid var(--editor-border);
   padding-top: 8px;
@@ -176,10 +138,4 @@
 .error {
   font-size: 11px;
   color: rgba(255, 120, 120, 0.95);
-}
-
-.notice {
-  margin: 0;
-  font-size: 11px;
-  color: var(--editor-fg-dim);
 }

@@ -1,0 +1,58 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--editor-fg);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.cancel,
+.confirm,
+.confirmDestructive {
+  padding: 5px 14px;
+  border: 1px solid var(--editor-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--editor-hover);
+  }
+}
+
+.confirm {
+  border-color: var(--editor-accent);
+}
+
+.confirmDestructive {
+  border-color: rgba(255, 120, 120, 0.6);
+  color: rgb(255, 150, 150);
+
+  &:hover {
+    background: rgba(255, 120, 120, 0.12);
+  }
+}
