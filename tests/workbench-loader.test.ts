@@ -218,9 +218,8 @@ describe('seedWorkbenchConfig', () => {
         ],
       },
     ]);
-    // The base's trigger / navigation / scale carry over for consistency.
+    // The base's trigger / navigation carry over for consistency.
     expect(seeded.triggerButton).toBe(DEFAULT_MENU_CONFIG.triggerButton);
-    expect(seeded.scale).toBe(DEFAULT_MENU_CONFIG.scale);
   });
 
   it('drops name/label-less commands, and a toolbar left empty by that', () => {

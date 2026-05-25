@@ -69,12 +69,13 @@ describe('app-settings', () => {
   });
 
   describe('loadPieAppearance', () => {
-    it('fills defaults (dark / 0.6 / label 1 / icon 0.5) when nothing is persisted', async () => {
+    it('fills defaults (dark / 0.6 / label 1 / icon 0.5 / scale 1) when nothing is persisted', async () => {
       expect(await loadPieAppearance()).toEqual({
         theme: 'dark',
         opacity: 0.6,
         labelScale: 1,
         iconScale: 0.5,
+        scale: 1,
       });
     });
 
@@ -84,12 +85,14 @@ describe('app-settings', () => {
         pieOpacity: 0.45,
         pieLabelScale: 0.6,
         pieIconScale: 0.8,
+        pieScale: 1.5,
       });
       expect(await loadPieAppearance()).toEqual({
         theme: 'light',
         opacity: 0.45,
         labelScale: 0.6,
         iconScale: 0.8,
+        scale: 1.5,
       });
     });
 
@@ -100,7 +103,15 @@ describe('app-settings', () => {
         opacity: 0.6,
         labelScale: 1,
         iconScale: 0.5,
+        scale: 1,
       });
+    });
+
+    it('clamps a persisted pieScale into [0.5, 2]', async () => {
+      await saveAppSettings({ pieScale: 99 });
+      expect((await loadPieAppearance()).scale).toBe(2);
+      await saveAppSettings({ pieScale: 0.1 });
+      expect((await loadPieAppearance()).scale).toBe(0.5);
     });
   });
 });

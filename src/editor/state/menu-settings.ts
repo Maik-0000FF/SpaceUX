@@ -10,8 +10,6 @@ import { immer } from 'zustand/middleware/immer';
 import type { ConfigChangeCause, MenuConfigSnapshot } from '@/shared/ipc';
 import {
   MAX_MENU_DEPTH,
-  MAX_PIE_SCALE,
-  MIN_PIE_SCALE,
   type MenuConfig,
   type MenuNavigation,
   type MenuNode,
@@ -101,8 +99,6 @@ type MenuSettingsState = {
   setTriggerButton: (button: number) => void;
   /** Set what the trigger button does once the pie is open (toggle/open). */
   setTriggerMode: (mode: TriggerMode) => void;
-  /** Set the pie size multiplier (clamped to [MIN_PIE_SCALE, MAX_PIE_SCALE]). */
-  setScale: (scale: number) => void;
   /** Set the root (centre) label; an empty/blank value clears it (the
    *  renderer falls back to ✕). */
   setRootLabel: (label: string) => void;
@@ -324,13 +320,6 @@ export const useMenuSettings = create<MenuSettingsState>()(
         set((state) => {
           if (state.readOnly || !state.config) return;
           state.config.triggerMode = mode;
-          state.origin = 'local';
-          state.dirty = true;
-        }),
-      setScale: (scale) =>
-        set((state) => {
-          if (state.readOnly || !state.config) return;
-          state.config.scale = Math.min(MAX_PIE_SCALE, Math.max(MIN_PIE_SCALE, scale));
           state.origin = 'local';
           state.dirty = true;
         }),

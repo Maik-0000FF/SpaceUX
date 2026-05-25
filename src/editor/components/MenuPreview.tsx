@@ -149,7 +149,7 @@ export function MenuPreview() {
   // render, not reactive — dragging the editor to a different-DPR monitor
   // updates on the next render. The viewBox stays VIEW·2; only the rendered
   // px size scales.
-  const displaySize = (VIEW * 2 * (config.scale ?? 1)) / (window.devicePixelRatio || 1);
+  const displaySize = (VIEW * 2 * appearance.scale) / (window.devicePixelRatio || 1);
 
   // Active ring = the current menu: inner band at top level, outer band when
   // drilled in. Rotated (when drilled) so its sector 0 lines up with the

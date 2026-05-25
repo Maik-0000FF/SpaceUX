@@ -219,30 +219,17 @@ describe('validateMenuConfig', () => {
     if (none.ok) expect(none.config.triggerMode).toBeUndefined();
   });
 
-  it('accepts and clamps the pie size scale; rejects a non-number', () => {
-    const at = (scale: unknown) =>
-      validateMenuConfig({
-        version: MENU_CONFIG_VERSION,
-        scale,
-        root: { label: '', branches: [{ label: 'x' }] },
-      });
-    // In range: kept as-is.
-    const ok = at(1.5);
-    expect(ok.ok).toBe(true);
-    if (ok.ok) expect(ok.config.scale).toBe(1.5);
-    // Out of range: clamped to [MIN_PIE_SCALE, MAX_PIE_SCALE] (0.5..2).
-    const lo = at(0.1);
-    if (lo.ok) expect(lo.config.scale).toBe(0.5);
-    const hi = at(99);
-    if (hi.ok) expect(hi.config.scale).toBe(2);
-    // Wrong type: rejected.
-    expect(at('big').ok).toBe(false);
-    // Absent: undefined (falls back to 1 at render).
-    const none = validateMenuConfig({
+  it('ignores a legacy "scale" field (moved to PieAppearance) without rejecting', () => {
+    // #186 follow-up: pie size moved to the global appearance. An old menu.json
+    // with `scale` must still load (tolerated legacy field) — the value is just
+    // dropped, not validated, and never surfaces on the config.
+    const r = validateMenuConfig({
       version: MENU_CONFIG_VERSION,
+      scale: 1.5,
       root: { label: '', branches: [{ label: 'x' }] },
     });
-    if (none.ok) expect(none.config.scale).toBeUndefined();
+    expect(r.ok).toBe(true);
+    if (r.ok) expect('scale' in r.config).toBe(false);
   });
 
   it('rejects negative, fractional, or non-number triggerButton', () => {

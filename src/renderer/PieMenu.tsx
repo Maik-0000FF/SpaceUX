@@ -66,6 +66,9 @@ export type PieMenuProps = {
    *  From the pie appearance; the icon is a JS-computed SVG dimension, so it
    *  can't ride a CSS var like the label scale. */
   iconScale?: number;
+  /** Overall pie size multiplier from the pie appearance (was the per-menu
+   *  `config.scale`, #186 follow-up). Scales the rendered px size; 1 = default. */
+  scale?: number;
   /** Active-plugin badge (#186): the app icon (data URI) of the plugin whose
    *  pie is active, shown decoratively in the bottom-left corner, or null. */
   badge?: string | null;
@@ -91,6 +94,7 @@ export function PieMenu({
   geometryOverrides,
   radius = 240,
   iconScale = 1,
+  scale = 1,
   badge = null,
 }: PieMenuProps) {
   // Resolve ring roles from the navigation stack. At top level the
@@ -176,7 +180,7 @@ export function PieMenu({
   // render, not reactive — fine here since the overlay is recreated per
   // invocation. The viewBox stays `viewportSize`; only the rendered px size
   // and the clamp margin scale by this factor.
-  const sizeFactor = (config.scale ?? 1) / (window.devicePixelRatio || 1);
+  const sizeFactor = scale / (window.devicePixelRatio || 1);
   const displaySize = viewportSize * sizeFactor;
   const clampRadius = outerRingOuterRadius * sizeFactor;
 
