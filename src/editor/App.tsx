@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 
+import { ActiveWorkbenchHeader } from './components/ActiveWorkbenchHeader';
 import { CommandPalette } from './components/CommandPalette';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { DeviceStatus } from './components/DeviceStatus';
@@ -184,6 +185,7 @@ export function App() {
         <div className={styles.shell}>
           <div className={styles.leftColumn}>
             <FreecadSourceControls />
+            <ActiveWorkbenchHeader />
             <MenuList />
             <CommandPalette />
           </div>
