@@ -27,6 +27,7 @@ import type {
   MenuWriteResult,
   PickIconResult,
   PieAppearance,
+  PieBadges,
   PluginCatalogResult,
   PluginCategory,
   PluginImportResult,
@@ -59,9 +60,10 @@ export type SpaceUxBridge = {
   onMenuConfig(handler: (config: MenuConfig) => void): () => void;
   /** Pie menu opened at the given anchor (renderer-window coords). */
   onMenuOpen(handler: (payload: MenuOpenPayload) => void): () => void;
-  /** Active-plugin badge (#186): the app icon (data URI) of the plugin whose
-   *  pie is active, or null. Pushed just before onMenuOpen. */
-  onPieBadge(handler: (badge: string | null) => void): () => void;
+  /** Pie corner indicators (#186 / #229): the active plugin's app icon and the
+   *  active workbench's icon, each a data URI or null. Pushed just before
+   *  onMenuOpen. */
+  onPieBadge(handler: (badges: PieBadges) => void): () => void;
   /** Pie menu commit / dismiss request from main (no payload). */
   onMenuCommit(handler: () => void): () => void;
   invokeAction(key: string, config: Record<string, unknown>): Promise<void>;

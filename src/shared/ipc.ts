@@ -343,6 +343,11 @@ export type ThemeChoice = 'system' | 'light' | 'dark' | 'spaceux';
  *  src/core/pie-theme.css. Persisted in app-settings.json. */
 export type PieThemeChoice = 'dark' | 'light' | 'spaceux';
 
+/** The pie's corner indicators (#186 / #229), pushed over PIE_BADGE: the active
+ *  plugin's app icon (bottom-left) and the active workbench's icon (bottom-right),
+ *  each a data URI or null when there's none. */
+export type PieBadges = { plugin: string | null; workbench: string | null };
+
 /** The pie's appearance — its own app setting, independent of the editor
  *  UI theme. `opacity` is an overall translucency multiplier (1 = the
  *  palette's baked-in look). Blur will join here later without new

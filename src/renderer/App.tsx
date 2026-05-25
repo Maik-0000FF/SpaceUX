@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { currentBranches, type DrillState } from '@/core/menu-nav';
 import { type ActionRef, type MenuConfig, type MenuNode } from '@/shared/menu';
+import { type PieBadges } from '@/shared/ipc';
 
 import { PieMenu } from './PieMenu';
 import { useDrillNavigation } from './hooks/useDrillNavigation';
@@ -47,9 +48,10 @@ export function App() {
   const pieAppearance = usePieAppearance();
   const [menuConfig, setMenuConfig] = useState<MenuConfig | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
-  // Active-plugin badge (#186): the app icon of the plugin whose pie is active,
-  // pushed by main just before MENU_OPEN. Shown in the pie's bottom-left corner.
-  const [pieBadge, setPieBadge] = useState<string | null>(null);
+  // Pie corner indicators (#186 / #229): the active plugin's app icon (bottom-
+  // left) + the active workbench's icon (bottom-right), pushed by main just
+  // before MENU_OPEN.
+  const [pieBadges, setPieBadges] = useState<PieBadges>({ plugin: null, workbench: null });
 
   // configRef lets the IPC commit listener and the puck-gesture
   // callbacks read the latest config without re-subscribing on every
@@ -135,7 +137,7 @@ export function App() {
     const offConfig = window.spaceux.onMenuConfig((config) => {
       setMenuConfig(config);
     });
-    const offBadge = window.spaceux.onPieBadge((badge) => setPieBadge(badge));
+    const offBadge = window.spaceux.onPieBadge((badges) => setPieBadges(badges));
     const offOpen = window.spaceux.onMenuOpen(({ x, y }) => {
       // Every menu open starts with a clean slate so a previous
       // session's leftover (selection AND drilled-in depth) doesn't
@@ -213,7 +215,8 @@ export function App() {
           activeSector={drillState.stickyChildIndex}
           iconScale={pieAppearance.iconScale}
           scale={pieAppearance.scale}
-          badge={pieBadge}
+          badge={pieBadges.plugin}
+          workbenchBadge={pieBadges.workbench}
         />
       )}
       <DaemonStatusIndicator status={daemonStatus} />

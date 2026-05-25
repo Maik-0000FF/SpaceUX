@@ -299,11 +299,13 @@ export type PluginCatalogProvider = (
   opts: { loadAll: boolean },
 ) => PluginCatalog | Promise<PluginCatalog>;
 
-/** What a plugin reports about its live context (#193 PR3 / #186): a stable
- *  `key` (for FreeCAD, the active workbench's class name — the same key the
- *  catalog groups and curated `wb:` pies use) plus an optional `badge` (the
- *  app's own icon as a data URI, for the active-plugin indicator). */
-export type PluginContext = { key: string; badge?: string };
+/** What a plugin reports about its live context (#193 PR3 / #186 / #229): a
+ *  stable `key` (for FreeCAD, the active workbench's class name — the same key
+ *  the catalog groups and curated `wb:` pies use), an optional `badge` (the
+ *  app's own icon as a data URI, for the active-plugin indicator), and an
+ *  optional `icon` (the active *context's* own icon — FreeCAD's active workbench
+ *  icon — for the active-workbench indicator). */
+export type PluginContext = { key: string; badge?: string; icon?: string };
 
 /** Optional context provider (#193 PR3 / #186). Returns the plugin's current
  *  {@link PluginContext}, or null when there's none. The host calls it at
