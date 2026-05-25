@@ -90,8 +90,12 @@
 }
 
 .optionActive {
-  background: var(--editor-hover);
   font-weight: 600;
+}
+
+// Keyboard-highlighted row (distinct from the selected one above).
+.optionFocused {
+  background: var(--editor-hover);
 }
 
 .curatedDot {

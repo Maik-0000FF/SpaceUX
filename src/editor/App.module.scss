@@ -74,7 +74,9 @@
 
 .shell {
   display: grid;
-  grid-template-columns: 240px 1fr 300px;
+  // Left column widened (#229): the FreeCAD source panel (mode switch +
+  // workbench header + icon dropdown + actions) had gotten cramped at 240px.
+  grid-template-columns: 280px 1fr 300px;
   flex: 1;
   min-height: 0;
 }
