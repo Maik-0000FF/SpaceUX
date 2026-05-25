@@ -102,16 +102,39 @@ export async function provideMenu(ctx) {
   const branches = (Array.isArray(resp.toolbars) ? resp.toolbars : [])
     .map((tb) => ({
       label: typeof tb.name === 'string' ? tb.name : 'Tools',
-      branches: (Array.isArray(tb.commands) ? tb.commands : []).map((c) => ({
-        label: c.label || c.name,
-        ...(c.icon ? { icon: c.icon } : {}),
-        action: { id: `${PLUGIN_ID}/run`, config: { command: c.name } },
-      })),
+      branches: (Array.isArray(tb.commands) ? tb.commands : []).map(itemToNode),
     }))
     .filter((b) => b.branches.length > 0);
   ctx.log(`workbench ${resp.workbench || '?'}: ${branches.length} toolbar(s)`);
   // Empty centre label — the workbench-name indicator lands separately (#186).
   return { label: '', branches };
+}
+
+/** A catalog/context command → a pie node. A command group (#208, `members`
+ *  present) becomes a submenu (third level) over its member leaves; a plain
+ *  command becomes a run leaf. */
+function itemToNode(c) {
+  if (Array.isArray(c.members) && c.members.length) {
+    return {
+      label: c.label || c.name || 'Group',
+      ...(c.icon ? { icon: c.icon } : {}),
+      branches: c.members.map(itemToNode),
+    };
+  }
+  return {
+    label: c.label || c.name,
+    ...(c.icon ? { icon: c.icon } : {}),
+    action: { id: `${PLUGIN_ID}/run`, config: { command: c.name } },
+  };
+}
+
+/** A bridge command entry → a PluginCatalogCommand (the editor's `command` is
+ *  the bridge `name`). Carries `members` for a command group (#208). */
+function catalogCmd(c) {
+  const out = { command: c.name, label: c.label || c.name };
+  if (c.icon) out.icon = c.icon;
+  if (Array.isArray(c.members) && c.members.length) out.members = c.members.map(catalogCmd);
+  return out;
 }
 
 /**
@@ -162,11 +185,7 @@ export async function provideCatalog(ctx, opts) {
     // toolbar (mirrors the dynamic pie); the palette flattens these for search.
     toolbars: (Array.isArray(wb.toolbars) ? wb.toolbars : []).map((tb) => ({
       name: typeof tb.name === 'string' ? tb.name : 'Tools',
-      commands: (Array.isArray(tb.commands) ? tb.commands : []).map((c) => ({
-        command: c.name,
-        label: c.label || c.name,
-        ...(c.icon ? { icon: c.icon } : {}),
-      })),
+      commands: (Array.isArray(tb.commands) ? tb.commands : []).map(catalogCmd),
     })),
   }));
   ctx.log(`catalog: ${groups.length} group(s), loadedAll=${resp.loadedAll === true}`);

@@ -17,11 +17,11 @@ Protocol — newline-delimited JSON, one request → one response:
   {"op":"ping"}               -> {"ok":true,"version":1}
   {"op":"context"}            -> {"ok":true,"workbench":"<id>",
                                   "toolbars":[{"name":"<tb>",
-                                    "commands":[{"name","label","icon"}]}]}
+                                    "commands":[{"name","label","icon"[,"members"]}]}]}
   {"op":"catalog","loadAll":<bool>}
                               -> {"ok":true,"loadedAll":<bool>,
                                   "workbenches":[{"key","name",
-                                    "commands":[{"name","label","icon"}]}]}
+                                    "commands":[{"name","label","icon"[,"members"]}]}]}
   {"op":"run","name":"<cmd>"} -> {"ok":true} | {"ok":false,"error":"<msg>"}
   {"op":"reserve-button","button":<n>}
                               -> {"ok":true,"reserved":<n>,"previous":<...>}
@@ -31,6 +31,12 @@ Protocol — newline-delimited JSON, one request → one response:
 `icon` is a `data:image/png;base64,...` string (or "" when none). Global
 `Std_*` commands and `Separator` entries are filtered out so the pie shows the
 workbench's own tools.
+
+`members` (#208) is present when a toolbar item is a command group (a dropdown
+button bundling sub-commands, e.g. Part primitives): it carries the member
+`{name,label,icon}` entries, a third level for the pie. Members without an
+objectName (selection-filter toggles) are skipped; they run via QAction trigger
+since they aren't registered Gui.Commands (see _run).
 
 `reserve-button` / `release-button` (#191) clear / restore FreeCAD's own
 Spaceball binding for a button while SpaceUX owns it as the pie trigger — see
@@ -58,6 +64,9 @@ try:
 except ImportError:  # PySide6 build without the QtWidgets re-export
     QtWidgets = None
 QAction = getattr(QtGui, "QAction", None) or getattr(QtWidgets, "QAction", None)
+# QToolButton lives in QtWidgets on both PySide2/6; the toolbar dropdown that
+# holds a command group's members hangs off it (#208).
+QToolButton = getattr(QtWidgets, "QToolButton", None) or getattr(QtGui, "QToolButton", None)
 
 PROTOCOL_VERSION = 1
 
@@ -169,9 +178,54 @@ def _command_entry(name, actions):
     return {"name": name, "label": label, "icon": _icon_data_uri(name, actions)}
 
 
-def _commands_from_items(items, actions):
+def _toolbutton_menus():
+    """Map a toolbar command's objectName -> its dropdown QMenu, for command
+    groups (#208). FreeCAD bundles a group's sub-commands behind a QToolButton
+    with a dropdown menu; getToolbarItems() returns only the group as one name,
+    and the members hang off the *button's* menu (not the QAction's). Keyed by
+    the button's defaultAction objectName, which equals the toolbar item name."""
+    out = {}
+    mw = Gui.getMainWindow()
+    if mw is None or QToolButton is None:
+        return out
+    for btn in mw.findChildren(QToolButton):
+        action = btn.defaultAction()
+        menu = btn.menu()
+        if action is not None and menu is not None:
+            name = action.objectName()
+            if name and name not in out:
+                out[name] = menu
+    return out
+
+
+def _group_members(menu, actions):
+    """Member entries of a command group's dropdown menu (#208). Each member is
+    a child QAction; its objectName is the run target. Members without an
+    objectName (e.g. the selection-filter toggles) can't be addressed by name,
+    so they're skipped — as are separators and the global Std_* set. Label/icon
+    come straight from the child QAction: group members like the PartDesign
+    primitives aren't registered Gui.Commands, so _command_entry would drop
+    them; the run side triggers their QAction by name instead."""
+    members = []
+    seen = set()
+    for child in menu.actions():
+        if child.isSeparator():
+            continue
+        name = child.objectName()
+        if not name or name.startswith("Std_") or name in seen:
+            continue
+        seen.add(name)
+        label = (child.text() or name).replace("&", "")
+        members.append({"name": name, "label": label, "icon": _icon_data_uri(name, actions)})
+    return members
+
+
+def _commands_from_items(items, actions, groups):
     """Flatten a workbench's getToolbarItems() into command entries, dropping
-    separators, the global Std_* set, duplicates, and not-yet-registered ones."""
+    separators, the global Std_* set, and duplicates. A toolbar item that is a
+    command group (#208) becomes a nested entry `{name,label,icon,members}` — a
+    third pie level; its members come from the dropdown menu in `groups`. A
+    plain command yields `{name,label,icon}` (dropped if not yet registered)."""
     commands = []
     seen = set()
     for names in items.values():
@@ -179,6 +233,22 @@ def _commands_from_items(items, actions):
             if name == "Separator" or name.startswith("Std_") or name in seen:
                 continue
             seen.add(name)
+            menu = groups.get(name)
+            members = _group_members(menu, actions) if menu is not None else []
+            if members:
+                # Group node: label/icon from the group command's own QAction
+                # (the group command itself may not be a registered Gui.Command).
+                action = actions.get(name)
+                label = (action.text().replace("&", "") if action is not None and action.text() else name)
+                commands.append(
+                    {
+                        "name": name,
+                        "label": label,
+                        "icon": _icon_data_uri(name, actions),
+                        "members": members,
+                    }
+                )
+                continue
             entry = _command_entry(name, actions)
             if entry is not None:
                 commands.append(entry)
@@ -213,9 +283,10 @@ def _context():
     wb = Gui.activeWorkbench()
     wb_id = wb.__class__.__name__
     actions = _actions_by_name()
+    groups = _toolbutton_menus()
     toolbars = []
     for tb_name, names in wb.getToolbarItems().items():
-        commands = _commands_from_items({tb_name: names}, actions)
+        commands = _commands_from_items({tb_name: names}, actions, groups)
         if commands:
             toolbars.append({"name": tb_name, "commands": commands})
     return {"ok": True, "workbench": wb_id, "toolbars": toolbars, "appIcon": _app_icon()}
@@ -250,6 +321,11 @@ def _catalog(load_all):
             except Exception:  # noqa: BLE001
                 pass
     actions = _actions_by_name()
+    # Command-group dropdowns (#208) exist only for the currently-shown toolbars
+    # (the active workbench), so groups expand in the catalog for the active WB;
+    # seeding a non-active WB lists such groups as single entries. The dynamic
+    # pie (_context, always the active WB) always expands them.
+    groups = _toolbutton_menus()
     workbenches = []
     for key, wb in wbs.items():
         if key in _SKIP_WORKBENCHES:
@@ -262,7 +338,7 @@ def _catalog(load_all):
         # per toolbar, mirroring the dynamic pie's structure.
         toolbars = []
         for tb_name, names in items.items():
-            commands = _commands_from_items({tb_name: names}, actions)
+            commands = _commands_from_items({tb_name: names}, actions, groups)
             if commands:
                 toolbars.append({"name": tb_name, "commands": commands})
         if toolbars:
@@ -276,8 +352,18 @@ def _catalog(load_all):
 
 
 def _run(name):
-    Gui.runCommand(name)
-    return {"ok": True}
+    # A registered command runs the canonical way. Command-group members (#208,
+    # e.g. PartDesign_AdditiveBox) are NOT registered Gui.Commands — listCommands
+    # / Command.get don't know them — but their QAction is reachable by
+    # objectName, and triggering it does exactly what clicking the dropdown does.
+    if Gui.Command.get(name) is not None:
+        Gui.runCommand(name)
+        return {"ok": True}
+    action = _actions_by_name().get(name)
+    if action is not None:
+        action.trigger()
+        return {"ok": True}
+    return {"ok": False, "error": "unknown command: %r" % (name,)}
 
 
 # FreeCAD stores Spaceball button → command bindings here, one subgroup per

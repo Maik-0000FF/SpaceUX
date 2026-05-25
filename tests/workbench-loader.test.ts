@@ -258,4 +258,64 @@ describe('seedWorkbenchConfig', () => {
     );
     expect(seeded.root.branches).toEqual([]);
   });
+
+  it('expands a command group into a third level, dropping empty/label-less groups (#208)', () => {
+    const seeded = seedWorkbenchConfig(
+      {
+        key: 'W',
+        name: 'W',
+        toolbars: [
+          {
+            name: 'Tools',
+            commands: [
+              { command: 'Plain', label: 'Plain' },
+              // A group → submenu over its members; the group's own command is
+              // not run (it has none). Members are leaves; label-less ones drop.
+              {
+                command: '',
+                label: 'Primitives',
+                icon: 'data:image/png;base64,GGG',
+                members: [
+                  { command: 'Box', label: 'Box', icon: 'data:image/png;base64,BBB' },
+                  { command: 'Cyl', label: 'Cyl', icon: 'mdi:not-a-data-uri' },
+                  { command: 'NoLabel', label: '' },
+                ],
+              },
+              // A group with no usable members → dropped entirely.
+              { command: '', label: 'Empty', members: [{ command: 'X', label: '' }] },
+            ],
+          },
+        ],
+      },
+      DEFAULT_MENU_CONFIG,
+      'org.spaceux.freecad',
+    );
+    expect(seeded.root.branches).toEqual([
+      {
+        label: 'Tools',
+        branches: [
+          {
+            label: 'Plain',
+            action: { id: 'org.spaceux.freecad/run', config: { command: 'Plain' } },
+          },
+          {
+            label: 'Primitives',
+            icon: 'data:image/png;base64,GGG',
+            branches: [
+              {
+                label: 'Box',
+                icon: 'data:image/png;base64,BBB',
+                action: { id: 'org.spaceux.freecad/run', config: { command: 'Box' } },
+              },
+              {
+                // non-renderable icon dropped
+                label: 'Cyl',
+                action: { id: 'org.spaceux.freecad/run', config: { command: 'Cyl' } },
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
 });
