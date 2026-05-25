@@ -77,26 +77,6 @@
   gap: 6px;
 }
 
-.select {
-  flex: 1;
-  min-width: 0;
-  padding: 4px 6px;
-  border: 1px solid var(--editor-border);
-  border-radius: 5px;
-  background: var(--editor-input-bg);
-  color: var(--editor-fg);
-  font: inherit;
-  font-size: 12px;
-
-  &:focus {
-    outline: none;
-    border-color: var(--editor-accent);
-  }
-  &:disabled {
-    opacity: 0.5;
-  }
-}
-
 .loadAll {
   flex: none;
   padding: 2px 8px;
