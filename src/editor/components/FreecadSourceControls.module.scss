@@ -21,6 +21,27 @@
   color: var(--editor-fg-dim);
 }
 
+// Active-workbench header above the tree (#229): icon + name.
+.activeWb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.activeWbIcon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  object-fit: contain;
+}
+
+.activeWbName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--editor-fg);
+}
+
 .switch {
   display: flex;
   border: 1px solid var(--editor-border);

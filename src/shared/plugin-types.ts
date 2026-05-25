@@ -270,7 +270,15 @@ export type PluginCatalogToolbar = { name: string; commands: PluginCatalogComman
  *  and to match the bridge's live active workbench; `name` is the display label
  *  only (two workbenches can share a display name). Consumers that want a flat
  *  command list (the palette) flatten `toolbars`. */
-export type PluginCatalogGroup = { key: string; name: string; toolbars: PluginCatalogToolbar[] };
+export type PluginCatalogGroup = {
+  key: string;
+  name: string;
+  /** The group's own icon as a data URI (#229) — a FreeCAD workbench's icon —
+   *  or undefined when it ships none. Shown next to the workbench in the editor
+   *  (and as the active-workbench indicator). */
+  icon?: string;
+  toolbars: PluginCatalogToolbar[];
+};
 
 /** A plugin's full command catalog. `complete` is false when only a subset is
  *  loaded (e.g. FreeCAD lists only visited workbenches until `loadAll`).
