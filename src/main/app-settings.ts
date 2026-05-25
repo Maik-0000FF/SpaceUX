@@ -12,6 +12,7 @@ import {
   clampPieIconScale,
   clampPieLabelScale,
   clampPieOpacity,
+  clampPieScale,
   DEFAULT_PIE_APPEARANCE,
   PIE_THEMES,
 } from '../shared/pie-appearance.js';
@@ -34,6 +35,7 @@ export type AppSettings = {
   pieOpacity?: number;
   pieLabelScale?: number;
   pieIconScale?: number;
+  pieScale?: number;
 };
 
 const FILENAME = 'app-settings.json';
@@ -75,6 +77,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
   if (typeof obj.pieIconScale === 'number' && Number.isFinite(obj.pieIconScale)) {
     out.pieIconScale = clampPieIconScale(obj.pieIconScale);
   }
+  if (typeof obj.pieScale === 'number' && Number.isFinite(obj.pieScale)) {
+    out.pieScale = clampPieScale(obj.pieScale);
+  }
   return out;
 }
 
@@ -86,6 +91,7 @@ export async function loadPieAppearance(): Promise<PieAppearance> {
     opacity: s.pieOpacity ?? DEFAULT_PIE_APPEARANCE.opacity,
     labelScale: s.pieLabelScale ?? DEFAULT_PIE_APPEARANCE.labelScale,
     iconScale: s.pieIconScale ?? DEFAULT_PIE_APPEARANCE.iconScale,
+    scale: s.pieScale ?? DEFAULT_PIE_APPEARANCE.scale,
   };
 }
 

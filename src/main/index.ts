@@ -543,7 +543,8 @@ function appearanceEqual(a: PieAppearance, b: PieAppearance): boolean {
     a.theme === b.theme &&
     a.opacity === b.opacity &&
     a.labelScale === b.labelScale &&
-    a.iconScale === b.iconScale
+    a.iconScale === b.iconScale &&
+    a.scale === b.scale
   );
 }
 
@@ -583,6 +584,7 @@ async function persistActiveAppearance(): Promise<void> {
     pieOpacity: globalAppearance.opacity,
     pieLabelScale: globalAppearance.labelScale,
     pieIconScale: globalAppearance.iconScale,
+    pieScale: globalAppearance.scale,
   });
 }
 
@@ -1553,6 +1555,7 @@ app.on('before-quit', () => {
         pieOpacity: globalAppearance.opacity,
         pieLabelScale: globalAppearance.labelScale,
         pieIconScale: globalAppearance.iconScale,
+        pieScale: globalAppearance.scale,
       });
     }
   }

@@ -187,7 +187,6 @@ describe('menu-settings', () => {
     useMenuSettings.getState().setConfig({ config: DEFAULT_MENU_CONFIG, mtime: 1 });
     const labelBefore = useMenuSettings.getState().config?.root.branches![0]?.label;
     const countBefore = useMenuSettings.getState().config?.root.branches!.length;
-    const scaleBefore = useMenuSettings.getState().config?.scale;
 
     useMenuSettings.getState().setReadOnly(true);
     // A read-only source (plugin-provided menu) → every mutation is a no-op,
@@ -196,12 +195,10 @@ describe('menu-settings', () => {
       s.label = 'Nope';
     });
     useMenuSettings.getState().addNode([]);
-    useMenuSettings.getState().setScale(2);
 
     const state = useMenuSettings.getState();
     expect(state.config?.root.branches![0]?.label).toBe(labelBefore);
     expect(state.config?.root.branches!.length).toBe(countBefore);
-    expect(state.config?.scale).toBe(scaleBefore);
     // Nothing was flagged dirty → the write-back subscription won't fire.
     expect(state.dirty).toBe(false);
   });
@@ -312,18 +309,6 @@ describe('menu-settings CRUD', () => {
       'Item 3',
       'Item 4',
     ]);
-  });
-
-  it('setScale clamps to [0.5, 2] and flags the change local + dirty', () => {
-    load([{ label: 'A' }]);
-    useMenuSettings.getState().setScale(1.5);
-    expect(useMenuSettings.getState().config?.scale).toBe(1.5);
-    expect(useMenuSettings.getState().dirty).toBe(true);
-    expect(useMenuSettings.getState().origin).toBe('local');
-    useMenuSettings.getState().setScale(99);
-    expect(useMenuSettings.getState().config?.scale).toBe(2);
-    useMenuSettings.getState().setScale(0.1);
-    expect(useMenuSettings.getState().config?.scale).toBe(0.5);
   });
 
   it('addNode targets a submenu ring by path', () => {

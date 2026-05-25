@@ -38,10 +38,6 @@ export const MENU_CONFIG_VERSION = 1;
  *  that accidentally self-references a fragment via copy/paste. */
 export const MAX_MENU_DEPTH = 16;
 
-/** Bounds for the pie size multiplier (MenuConfig.scale). */
-export const MIN_PIE_SCALE = 0.5;
-export const MAX_PIE_SCALE = 2;
-
 /** Bounds + default for the lateral aiming deadzone (navigation.deadzone),
  *  in the same raw axis units the daemon broadcasts. A puck deflection
  *  below this magnitude selects no sector — the dead spot around centre.
@@ -416,12 +412,6 @@ export type MenuConfig = {
   /** Optional per-axis sign overrides. Omitting the field (or one
    *  side of it) falls back to :data:`DEFAULT_AXIS_INVERT`. */
   axisInvert?: MenuAxisInvert;
-  /** Overall pie size multiplier. 1 = the default size; the renderer
-   *  multiplies the base radius by this (and divides by the window's
-   *  devicePixelRatio so the on-screen size is consistent across monitor
-   *  scalings). Clamped to [:data:`MIN_PIE_SCALE`, :data:`MAX_PIE_SCALE`].
-   *  Omitting falls back to 1. */
-  scale?: number;
   /** Unified navigation-gesture input bindings (issue #105). Optional
    *  and additive: omitting it falls back to :data:`DEFAULT_NAVIGATION`
    *  via :func:`resolveNavigation`. The legacy gesture fields still
@@ -523,6 +513,9 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   'triggerButton',
   'triggerMode',
   'axisInvert',
+  // Legacy: `scale` moved to the global PieAppearance (#186 follow-up). Kept
+  // here so an old menu.json doesn't trip the unknown-field check — the value
+  // is no longer read into the config.
   'scale',
   'navigation',
   'root',
@@ -635,17 +628,10 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     }
     result.triggerMode = obj.triggerMode as TriggerMode;
   }
-  if (obj.scale !== undefined) {
-    if (typeof obj.scale !== 'number' || !Number.isFinite(obj.scale)) {
-      return {
-        ok: false,
-        reason: 'menu config field "scale" must be a finite number when present',
-      };
-    }
-    // Clamp rather than reject: an out-of-range value is harmless, and
-    // clamping keeps a hand-edited extreme from breaking the load.
-    result.scale = Math.min(MAX_PIE_SCALE, Math.max(MIN_PIE_SCALE, obj.scale));
-  }
+  // `scale` moved to the global PieAppearance (#186 follow-up). It stays in
+  // KNOWN_MENU_CONFIG_FIELDS as a tolerated legacy field so an old menu.json
+  // still loads (the value is ignored here; main lifts the dev's global one
+  // into app-settings once). No version bump — clean break while pre-release.
   if (obj.axisInvert !== undefined) {
     if (
       typeof obj.axisInvert !== 'object' ||

@@ -39,6 +39,14 @@ export const PIE_ICON_SCALE_MIN = 0.2;
 export const PIE_ICON_SCALE_MAX = 1;
 export const PIE_ICON_SCALE_STEP = 0.05;
 
+/** Overall pie size multiplier (1 = the default size). Part of the pie style
+ *  now (#186 follow-up) — a global appearance setting like the others, so it's
+ *  editable regardless of whether the active menu source is writable, and rides
+ *  a device profile's bundled appearance. Was the per-menu `MenuConfig.scale`. */
+export const PIE_SCALE_MIN = 0.5;
+export const PIE_SCALE_MAX = 2;
+export const PIE_SCALE_STEP = 0.05;
+
 /** Defaults preserve the original look: dark palette, fills at ~60% (the
  *  palette's original baked translucency), labels filling the segment (100%).
  *  Opacity scales only the wedge fill alpha — strokes and labels are always
@@ -48,6 +56,7 @@ export const DEFAULT_PIE_APPEARANCE: PieAppearance = {
   opacity: 0.6,
   labelScale: 1,
   iconScale: 0.5,
+  scale: 1,
 };
 
 export function clampPieOpacity(n: number): number {
@@ -60,6 +69,10 @@ export function clampPieLabelScale(n: number): number {
 
 export function clampPieIconScale(n: number): number {
   return Math.min(PIE_ICON_SCALE_MAX, Math.max(PIE_ICON_SCALE_MIN, n));
+}
+
+export function clampPieScale(n: number): number {
+  return Math.min(PIE_SCALE_MAX, Math.max(PIE_SCALE_MIN, n));
 }
 
 /**
@@ -84,6 +97,9 @@ export function sanitizePieAppearancePatch(patch: unknown): Partial<PieAppearanc
   }
   if (typeof p.iconScale === 'number' && Number.isFinite(p.iconScale)) {
     clean.iconScale = clampPieIconScale(p.iconScale);
+  }
+  if (typeof p.scale === 'number' && Number.isFinite(p.scale)) {
+    clean.scale = clampPieScale(p.scale);
   }
   return clean;
 }

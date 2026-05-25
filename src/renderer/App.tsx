@@ -212,6 +212,7 @@ export function App() {
           navigation={drillState.navigation}
           activeSector={drillState.stickyChildIndex}
           iconScale={pieAppearance.iconScale}
+          scale={pieAppearance.scale}
           badge={pieBadge}
         />
       )}

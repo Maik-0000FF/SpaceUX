@@ -359,6 +359,10 @@ export type PieAppearance = {
    *  Applied in both the live pie and the editor preview by multiplying the
    *  per-segment fit into the SVG `<image>` dimension. */
   iconScale: number;
+  /** Overall pie size multiplier (1 = default size). A global style setting
+   *  (was the per-menu `MenuConfig.scale`, #186 follow-up) so it's editable
+   *  whatever the active source, and rides a device profile's appearance. */
+  scale: number;
 };
 
 /** Config plus the on-disk mtime it was read at. The editor snapshots
