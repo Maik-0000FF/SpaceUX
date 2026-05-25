@@ -14,6 +14,8 @@ import {
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useWorkbenchMenus } from '../hooks/useWorkbenchMenus';
 import { useCatalog } from '../state/catalog';
+import { confirm } from '../state/confirm';
+import { notify } from '../state/toasts';
 
 import { FreecadBridgeInstaller } from './FreecadBridgeInstaller';
 import styles from './FreecadSourceControls.module.scss';
@@ -46,10 +48,6 @@ export function FreecadSourceControls() {
   // the dropdown without seeding/switching until a workbench is chosen.
   const [intentCurated, setIntentCurated] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Pending destructive action on the active curated pie (#207), awaiting an
-  // inline confirm: re-seed (discards edits) or delete.
-  const [pending, setPending] = useState<'reseed' | 'delete' | null>(null);
 
   useEffect(() => {
     void ensureLoaded();
@@ -105,13 +103,11 @@ export function FreecadSourceControls() {
 
   const chooseDynamic = (): void => {
     setIntentCurated(false);
-    setError(null);
     void window.editor.setProfileOverride(dynamicId);
   };
 
   const selectWorkbench = async (key: string): Promise<void> => {
     if (key === '') return;
-    setError(null);
     const id = makeWorkbenchMenuId(plugin.id, key);
     // Already curated → just activate it; otherwise seed it from the live
     // catalog first (needs the bridge), then activate.
@@ -123,24 +119,41 @@ export function FreecadSourceControls() {
     const res = await window.editor.seedWorkbench(plugin.id, key);
     setBusy(false);
     if (res.ok) void window.editor.setProfileOverride(res.id);
-    else setError(res.reason);
+    else notify('error', res.reason);
   };
 
-  // Run the pending destructive action on the active curated workbench (#207).
-  // Re-seed overwrites the file from the live catalog (only on a successful
-  // pull → a bridge error leaves it intact); delete removes it (main clears the
-  // override). Both propagate via the workbench-menus watcher / profile push.
-  const confirmPending = async (): Promise<void> => {
+  // Destructive actions on the active curated workbench (#207), each behind an
+  // overlay confirm (#223). Re-seed overwrites from the live catalog (a bridge
+  // error leaves the file intact); delete removes it (main clears the override).
+  // Both propagate via the workbench-menus watcher / profile push.
+  const reseed = async (): Promise<void> => {
     if (activeWorkbench === null) return;
+    const ok = await confirm({
+      title: 'Re-seed pie?',
+      message: 'Rebuild this curated pie from the live workbench? This discards your edits.',
+      confirmLabel: 'Re-seed',
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
-    setError(null);
-    const res =
-      pending === 'reseed'
-        ? await window.editor.seedWorkbench(plugin.id, activeWorkbench, true)
-        : await window.editor.deleteWorkbench(plugin.id, activeWorkbench);
+    const res = await window.editor.seedWorkbench(plugin.id, activeWorkbench, true);
     setBusy(false);
-    if (!res.ok) setError(res.reason);
-    else setPending(null);
+    notify(res.ok ? 'success' : 'error', res.ok ? 'Curated pie re-seeded.' : res.reason);
+  };
+
+  const removeCurated = async (): Promise<void> => {
+    if (activeWorkbench === null) return;
+    const ok = await confirm({
+      title: 'Delete pie?',
+      message: 'Delete this curated pie?',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    const res = await window.editor.deleteWorkbench(plugin.id, activeWorkbench);
+    setBusy(false);
+    notify(res.ok ? 'success' : 'error', res.ok ? 'Curated pie deleted.' : res.reason);
   };
 
   return (
@@ -162,10 +175,7 @@ export function FreecadSourceControls() {
           type="button"
           className={showCurated ? `${styles.segment} ${styles.segmentOn}` : styles.segment}
           aria-pressed={showCurated}
-          onClick={() => {
-            setError(null);
-            setIntentCurated(true);
-          }}
+          onClick={() => setIntentCurated(true)}
           title="Your own editable pie per workbench"
         >
           Curated
@@ -201,60 +211,27 @@ export function FreecadSourceControls() {
       )}
       {activeWorkbench !== null && (
         <div className={styles.curatedActions}>
-          {pending === null ? (
-            <>
-              <button
-                type="button"
-                className={styles.actionBtn}
-                disabled={busy}
-                onClick={() => {
-                  setError(null);
-                  setPending('reseed');
-                }}
-                title="Rebuild this curated pie from the live workbench (discards your edits)"
-              >
-                Re-seed
-              </button>
-              <button
-                type="button"
-                className={styles.actionBtn}
-                disabled={busy}
-                onClick={() => {
-                  setError(null);
-                  setPending('delete');
-                }}
-                title="Delete this curated pie"
-              >
-                Delete
-              </button>
-            </>
-          ) : (
-            <>
-              <span className={styles.confirmText}>
-                {pending === 'reseed' ? 'Re-seed (discards edits)?' : 'Delete this curated pie?'}
-              </span>
-              <button
-                type="button"
-                className={styles.actionBtn}
-                disabled={busy}
-                onClick={() => void confirmPending()}
-              >
-                {pending === 'reseed' ? 'Re-seed' : 'Delete'}
-              </button>
-              <button
-                type="button"
-                className={styles.actionBtn}
-                disabled={busy}
-                onClick={() => setPending(null)}
-              >
-                Cancel
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            className={styles.actionBtn}
+            disabled={busy}
+            onClick={() => void reseed()}
+            title="Rebuild this curated pie from the live workbench (discards your edits)"
+          >
+            Re-seed
+          </button>
+          <button
+            type="button"
+            className={styles.actionBtn}
+            disabled={busy}
+            onClick={() => void removeCurated()}
+            title="Delete this curated pie"
+          >
+            Delete
+          </button>
         </div>
       )}
-      {busy && <p className={styles.note}>{pending === 'delete' ? 'Deleting…' : 'Seeding…'}</p>}
-      {error !== null && <p className={styles.note}>{error}</p>}
+      {busy && <p className={styles.note}>Working…</p>}
       {showCurated && !busy && workbenches.length === 0 && status !== 'loading' && (
         <p className={styles.note}>
           No workbenches — start FreeCAD with the bridge addon, or use “Load all”.

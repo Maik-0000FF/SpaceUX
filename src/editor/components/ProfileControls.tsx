@@ -1,19 +1,17 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useState } from 'react';
-
 import { PLUGIN_MENU_ID_PREFIX, isPluginMenuId, parseWorkbenchMenuId } from '@/shared/plugin-types';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useProfiles } from '../hooks/useProfiles';
 import { useCatalog } from '../state/catalog';
+import { confirm } from '../state/confirm';
+import { notify } from '../state/toasts';
 
 import styles from './ProfileControls.module.scss';
 
 const AUTO = ''; // the <select> value standing for "Auto" (no override)
-
-type Feedback = { kind: 'ok' | 'error'; text: string };
 
 /**
  * Toolbar control for per-device profiles (#113): pick which profile drives
@@ -32,7 +30,6 @@ type Feedback = { kind: 'ok' | 'error'; text: string };
 export function ProfileControls() {
   const { ids, override, pluginMenus } = useProfiles();
   const device = useDeviceInfo();
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
 
   // The catalog plugin (FreeCAD) owns its Dynamic/Curated choice via the
   // FreecadSourceControls switch (#193), so drop its `plugin:` entry here to
@@ -51,49 +48,43 @@ export function ProfileControls() {
   const hasDevice = device.vendor !== 0 || device.product !== 0;
   const deviceLabel = device.name || 'this device';
 
-  // Drop stale feedback ("Saved profile for <old device>") when the
-  // connected device changes — keyed on the identity, not profileId, so a
-  // save that makes the device's own profile active doesn't wipe its own
-  // just-shown confirmation.
-  useEffect(() => {
-    setFeedback(null);
-  }, [device.vendor, device.product]);
   // Delete targets the *active* profile, so the connected device's
   // auto-resolved profile can be removed without first overriding to it.
   const activeProfile = device.profileId;
 
   const setOverride = (value: string): void => {
-    setFeedback(null);
     void window.editor.setProfileOverride(value === AUTO ? null : value);
   };
 
   const save = (): void => {
-    setFeedback(null);
     void window.editor.saveProfile().then((r) => {
       if (!r.ok) {
-        setFeedback({ kind: 'error', text: r.reason });
+        notify('error', r.reason);
         return;
       }
       // Saving targets the connected device's profile. When an override is
       // active it isn't what's live, so say so — otherwise it just took
       // effect (Auto resolves to the device's own profile).
-      setFeedback({
-        kind: 'ok',
-        text:
-          override === null
-            ? `Saved profile for ${deviceLabel}.`
-            : `Saved profile for ${deviceLabel}; still showing ${override}.`,
-      });
+      notify(
+        'success',
+        override === null
+          ? `Saved profile for ${deviceLabel}.`
+          : `Saved profile for ${deviceLabel}; still showing ${override}.`,
+      );
     });
   };
 
-  const remove = (): void => {
+  const remove = async (): Promise<void> => {
     if (activeProfile === null) return;
-    setFeedback(null);
-    void window.editor.deleteProfile(activeProfile).then((r) => {
-      if (!r.ok) setFeedback({ kind: 'error', text: r.reason });
-      else setFeedback({ kind: 'ok', text: `Deleted profile ${activeProfile}.` });
+    const ok = await confirm({
+      title: 'Delete profile?',
+      message: `Delete the active profile (${activeProfile})?`,
+      confirmLabel: 'Delete',
+      destructive: true,
     });
+    if (!ok) return;
+    const r = await window.editor.deleteProfile(activeProfile);
+    notify(r.ok ? 'success' : 'error', r.ok ? `Deleted profile ${activeProfile}.` : r.reason);
   };
 
   return (
@@ -143,7 +134,7 @@ export function ProfileControls() {
       <button
         type="button"
         className={styles.button}
-        onClick={remove}
+        onClick={() => void remove()}
         disabled={activeProfile === null || isPluginMenuId(activeProfile)}
         title={
           activeProfile === null
@@ -155,14 +146,6 @@ export function ProfileControls() {
       >
         Delete
       </button>
-      {feedback !== null && (
-        <span
-          className={feedback.kind === 'error' ? styles.error : styles.ok}
-          role={feedback.kind === 'error' ? 'alert' : 'status'}
-        >
-          {feedback.text}
-        </span>
-      )}
     </div>
   );
 }
