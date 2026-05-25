@@ -270,6 +270,9 @@ async function reloadFunctionPlugins(): Promise<void> {
   ) {
     void applyActiveProfile('profile');
   }
+  // A reserving plugin (FreeCAD) may have just been installed or removed — (dis)arm
+  // the trigger-button reservation accordingly (#191).
+  syncTriggerReservation();
 }
 
 // Single point that latches the reported device. Re-resolves the active
@@ -408,6 +411,10 @@ async function applyActiveProfile(cause: ConfigChangeCause): Promise<void> {
   // Apply the profile's bundled appearance (or restore the global one when
   // it has none / on fallback). Independent of the menu-changed gate above.
   applyActiveAppearance(next.appearance);
+  // Keep the trigger-button reservation in sync (#191): the active config (and
+  // thus its trigger button) just changed. Source-independent + poll-driven, so
+  // it's fire-and-forget here.
+  syncTriggerReservation();
 }
 
 /** Push the curated-workbench-pie list to the editor (#193) after one is added
@@ -471,6 +478,7 @@ async function onProfilesChangedOnDisk(): Promise<void> {
     } satisfies MenuConfigChange);
     // The external edit may have changed the profile's bundled appearance too.
     applyActiveAppearance(prof.appearance);
+    syncTriggerReservation(); // …and may have moved the trigger button (#191)
     return;
   }
   // Active profile deleted externally → drop a matching override and
@@ -506,6 +514,7 @@ async function onWorkbenchMenusChangedOnDisk(): Promise<void> {
       mtime: load.mtime,
       cause: 'external',
     } satisfies MenuConfigChange);
+    syncTriggerReservation(); // the curated pie may carry a different trigger (#191)
     return;
   }
   // Active curated file deleted/broke externally → drop the override + re-resolve.
@@ -721,6 +730,118 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
       },
     );
   });
+}
+
+// #191 — the pie-trigger button is global: it opens the SpaceUX pie regardless
+// of the focused app or the active pie. So while SpaceUX and FreeCAD both run,
+// FreeCAD must not *also* act on that button (it reads the same SpaceMouse via
+// spacenavd). We therefore reserve the trigger button in any loaded plugin that
+// can suppress its app's binding (the FreeCAD plugin) — independent of which
+// SpaceUX source is active, so it covers dynamic, curated, and ordinary pies.
+//
+// The plugin's bridge is only reachable while its app runs, and a source switch
+// usually isn't that moment, so we poll: reserve (idempotently) on a heartbeat
+// until it lands, and again after the app restarts. Release is best-effort on a
+// button change / shutdown — the FreeCAD bridge's own atexit restores the
+// binding when it closes, so a missed release while it's down is harmless.
+let desiredReservation: { plugin: LoadedPlugin; button: number } | null = null;
+let reservationConfirmed = false;
+let reservationPollTimer: ReturnType<typeof setInterval> | null = null;
+const RESERVE_POLL_MS = 3000;
+
+/** Ask a plugin to reserve / release the trigger button (#191). Returns whether
+ *  the call reached the bridge; failures (the app is just closed) resolve false
+ *  and are silent — pollReservation / syncTriggerReservation log on a *state*
+ *  change so a closed FreeCAD doesn't spam the console every heartbeat. */
+async function callReserveTrigger(
+  plugin: LoadedPlugin,
+  button: number,
+  reserve: boolean,
+): Promise<boolean> {
+  if (!plugin.reserveTrigger) return false;
+  try {
+    const ctx = makeActionContext(plugin.manifest.id, daemon);
+    await withTimeout(
+      Promise.resolve(plugin.reserveTrigger(ctx, { button, reserve })),
+      DYNAMIC_MENU_TIMEOUT_MS,
+      `reserveTrigger timed out after ${DYNAMIC_MENU_TIMEOUT_MS}ms`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** One heartbeat: (re-)reserve the desired button. Idempotent on the bridge, so
+ *  repeats are cheap; logs only when the confirmed state flips. */
+async function pollReservation(): Promise<void> {
+  const want = desiredReservation;
+  if (!want) return;
+  const ok = await callReserveTrigger(want.plugin, want.button, true);
+  if (ok && !reservationConfirmed) {
+    reservationConfirmed = true;
+    // eslint-disable-next-line no-console
+    console.info(
+      `[plugin ${want.plugin.manifest.id}] reserved trigger button ${want.button} in FreeCAD`,
+    );
+  } else if (!ok && reservationConfirmed) {
+    reservationConfirmed = false; // app went away — keep polling to re-reserve
+    // eslint-disable-next-line no-console
+    console.info(
+      `[plugin ${want.plugin.manifest.id}] trigger reservation lost (FreeCAD closed?) — retrying`,
+    );
+  }
+}
+
+function startReservationPoll(): void {
+  if (reservationPollTimer === null) {
+    reservationPollTimer = setInterval(() => void pollReservation(), RESERVE_POLL_MS);
+  }
+  void pollReservation(); // attempt immediately, don't wait a full interval
+}
+
+function stopReservationPoll(): void {
+  if (reservationPollTimer !== null) {
+    clearInterval(reservationPollTimer);
+    reservationPollTimer = null;
+  }
+}
+
+/**
+ * Re-derive the desired trigger-button reservation (#191) from the loaded
+ * plugins + the active trigger button, and (re)arm the poll. Source-independent:
+ * if any loaded plugin can reserve (the FreeCAD plugin), we want the current
+ * trigger button reserved in it the whole time. Call after anything that can
+ * change either input: a config/profile resolution or a plugin (re)load.
+ */
+function syncTriggerReservation(): void {
+  const reserver = loadedPlugins.find((p) => p.reserveTrigger) ?? null;
+  const button = menuConfig?.triggerButton ?? DEFAULT_TRIGGER_BUTTON;
+
+  const prev = desiredReservation;
+  if (prev?.plugin.manifest.id === reserver?.manifest.id && prev?.button === button) {
+    // Same id + button: keep the reservation, but refresh the plugin object — a
+    // reload produces a new LoadedPlugin with the same id, and we must poll the
+    // current module, not the superseded one.
+    if (reserver) prev.plugin = reserver;
+    if (reserver && reservationPollTimer === null) startReservationPoll(); // re-arm if it stopped
+    return;
+  }
+
+  // Release a stale reservation (different button, or the plugin went away).
+  if (prev) {
+    const p = prev;
+    void callReserveTrigger(p.plugin, p.button, false).then((ok) => {
+      if (ok)
+        // eslint-disable-next-line no-console
+        console.info(`[plugin ${p.plugin.manifest.id}] released trigger button ${p.button}`);
+    });
+  }
+
+  reservationConfirmed = false;
+  desiredReservation = reserver ? { plugin: reserver, button } : null;
+  if (desiredReservation) startReservationPoll();
+  else stopReservationPoll();
 }
 
 /**
@@ -1188,6 +1309,7 @@ app.whenReady().then(async () => {
       mtime: result.mtime,
       cause: 'external',
     } satisfies MenuConfigChange);
+    syncTriggerReservation(); // an external menu.json edit may move the trigger (#191)
   });
 
   // Watch the per-device profiles dir so an external edit to the *active*
@@ -1233,6 +1355,10 @@ app.whenReady().then(async () => {
       }
       // Hot-reload the live pie so an editor save takes effect at once.
       mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, config);
+      // The save may have changed the trigger button (#191) — re-sync so the
+      // reservation follows it. This is the normal way to change the trigger,
+      // so it must re-reserve here, not only on a device/profile event.
+      syncTriggerReservation();
     },
     listActions: () =>
       Object.entries(actionIndex).map(([id, { descriptor }]) => ({
@@ -1428,6 +1554,7 @@ app.on('before-quit', () => {
 
 app.on('window-all-closed', () => {
   daemon.stop();
+  stopReservationPoll();
   stopMenuWatcher?.();
   stopMenuWatcher = null;
   stopProfileWatcher?.();

@@ -66,6 +66,19 @@ Switch workbenches in FreeCAD and reopen the pie — it follows the new context.
 When FreeCAD is closed (or the addon isn't installed) the pie falls back to a
 static placeholder; start FreeCAD and reopen.
 
+### Pie-trigger button (no double-binding)
+
+FreeCAD reads the same SpaceMouse (via spacenavd), so without this the
+pie-trigger button would both open the SpaceUX pie **and** fire whatever FreeCAD
+bound to it. The trigger button is global (it opens the pie whatever you're
+doing), so whenever SpaceUX and FreeCAD both run, SpaceUX clears FreeCAD's own
+binding for that button — independent of which pie is active — and restores it
+when the trigger button changes or FreeCAD closes. SpaceUX retries on a
+heartbeat, so it takes effect as soon as FreeCAD is up (and again after a
+restart). The original is parked in FreeCAD's parameter store
+(`BaseApp/Spaceux/ReservedButtons`), so it survives a crash/restart and is
+recoverable from FreeCAD's preferences if anything ever leaves it cleared.
+
 ## Notes
 
 - Global `Std_*` commands and toolbar separators are filtered out, so the pie

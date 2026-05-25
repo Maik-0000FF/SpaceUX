@@ -290,6 +290,22 @@ export type PluginContextProvider = (
   ctx: ActionContext,
 ) => PluginContext | null | Promise<PluginContext | null>;
 
+/** Optional trigger-button reservation (#191). The pie-trigger button is global
+ *  (it opens the SpaceUX pie regardless of focused app or active pie), so when a
+ *  plugin's app shares the SpaceMouse (FreeCAD reads the same puck via spacenavd)
+ *  that button double-fires: it opens the pie *and* whatever the app bound to it.
+ *  A plugin that can suppress its app's binding implements this: the host calls
+ *  `reserve: true` to clear the binding and `reserve: false` to restore it.
+ *  `button` is the zero-based trigger button (the active config's `triggerButton`).
+ *  The host calls it on a heartbeat whenever such a plugin is loaded — not tied
+ *  to the active source — so it must be idempotent and persist the original
+ *  binding (the app may not be running at any given call; reject in that case so
+ *  the host retries, and survive an app restart). */
+export type PluginTriggerReserver = (
+  ctx: ActionContext,
+  req: { button: number; reserve: boolean },
+) => void | Promise<void>;
+
 /** Shape of `module.exports` (or `export default`) from a plugin's index.js. */
 export type PluginModule = {
   actions: Record<string, ActionHandler>;
@@ -299,4 +315,6 @@ export type PluginModule = {
   provideCatalog?: PluginCatalogProvider;
   /** Optional context provider — see {@link PluginContextProvider}. */
   provideContext?: PluginContextProvider;
+  /** Optional trigger-button reserver — see {@link PluginTriggerReserver}. */
+  reserveTrigger?: PluginTriggerReserver;
 };

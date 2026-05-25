@@ -175,3 +175,29 @@ export async function provideCatalog(ctx, opts) {
   const appBadge = typeof resp.appIcon === 'string' && resp.appIcon ? resp.appIcon : undefined;
   return { groups, complete: resp.loadedAll === true, appBadge };
 }
+
+/**
+ * Reserve / release the pie-trigger button in FreeCAD (#191). FreeCAD reads the
+ * same SpaceMouse via spacenavd, so a press on the pie-trigger button would both
+ * open the SpaceUX pie *and* fire whatever FreeCAD bound to that button. The host
+ * calls us with `reserve: true` to clear FreeCAD's binding for that button (the
+ * bridge saves the original so it can be restored) and `reserve: false` to put
+ * it back. The bridge keeps the original in FreeCAD's own parameter store, so the
+ * call is idempotent and survives a bridge/FreeCAD restart.
+ *
+ * We throw on an unreachable bridge / error instead of logging: the host polls
+ * this (FreeCAD is often closed), so a per-call log would spam — the host logs
+ * once on a state change, and the bridge logs the actual clear in its Report view.
+ */
+export async function reserveTrigger(ctx, req) {
+  const button = Number.isInteger(req && req.button) ? req.button : null;
+  if (button === null || button < 0) {
+    ctx.log(`reserveTrigger: ignoring invalid button ${req && req.button}`);
+    return;
+  }
+  const op = req.reserve ? 'reserve-button' : 'release-button';
+  const resp = await request({ op, button });
+  if (!resp || resp.ok !== true) {
+    throw new Error(resp && resp.error ? resp.error : `${op} failed`);
+  }
+}
