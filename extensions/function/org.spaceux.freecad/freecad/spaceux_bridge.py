@@ -318,9 +318,11 @@ _wb_icon_cache = {}
 
 def _workbench_icon(key, wb):
     """PNG data-URI of a workbench's own icon (#229), or "" — cached per key.
-    The workbench's `Icon` is a Qt resource path (or file path); load it through
-    QIcon/QPixmap and re-encode as PNG, the same family as the command icons.
-    Probed across all installed workbenches: the path route covers them all."""
+    The workbench's `Icon` is usually a Qt resource path (or file path); load it
+    through QIcon/QPixmap and re-encode as PNG, the same family as the command
+    icons. The path route covers nearly all installed workbenches; one that ships
+    inline XPM content instead (a string QPixmap reads as a filename) resolves to
+    "" and degrades to name-only — acceptable."""
     if key in _wb_icon_cache:
         return _wb_icon_cache[key]
     uri = ""
