@@ -23,6 +23,9 @@ export function PluginManager() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // The plugin awaiting an inline "Remove? Confirm/Cancel" confirmation, keyed
+  // by `${kind}/${id}`; null when nothing is pending.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const refresh = (): void => {
     window.editor
@@ -51,13 +54,18 @@ export function PluginManager() {
       .finally(() => setBusy(false));
   };
 
-  const remove = (kind: PluginCategory, id: string): void => {
+  const remove = (kind: PluginCategory, id: string, name: string): void => {
     setBusy(true);
     setError(null);
     setNotice(null);
+    setConfirmingId(null);
     window.editor
       .uninstallPlugin(kind, id)
-      .then(setState)
+      .then((r) => {
+        setState(r.state);
+        if (r.ok) setNotice(`Removed ${name}.`);
+        else setError(r.reason);
+      })
       .finally(() => setBusy(false));
   };
 
@@ -99,14 +107,45 @@ export function PluginManager() {
                   </span>
                 )}
               </div>
-              <button
-                type="button"
-                className={styles.removeButton}
-                onClick={() => remove(p.kind, p.id)}
-                disabled={busy}
-              >
-                Remove
-              </button>
+              {!p.removable ? (
+                <button
+                  type="button"
+                  className={styles.removeButton}
+                  disabled
+                  title="Bundled with the app (loaded from the project or a system folder) — not removable here."
+                >
+                  Remove
+                </button>
+              ) : confirmingId === `${p.kind}/${p.id}` ? (
+                <div className={styles.confirmRow}>
+                  <span className={styles.confirmText}>Remove?</span>
+                  <button
+                    type="button"
+                    className={styles.confirmButton}
+                    onClick={() => remove(p.kind, p.id, p.name)}
+                    disabled={busy}
+                  >
+                    Remove
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.cancelButton}
+                    onClick={() => setConfirmingId(null)}
+                    disabled={busy}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className={styles.removeButton}
+                  onClick={() => setConfirmingId(`${p.kind}/${p.id}`)}
+                  disabled={busy}
+                >
+                  Remove
+                </button>
+              )}
             </li>
           ))}
         </ul>

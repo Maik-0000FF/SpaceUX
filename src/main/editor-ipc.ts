@@ -19,6 +19,7 @@ import {
   type PluginCategory,
   type PluginImportResult,
   type PluginsState,
+  type PluginUninstallResult,
   type ProfileActionResult,
   type ThemeChoice,
   type WorkbenchMenusState,
@@ -53,9 +54,9 @@ export interface EditorIpcDeps {
   /** Import the plugin folder at `srcDir`: validate, copy into the managed
    *  tree by `kind`, reload, and resolve with the outcome. */
   importPlugin: (srcDir: string) => Promise<PluginImportResult>;
-  /** Uninstall a plugin (delete its managed folder) and reload; resolves to
-   *  the refreshed state. */
-  uninstallPlugin: (kind: PluginCategory, id: string) => Promise<PluginsState>;
+  /** Uninstall a plugin (delete its managed folder) and reload; resolves to the
+   *  refreshed state plus whether the delete actually succeeded (#221). */
+  uninstallPlugin: (kind: PluginCategory, id: string) => Promise<PluginUninstallResult>;
   /** Pull a plugin's command catalog for the editor palette (#76 D2): invokes
    *  the plugin's `provideCatalog` with a timeout. */
   getPluginCatalog: (pluginId: string, loadAll: boolean) => Promise<PluginCatalogResult>;
@@ -137,7 +138,7 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
   });
   ipcMain.handle(
     IpcChannel.EDITOR_UNINSTALL_PLUGIN,
-    (_evt, kind: PluginCategory, id: string): Promise<PluginsState> =>
+    (_evt, kind: PluginCategory, id: string): Promise<PluginUninstallResult> =>
       deps.uninstallPlugin(kind, id),
   );
   ipcMain.handle(

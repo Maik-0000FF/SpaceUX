@@ -31,6 +31,7 @@ import type {
   PluginCategory,
   PluginImportResult,
   PluginsState,
+  PluginUninstallResult,
   FreecadBridgeInstallResult,
   FreecadBridgeStatus,
   ProfileActionResult,
@@ -141,7 +142,7 @@ export type EditorBridge = {
   importPlugin(): Promise<PluginImportResult>;
   /** Uninstall an installed plugin (delete its managed folder) by kind + id;
    *  resolves to the new state after the reload. */
-  uninstallPlugin(kind: PluginCategory, id: string): Promise<PluginsState>;
+  uninstallPlugin(kind: PluginCategory, id: string): Promise<PluginUninstallResult>;
   /** Pull a plugin's command catalog for the palette (#76 D2). `loadAll`
    *  requests the complete set even when that's expensive (FreeCAD cycles
    *  every workbench). Resolves with the catalog or a failure reason. */
