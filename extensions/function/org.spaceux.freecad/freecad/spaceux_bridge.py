@@ -332,7 +332,12 @@ def _reserve_button(n):
 
 def _release_button(n):
     """Restore FreeCAD's original binding for button `n` (if SpaceUX reserved it)
-    and drop the saved record. A no-op when nothing was reserved."""
+    and drop the saved record. A no-op when nothing was reserved.
+
+    Edge: if the user re-binds this button inside FreeCAD *while it's reserved*
+    (its Command shows empty in the dialog), release writes the saved original
+    back over that new binding. Unlikely — the button does nothing while reserved,
+    so there's little reason to rebind it — and accepted as-is."""
     key = str(int(n))
     reserved = FreeCAD.ParamGet(_RESERVED_PARAM)
     if not reserved.HasGroup(key):

@@ -478,6 +478,7 @@ async function onProfilesChangedOnDisk(): Promise<void> {
     } satisfies MenuConfigChange);
     // The external edit may have changed the profile's bundled appearance too.
     applyActiveAppearance(prof.appearance);
+    syncTriggerReservation(); // …and may have moved the trigger button (#191)
     return;
   }
   // Active profile deleted externally → drop a matching override and
@@ -513,6 +514,7 @@ async function onWorkbenchMenusChangedOnDisk(): Promise<void> {
       mtime: load.mtime,
       cause: 'external',
     } satisfies MenuConfigChange);
+    syncTriggerReservation(); // the curated pie may carry a different trigger (#191)
     return;
   }
   // Active curated file deleted/broke externally → drop the override + re-resolve.
@@ -818,6 +820,10 @@ function syncTriggerReservation(): void {
 
   const prev = desiredReservation;
   if (prev?.plugin.manifest.id === reserver?.manifest.id && prev?.button === button) {
+    // Same id + button: keep the reservation, but refresh the plugin object — a
+    // reload produces a new LoadedPlugin with the same id, and we must poll the
+    // current module, not the superseded one.
+    if (reserver) prev.plugin = reserver;
     if (reserver && reservationPollTimer === null) startReservationPoll(); // re-arm if it stopped
     return;
   }
@@ -1303,6 +1309,7 @@ app.whenReady().then(async () => {
       mtime: result.mtime,
       cause: 'external',
     } satisfies MenuConfigChange);
+    syncTriggerReservation(); // an external menu.json edit may move the trigger (#191)
   });
 
   // Watch the per-device profiles dir so an external edit to the *active*
@@ -1348,6 +1355,10 @@ app.whenReady().then(async () => {
       }
       // Hot-reload the live pie so an editor save takes effect at once.
       mainWindow?.webContents.send(IpcChannel.MENU_CONFIG, config);
+      // The save may have changed the trigger button (#191) — re-sync so the
+      // reservation follows it. This is the normal way to change the trigger,
+      // so it must re-reserve here, not only on a device/profile event.
+      syncTriggerReservation();
     },
     listActions: () =>
       Object.entries(actionIndex).map(([id, { descriptor }]) => ({
