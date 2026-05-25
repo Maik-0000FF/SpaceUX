@@ -7,11 +7,12 @@ import path from 'node:path';
 import { isRenderableIcon } from '../core/icon.js';
 import { describeError } from '../shared/errors.js';
 import type { MenuWriteResult } from '../shared/ipc.js';
-import { MENU_CONFIG_VERSION, type MenuConfig } from '../shared/menu.js';
+import { MENU_CONFIG_VERSION, type MenuConfig, type MenuNode } from '../shared/menu.js';
 import {
   isWorkbenchMenuId,
   makeWorkbenchMenuId,
   parseWorkbenchMenuId,
+  type PluginCatalogCommand,
   type PluginCatalogGroup,
 } from '../shared/plugin-types.js';
 
@@ -252,15 +253,33 @@ export function seedWorkbenchConfig(
         .map((tb) => ({
           label: tb.name,
           branches: tb.commands
-            .filter((c) => c.command && c.label)
-            .map((c) => ({
-              label: c.label,
-              ...(c.icon && isRenderableIcon(c.icon) ? { icon: c.icon } : {}),
-              action: { id: `${pluginId}/run`, config: { command: c.command } },
-            })),
+            .map((c) => seedCommandNode(c, pluginId))
+            .filter((n): n is MenuNode => n !== null),
         }))
         .filter((tb) => tb.branches.length > 0),
     },
+  };
+}
+
+/** One catalog command → a seeded MenuNode, or null when unusable. A command
+ *  group (#208, `members`) becomes a submenu (third level) over its member
+ *  leaves — dropped if it has no usable members or no label; a plain command
+ *  becomes a run leaf — dropped if it lacks a command or label (a label-less,
+ *  icon-less node is unsavable). Icons kept only when renderable. */
+function seedCommandNode(c: PluginCatalogCommand, pluginId: string): MenuNode | null {
+  const icon = c.icon && isRenderableIcon(c.icon) ? { icon: c.icon } : {};
+  if (c.members && c.members.length > 0) {
+    const branches = c.members
+      .map((m) => seedCommandNode(m, pluginId))
+      .filter((n): n is MenuNode => n !== null);
+    if (!c.label || branches.length === 0) return null;
+    return { label: c.label, ...icon, branches };
+  }
+  if (!c.command || !c.label) return null;
+  return {
+    label: c.label,
+    ...icon,
+    action: { id: `${pluginId}/run`, config: { command: c.command } },
   };
 }
 

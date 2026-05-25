@@ -241,8 +241,18 @@ export type PluginMenuProvider = (ctx: ActionContext) => MenuNode | Promise<Menu
  *  plugin's run-action takes as config. The editor turns this into a normal
  *  menu item — `{ label, icon, action: { id: "<pluginId>/run", config: {
  *  command } } }` — so the curated pie renders without the bridge and only
- *  needs it to *execute*. */
-export type PluginCatalogCommand = { command: string; label: string; icon?: string };
+ *  needs it to *execute*.
+ *
+ *  `members` (#208): a command *group* (a FreeCAD toolbar dropdown bundling
+ *  sub-commands, e.g. Part primitives). When present and non-empty this entry is
+ *  a group — it renders as a third pie level (submenu) over its members and is
+ *  not itself run (`command` may be empty). Members are leaves. */
+export type PluginCatalogCommand = {
+  command: string;
+  label: string;
+  icon?: string;
+  members?: PluginCatalogCommand[];
+};
 
 /** A named sub-grouping of commands within a catalog group — a FreeCAD toolbar
  *  (#193). Curated pies seed one submenu per toolbar so the editing tree mirrors

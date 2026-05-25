@@ -70,8 +70,11 @@ export function CommandPalette() {
         name: g.name,
         // Flatten the toolbars into one searchable list per workbench (the
         // toolbar grouping is for the seeded pie's tree, not the palette).
+        // Expand command groups (#208) into their members — the group node
+        // itself isn't runnable, its members are the addable commands.
         commands: g.toolbars
           .flatMap((t) => t.commands)
+          .flatMap((c) => (c.members && c.members.length ? c.members : [c]))
           .filter(
             (c) =>
               typeof c.command === 'string' && c.command && typeof c.label === 'string' && c.label,
