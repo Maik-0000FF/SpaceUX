@@ -15,7 +15,7 @@ stable per workbench).
 
 Protocol — newline-delimited JSON, one request → one response:
   {"op":"ping"}               -> {"ok":true,"version":1}
-  {"op":"context"}            -> {"ok":true,"workbench":"<id>",
+  {"op":"context"}            -> {"ok":true,"workbench":"<id>","workbenchIcon":"<uri>",
                                   "toolbars":[{"name":"<tb>",
                                     "commands":[{"name","label","icon"[,"members"]}]}]}
   {"op":"catalog","loadAll":<bool>}
@@ -356,7 +356,13 @@ def _context():
         commands = _commands_from_items({tb_name: names}, actions, groups, enabled_only=True)
         if commands:
             toolbars.append({"name": tb_name, "commands": commands})
-    return {"ok": True, "workbench": wb_id, "toolbars": toolbars, "appIcon": _app_icon()}
+    return {
+        "ok": True,
+        "workbench": wb_id,
+        "workbenchIcon": _workbench_icon(wb_id, wb),
+        "toolbars": toolbars,
+        "appIcon": _app_icon(),
+    }
 
 
 # Workbenches the catalog never activates or lists: Start opens the welcome

@@ -17,6 +17,7 @@ import {
   type WorkbenchMenusState,
   type MenuOpenPayload,
   type PieAppearance,
+  type PieBadges,
   type PluginInfo,
   type PluginsState,
   type ProfileActionResult,
@@ -862,13 +863,14 @@ function syncTriggerReservation(): void {
  * which read that global) keep returning the static placeholder. The overlay
  * renders from the push; it only pulls the global once at mount.
  */
-// The active-plugin badge to show in the live overlay (#186), set at open time
-// from the plugin's provideContext (its app icon), or null. openMenuAtCursor
-// pushes it to the pie after refreshing the dynamic menu.
-let pieBadge: string | null = null;
+// The pie's corner indicators (#186 / #229) for the live overlay, set at open
+// time from the plugin's provideContext: the active plugin's app icon (bottom-
+// left) and the active workbench's icon (bottom-right). openMenuAtCursor pushes
+// them to the pie after refreshing the dynamic menu.
+let pieBadges: PieBadges = { plugin: null, workbench: null };
 
 async function refreshDynamicPluginMenu(): Promise<void> {
-  pieBadge = null; // cleared by default; a plugin source sets it below
+  pieBadges = { plugin: null, workbench: null }; // cleared by default; a plugin source sets it below
   const id = activeProfileId;
   if (id === null || !isPluginMenuId(id)) return;
   const pid = id.slice(PLUGIN_MENU_ID_PREFIX.length);
@@ -890,7 +892,9 @@ async function refreshDynamicPluginMenu(): Promise<void> {
         DYNAMIC_MENU_TIMEOUT_MS,
         `provideContext timed out after ${DYNAMIC_MENU_TIMEOUT_MS}ms`,
       );
-      pieBadge = info?.badge ?? null; // active-plugin badge for the overlay (#186)
+      // Corner indicators for the overlay: plugin app icon (#186) + active
+      // workbench icon (#229).
+      pieBadges = { plugin: info?.badge ?? null, workbench: info?.icon ?? null };
       if (info?.key) {
         const curated = await loadWorkbenchMenu(makeWorkbenchMenuId(pid, info.key));
         if (curated.status === 'loaded') {
@@ -967,10 +971,11 @@ async function openMenuAtCursor(window: BrowserWindow): Promise<void> {
   // reflects current context. No-op unless the active source is a plugin menu
   // with a provider; awaited so the fresh config is pushed before MENU_OPEN.
   await refreshDynamicPluginMenu();
-  // Active-plugin badge for the overlay (#186): refreshDynamicPluginMenu set it
-  // from the plugin's live context (its app icon), or null for a non-plugin
-  // source. Pushed before MENU_OPEN so it's in place when the pie renders.
-  window.webContents.send(IpcChannel.PIE_BADGE, pieBadge);
+  // Pie corner indicators (#186 / #229): refreshDynamicPluginMenu set them from
+  // the plugin's live context (plugin app icon + active workbench icon), or null
+  // for a non-plugin source. Pushed before MENU_OPEN so they're in place when
+  // the pie renders.
+  window.webContents.send(IpcChannel.PIE_BADGE, pieBadges);
 
   const payload: MenuOpenPayload = {
     x: cursor.x - originX,

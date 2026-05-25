@@ -72,6 +72,9 @@ export type PieMenuProps = {
   /** Active-plugin badge (#186): the app icon (data URI) of the plugin whose
    *  pie is active, shown decoratively in the bottom-left corner, or null. */
   badge?: string | null;
+  /** Active-workbench badge (#229): the active FreeCAD workbench's icon (data
+   *  URI), shown decoratively in the bottom-right corner, or null. */
+  workbenchBadge?: string | null;
 };
 
 /**
@@ -96,6 +99,7 @@ export function PieMenu({
   iconScale = 1,
   scale = 1,
   badge = null,
+  workbenchBadge = null,
 }: PieMenuProps) {
   // Resolve ring roles from the navigation stack. At top level the
   // *inner* pie is the active selection target; once drilled in the
@@ -378,6 +382,21 @@ export function PieMenu({
           <image
             href={badge}
             x={-outerRingOuterRadius * 0.95}
+            y={outerRingOuterRadius * 0.95 - outerRingOuterRadius * PLUGIN_BADGE_RATIO}
+            width={outerRingOuterRadius * PLUGIN_BADGE_RATIO}
+            height={outerRingOuterRadius * PLUGIN_BADGE_RATIO}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ pointerEvents: 'none' }}
+            aria-hidden="true"
+          />
+        )}
+        {/* Active-workbench badge (#229): the active workbench's icon, mirrored
+          into the bottom-right corner. Same geometry-based size as the plugin
+          badge. Decorative. */}
+        {workbenchBadge && (
+          <image
+            href={workbenchBadge}
+            x={outerRingOuterRadius * 0.95 - outerRingOuterRadius * PLUGIN_BADGE_RATIO}
             y={outerRingOuterRadius * 0.95 - outerRingOuterRadius * PLUGIN_BADGE_RATIO}
             width={outerRingOuterRadius * PLUGIN_BADGE_RATIO}
             height={outerRingOuterRadius * PLUGIN_BADGE_RATIO}

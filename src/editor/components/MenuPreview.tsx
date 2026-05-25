@@ -115,6 +115,17 @@ export function MenuPreview() {
     return appBadge ?? catalogPlugin.badge ?? null;
   }, [catalogPlugin, appBadge, activeSource]);
 
+  // Active-workbench badge (#229), bottom-right: the active *curated* workbench's
+  // own icon, from the catalog group for its key. Only for a curated `wb:` source
+  // (a dynamic source's live workbench isn't known to the editor).
+  const catalogGroups = useCatalog((s) => s.groups);
+  const workbenchBadge = useMemo(() => {
+    if (!catalogPlugin) return null;
+    const parsed = parseWorkbenchMenuId(activeSource);
+    if (!parsed || parsed.pluginId !== catalogPlugin.id) return null;
+    return catalogGroups.find((g) => g.key === parsed.workbenchKey)?.icon ?? null;
+  }, [catalogPlugin, catalogGroups, activeSource]);
+
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropTo, setDropTo] = useState<number | null>(null);
@@ -444,6 +455,19 @@ export function MenuPreview() {
             className={styles.pluginBadge}
             href={pluginBadge}
             x={-VIEW * 0.95}
+            y={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
+            width={VIEW * PLUGIN_BADGE_RATIO}
+            height={VIEW * PLUGIN_BADGE_RATIO}
+            preserveAspectRatio="xMidYMid meet"
+            aria-hidden="true"
+          />
+        )}
+        {/* Active-workbench badge (#229): mirrored into the bottom-right corner. */}
+        {workbenchBadge !== null && (
+          <image
+            className={styles.pluginBadge}
+            href={workbenchBadge}
+            x={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
             y={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
             width={VIEW * PLUGIN_BADGE_RATIO}
             height={VIEW * PLUGIN_BADGE_RATIO}

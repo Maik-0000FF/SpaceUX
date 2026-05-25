@@ -139,17 +139,22 @@ function catalogCmd(c) {
 }
 
 /**
- * The live context for #193 PR3 / #186: the active workbench class name (`key`,
- * to pick a curated per-workbench pie) plus FreeCAD's own app icon (`badge`,
- * for the active-plugin indicator). Returns null when the bridge is unreachable
- * or reports no workbench (the host falls back to the dynamic menu, no badge).
+ * The live context for #193 PR3 / #186 / #229: the active workbench class name
+ * (`key`, to pick a curated per-workbench pie), FreeCAD's own app icon (`badge`,
+ * active-plugin indicator, bottom-left) and the active workbench's icon (`icon`,
+ * active-workbench indicator, bottom-right). Returns null when the bridge is
+ * unreachable or reports no workbench (the host falls back to the dynamic menu).
  */
 export async function provideContext() {
   try {
     const resp = await request({ op: 'context' });
     if (resp && resp.ok === true && typeof resp.workbench === 'string' && resp.workbench) {
       const badge = typeof resp.appIcon === 'string' && resp.appIcon ? resp.appIcon : undefined;
-      return { key: resp.workbench, badge };
+      const icon =
+        typeof resp.workbenchIcon === 'string' && resp.workbenchIcon
+          ? resp.workbenchIcon
+          : undefined;
+      return { key: resp.workbench, badge, icon };
     }
   } catch {
     // Bridge down / no context → null; the host falls back to the dynamic menu.
