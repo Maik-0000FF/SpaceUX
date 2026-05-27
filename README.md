@@ -7,4 +7,4 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 A short screencast of the current state:
 
-<video src="https://github.com/Maik-0000FF/SpaceUX/raw/main/docs/media/demo.webm" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/9940790f-f1c7-4471-9a02-329c09f6a30f" controls width="100%"></video>
