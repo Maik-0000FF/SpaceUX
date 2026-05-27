@@ -69,13 +69,15 @@ describe('app-settings', () => {
   });
 
   describe('loadPieAppearance', () => {
-    it('fills defaults (dark / 0.6 / label 1 / icon 0.5 / scale 1) when nothing is persisted', async () => {
+    it('fills defaults (dark / 0.6 / label 1 / icon 0.5 / scale 1 / no font override) when nothing is persisted', async () => {
       expect(await loadPieAppearance()).toEqual({
         theme: 'dark',
         opacity: 0.6,
         labelScale: 1,
         iconScale: 0.5,
         scale: 1,
+        fontUi: '',
+        fontMono: '',
       });
     });
 
@@ -86,6 +88,8 @@ describe('app-settings', () => {
         pieLabelScale: 0.6,
         pieIconScale: 0.8,
         pieScale: 1.5,
+        pieFontUi: 'Cantarell, sans-serif',
+        pieFontMono: 'monospace',
       });
       expect(await loadPieAppearance()).toEqual({
         theme: 'light',
@@ -93,6 +97,8 @@ describe('app-settings', () => {
         labelScale: 0.6,
         iconScale: 0.8,
         scale: 1.5,
+        fontUi: 'Cantarell, sans-serif',
+        fontMono: 'monospace',
       });
     });
 
@@ -104,7 +110,14 @@ describe('app-settings', () => {
         labelScale: 1,
         iconScale: 0.5,
         scale: 1,
+        fontUi: '',
+        fontMono: '',
       });
+    });
+
+    it('normalises a persisted font override (trim + control chars)', async () => {
+      await writeRaw(JSON.stringify({ pieFontUi: '  Inter\tDisplay  ' }));
+      expect((await loadPieAppearance()).fontUi).toBe('Inter Display');
     });
 
     it('clamps a persisted pieScale into [0.5, 2]', async () => {

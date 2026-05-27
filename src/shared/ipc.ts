@@ -368,6 +368,15 @@ export type PieAppearance = {
    *  (was the per-menu `MenuConfig.scale`, #186 follow-up) so it's editable
    *  whatever the active source, and rides a device profile's appearance. */
   scale: number;
+  /** Pie-scoped font override (#237 PR 2). A CSS `font-family` value applied
+   *  to the pie labels only (live overlay + editor preview) via
+   *  `--pie-font-ui`, never the editor UI. `''` = the bundled default
+   *  (`var(--font-ui)`, Inter + system stack). */
+  fontUi: string;
+  /** Pie-scoped monospace override (#237 PR 2), applied via `--pie-font-mono`.
+   *  `''` = the bundled default (`var(--font-mono)`, JetBrains Mono). Affects
+   *  pie-context monospace text (the dev debug panel today). */
+  fontMono: string;
 };
 
 /** Config plus the on-disk mtime it was read at. The editor snapshots

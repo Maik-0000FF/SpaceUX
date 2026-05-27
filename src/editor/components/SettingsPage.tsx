@@ -3,6 +3,7 @@
 
 import type { ThemeChoice } from '@/shared/ipc';
 
+import { PieFontSettings } from './PieFontSettings';
 import { PluginManager } from './PluginManager';
 
 import styles from './SettingsPage.module.scss';
@@ -35,6 +36,15 @@ export function SettingsPage({
           <option value="dark">Dark</option>
           <option value="spaceux">SpaceUX</option>
         </select>
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.heading}>Pie fonts</h2>
+        <p className={styles.desc}>
+          The font for the pie labels, in the live overlay and the preview. The editor window keeps
+          its own font. Bundled ships with the app for an identical look on every system.
+        </p>
+        <PieFontSettings />
       </section>
 
       <section className={styles.section}>

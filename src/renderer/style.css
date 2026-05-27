@@ -148,6 +148,7 @@ body {
 
 .pie-label {
   fill: var(--pie-label);
+  font-family: var(--pie-font-ui);
   font-size: 18px;
   font-weight: 600;
   pointer-events: none;
@@ -205,6 +206,7 @@ body {
   /* Theme colour in every state — the centre label doesn't flip to white
      when active (unlike wedge labels), matching the editor preview. */
   fill: var(--pie-cancel-label);
+  font-family: var(--pie-font-ui);
   /* The centre isn't a segment, so no per-segment fit — but the Label slider
      still scales it (× var) so one control covers all labels. */
   font-size: calc(18px * var(--pie-label-scale, 1));
@@ -256,7 +258,7 @@ body {
 }
 
 .debug-row.mono {
-  font-family: var(--font-mono);
+  font-family: var(--pie-font-mono);
   font-size: 11px;
   color: var(--debug-mono-fg);
 }

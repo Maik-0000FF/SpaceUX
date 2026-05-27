@@ -9,6 +9,7 @@ import path from 'node:path';
 import { describeError } from '../shared/errors.js';
 import type { PieAppearance, PieThemeChoice } from '../shared/ipc.js';
 import {
+  clampFontFamily,
   clampPieIconScale,
   clampPieLabelScale,
   clampPieOpacity,
@@ -36,6 +37,8 @@ export type AppSettings = {
   pieLabelScale?: number;
   pieIconScale?: number;
   pieScale?: number;
+  pieFontUi?: string;
+  pieFontMono?: string;
 };
 
 const FILENAME = 'app-settings.json';
@@ -80,6 +83,12 @@ export async function loadAppSettings(): Promise<AppSettings> {
   if (typeof obj.pieScale === 'number' && Number.isFinite(obj.pieScale)) {
     out.pieScale = clampPieScale(obj.pieScale);
   }
+  if (typeof obj.pieFontUi === 'string') {
+    out.pieFontUi = clampFontFamily(obj.pieFontUi);
+  }
+  if (typeof obj.pieFontMono === 'string') {
+    out.pieFontMono = clampFontFamily(obj.pieFontMono);
+  }
   return out;
 }
 
@@ -92,6 +101,8 @@ export async function loadPieAppearance(): Promise<PieAppearance> {
     labelScale: s.pieLabelScale ?? DEFAULT_PIE_APPEARANCE.labelScale,
     iconScale: s.pieIconScale ?? DEFAULT_PIE_APPEARANCE.iconScale,
     scale: s.pieScale ?? DEFAULT_PIE_APPEARANCE.scale,
+    fontUi: s.pieFontUi ?? DEFAULT_PIE_APPEARANCE.fontUi,
+    fontMono: s.pieFontMono ?? DEFAULT_PIE_APPEARANCE.fontMono,
   };
 }
 
