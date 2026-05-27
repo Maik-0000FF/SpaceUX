@@ -12,6 +12,7 @@ import {
 import { isRenderableIcon } from '@/core/icon';
 import type { MenuNode } from '@/shared/menu';
 
+import { confirmDeleteNode } from '../confirm-delete-node';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
@@ -162,7 +163,17 @@ export function MenuList() {
     setExpanded((prev) => new Set(prev).add(key));
   };
 
-  const removeItem = (ring: number[], index: number, ringLen: number): void => {
+  const removeItem = async (ring: number[], index: number, ringLen: number): Promise<void> => {
+    const before = useMenuSettings.getState().config;
+    const node = before ? ringBranches(before, ring)[index] : undefined;
+    if (node) {
+      if (!(await confirmDeleteNode(node))) return;
+      // The confirm is async: if an out-of-band config change (external edit,
+      // profile/workbench switch) replaced the tree while the dialog was open,
+      // ring/index now points at a different node, so bail rather than delete it.
+      const live = useMenuSettings.getState().config;
+      if (!live || ringBranches(live, ring)[index]?.id !== node.id) return;
+    }
     // Deleting the last child of a *submenu* would leave it empty (invalid),
     // so instead drop the submenu level: the parent (at `ring`) becomes a
     // plain leaf again. The top-level ring (ring []) is exempt — it can be
@@ -424,7 +435,7 @@ export function MenuList() {
                   }
                   aria-label={`Delete ${node.label}`}
                   disabled={readOnly}
-                  onClick={() => removeItem(ringPath, i, ringLen)}
+                  onClick={() => void removeItem(ringPath, i, ringLen)}
                 >
                   🗑
                 </button>

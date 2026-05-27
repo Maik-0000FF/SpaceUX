@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { isRenderableIcon } from '@/core/icon';
 import { BUILTIN_ACTION, builtinAction, resolveNavigation } from '@/shared/menu';
 
+import { confirmDeleteNode } from '../confirm-delete-node';
 import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
@@ -139,8 +140,17 @@ export function Properties() {
   const canDelete =
     selectedIndex !== null &&
     (viewPath.length === 0 || (config ? ringBranches(config, viewPath).length : 0) > 1);
-  const handleDelete = (): void => {
+  const handleDelete = async (): Promise<void> => {
     if (selectedIndex === null) return;
+    const node = config ? ringBranches(config, viewPath)[selectedIndex] : undefined;
+    if (node) {
+      if (!(await confirmDeleteNode(node))) return;
+      // The confirm is async: if an out-of-band config change replaced the tree
+      // while the dialog was open, viewPath/selectedIndex now points at a
+      // different node, so bail rather than delete it.
+      const live = useMenuSettings.getState().config;
+      if (!live || ringBranches(live, viewPath)[selectedIndex]?.id !== node.id) return;
+    }
     deleteNode(viewPath, selectedIndex);
     const current = useMenuSettings.getState().config;
     const remaining = current ? ringBranches(current, viewPath).length : 0;
@@ -476,7 +486,7 @@ export function Properties() {
               <button
                 type="button"
                 className={styles.deleteButton}
-                onClick={handleDelete}
+                onClick={() => void handleDelete()}
                 disabled={!canDelete}
                 title={canDelete ? 'Delete this node' : 'A submenu must keep at least one item'}
               >
