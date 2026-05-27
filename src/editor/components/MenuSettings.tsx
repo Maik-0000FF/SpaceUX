@@ -62,11 +62,21 @@ export function MenuSettings() {
     soft: styles.optSoft,
     hard: styles.optHard,
   };
+  // A leading coloured-circle emoji so the severity survives even where
+  // Linux/GTK ignores the option text colour (Noto Color Emoji renders these
+  // regardless). The CSS tint is the nicety; the circle + warning line are the
+  // dependable signal. `free` stays unmarked so a clean list isn't noisy.
+  const SEVERITY_MARK: Record<ConflictSeverity, string> = { free: '', soft: '🟡 ', hard: '🔴 ' };
   const currentConflicts = triggerConflicts(effectiveTrigger);
   // The clamp blocks entering an out-of-range value but can't fix one
   // already saved (e.g. a config from a larger puck) — flag it so the
   // stale binding is visible rather than silently invalid.
   const triggerOutOfRange = maxButton !== undefined && effectiveTrigger > maxButton;
+  // The saved trigger isn't among the offered options (a bigger puck's button,
+  // or an offline session where only the fallback count is offered). Render it
+  // as a disabled option so the select shows the real value instead of
+  // silently snapping to Button 0 (which a stray click would then persist).
+  const triggerNotOffered = effectiveTrigger >= offeredButtons;
 
   return (
     <>
@@ -81,14 +91,15 @@ export function MenuSettings() {
             const severity = severityOf(conflicts);
             return (
               <option key={b} value={b} className={SEVERITY_CLASS[severity]}>
-                Button {b}
+                {SEVERITY_MARK[severity]}Button {b}
                 {conflicts.length > 0 && ` (used by ${conflicts.map((c) => c.source).join(', ')})`}
               </option>
             );
           })}
-          {triggerOutOfRange && (
+          {triggerNotOffered && (
             <option value={effectiveTrigger} disabled>
-              Button {effectiveTrigger} (unavailable)
+              Button {effectiveTrigger}
+              {triggerOutOfRange && ' (unavailable)'}
             </option>
           )}
         </select>
