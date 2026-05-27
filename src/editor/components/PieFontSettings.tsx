@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import { SYSTEM_FONT_MONO, SYSTEM_FONT_UI } from '@/shared/pie-appearance';
+import { clampFontFamily, SYSTEM_FONT_MONO, SYSTEM_FONT_UI } from '@/shared/pie-appearance';
 
 import { usePieAppearance } from '../hooks/usePieAppearance';
 
@@ -42,27 +42,37 @@ function FontControl({
   const [customText, setCustomText] = useState(() =>
     presetOf(value, systemStack) === 'custom' ? value : '',
   );
+  // The (clamped) value we last pushed out, so we can tell our own round-trip
+  // (optimistic state + main's re-broadcast) apart from an external change.
+  const emittedRef = useRef<string | null>(null);
 
-  // Adopt the persisted value once it loads (getPieAppearance resolves after
-  // mount) or when it changes out-of-band (a profile switch). Guard the one
-  // case our own edits create: an empty Custom field stores '' but shouldn't
-  // kick the control back to Bundled mid-edit.
+  // Adopt the persisted value when it loads (getPieAppearance resolves after
+  // mount) or changes out-of-band (a profile switch). Skip our own edits: an
+  // explicit Custom choice must stick even when the typed text happens to be
+  // empty or to equal a preset stack (e.g. `monospace`), which would otherwise
+  // re-derive the mode and yank the field away mid-edit.
   useEffect(() => {
+    if (value === emittedRef.current) return;
     const p = presetOf(value, systemStack);
-    setMode((cur) => (cur === 'custom' && value === '' ? 'custom' : p));
-    if (p === 'custom') setCustomText(value);
+    setMode(p);
+    setCustomText(p === 'custom' ? value : '');
   }, [value, systemStack]);
+
+  const emit = (next: string) => {
+    emittedRef.current = clampFontFamily(next);
+    onChange(next);
+  };
 
   const selectPreset = (p: Preset) => {
     setMode(p);
-    if (p === 'bundled') onChange('');
-    else if (p === 'system') onChange(systemStack);
-    else onChange(customText);
+    if (p === 'bundled') emit('');
+    else if (p === 'system') emit(systemStack);
+    else emit(customText);
   };
 
   const onText = (t: string) => {
     setCustomText(t);
-    onChange(t);
+    emit(t);
   };
 
   return (

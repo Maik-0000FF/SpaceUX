@@ -52,8 +52,8 @@ describe('clampFontFamily', () => {
     expect(clampFontFamily('   ')).toBe('');
   });
 
-  it('strips control characters to spaces', () => {
-    expect(clampFontFamily('Foo\nBar\tBaz')).toBe('Foo Bar Baz');
+  it('strips control characters (C0, DEL, C1) to spaces', () => {
+    expect(clampFontFamily('Foo\u007fBar\u0080Baz')).toBe('Foo Bar Baz');
   });
 
   it('caps the length', () => {

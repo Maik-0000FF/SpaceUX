@@ -79,7 +79,7 @@ export const DEFAULT_PIE_APPEARANCE: PieAppearance = {
 export function clampFontFamily(s: string): string {
   // eslint-disable-next-line no-control-regex
   return s
-    .replace(/[\u0000-\u001f]/g, ' ')
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
     .trim()
     .slice(0, FONT_FAMILY_MAX_LEN);
 }
