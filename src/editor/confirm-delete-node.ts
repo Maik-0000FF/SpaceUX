@@ -5,28 +5,44 @@ import type { MenuNode } from '@/shared/menu';
 
 import { confirm } from './state/confirm';
 
-/** Count every descendant a node takes with it when deleted (all nodes in its
- *  subtree, not counting the node itself). */
+/** Count every descendant a node takes with it when its subtree is dropped
+ *  (all nodes below it, not counting the node itself). */
 export function countDescendants(node: Pick<MenuNode, 'branches'>): number {
   return (node.branches ?? []).reduce((n, child) => n + 1 + countDescendants(child), 0);
 }
 
 /**
- * Confirm a destructive node delete (#79). A leaf — or an empty submenu —
- * deletes without friction: a stray click is cheap and Ctrl+Z covers it. A
- * submenu with children asks first and names what goes with it, since the
- * delete drops the whole subtree, not just the one node. Returns true when the
- * caller should proceed.
+ * Confirm an operation that drops a submenu's whole subtree: deleting it (#79)
+ * or switching its Type to Action (#145). A leaf, or an empty submenu, has
+ * nothing to lose, so it proceeds without a prompt (a stray click is cheap and
+ * Ctrl+Z covers it). Otherwise ask, naming the node and how many items go with
+ * it. Returns true when the caller should proceed.
  */
-export function confirmDeleteNode(node: Pick<MenuNode, 'label' | 'branches'>): Promise<boolean> {
+function confirmSubtreeLoss(
+  node: Pick<MenuNode, 'label' | 'branches'>,
+  verb: string,
+  title: string,
+): Promise<boolean> {
   const count = countDescendants(node);
   if (count === 0) return Promise.resolve(true);
   const name = node.label ? `"${node.label}"` : 'this submenu';
   const items = count === 1 ? '1 item' : `${count} items`;
   return confirm({
-    title: 'Delete submenu?',
-    message: `Delete ${name} and its ${items}?`,
-    confirmLabel: 'Delete',
+    title,
+    message: `${verb} ${name} and its ${items}?`,
+    confirmLabel: verb,
     destructive: true,
   });
+}
+
+/** Confirm deleting a node (the tree's 🗑 / the Properties delete button). */
+export function confirmDeleteNode(node: Pick<MenuNode, 'label' | 'branches'>): Promise<boolean> {
+  return confirmSubtreeLoss(node, 'Delete', 'Delete submenu?');
+}
+
+/** Confirm discarding a submenu's children when switching its Type to Action. */
+export function confirmDiscardChildren(
+  node: Pick<MenuNode, 'label' | 'branches'>,
+): Promise<boolean> {
+  return confirmSubtreeLoss(node, 'Discard', 'Discard submenu?');
 }

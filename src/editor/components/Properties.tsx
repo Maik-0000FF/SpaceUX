@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { isRenderableIcon } from '@/core/icon';
 import { BUILTIN_ACTION, builtinAction, resolveNavigation } from '@/shared/menu';
 
-import { confirmDeleteNode } from '../confirm-delete-node';
+import { confirmDeleteNode, confirmDiscardChildren } from '../confirm-delete-node';
 import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
@@ -159,6 +159,35 @@ export function Properties() {
     else clearSelection();
   };
 
+  const handleTypeChange = async (toSubmenu: boolean): Promise<void> => {
+    if (!path) return;
+    if (toSubmenu) {
+      updateNodeAt(path, (s) => {
+        if (s.branches === undefined) {
+          s.branches = [{ label: uniqueItemLabel(path, []), id: nextNodeId() }];
+          delete s.action;
+          // keepOpen is a leaf-only flag; a branch always stays open (it
+          // drills), so drop a stale one.
+          delete s.keepOpen;
+        }
+      });
+      return;
+    }
+    // → Action discards the submenu's whole subtree. Confirm first, naming what
+    // goes (mirrors the delete in #79); a leaf/empty submenu skips the prompt.
+    if (node) {
+      if (!(await confirmDiscardChildren(node))) return;
+      // The confirm is async: bail if an out-of-band config change moved the
+      // node at `path` while the dialog was open, so we don't drop a different
+      // subtree.
+      const live = useMenuSettings.getState().config;
+      if (!live || nodeAtPath(live, path)?.id !== node.id) return;
+    }
+    updateNodeAt(path, (s) => {
+      delete s.branches;
+    });
+  };
+
   return (
     <aside className={styles.sidebar}>
       <div className={styles.heading}>Properties</div>
@@ -282,21 +311,7 @@ export function Properties() {
                       ? 'Switching to Action discards this submenu and its items'
                       : undefined
                   }
-                  onChange={(e) =>
-                    updateNodeAt(path, (s) => {
-                      if (e.target.value === 'submenu') {
-                        if (s.branches === undefined) {
-                          s.branches = [{ label: uniqueItemLabel(path, []), id: nextNodeId() }];
-                          delete s.action;
-                          // keepOpen is a leaf-only flag — a branch always
-                          // stays open (it drills), so drop a stale one.
-                          delete s.keepOpen;
-                        }
-                      } else {
-                        delete s.branches;
-                      }
-                    })
-                  }
+                  onChange={(e) => void handleTypeChange(e.target.value === 'submenu')}
                 >
                   <option value="action">Action</option>
                   <option value="submenu">Submenu</option>

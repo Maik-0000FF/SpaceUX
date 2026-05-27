@@ -3,7 +3,11 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { confirmDeleteNode, countDescendants } from '../src/editor/confirm-delete-node';
+import {
+  confirmDeleteNode,
+  confirmDiscardChildren,
+  countDescendants,
+} from '../src/editor/confirm-delete-node';
 import { useConfirm } from '../src/editor/state/confirm';
 
 afterEach(() => {
@@ -58,5 +62,21 @@ describe('confirmDeleteNode', () => {
     const node = { label: '', branches: [{ label: 'a' }] };
     confirmDeleteNode(node);
     expect(useConfirm.getState().pending?.message).toBe('Delete this submenu and its 1 item?');
+  });
+});
+
+describe('confirmDiscardChildren', () => {
+  it('resolves true without prompting for a leaf', async () => {
+    expect(await confirmDiscardChildren({ label: 'Open' })).toBe(true);
+    expect(useConfirm.getState().pending).toBeNull();
+  });
+
+  it('prompts with the discard wording and forwards the choice', async () => {
+    const node = { label: 'Edit', branches: [{ label: 'a' }, { label: 'b' }] };
+    const result = confirmDiscardChildren(node);
+    expect(useConfirm.getState().pending?.message).toBe('Discard "Edit" and its 2 items?');
+    expect(useConfirm.getState().pending?.confirmLabel).toBe('Discard');
+    useConfirm.getState().settle(false);
+    expect(await result).toBe(false);
   });
 });
