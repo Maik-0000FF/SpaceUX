@@ -94,8 +94,10 @@ export const OUTER_RING_OUTER_RATIO = 1.5;
 const INNER_FRACTION_MID = 1 / OUTER_RING_OUTER_RATIO; // ≈ 0.667
 const INNER_FRACTION_SPAN = 0.167; // → [0.5 .. 0.834]
 
-/** Centre hole radius as a fraction of the inner-pie radius. 0.5 → 0.18. */
-const CENTER_FRACTION_MID = 0.18;
+/** Centre hole radius as a fraction of the inner-pie radius. The 0.5 midpoint
+ *  derives from CANCEL_RADIUS_RATIO, so "0.5 reproduces history" is enforced by
+ *  reference, not a coincidental duplicate literal. */
+const CENTER_FRACTION_MID = CANCEL_RADIUS_RATIO;
 const CENTER_FRACTION_SPAN = 0.1; // → [0.08 .. 0.28]
 
 function lerp(min: number, max: number, t: number): number {
