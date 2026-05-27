@@ -8,10 +8,14 @@
 // height when side by side.
 
 .panel {
-  // grow:3 (vs the selector card's 2) for the ~2:3 split; basis 320px is the
-  // wrap threshold below which the row stacks instead of squeezing.
+  // grow:3 (vs the selector card's 2) for the ~2:3 split; 320px is its
+  // flex-basis. The row wraps once both cards' bases plus the gap no longer fit
+  // the row width, stacking this card full-width below the selector card.
   flex: 3 1 320px;
   min-width: 0; // allow shrinking without overflowing its content
+  // A container for the slider rows below, so they can reflow to the card's
+  // own width (independent of the editor window / sidebars).
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -56,4 +60,30 @@
   font-variant-numeric: tabular-nums;
   color: var(--editor-fg-dim);
   text-align: right;
+}
+
+// On a narrow card (wrapped full-width on a small editor window) the fixed
+// 64px label + 38px value columns would crush the slider track to a few
+// pixels. Below 240px of card width, drop the label onto its own line so the
+// slider keeps a usable width instead of squeezing to nothing (#181).
+@container (max-width: 240px) {
+  .control {
+    grid-template-columns: 1fr 38px;
+    grid-template-areas:
+      'label label'
+      'slider value';
+    row-gap: 4px;
+  }
+
+  .label {
+    grid-area: label;
+  }
+
+  .slider {
+    grid-area: slider;
+  }
+
+  .value {
+    grid-area: value;
+  }
 }

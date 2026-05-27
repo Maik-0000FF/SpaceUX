@@ -7,8 +7,9 @@
 // row's `align-items: stretch` makes both cards equal height when side by side.
 
 .panel {
-  // grow:2 (vs the slider card's 3) for the ~2:3 split; basis 240px is the
-  // wrap threshold below which the row stacks instead of squeezing.
+  // grow:2 (vs the slider card's 3) for the ~2:3 split; 240px is its
+  // flex-basis. The row wraps once both cards' bases plus the gap no longer fit
+  // the row width, stacking the cards instead of squeezing them.
   flex: 2 1 240px;
   min-width: 0; // allow shrinking without overflowing its content
   display: flex;
