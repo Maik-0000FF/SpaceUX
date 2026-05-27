@@ -143,7 +143,14 @@ export function Properties() {
   const handleDelete = async (): Promise<void> => {
     if (selectedIndex === null) return;
     const node = config ? ringBranches(config, viewPath)[selectedIndex] : undefined;
-    if (node && !(await confirmDeleteNode(node))) return;
+    if (node) {
+      if (!(await confirmDeleteNode(node))) return;
+      // The confirm is async: if an out-of-band config change replaced the tree
+      // while the dialog was open, viewPath/selectedIndex now points at a
+      // different node, so bail rather than delete it.
+      const live = useMenuSettings.getState().config;
+      if (!live || ringBranches(live, viewPath)[selectedIndex]?.id !== node.id) return;
+    }
     deleteNode(viewPath, selectedIndex);
     const current = useMenuSettings.getState().config;
     const remaining = current ? ringBranches(current, viewPath).length : 0;
