@@ -97,6 +97,8 @@ describe('loadDeviceProfile', () => {
         labelScale: 1,
         iconScale: 0.5,
         scale: 1,
+        ringBalance: 0.5,
+        centerBalance: 0.5,
         fontUi: '',
         fontMono: '',
       });
@@ -123,6 +125,8 @@ describe('resolveActiveConfig', () => {
     labelScale: 1,
     iconScale: 1,
     scale: 1,
+    ringBalance: 0.5,
+    centerBalance: 0.5,
     fontUi: '',
     fontMono: '',
   };
@@ -229,6 +233,8 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
       labelScale: 0.8,
       iconScale: 0.8,
       scale: 1,
+      ringBalance: 0.5,
+      centerBalance: 0.5,
       fontUi: 'Cantarell, sans-serif',
       fontMono: '',
     };
@@ -260,6 +266,8 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
       labelScale: 1,
       iconScale: 1,
       scale: 1,
+      ringBalance: 0.5,
+      centerBalance: 0.5,
       fontUi: '',
       fontMono: '',
     };

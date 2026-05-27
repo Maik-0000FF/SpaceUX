@@ -5,10 +5,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   clampFontFamily,
+  clampPieBalance,
   clampPieIconScale,
   clampPieLabelScale,
   clampPieOpacity,
   FONT_FAMILY_MAX_LEN,
+  PIE_BALANCE_MAX,
+  PIE_BALANCE_MIN,
   PIE_ICON_SCALE_MAX,
   PIE_ICON_SCALE_MIN,
   PIE_LABEL_SCALE_MAX,
@@ -39,6 +42,14 @@ describe('clampPieIconScale', () => {
     expect(clampPieIconScale(9)).toBe(PIE_ICON_SCALE_MAX);
     expect(clampPieIconScale(0)).toBe(PIE_ICON_SCALE_MIN);
     expect(clampPieIconScale(0.6)).toBe(0.6);
+  });
+});
+
+describe('clampPieBalance', () => {
+  it('clamps to the [0, 1] band', () => {
+    expect(clampPieBalance(5)).toBe(PIE_BALANCE_MAX);
+    expect(clampPieBalance(-1)).toBe(PIE_BALANCE_MIN);
+    expect(clampPieBalance(0.5)).toBe(0.5);
   });
 });
 
@@ -100,6 +111,17 @@ describe('sanitizePieAppearancePatch', () => {
       iconScale: PIE_ICON_SCALE_MAX,
     });
     expect(sanitizePieAppearancePatch({ iconScale: NaN })).toEqual({});
+  });
+
+  it('keeps + clamps the balance sliders, dropping a non-finite one', () => {
+    expect(sanitizePieAppearancePatch({ ringBalance: 0.3, centerBalance: 0.7 })).toEqual({
+      ringBalance: 0.3,
+      centerBalance: 0.7,
+    });
+    expect(sanitizePieAppearancePatch({ ringBalance: 9 })).toEqual({
+      ringBalance: PIE_BALANCE_MAX,
+    });
+    expect(sanitizePieAppearancePatch({ centerBalance: NaN })).toEqual({});
   });
 
   it('keeps + normalises a font override, dropping a non-string one', () => {

@@ -76,6 +76,8 @@ describe('app-settings', () => {
         labelScale: 1,
         iconScale: 0.5,
         scale: 1,
+        ringBalance: 0.5,
+        centerBalance: 0.5,
         fontUi: '',
         fontMono: '',
       });
@@ -97,6 +99,8 @@ describe('app-settings', () => {
         labelScale: 0.6,
         iconScale: 0.8,
         scale: 1.5,
+        ringBalance: 0.5,
+        centerBalance: 0.5,
         fontUi: 'Cantarell, sans-serif',
         fontMono: 'monospace',
       });
@@ -110,6 +114,8 @@ describe('app-settings', () => {
         labelScale: 1,
         iconScale: 0.5,
         scale: 1,
+        ringBalance: 0.5,
+        centerBalance: 0.5,
         fontUi: '',
         fontMono: '',
       });

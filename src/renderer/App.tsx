@@ -215,6 +215,8 @@ export function App() {
           activeSector={drillState.stickyChildIndex}
           iconScale={pieAppearance.iconScale}
           scale={pieAppearance.scale}
+          ringBalance={pieAppearance.ringBalance}
+          centerBalance={pieAppearance.centerBalance}
           badge={pieBadges.plugin}
           workbenchBadge={pieBadges.workbench}
         />

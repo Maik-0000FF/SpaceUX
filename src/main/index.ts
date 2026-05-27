@@ -587,6 +587,8 @@ async function persistActiveAppearance(): Promise<void> {
     pieLabelScale: globalAppearance.labelScale,
     pieIconScale: globalAppearance.iconScale,
     pieScale: globalAppearance.scale,
+    pieRingBalance: globalAppearance.ringBalance,
+    pieCenterBalance: globalAppearance.centerBalance,
     pieFontUi: globalAppearance.fontUi,
     pieFontMono: globalAppearance.fontMono,
   });
@@ -1566,6 +1568,8 @@ app.on('before-quit', () => {
         pieLabelScale: globalAppearance.labelScale,
         pieIconScale: globalAppearance.iconScale,
         pieScale: globalAppearance.scale,
+        pieRingBalance: globalAppearance.ringBalance,
+        pieCenterBalance: globalAppearance.centerBalance,
         pieFontUi: globalAppearance.fontUi,
         pieFontMono: globalAppearance.fontMono,
       });

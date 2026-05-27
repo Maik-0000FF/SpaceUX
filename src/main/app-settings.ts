@@ -13,6 +13,7 @@ import {
   clampPieIconScale,
   clampPieLabelScale,
   clampPieOpacity,
+  clampPieBalance,
   clampPieScale,
   DEFAULT_PIE_APPEARANCE,
   PIE_THEMES,
@@ -37,6 +38,8 @@ export type AppSettings = {
   pieLabelScale?: number;
   pieIconScale?: number;
   pieScale?: number;
+  pieRingBalance?: number;
+  pieCenterBalance?: number;
   pieFontUi?: string;
   pieFontMono?: string;
 };
@@ -83,6 +86,12 @@ export async function loadAppSettings(): Promise<AppSettings> {
   if (typeof obj.pieScale === 'number' && Number.isFinite(obj.pieScale)) {
     out.pieScale = clampPieScale(obj.pieScale);
   }
+  if (typeof obj.pieRingBalance === 'number' && Number.isFinite(obj.pieRingBalance)) {
+    out.pieRingBalance = clampPieBalance(obj.pieRingBalance);
+  }
+  if (typeof obj.pieCenterBalance === 'number' && Number.isFinite(obj.pieCenterBalance)) {
+    out.pieCenterBalance = clampPieBalance(obj.pieCenterBalance);
+  }
   if (typeof obj.pieFontUi === 'string') {
     out.pieFontUi = clampFontFamily(obj.pieFontUi);
   }
@@ -101,6 +110,8 @@ export async function loadPieAppearance(): Promise<PieAppearance> {
     labelScale: s.pieLabelScale ?? DEFAULT_PIE_APPEARANCE.labelScale,
     iconScale: s.pieIconScale ?? DEFAULT_PIE_APPEARANCE.iconScale,
     scale: s.pieScale ?? DEFAULT_PIE_APPEARANCE.scale,
+    ringBalance: s.pieRingBalance ?? DEFAULT_PIE_APPEARANCE.ringBalance,
+    centerBalance: s.pieCenterBalance ?? DEFAULT_PIE_APPEARANCE.centerBalance,
     fontUi: s.pieFontUi ?? DEFAULT_PIE_APPEARANCE.fontUi,
     fontMono: s.pieFontMono ?? DEFAULT_PIE_APPEARANCE.fontMono,
   };

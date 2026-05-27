@@ -368,6 +368,12 @@ export type PieAppearance = {
    *  (was the per-menu `MenuConfig.scale`, #186 follow-up) so it's editable
    *  whatever the active source, and rides a device profile's appearance. */
   scale: number;
+  /** Ring-balance slider (#182): 0..1, 0.5 = the historical proportions.
+   *  Shifts the inner-pie / outer-ring boundary within the fixed footprint. */
+  ringBalance: number;
+  /** Centre-balance slider (#182): 0..1, 0.5 = the historical proportions.
+   *  Shifts the centre-hole / inner-pie boundary. */
+  centerBalance: number;
   /** Pie-scoped font override (#237 PR 2). A CSS `font-family` value applied
    *  to the pie labels only (live overlay + editor preview) via
    *  `--pie-font-ui`, never the editor UI. `''` = the bundled default

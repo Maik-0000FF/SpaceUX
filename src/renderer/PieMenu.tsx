@@ -6,14 +6,12 @@ import { useMemo, type CSSProperties } from 'react';
 import { isRenderableIcon } from '@/core/icon';
 import { currentBranches, menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
-  CANCEL_RADIUS_RATIO,
   DEFAULT_PIE_GEOMETRY,
-  INNER_LABEL_RATIO,
-  OUTER_RING_INNER_RATIO,
   OUTER_RING_OUTER_RATIO,
   PLUGIN_BADGE_RATIO,
   axesToSector,
   clampPieAnchor,
+  ringRadii,
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
@@ -69,6 +67,11 @@ export type PieMenuProps = {
   /** Overall pie size multiplier from the pie appearance (was the per-menu
    *  `config.scale`, #186 follow-up). Scales the rendered px size; 1 = default. */
   scale?: number;
+  /** Ring-balance sliders (#182), 0..1 (0.5 = historical). `ringBalance` shifts
+   *  the inner-pie / outer-ring split, `centerBalance` the centre-hole / inner
+   *  split; both repartition the fixed footprint. */
+  ringBalance?: number;
+  centerBalance?: number;
   /** Active-plugin badge (#186): the app icon (data URI) of the plugin whose
    *  pie is active, shown decoratively in the bottom-left corner, or null. */
   badge?: string | null;
@@ -98,6 +101,8 @@ export function PieMenu({
   radius = 240,
   iconScale = 1,
   scale = 1,
+  ringBalance = 0.5,
+  centerBalance = 0.5,
   badge = null,
   workbenchBadge = null,
 }: PieMenuProps) {
@@ -149,7 +154,13 @@ export function PieMenu({
   // `null` means "no sector is active right now" (cancel target lights up).
   const computedSector = axesToSector(axes, geometry);
   const activeSector = overrideSector === undefined ? computedSector : overrideSector;
-  const innerRadius = radius * CANCEL_RADIUS_RATIO;
+  // The footprint stays `radius * OUTER_RING_OUTER_RATIO` (size-slider driven,
+  // balance-independent); the two balance sliders only repartition it among the
+  // centre hole, inner pie, and outer ring (#182).
+  const footprint = radius * OUTER_RING_OUTER_RATIO;
+  const rings = ringRadii(footprint, ringBalance, centerBalance);
+  const innerRadius = rings.cancel;
+  const innerPieOuter = rings.innerOuter;
 
   // Preview ring (top-level only): when the user hovers a branch
   // sector in the active inner pie, fade in its children as a
@@ -171,8 +182,8 @@ export function PieMenu({
   // `clampPieAnchor` deterministic and prevents the menu from
   // jumping inward by ~120 px the moment the user happens to hover
   // a branch sector.
-  const outerRingOuterRadius = radius * OUTER_RING_OUTER_RATIO;
-  const outerRingInnerRadius = radius * OUTER_RING_INNER_RATIO;
+  const outerRingOuterRadius = rings.outerOuter;
+  const outerRingInnerRadius = rings.outerInner;
   const viewportSize = outerRingOuterRadius * 2;
 
   // User size multiplier. The `/ devicePixelRatio` is a compositor-specific
@@ -245,14 +256,14 @@ export function PieMenu({
   // Mid-radius of the outer ring band, used to position outer-ring
   // labels in the visual centre of each wedge. Pre-computed because
   // both the wedge map and the label map below need it.
-  const outerLabelRadius = ((OUTER_RING_INNER_RATIO + OUTER_RING_OUTER_RATIO) / 2) * radius;
-  const innerLabelRadius = radius * INNER_LABEL_RATIO;
+  const outerLabelRadius = rings.outerLabel;
+  const innerLabelRadius = rings.innerLabel;
   // Icon size is the per-segment fit (largest icon that fits a wedge without
   // crossing its edges) scaled by the appearance icon-scale — 100% fills the
   // segment, like the label scale. Computed per ring because the inner pie and
   // the thinner outer ring have different room, so their icons differ in size.
   const innerIconSize =
-    segmentIconFitPx(innerLabelRadius, innerSectors.length, innerRadius, radius) * iconScale;
+    segmentIconFitPx(innerLabelRadius, innerSectors.length, innerRadius, innerPieOuter) * iconScale;
   const outerIconSize =
     outerSectors !== undefined
       ? segmentIconFitPx(
@@ -306,7 +317,7 @@ export function PieMenu({
             key={`inner-wedge-${i}`}
             index={i}
             sectorCount={innerSectors.length}
-            outerRadius={radius}
+            outerRadius={innerPieOuter}
             innerRadius={innerRadius}
             active={!isDrilled && activeSector === i}
             cancel={isCancelNode(node)}
