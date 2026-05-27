@@ -175,11 +175,14 @@ export function Properties() {
     }
     // → Action discards the submenu's whole subtree. Confirm first, naming what
     // goes (mirrors the delete in #79); a leaf/empty submenu skips the prompt.
-    if (node && !(await confirmDiscardChildren(node))) return;
-    // The confirm is async: bail if an out-of-band config change moved the node
-    // at `path` while the dialog was open, so we don't drop a different subtree.
-    const live = useMenuSettings.getState().config;
-    if (!live || nodeAtPath(live, path)?.id !== node?.id) return;
+    if (node) {
+      if (!(await confirmDiscardChildren(node))) return;
+      // The confirm is async: bail if an out-of-band config change moved the
+      // node at `path` while the dialog was open, so we don't drop a different
+      // subtree.
+      const live = useMenuSettings.getState().config;
+      if (!live || nodeAtPath(live, path)?.id !== node.id) return;
+    }
     updateNodeAt(path, (s) => {
       delete s.branches;
     });
