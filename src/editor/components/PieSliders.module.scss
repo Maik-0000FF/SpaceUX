@@ -2,13 +2,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // Right slider card in the control row above the preview, mirroring the
-// left-hand selector card (PieSelectors). Spans 3 of the row's 5 columns (the
-// wider share, for longer sliders); the row's `align-items: stretch` makes
-// both cards equal height.
+// left-hand selector card (PieSelectors). Takes the wider ~3/5 share (for
+// longer sliders) via flex-grow while both fit; wraps to full width on a
+// narrow row (#181). The row's `align-items: stretch` keeps both cards equal
+// height when side by side.
 
 .panel {
-  grid-column: span 3;
-  min-width: 0; // let the card shrink within its grid track instead of overflowing
+  // grow:3 (vs the selector card's 2) for the ~2:3 split; 320px is its
+  // flex-basis. The row wraps once both cards' bases plus the gap no longer fit
+  // the row width, stacking this card full-width below the selector card.
+  flex: 3 1 320px;
+  min-width: 0; // allow shrinking without overflowing its content
+  // A container for the slider rows below, so they can reflow to the card's
+  // own width (independent of the editor window / sidebars).
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -53,4 +60,30 @@
   font-variant-numeric: tabular-nums;
   color: var(--editor-fg-dim);
   text-align: right;
+}
+
+// On a narrow card (wrapped full-width on a small editor window) the fixed
+// 64px label + 38px value columns would crush the slider track to a few
+// pixels. Below 240px of card width, drop the label onto its own line so the
+// slider keeps a usable width instead of squeezing to nothing (#181).
+@container (max-width: 240px) {
+  .control {
+    grid-template-columns: 1fr 38px;
+    grid-template-areas:
+      'label label'
+      'slider value';
+    row-gap: 4px;
+  }
+
+  .label {
+    grid-area: label;
+  }
+
+  .slider {
+    grid-area: slider;
+  }
+
+  .value {
+    grid-area: value;
+  }
 }

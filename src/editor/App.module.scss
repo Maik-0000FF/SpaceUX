@@ -106,8 +106,14 @@
 // from overlapping at any width (cells just shrink, never collide).
 .controlRow {
   flex: none;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  // Flex + wrap instead of a fixed 5-col grid: the two cards keep a ~2:3 split
+  // via their flex-grow while they fit side by side, but once the row is too
+  // narrow for both at their flex-basis (a narrow editor window squeezes the
+  // middle between the tree + properties sidebars), the slider card wraps below
+  // the selector card and each takes the full width, legible instead of
+  // crushed (#181).
+  display: flex;
+  flex-wrap: wrap;
   align-items: stretch;
   gap: 12px;
   margin-bottom: 12px;
