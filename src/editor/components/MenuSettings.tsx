@@ -9,7 +9,14 @@ import {
 } from '@/shared/menu';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
+import {
+  collectButtonBindings,
+  conflictsOn,
+  severityOf,
+  type ConflictSeverity,
+} from '../state/button-conflicts';
 import { useMenuSettings } from '../state/menu-settings';
+import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 
 import { Row } from './Row';
 import styles from './Properties.module.scss';
@@ -30,6 +37,7 @@ const TRIGGER_MODE_LABELS: Record<TriggerMode, string> = {
  * design bar (#107).
  */
 export function MenuSettings() {
+  const config = useMenuSettings((s) => s.config);
   const triggerButton = useMenuSettings((s) => s.config?.triggerButton);
   const setTriggerButton = useMenuSettings((s) => s.setTriggerButton);
   const triggerMode = useMenuSettings((s) => s.config?.triggerMode);
@@ -40,7 +48,21 @@ export function MenuSettings() {
   const { buttons: buttonCount } = useDeviceInfo();
   // Highest selectable button: device count − 1 when known, else open.
   const maxButton = buttonCount > 0 ? buttonCount - 1 : undefined;
+  const offeredButtons = buttonCount > 0 ? buttonCount : FALLBACK_BUTTON_COUNT;
   const effectiveTrigger = triggerButton ?? DEFAULT_TRIGGER_BUTTON;
+
+  // Button-conflict detection (#75). Only meaningful in toggle mode: in
+  // open-only mode the trigger just opens, so it may freely share a button
+  // with a gesture. `selfSource` keeps the trigger from flagging itself.
+  const bindings = config ? collectButtonBindings(config) : [];
+  const triggerConflicts = (b: number) =>
+    effectiveMode === 'toggle' ? conflictsOn(bindings, b, 'Trigger button') : [];
+  const SEVERITY_CLASS: Record<ConflictSeverity, string | undefined> = {
+    free: undefined,
+    soft: styles.optSoft,
+    hard: styles.optHard,
+  };
+  const currentConflicts = triggerConflicts(effectiveTrigger);
   // The clamp blocks entering an out-of-range value but can't fix one
   // already saved (e.g. a config from a larger puck) — flag it so the
   // stale binding is visible rather than silently invalid.
@@ -49,22 +71,36 @@ export function MenuSettings() {
   return (
     <>
       <Row label="Trigger button">
-        <input
-          className={styles.input}
-          type="number"
-          min={0}
-          max={maxButton}
+        <select
+          className={styles.select}
           value={effectiveTrigger}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            // Reject buttons the connected device doesn't have.
-            if (Number.isInteger(n) && n >= 0 && (maxButton === undefined || n <= maxButton))
-              setTriggerButton(n);
-          }}
-        />
+          onChange={(e) => setTriggerButton(Number(e.target.value))}
+        >
+          {Array.from({ length: offeredButtons }, (_, b) => {
+            const conflicts = triggerConflicts(b);
+            const severity = severityOf(conflicts);
+            return (
+              <option key={b} value={b} className={SEVERITY_CLASS[severity]}>
+                Button {b}
+                {conflicts.length > 0 && ` (used by ${conflicts.map((c) => c.source).join(', ')})`}
+              </option>
+            );
+          })}
+          {triggerOutOfRange && (
+            <option value={effectiveTrigger} disabled>
+              Button {effectiveTrigger} (unavailable)
+            </option>
+          )}
+        </select>
         {triggerOutOfRange && (
           <span className={styles.fieldError}>
             This device has {buttonCount} buttons (0–{maxButton}). Pick a lower button.
+          </span>
+        )}
+        {currentConflicts.length > 0 && (
+          <span className={styles.fieldWarn}>
+            Also used by {currentConflicts.map((c) => c.source).join(', ')}. The same press would do
+            both.
           </span>
         )}
       </Row>

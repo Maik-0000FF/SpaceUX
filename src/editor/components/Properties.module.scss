@@ -159,6 +159,22 @@
   color: rgba(255, 120, 120, 0.95);
 }
 
+// Button-conflict severity (#75): a hard double-booking (red, matches
+// .fieldError) vs a soft, precedence-resolved clash (amber). Used both for the
+// warning line under a picker (.fieldWarn) and to tint the offending option.
+.fieldWarn {
+  font-size: 12px;
+  color: rgba(240, 190, 90, 0.95);
+}
+
+.optHard {
+  color: rgba(255, 120, 120, 0.95);
+}
+
+.optSoft {
+  color: rgba(240, 190, 90, 0.95);
+}
+
 // Informational, not an error: a per-item override that shadows a global
 // gesture (it still works — it wins for this item). Amber rather than red.
 .warning {
