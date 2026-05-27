@@ -12,6 +12,7 @@ import {
 import { isRenderableIcon } from '@/core/icon';
 import type { MenuNode } from '@/shared/menu';
 
+import { confirmDeleteNode } from '../confirm-delete-node';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
@@ -162,7 +163,10 @@ export function MenuList() {
     setExpanded((prev) => new Set(prev).add(key));
   };
 
-  const removeItem = (ring: number[], index: number, ringLen: number): void => {
+  const removeItem = async (ring: number[], index: number, ringLen: number): Promise<void> => {
+    const target = useMenuSettings.getState().config;
+    const node = target ? ringBranches(target, ring)[index] : undefined;
+    if (node && !(await confirmDeleteNode(node))) return;
     // Deleting the last child of a *submenu* would leave it empty (invalid),
     // so instead drop the submenu level: the parent (at `ring`) becomes a
     // plain leaf again. The top-level ring (ring []) is exempt — it can be
@@ -424,7 +428,7 @@ export function MenuList() {
                   }
                   aria-label={`Delete ${node.label}`}
                   disabled={readOnly}
-                  onClick={() => removeItem(ringPath, i, ringLen)}
+                  onClick={() => void removeItem(ringPath, i, ringLen)}
                 >
                   🗑
                 </button>
