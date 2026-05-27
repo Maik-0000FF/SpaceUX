@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import {
+  PIE_BALANCE_MAX,
+  PIE_BALANCE_MIN,
+  PIE_BALANCE_STEP,
   PIE_ICON_SCALE_MAX,
   PIE_ICON_SCALE_MIN,
   PIE_ICON_SCALE_STEP,
@@ -32,7 +35,15 @@ import styles from './PieSliders.module.scss';
  * `--pie-*` vars to the editor's <html>, keeping the preview themed.
  */
 export function PieSliders() {
-  const { appearance: pie, setOpacity, setLabelScale, setIconScale, setScale } = usePieAppearance();
+  const {
+    appearance: pie,
+    setOpacity,
+    setLabelScale,
+    setIconScale,
+    setScale,
+    setRingBalance,
+    setCenterBalance,
+  } = usePieAppearance();
 
   return (
     <div className={styles.panel}>
@@ -89,6 +100,34 @@ export function PieSliders() {
           title="Icon size as a fraction of the per-segment fit (100% = fills the segment)"
         />
         <span className={styles.value}>{Math.round(pie.iconScale * 100)}%</span>
+      </label>
+      <label className={styles.control}>
+        <span className={styles.label}>Ring</span>
+        <input
+          className={styles.slider}
+          type="range"
+          min={PIE_BALANCE_MIN}
+          max={PIE_BALANCE_MAX}
+          step={PIE_BALANCE_STEP}
+          value={pie.ringBalance}
+          onChange={(e) => setRingBalance(Number(e.target.value))}
+          title="Split between the inner pie and the outer ring (50% = default); keeps the overall size"
+        />
+        <span className={styles.value}>{Math.round(pie.ringBalance * 100)}%</span>
+      </label>
+      <label className={styles.control}>
+        <span className={styles.label}>Center</span>
+        <input
+          className={styles.slider}
+          type="range"
+          min={PIE_BALANCE_MIN}
+          max={PIE_BALANCE_MAX}
+          step={PIE_BALANCE_STEP}
+          value={pie.centerBalance}
+          onChange={(e) => setCenterBalance(Number(e.target.value))}
+          title="Size of the centre hole relative to the inner pie (50% = default)"
+        />
+        <span className={styles.value}>{Math.round(pie.centerBalance * 100)}%</span>
       </label>
     </div>
   );

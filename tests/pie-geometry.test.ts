@@ -15,6 +15,8 @@ import {
   gestureActive,
   inputActive,
   meetsActivation,
+  OUTER_RING_OUTER_RATIO,
+  ringRadii,
   rotateAxes,
   sectorCenterAngle,
   segmentIconFitPx,
@@ -475,5 +477,54 @@ describe('aimAxes (#159)', () => {
 
   it('twist has no lateral pointer (null) — selection moves by stepping only', () => {
     expect(aimAxes('twist', axes)).toBeNull();
+  });
+});
+
+describe('ringRadii', () => {
+  // The historical inner radius was the base; footprint = inner × 1.5. At the
+  // 0.5/0.5 default the helper must reproduce that exact geometry.
+  const INNER = 240;
+  const FOOTPRINT = INNER * OUTER_RING_OUTER_RATIO;
+
+  it('reproduces the historical proportions at the 0.5/0.5 default', () => {
+    const r = ringRadii(FOOTPRINT, 0.5, 0.5);
+    expect(r.outerOuter).toBeCloseTo(FOOTPRINT); // footprint unchanged
+    expect(r.innerOuter).toBeCloseTo(INNER); // inner pie = old base radius
+    expect(r.cancel).toBeCloseTo(INNER * 0.18); // old CANCEL_RADIUS_RATIO
+    expect(r.outerInner).toBeCloseTo(INNER * 1.04); // old OUTER_RING_INNER_RATIO
+  });
+
+  it('keeps the footprint fixed regardless of the balances', () => {
+    for (const ring of [0, 0.25, 0.5, 0.75, 1]) {
+      for (const center of [0, 0.5, 1]) {
+        expect(ringRadii(FOOTPRINT, ring, center).outerOuter).toBeCloseTo(FOOTPRINT);
+      }
+    }
+  });
+
+  it('keeps the bands ordered (cancel < inner rim < outer inner < footprint) at the extremes', () => {
+    for (const ring of [0, 0.5, 1]) {
+      for (const center of [0, 0.5, 1]) {
+        const r = ringRadii(FOOTPRINT, ring, center);
+        expect(r.cancel).toBeLessThan(r.innerOuter);
+        expect(r.innerOuter).toBeLessThanOrEqual(r.outerInner);
+        expect(r.outerInner).toBeLessThan(r.outerOuter);
+      }
+    }
+  });
+
+  it('grows the inner pie with ringBalance and the centre hole with centerBalance', () => {
+    expect(ringRadii(FOOTPRINT, 1, 0.5).innerOuter).toBeGreaterThan(
+      ringRadii(FOOTPRINT, 0, 0.5).innerOuter,
+    );
+    expect(ringRadii(FOOTPRINT, 0.5, 1).cancel).toBeGreaterThan(
+      ringRadii(FOOTPRINT, 0.5, 0).cancel,
+    );
+  });
+
+  it('keeps the inner label between the centre hole and the inner rim', () => {
+    const r = ringRadii(FOOTPRINT, 0.5, 1); // largest centre hole
+    expect(r.innerLabel).toBeGreaterThan(r.cancel);
+    expect(r.innerLabel).toBeLessThan(r.innerOuter);
   });
 });

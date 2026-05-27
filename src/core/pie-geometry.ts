@@ -82,9 +82,84 @@ export const OUTER_RING_INNER_RATIO = 1.04;
 /** Outer edge of the outer ring — the overall pie footprint. */
 export const OUTER_RING_OUTER_RATIO = 1.5;
 
-/** Radius at which inner-pie labels sit, as a fraction of the inner pie's
- *  outer radius (between the cancel hole and the rim). */
-export const INNER_LABEL_RATIO = 0.62;
+// ── Ring balance (issue #182) ───────────────────────────────────────
+// Two appearance sliders repartition the fixed footprint among the three
+// radial bands (centre hole / inner pie = first child / outer ring) without
+// changing the overall size. Each slider is a 0..1 position; 0.5 reproduces
+// the historical proportions. ringRadii() maps a slider into a clamped band so
+// no band collapses at the extremes.
+
+/** Inner-pie outer radius as a fraction of the footprint. 0.5 → 1/1.5 (the
+ *  historical inner:footprint ratio); spanned so the ends stay usable. */
+const INNER_FRACTION_MID = 1 / OUTER_RING_OUTER_RATIO; // ≈ 0.667
+const INNER_FRACTION_SPAN = 0.167; // → [0.5 .. 0.834]
+
+/** Centre hole radius as a fraction of the inner-pie radius. The 0.5 midpoint
+ *  derives from CANCEL_RADIUS_RATIO, so "0.5 reproduces history" is enforced by
+ *  reference, not a coincidental duplicate literal. */
+const CENTER_FRACTION_MID = CANCEL_RADIUS_RATIO;
+const CENTER_FRACTION_SPAN = 0.1; // → [0.08 .. 0.28]
+
+function lerp(min: number, max: number, t: number): number {
+  return min + (max - min) * t;
+}
+
+/** Every ring radius (px) resolved for a frame. */
+export type RingRadii = {
+  /** Centre cancel hole radius (the inner cut-out of every wedge). */
+  cancel: number;
+  /** Outer radius of the inner pie (the first-child ring). */
+  innerOuter: number;
+  /** Inner edge of the outer ring (a small gap past the inner pie). */
+  outerInner: number;
+  /** Outer edge of the outer ring = the pie footprint. */
+  outerOuter: number;
+  /** Inner-pie label radius: the middle of the band between the cancel hole
+   *  and the inner rim, so labels track the centre slider and never fall into
+   *  an enlarged hole. */
+  innerLabel: number;
+  /** Outer-ring label radius: the middle of the outer band. */
+  outerLabel: number;
+};
+
+/**
+ * Resolve all ring radii from the pie footprint and the two balance sliders
+ * (#182). `ringBalance` moves the inner-pie ↔ outer-ring boundary;
+ * `centerBalance` moves the centre-hole ↔ inner-pie boundary. Both are 0..1
+ * with 0.5 = the historical proportions. The footprint is fixed (set by the
+ * size slider), so balancing only repartitions, never resizes. Shared by the
+ * live pie and the editor preview so they can't drift.
+ */
+export function ringRadii(
+  footprint: number,
+  ringBalance: number,
+  centerBalance: number,
+): RingRadii {
+  const innerOuter =
+    footprint *
+    lerp(
+      INNER_FRACTION_MID - INNER_FRACTION_SPAN,
+      INNER_FRACTION_MID + INNER_FRACTION_SPAN,
+      ringBalance,
+    );
+  const cancel =
+    innerOuter *
+    lerp(
+      CENTER_FRACTION_MID - CENTER_FRACTION_SPAN,
+      CENTER_FRACTION_MID + CENTER_FRACTION_SPAN,
+      centerBalance,
+    );
+  const outerInner = innerOuter * OUTER_RING_INNER_RATIO;
+  const outerOuter = footprint;
+  return {
+    cancel,
+    innerOuter,
+    outerInner,
+    outerOuter,
+    innerLabel: (cancel + innerOuter) / 2,
+    outerLabel: (outerInner + outerOuter) / 2,
+  };
+}
 
 /** Active-plugin badge (#186) edge length, as a fraction of the outer-ring
  *  outer radius. Sized off the pie geometry (so it scales with the pie size,

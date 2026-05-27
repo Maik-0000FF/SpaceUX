@@ -7,11 +7,9 @@ import { isRenderableIcon } from '@/core/icon';
 import { PLUGIN_MENU_ID_PREFIX, parseWorkbenchMenuId } from '@/shared/plugin-types';
 import { menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
 import {
-  CANCEL_RADIUS_RATIO,
-  INNER_LABEL_RATIO,
-  OUTER_RING_INNER_RATIO,
   OUTER_RING_OUTER_RATIO,
   PLUGIN_BADGE_RATIO,
+  ringRadii,
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
@@ -36,13 +34,12 @@ const TAU = Math.PI * 2;
 // Live pie's radius (PieMenu default) so fonts/strokes render at their true
 // proportions; the viewBox scales the whole thing down to the panel — a
 // faithful, just-smaller pie. Ratios are shared with the live PieMenu.
-const RADIUS = 240;
-const INNER_RADIUS = RADIUS * CANCEL_RADIUS_RATIO;
-const OUTER_INNER_RADIUS = RADIUS * OUTER_RING_INNER_RATIO;
-const OUTER_OUTER_RADIUS = RADIUS * OUTER_RING_OUTER_RATIO;
-const INNER_LABEL_RADIUS = RADIUS * INNER_LABEL_RATIO;
-const OUTER_LABEL_RADIUS = (OUTER_INNER_RADIUS + OUTER_OUTER_RADIUS) / 2;
-const VIEW = OUTER_OUTER_RADIUS; // viewBox half-extent (reserves the outer ring)
+// Fixed footprint (matches the live PieMenu default inner radius × the
+// footprint ratio). The viewBox reserves it; the balance sliders only
+// repartition the footprint, so the overall preview size never changes. The
+// per-ring radii are resolved per render from the appearance (see below).
+const FOOTPRINT = 240 * OUTER_RING_OUTER_RATIO;
+const VIEW = FOOTPRINT; // viewBox half-extent (reserves the outer ring)
 
 /** A node's icon as an `<image>`, or null when the node has no renderable
  *  icon. Stacked above the label point (cx, cy); with an empty label it
@@ -96,6 +93,16 @@ export function MenuPreview() {
   // SVG dimension, so unlike the label scale it can't ride a CSS var. The
   // per-ring fit is computed below, once the ring geometry is known.
   const { appearance } = usePieAppearance();
+  // Resolve the ring radii from the fixed footprint + the balance sliders
+  // (#182). Local UPPER_CASE names so the render sites below read unchanged;
+  // INNER_PIE_OUTER is the inner pie's rim (was the bare `RADIUS` constant).
+  const rings = ringRadii(FOOTPRINT, appearance.ringBalance, appearance.centerBalance);
+  const INNER_PIE_OUTER = rings.innerOuter;
+  const INNER_RADIUS = rings.cancel;
+  const OUTER_INNER_RADIUS = rings.outerInner;
+  const OUTER_OUTER_RADIUS = rings.outerOuter;
+  const INNER_LABEL_RADIUS = rings.innerLabel;
+  const OUTER_LABEL_RADIUS = rings.outerLabel;
 
   // Active-plugin badge (#186): when this plugin's pie is the active source
   // (its dynamic menu or a curated workbench pie), show its app icon in the
@@ -173,7 +180,7 @@ export function MenuPreview() {
   // active ring — otherwise the node you drilled from jumps to 12 o'clock the
   // moment you go a level deeper. Mirrors the overlay (PieMenu).
   const breadcrumbRotation = isDrilled ? navigationRingRotation(config, viewPath.slice(0, -1)) : 0;
-  const activeOuter = isDrilled ? OUTER_OUTER_RADIUS : RADIUS;
+  const activeOuter = isDrilled ? OUTER_OUTER_RADIUS : INNER_PIE_OUTER;
   const activeInner = isDrilled ? OUTER_INNER_RADIUS : INNER_RADIUS;
   const activeLabel = isDrilled ? OUTER_LABEL_RADIUS : INNER_LABEL_RADIUS;
   // Per-segment icon fit × the appearance icon-scale (100% = fills the wedge),
@@ -181,7 +188,7 @@ export function MenuPreview() {
   const activeIconSize =
     segmentIconFitPx(activeLabel, count, activeInner, activeOuter) * appearance.iconScale;
   const breadcrumbIconSize = isDrilled
-    ? segmentIconFitPx(INNER_LABEL_RADIUS, parentRing.length, INNER_RADIUS, RADIUS) *
+    ? segmentIconFitPx(INNER_LABEL_RADIUS, parentRing.length, INNER_RADIUS, INNER_PIE_OUTER) *
       appearance.iconScale
     : 0;
 
@@ -276,7 +283,7 @@ export function MenuPreview() {
           parentRing.map((node, i) => {
             const c = sectorCenterAngle(i, parentRing.length) + breadcrumbRotation;
             const h = Math.PI / parentRing.length;
-            const d = describeWedgePath(RADIUS, INNER_RADIUS, c - h, c + h);
+            const d = describeWedgePath(INNER_PIE_OUTER, INNER_RADIUS, c - h, c + h);
             const lx = Math.sin(c) * INNER_LABEL_RADIUS;
             const ly = -Math.cos(c) * INNER_LABEL_RADIUS;
             const labelText = truncatePieLabel(node.label);

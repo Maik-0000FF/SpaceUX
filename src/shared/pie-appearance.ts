@@ -47,6 +47,18 @@ export const PIE_SCALE_MIN = 0.5;
 export const PIE_SCALE_MAX = 2;
 export const PIE_SCALE_STEP = 0.05;
 
+/** Ring-balance sliders (#182): 0..1 positions, 0.5 reproduces the historical
+ *  pie proportions. `ringBalance` shifts the inner-pie / outer-ring split,
+ *  `centerBalance` the centre-hole / inner-pie split. The footprint (the size
+ *  slider) is unchanged; these only repartition it. */
+export const PIE_BALANCE_MIN = 0;
+export const PIE_BALANCE_MAX = 1;
+export const PIE_BALANCE_STEP = 0.05;
+
+export function clampPieBalance(n: number): number {
+  return Math.min(PIE_BALANCE_MAX, Math.max(PIE_BALANCE_MIN, n));
+}
+
 /** Length cap for a stored font-family override. The value is only ever fed
  *  into `font-family: var(--pie-font-*)` via the CSSOM, which rejects a
  *  malformed value (the font simply falls back), so we only keep it a sane
@@ -70,6 +82,8 @@ export const DEFAULT_PIE_APPEARANCE: PieAppearance = {
   labelScale: 1,
   iconScale: 0.5,
   scale: 1,
+  ringBalance: 0.5,
+  centerBalance: 0.5,
   fontUi: '',
   fontMono: '',
 };
@@ -125,6 +139,12 @@ export function sanitizePieAppearancePatch(patch: unknown): Partial<PieAppearanc
   }
   if (typeof p.scale === 'number' && Number.isFinite(p.scale)) {
     clean.scale = clampPieScale(p.scale);
+  }
+  if (typeof p.ringBalance === 'number' && Number.isFinite(p.ringBalance)) {
+    clean.ringBalance = clampPieBalance(p.ringBalance);
+  }
+  if (typeof p.centerBalance === 'number' && Number.isFinite(p.centerBalance)) {
+    clean.centerBalance = clampPieBalance(p.centerBalance);
   }
   if (typeof p.fontUi === 'string') {
     clean.fontUi = clampFontFamily(p.fontUi);

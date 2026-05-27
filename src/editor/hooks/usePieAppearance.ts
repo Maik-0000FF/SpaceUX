@@ -30,6 +30,8 @@ export function usePieAppearance(): {
   setLabelScale: (labelScale: number) => void;
   setIconScale: (iconScale: number) => void;
   setScale: (scale: number) => void;
+  setRingBalance: (ringBalance: number) => void;
+  setCenterBalance: (centerBalance: number) => void;
   setFontUi: (fontUi: string) => void;
   setFontMono: (fontMono: string) => void;
 } {
@@ -81,6 +83,16 @@ export function usePieAppearance(): {
     window.editor.setPieAppearance({ scale });
   }, []);
 
+  const setRingBalance = useCallback((ringBalance: number) => {
+    setAppearance((a) => ({ ...a, ringBalance }));
+    window.editor.setPieAppearance({ ringBalance });
+  }, []);
+
+  const setCenterBalance = useCallback((centerBalance: number) => {
+    setAppearance((a) => ({ ...a, centerBalance }));
+    window.editor.setPieAppearance({ centerBalance });
+  }, []);
+
   const setFontUi = useCallback((fontUi: string) => {
     setAppearance((a) => ({ ...a, fontUi }));
     window.editor.setPieAppearance({ fontUi });
@@ -98,6 +110,8 @@ export function usePieAppearance(): {
     setLabelScale,
     setIconScale,
     setScale,
+    setRingBalance,
+    setCenterBalance,
     setFontUi,
     setFontMono,
   };
