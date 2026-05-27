@@ -97,6 +97,7 @@ import {
   resolveFreecadModDir,
   uninstallBridge,
 } from './freecad-bridge.js';
+import { resourceBase, resourcePath } from './resources.js';
 import { createTray } from './tray.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -648,9 +649,9 @@ async function createWindow(): Promise<void> {
     type: OVERLAY_MODE && process.platform === 'linux' ? 'toolbar' : undefined,
     title: 'SpaceUX (dev)',
     // Window/taskbar icon for the dev-mode framed window (overlay mode is
-    // frameless + skipTaskbar). Same path + packaging caveat (#50) as the
-    // editor window.
-    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
+    // frameless + skipTaskbar). Resolved via resourcePath; same Wayland
+    // .desktop caveat (#50) as the editor window.
+    icon: resourcePath('assets', 'icon.png'),
     webPreferences: {
       // .cjs extension: preload is bundled by esbuild as CommonJS so
       // Electron's sandboxed preload context (which doesn't grok ESM
@@ -1257,9 +1258,11 @@ app.whenReady().then(async () => {
     }
   }
 
-  const repoRoot = path.resolve(__dirname, '..', '..');
-  pluginRepoRoot = repoRoot;
-  const { plugins, errors } = await loadPlugins('function', repoRoot);
+  // Packaging-aware base for built-in plugins (extensions/): the repo root
+  // unpackaged, process.resourcesPath packaged — see resources.ts.
+  const resourceRoot = resourceBase;
+  pluginRepoRoot = resourceRoot;
+  const { plugins, errors } = await loadPlugins('function', resourceRoot);
   loadedPlugins = plugins;
   pluginErrors = errors;
   for (const err of errors) {
@@ -1538,7 +1541,7 @@ app.whenReady().then(async () => {
   wireDaemonEvents();
   daemon.start();
 
-  createTray(repoRoot);
+  createTray();
   await createWindow();
 });
 
