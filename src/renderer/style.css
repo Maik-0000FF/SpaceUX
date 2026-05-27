@@ -10,6 +10,7 @@
  */
 
 @import '../core/pie-theme.css';
+@import '../core/typography.css';
 
 :root {
   /* Connection-status banner */
@@ -36,11 +37,7 @@
 html,
 body {
   background: transparent;
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
+  font-family: var(--font-ui);
   overflow: hidden;
   user-select: none;
 }
@@ -259,7 +256,7 @@ body {
 }
 
 .debug-row.mono {
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: var(--debug-mono-fg);
 }

@@ -13,6 +13,7 @@
  */
 
 @import '../core/pie-theme.css';
+@import '../core/typography.css';
 
 /* Dark (default until the script applies a theme). */
 :root,
@@ -72,11 +73,7 @@ html,
 body {
   background: var(--editor-bg);
   color: var(--editor-fg);
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
+  font-family: var(--font-ui);
   overflow: hidden;
 }
 
