@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadEditorSettings, saveEditorSettings, type WindowBounds } from './editor-settings.js';
+import { resourcePath } from './resources.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -117,12 +118,11 @@ export async function openEditorWindow(): Promise<BrowserWindow> {
     title: 'SpaceUX Editor',
     backgroundColor: '#14161c',
     autoHideMenuBar: true,
-    // Window/taskbar icon instead of the default Electron logo. Sets
-    // _NET_WM_ICON on X11 / once packaged. TODO(packaging): native
-    // Wayland resolves the taskbar icon from a .desktop file by app_id,
-    // not this option — see #50. __dirname is dist-electron/main, so
-    // ../../assets reaches the repo assets dir (unpackaged only).
-    icon: path.join(__dirname, '..', '..', 'assets', 'icon.png'),
+    // Window/taskbar icon instead of the default Electron logo, resolved
+    // via resourcePath so it works both unpackaged and packaged. Sets
+    // _NET_WM_ICON on X11. On Wayland the taskbar icon comes from a
+    // .desktop file by app_id, not this option — see #50.
+    icon: resourcePath('assets', 'icon.png'),
     webPreferences: {
       // editor-preload.cjs (not preload.cjs): the editor renderer gets
       // window.editor, not window.spaceux. Bundled to .cjs by esbuild.
