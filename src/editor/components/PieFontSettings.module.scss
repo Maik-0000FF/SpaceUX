@@ -1,0 +1,42 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// Pie font override controls in the Settings tab. Two stacked font pickers
+// (label · monospace), each a preset select plus a Custom text field. Inputs
+// mirror SettingsPage's .select so they sit flush with the rest of the tab.
+
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+}
+
+.label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--editor-fg-dim);
+}
+
+.select,
+.input {
+  padding: 5px 10px;
+  border: 1px solid var(--editor-border);
+  border-radius: 5px;
+  background: var(--editor-input-bg);
+  color: var(--editor-fg);
+  font: inherit;
+  font-size: 12px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--editor-accent);
+  }
+}

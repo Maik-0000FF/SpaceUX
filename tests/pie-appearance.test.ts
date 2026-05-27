@@ -4,9 +4,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clampFontFamily,
   clampPieIconScale,
   clampPieLabelScale,
   clampPieOpacity,
+  FONT_FAMILY_MAX_LEN,
   PIE_ICON_SCALE_MAX,
   PIE_ICON_SCALE_MIN,
   PIE_LABEL_SCALE_MAX,
@@ -37,6 +39,25 @@ describe('clampPieIconScale', () => {
     expect(clampPieIconScale(9)).toBe(PIE_ICON_SCALE_MAX);
     expect(clampPieIconScale(0)).toBe(PIE_ICON_SCALE_MIN);
     expect(clampPieIconScale(0.6)).toBe(0.6);
+  });
+});
+
+describe('clampFontFamily', () => {
+  it('trims whitespace and keeps an ordinary family string', () => {
+    expect(clampFontFamily('  Cantarell, sans-serif  ')).toBe('Cantarell, sans-serif');
+  });
+
+  it('keeps an empty string empty (the bundled-default sentinel)', () => {
+    expect(clampFontFamily('')).toBe('');
+    expect(clampFontFamily('   ')).toBe('');
+  });
+
+  it('strips control characters (C0, DEL, C1) to spaces', () => {
+    expect(clampFontFamily('Foo\u007fBar\u0080Baz')).toBe('Foo Bar Baz');
+  });
+
+  it('caps the length', () => {
+    expect(clampFontFamily('x'.repeat(500))).toHaveLength(FONT_FAMILY_MAX_LEN);
   });
 });
 
@@ -79,6 +100,17 @@ describe('sanitizePieAppearancePatch', () => {
       iconScale: PIE_ICON_SCALE_MAX,
     });
     expect(sanitizePieAppearancePatch({ iconScale: NaN })).toEqual({});
+  });
+
+  it('keeps + normalises a font override, dropping a non-string one', () => {
+    expect(sanitizePieAppearancePatch({ fontUi: '  Cantarell  ' })).toEqual({
+      fontUi: 'Cantarell',
+    });
+    expect(sanitizePieAppearancePatch({ fontMono: 'monospace' })).toEqual({
+      fontMono: 'monospace',
+    });
+    expect(sanitizePieAppearancePatch({ fontUi: '' })).toEqual({ fontUi: '' });
+    expect(sanitizePieAppearancePatch({ fontUi: 42 })).toEqual({});
   });
 
   it('returns an empty patch for non-object input', () => {

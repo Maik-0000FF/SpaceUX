@@ -2,7 +2,7 @@
  * SPDX-FileCopyrightText: Maik-0000FF
  * SPDX-License-Identifier: GPL-3.0-or-later
  *
- * Shared typography — the single source of truth for fonts across the live
+ * Shared typography: the single source of truth for fonts across the live
  * pie (src/renderer) and the editor (src/editor). Both entry stylesheets
  * import this file, the same way they import pie-theme.css for colour.
  *
@@ -16,7 +16,7 @@
  * vietnamese subsets via @fontsource): Inter and JetBrains Mono, both licensed
  * SIL OFL-1.1. The OFL text must travel with the woff2 files at packaging time.
  *
- * Consumers reference `var(--font-ui)` / `var(--font-mono)` — never a literal
+ * Consumers reference `var(--font-ui)` / `var(--font-mono)`, never a literal
  * stack — so a future user/theme override (issue #237, PR 2) only has to reset
  * these two variables.
  */
@@ -27,4 +27,14 @@
 :root {
   --font-ui: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', 'Fira Code', monospace;
+
+  /*
+   * Pie-scoped font overrides (issue #237, PR 2). Default to the global stacks
+   * above; the pie appearance setting (usePieAppearance) resets these two on
+   * the document root when the user picks a non-bundled font. Only the pie
+   * labels (live overlay + editor preview) read them, so overriding on <html>
+   * never touches the editor UI, which reads --font-ui/--font-mono directly.
+   */
+  --pie-font-ui: var(--font-ui);
+  --pie-font-mono: var(--font-mono);
 }

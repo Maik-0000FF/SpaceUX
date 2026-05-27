@@ -90,13 +90,15 @@ describe('loadDeviceProfile', () => {
     if (result.status === 'loaded') {
       expect(result.config).toEqual(DEFAULT_MENU_CONFIG);
       // 'bogus-theme' dropped → default 'dark'; opacity 5 clamped → 1;
-      // labelScale + iconScale + scale absent → defaults (1 / 0.5 / 1).
+      // labelScale + iconScale + scale + fonts absent → defaults.
       expect(result.appearance).toEqual({
         theme: 'dark',
         opacity: 1,
         labelScale: 1,
         iconScale: 0.5,
         scale: 1,
+        fontUi: '',
+        fontMono: '',
       });
     }
   });
@@ -121,6 +123,8 @@ describe('resolveActiveConfig', () => {
     labelScale: 1,
     iconScale: 1,
     scale: 1,
+    fontUi: '',
+    fontMono: '',
   };
   const loaded: ProfileLoadResult = {
     status: 'loaded',
@@ -225,6 +229,8 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
       labelScale: 0.8,
       iconScale: 0.8,
       scale: 1,
+      fontUi: 'Cantarell, sans-serif',
+      fontMono: '',
     };
     const result = await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, appearance, dir);
     expect(result.ok).toBe(true);
@@ -254,6 +260,8 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
       labelScale: 1,
       iconScale: 1,
       scale: 1,
+      fontUi: '',
+      fontMono: '',
     };
     writeDeviceProfileSync('046d-c62b', DEFAULT_MENU_CONFIG, appearance, dir);
     const loaded = await loadDeviceProfile('046d-c62b', dir);

@@ -47,17 +47,42 @@ export const PIE_SCALE_MIN = 0.5;
 export const PIE_SCALE_MAX = 2;
 export const PIE_SCALE_STEP = 0.05;
 
+/** Length cap for a stored font-family override. The value is only ever fed
+ *  into `font-family: var(--pie-font-*)` via the CSSOM, which rejects a
+ *  malformed value (the font simply falls back), so we only keep it a sane
+ *  single-line token and bound its length for the settings file. */
+export const FONT_FAMILY_MAX_LEN = 200;
+
+/** Preset font stacks offered by the editor's font picker. `''` (stored when
+ *  "Bundled" is chosen) falls through to the bundled default in
+ *  typography.css; these stacks deliberately drop the bundled face so the OS
+ *  font is used for "System". "Custom" stores the typed family verbatim. */
+export const SYSTEM_FONT_UI = 'system-ui, sans-serif';
+export const SYSTEM_FONT_MONO = 'monospace';
+
 /** Defaults preserve the original look: dark palette, fills at ~60% (the
  *  palette's original baked translucency), labels filling the segment (100%).
  *  Opacity scales only the wedge fill alpha — strokes and labels are always
- *  fully opaque. */
+ *  fully opaque. Fonts default to `''` (the bundled stack). */
 export const DEFAULT_PIE_APPEARANCE: PieAppearance = {
   theme: 'dark',
   opacity: 0.6,
   labelScale: 1,
   iconScale: 0.5,
   scale: 1,
+  fontUi: '',
+  fontMono: '',
 };
+
+/** Normalise a font-family override: strip control characters, trim, and cap
+ *  the length. An empty result means "use the bundled default". */
+export function clampFontFamily(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ')
+    .trim()
+    .slice(0, FONT_FAMILY_MAX_LEN);
+}
 
 export function clampPieOpacity(n: number): number {
   return Math.min(PIE_OPACITY_MAX, Math.max(PIE_OPACITY_MIN, n));
@@ -100,6 +125,12 @@ export function sanitizePieAppearancePatch(patch: unknown): Partial<PieAppearanc
   }
   if (typeof p.scale === 'number' && Number.isFinite(p.scale)) {
     clean.scale = clampPieScale(p.scale);
+  }
+  if (typeof p.fontUi === 'string') {
+    clean.fontUi = clampFontFamily(p.fontUi);
+  }
+  if (typeof p.fontMono === 'string') {
+    clean.fontMono = clampFontFamily(p.fontMono);
   }
   return clean;
 }

@@ -7,6 +7,16 @@ import type { PieAppearance } from '@/shared/ipc';
 import { DEFAULT_PIE_APPEARANCE } from '@/shared/pie-appearance';
 
 /**
+ * Set a pie font CSS variable from an override value, or clear it so the
+ * variable falls back to its default (`var(--font-ui/mono)` in
+ * typography.css). An empty string means "use the bundled default".
+ */
+function applyFontOverride(root: HTMLElement, prop: string, value: string): void {
+  if (value) root.style.setProperty(prop, value);
+  else root.style.removeProperty(prop);
+}
+
+/**
  * Applies the pie appearance to the live overlay: pulls the persisted value
  * on mount and subscribes to changes pushed from main (editor edits), writing
  * `data-pie-theme` and the `--pie-opacity` custom property onto <html>. The
@@ -26,6 +36,8 @@ export function usePieAppearance(): PieAppearance {
       root.dataset.pieTheme = a.theme;
       root.style.setProperty('--pie-opacity', String(a.opacity));
       root.style.setProperty('--pie-label-scale', String(a.labelScale));
+      applyFontOverride(root, '--pie-font-ui', a.fontUi);
+      applyFontOverride(root, '--pie-font-mono', a.fontMono);
       setAppearance(a);
     };
     void window.spaceux.getPieAppearance().then((a) => {
