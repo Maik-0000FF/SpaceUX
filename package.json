@@ -8,8 +8,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && tsc -p tsconfig.electron.json && npm run build:preload",
+    "build": "tsc -b && vite build && tsc -p tsconfig.electron.json && npm run build:preload && npm run copy:font-licenses",
     "build:preload": "esbuild src/main/preload.ts src/main/editor-preload.ts --bundle --platform=node --format=cjs --external:electron --outdir=dist-electron/main --out-extension:.js=.cjs",
+    "copy:font-licenses": "node scripts/copy-font-licenses.mjs",
     "build:daemon": "cmake -S . -B build/daemon && cmake --build build/daemon",
     "build:all": "npm run build:daemon && npm run build",
     "start": "electron dist-electron/main/index.js",

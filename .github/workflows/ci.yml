@@ -40,6 +40,11 @@ jobs:
           npx tsc -p tsconfig.electron.json --noEmit
       - name: Vitest
         run: npm test
+      - name: Verify bundled font licenses
+        # The build copies each bundled font's OFL-1.1 text into the package.
+        # Run the copy step here so a fontsource package that drops or
+        # relocates its LICENSE fails CI, not only at packaging time.
+        run: npm run copy:font-licenses
 
   # ─── Daemon C build ─────────────────────────────────────────────────
   # Builds via CMake against the distro toolchain — proves the daemon
