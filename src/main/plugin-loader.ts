@@ -385,13 +385,24 @@ export function validateManifest(value: unknown): string | null {
     if (typeof s.entry !== 'string' || s.entry.trim() === '')
       return "shape.entry must be a non-empty string (path to the plugin's JS module)";
     // The entry is joined to the plugin dir at load time. Keep it a single
-    // relative path that can't escape: no leading slash, no `..` segment,
-    // no NUL or backslash (the validator runs cross-platform but the path
-    // must stay POSIX-relative as the rest of the plugin tree is).
+    // POSIX-relative path that can't escape the plugin folder: no absolute
+    // path, no embedded backslash (the rest of the plugin tree uses
+    // POSIX separators; `\` would be a literal filename char on POSIX but
+    // a directory separator on Windows, so accepting it would let a
+    // manifest's intent diverge across platforms), no NUL byte (Node's
+    // fs layer rejects these with a less actionable error downstream),
+    // no `..` segment.
     if (s.entry.startsWith('/') || s.entry.startsWith('\\'))
       return 'shape.entry must be a relative path, not absolute';
-    if (s.entry.split(/[\\/]/).some((seg) => seg === '..'))
+    if (s.entry.includes('\\'))
+      return 'shape.entry must use POSIX forward slashes, not backslashes';
+    if (s.entry.includes('\0')) return 'shape.entry must not contain a NUL byte';
+    if (s.entry.split('/').some((seg) => seg === '..'))
       return 'shape.entry must not contain ".." segments';
+    // Require `.js` deliberately: `.mjs` is rejected so plugin authors don't
+    // split into two extensions for the same loader path. PR2's runtime
+    // treats every shape entry as an ES module; using `.js` with top-level
+    // `import` / `export` works in the renderer's dynamic import.
     if (!s.entry.toLowerCase().endsWith('.js'))
       return 'shape.entry must point to a JavaScript file (.js)';
   } else if (m.shape !== undefined) {

@@ -405,6 +405,36 @@ describe('validateManifest — shape kind', () => {
     expect(validateManifest(shapeManifestBase({ shape: { ...base, entry: 'index.ts' } }))).toMatch(
       /\.js/,
     );
+    // `.mjs` is rejected on purpose so a plugin author doesn't split entries
+    // across two extensions for the same loader path (PR2's runtime treats
+    // every shape entry as an ES module via `.js`).
+    expect(validateManifest(shapeManifestBase({ shape: { ...base, entry: 'index.mjs' } }))).toMatch(
+      /\.js/,
+    );
+  });
+
+  it('rejects an entry with an embedded backslash or NUL byte', () => {
+    // The path must stay POSIX-relative (the rest of the plugin tree does);
+    // a literal backslash would be a filename char on POSIX and a separator
+    // on Windows, so we refuse it outright to keep the manifest's meaning
+    // portable. A NUL byte trips Node's fs layer downstream with a less
+    // actionable error, so the validator catches it first.
+    const base = shapeManifestBase().shape as Record<string, unknown>;
+    expect(
+      validateManifest(shapeManifestBase({ shape: { ...base, entry: 'sub\\bad.js' } })),
+    ).toMatch(/backslash/);
+    expect(
+      validateManifest(shapeManifestBase({ shape: { ...base, entry: 'bad\0name.js' } })),
+    ).toMatch(/NUL/);
+  });
+
+  it('accepts an entry with a case-variant .JS extension (case-insensitive check)', () => {
+    // The endsWith check is case-insensitive (the comment in the validator
+    // says so), so an author capitalising the extension still passes.
+    const base = shapeManifestBase().shape as Record<string, unknown>;
+    expect(
+      validateManifest(shapeManifestBase({ shape: { ...base, entry: 'index.JS' } })),
+    ).toBeNull();
   });
 
   it('rejects a shape plugin that carries a stray actions array', () => {

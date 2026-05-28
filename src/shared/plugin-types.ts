@@ -128,10 +128,12 @@ export type NavStylePresetDescriptor = {
  *  picker is expected to surface the plugin id alongside the descriptor
  *  when disambiguation is needed — same pattern as nav-style presets. */
 export type ShapePluginDescriptor = {
-  /** Stable id within the plugin (e.g. `"planets"`). Combined with the
-   *  plugin id to form the value the picker writes into
-   *  `PieAppearance.shapeModel` (`<pluginId>/<id>`). Never change once
-   *  shipped. */
+  /** Stable id within the plugin (e.g. `"planets"`). Will be combined
+   *  with the plugin id to form `<pluginId>/<id>`, the value the picker
+   *  will write into the pie appearance config (the field that selects
+   *  a shape lands in a later PR of this series; nothing in this
+   *  manifest contract requires the namespacing to be done at load).
+   *  Never change once shipped. */
   id: string;
   /** Dropdown label shown in the shape picker. */
   label: string;
