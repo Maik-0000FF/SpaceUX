@@ -72,7 +72,7 @@ describe('_safeShapeHitTest', () => {
   });
 
   it('folds a negative index to null', () => {
-    // -1 % 5 = -1 in JS — without the guard a negative index would
+    // -1 % 5 = -1 in JS; without the guard a negative index would
     // hit currentRing[-1] downstream, which is undefined and could
     // surface as a phantom hover.
     const mod = makeModule(() => -1);
