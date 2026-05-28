@@ -1,0 +1,111 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+/**
+ * Planets shape model (#107). Lays the menu's active ring out as
+ * orbital nodes around the centre instead of wedge slices: every
+ * sector becomes one circle (a "planet") evenly spaced on a single
+ * orbit. The centre cancel zone reads as the "sun".
+ *
+ * Pure compute, no DOM, no host imports. The host loads this file
+ * via Blob-URL dynamic import into the renderer process and calls
+ * the two named exports per the contract in
+ * src/shared/shape-plugin-api.ts.
+ *
+ * The wedge default code path stays untouched; this plugin is only
+ * active when the pie appearance (or a per-menu override) selects
+ * "org.spaceux.planets/planets".
+ */
+
+const TAU = Math.PI * 2;
+
+/**
+ * Place `sectorCount` planets evenly on a single orbit. The orbit
+ * sits at the outer ring's label radius so the planets get the most
+ * room and the centre still reads as a cancel zone (the "sun").
+ *
+ * Sector 0 sits at "12 o'clock"; subsequent sectors go clockwise.
+ * Same convention as the wedge default's `sectorCenterAngle`, so a
+ * puck push forward continues to hover sector 0 the way it did
+ * before switching to the planets layout.
+ *
+ * Planet radius derives from the chord between adjacent planets so
+ * neighbours never overlap and the visual stays balanced at any
+ * sector count (the host clamps sectorCount to >= 2 effectively;
+ * a 1-sector pie still works via the floor below).
+ */
+export function layout(sectorCount, ringRadii) {
+  const n = Math.max(1, Math.floor(sectorCount));
+  const orbit = ringRadii.outerLabelRadius;
+  // Half-chord between adjacent planet centres along the orbit:
+  // chord = 2 * orbit * sin(pi/n), so the half-chord is the radius
+  // budget before adjacent planets would touch. Use ~70% of that so
+  // neighbours stay visibly separated even at high sector counts.
+  // A single-sector pie (n=1) gets the chord term degenerate, so
+  // fall back to the ring-thickness cap below.
+  const halfChord = n >= 2 ? orbit * Math.sin(Math.PI / n) : Infinity;
+  // Cap by half the outer ring's thickness so a planet never bleeds
+  // past the ring band. Important at small sector counts where the
+  // chord-derived radius would dwarf the ring.
+  const halfThickness = (ringRadii.outerOuterRadius - ringRadii.outerInnerRadius) / 2;
+  const planetRadius = Math.min(halfChord * 0.7, halfThickness * 0.95);
+  const nodes = [];
+  const labels = [];
+  for (let i = 0; i < n; i++) {
+    // Angle 0 at "12 o'clock", measured clockwise. Screen y grows
+    // downward so the vertical component is negated (top is -y).
+    const angle = (i / n) * TAU;
+    const cx = orbit * Math.sin(angle);
+    const cy = -orbit * Math.cos(angle);
+    nodes.push({ cx, cy, r: planetRadius });
+    // Label centred inside the planet. The host pairs this with
+    // dominant-baseline=middle so the text sits on (x, y).
+    labels.push({ x: cx, y: cy, anchor: 'middle' });
+  }
+  return { nodes, labels };
+}
+
+/**
+ * Resolve which planet (sector index) the puck is currently aiming at,
+ * or null when the puck is inside the centre / cancel zone.
+ *
+ * Approach: convert raw puck axes to a screen-space position using the
+ * wedge default's invert convention (invertY=true: "push forward" +ty
+ * is treated as math-up, i.e. screen-up), then return the index of the
+ * planet whose centre is closest to that position. Nearest-by-distance
+ * is the natural mapping for an orbital layout (the user points at a
+ * planet), and it stays well-defined even when the puck deflects past
+ * the orbit radius.
+ *
+ * Limitations the contract revision may address later:
+ *  - The per-device `axisInvert` flags from the menu config aren't
+ *    plumbed to the plugin yet, so a user with invertY=false (raw
+ *    evdev convention) sees the planets respond to pushes in the
+ *    opposite vertical direction than the wedge default would. The
+ *    hardcoded `+ty -> screen-up` matches the DEFAULT_PIE_GEOMETRY
+ *    fallback the wedge default uses when no override is set.
+ *  - The cancel-zone gate compares pixel-space `cancelRadius` against
+ *    raw axis magnitudes; on a SpaceMouse where one axis unit roughly
+ *    corresponds to one pixel of intended deflection this lines up,
+ *    but a future contract revision should pass `hoverDeadzone`
+ *    explicitly so the threshold matches the same units the host's
+ *    own wedge default uses.
+ */
+export function hitTest(axes, ringRadii, layout) {
+  const px = axes.tx;
+  const py = -axes.ty;
+  if (Math.hypot(px, py) < ringRadii.cancelRadius) return null;
+  let bestIndex = -1;
+  let bestDistSq = Infinity;
+  for (let i = 0; i < layout.nodes.length; i++) {
+    const n = layout.nodes[i];
+    const dx = n.cx - px;
+    const dy = n.cy - py;
+    const distSq = dx * dx + dy * dy;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      bestIndex = i;
+    }
+  }
+  return bestIndex < 0 ? null : bestIndex;
+}
