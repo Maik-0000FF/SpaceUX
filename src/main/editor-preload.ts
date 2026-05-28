@@ -97,7 +97,7 @@ const bridge: EditorBridge = {
       loadAll,
     ) as Promise<PluginCatalogResult>,
   getShapeSource: (pluginId: string) =>
-    ipcRenderer.invoke(IpcChannel.EDITOR_GET_SHAPE_SOURCE, pluginId) as Promise<string | null>,
+    ipcRenderer.invoke(IpcChannel.GET_SHAPE_SOURCE, pluginId) as Promise<string | null>,
   getWorkbenchMenus: () =>
     ipcRenderer.invoke(IpcChannel.EDITOR_GET_WORKBENCH_MENUS) as Promise<WorkbenchMenusState>,
   onWorkbenchMenusChanged: (handler) => {

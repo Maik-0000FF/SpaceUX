@@ -146,6 +146,33 @@ body {
   fill: rgb(from var(--sector-color, var(--pie-bg-active)) r g b / var(--pie-opacity, 0.6));
 }
 
+/* Shape-plugin nodes (#107 PR3c). One circle per sector when a shape
+ * plugin is the active layout, taking the wedge's visual place. Uses
+ * the same wedge token family (--wedge-bg / --wedge-bg-active /
+ * --pie-border) so theme colours apply consistently across layouts:
+ * a planets layout gets the same idle / active / cancel palette
+ * a wedge would in the user's selected theme. */
+.pie-shape-node {
+  --wedge-bg: var(--pie-bg);
+  --wedge-bg-active: var(--sector-color, var(--pie-bg-active));
+  fill: rgb(from var(--wedge-bg) r g b / var(--pie-opacity, 0.6));
+  stroke: var(--pie-border);
+  stroke-width: 1.5;
+  transition:
+    fill var(--transition-fast),
+    stroke var(--transition-fast);
+}
+
+.pie-shape-node.is-active {
+  fill: rgb(from var(--wedge-bg-active) r g b / var(--pie-opacity, 0.6));
+}
+
+/* Cancel-bound sector: red palette, like the wedge variant. */
+.pie-shape-node.is-cancel {
+  --wedge-bg: var(--pie-cancel-bg);
+  --wedge-bg-active: var(--pie-cancel-bg-active);
+}
+
 .pie-label {
   fill: var(--pie-label);
   font-family: var(--pie-font-ui);

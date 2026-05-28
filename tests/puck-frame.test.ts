@@ -761,3 +761,98 @@ describe('resolvePuckFrame — button-bound inputs (#151)', () => {
     expect(r.outcome).toEqual({ kind: 'none' });
   });
 });
+
+describe('resolvePuckFrame — shape-plugin hit-test override (#107 PR3c)', () => {
+  // The shape hit-test routes through the optional `hitTest` arg
+  // instead of the wedge-default `axesToSector`. The wedge code path
+  // stays the active sector resolver when `hitTest` is omitted (the
+  // default for every preceding test in this file proves that).
+
+  it('uses the callback instead of axesToSector when provided', () => {
+    // The callback gets the unmodified axes (no aim-source reduction,
+    // no rotation) plus the sector count.
+    let received: { tx: number; ty: number; sectorCount: number } | null = null;
+    resolvePuckFrame({
+      menuConfig: config(nav({})),
+      axes: axes({ tx: 1, ty: 2 }),
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+      hitTest: (a, sectorCount) => {
+        received = { tx: a.tx, ty: a.ty, sectorCount };
+        return 0;
+      },
+    });
+    expect(received).not.toBeNull();
+    expect(received).toEqual({ tx: 1, ty: 2, sectorCount: SECTORS.length });
+  });
+
+  it('passes the raw six-axis snapshot, not the reduced aim source', () => {
+    // The plugin gets the full six-axis snapshot so it can hit-test on
+    // whichever axes its layout cares about (twist for a rotational
+    // layout, lateral for orbital, etc.). The wedge path's aim-source
+    // reduction and rotation are deliberately skipped.
+    let received: { tz: number; rz: number } | null = null;
+    resolvePuckFrame({
+      menuConfig: config(nav({ aim: 'twist' })),
+      axes: axes({ tx: 10, ty: 20, tz: 30, rx: 40, ry: 50, rz: 60 }),
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+      hitTest: (a) => {
+        received = { tz: a.tz, rz: a.rz };
+        return null;
+      },
+    });
+    expect(received).not.toBeNull();
+    // tz / rz reach the plugin even though `aim: 'twist'` would have
+    // collapsed lateral aiming to null in the wedge path.
+    expect(received).toEqual({ tz: 30, rz: 60 });
+  });
+
+  it('the wedge default path is untouched when hitTest is omitted', () => {
+    // Sanity guard: every preceding test in this file calls
+    // resolvePuckFrame without `hitTest` and the outcomes are what the
+    // pre-PR3c behaviour produced. This case re-asserts it explicitly
+    // with a frame the wedge path resolves to a non-null sector via
+    // lateral aim, just to pin "the new optional arg can't have changed
+    // the wedge path when it's left out".
+    const r = resolvePuckFrame({
+      menuConfig: config(nav({})),
+      axes: axes({ tx: 200 }), // past hoverDeadzone, well into a sector
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+    });
+    // The wedge path's aim landed on a sector; outcome is hover (the
+    // hover-set-sticky case the resolver reports when no terminal
+    // gesture fires).
+    expect(r.outcome.kind).toBe('hover');
+  });
+
+  it('still short-circuits an empty ring (no sectors to hit-test)', () => {
+    // An empty active ring (centre-only menu) returns `none` ahead of
+    // any sector resolution, with or without a hitTest override. The
+    // short-circuit must precede the callback so an empty pie doesn't
+    // bother loading the plugin's hit-test.
+    const emptyConfig: MenuConfig = {
+      version: MENU_CONFIG_VERSION,
+      navigation: nav({}),
+      root: { label: '', branches: [] },
+    };
+    let callbackRan = false;
+    const r = resolvePuckFrame({
+      menuConfig: emptyConfig,
+      axes: ZERO,
+      navigation: [],
+      sticky: null,
+      edges: FRESH,
+      hitTest: () => {
+        callbackRan = true;
+        return 0;
+      },
+    });
+    expect(r.outcome).toEqual({ kind: 'none' });
+    expect(callbackRan).toBe(false);
+  });
+});

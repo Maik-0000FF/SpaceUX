@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useMemo, type CSSProperties } from 'react';
+import { useEffect, useMemo, type CSSProperties } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import { currentBranches, menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
@@ -23,14 +23,28 @@ import {
   isCancelNode,
   resolveAxisInvert,
   resolveNavigation,
+  resolveShapeModel,
   type MenuConfig,
   type MenuNode,
 } from '@/shared/menu';
+import {
+  validateShapeLayout,
+  type ShapeLayout,
+  type ShapeRingRadii,
+} from '@/shared/shape-plugin-api';
+
+import { useShapeModules } from './state/shape-modules';
 
 const TAU = Math.PI * 2;
 
 export type PieMenuProps = {
   axes: { tx: number; ty: number };
+  /** Pie appearance's shape model id, layered with `menuConfig.shapeModel`
+   *  per the three-state override rules (#107). `null` = the wedge
+   *  default; a string is the namespaced `<pluginId>/<shapeId>` of an
+   *  installed shape plugin. Optional so callers (screenshots, tests)
+   *  that never render shapes can omit it. */
+  shapeModel?: string | null;
   /** Anchor point in renderer-window coords. The pie centre sits at
    *  this point so the menu opens "at the cursor" wherever the user
    *  triggered it. Omit to fall back to viewport-centre. */
@@ -105,6 +119,7 @@ export function PieMenu({
   centerBalance = 0.5,
   badge = null,
   workbenchBadge = null,
+  shapeModel: appearanceShapeModel = null,
 }: PieMenuProps) {
   // Resolve ring roles from the navigation stack. At top level the
   // *inner* pie is the active selection target; once drilled in the
@@ -185,6 +200,79 @@ export function PieMenu({
   const outerRingOuterRadius = rings.outerOuter;
   const outerRingInnerRadius = rings.outerInner;
   const viewportSize = outerRingOuterRadius * 2;
+
+  // Shape-plugin dispatch (#107 PR3c): resolve the effective shape
+  // model from the menu config (per-menu override) layered over the
+  // appearance default. `null` → render the active ring as wedges
+  // (the untouched default code path); a string id → call the
+  // plugin's `layout()` + render circles. The breadcrumb and preview
+  // rings stay as wedges either way.
+  const effectiveShape = resolveShapeModel(config.shapeModel, appearanceShapeModel);
+  const shapePluginId =
+    effectiveShape !== null
+      ? effectiveShape.includes('/')
+        ? effectiveShape.split('/', 1)[0]!
+        : effectiveShape
+      : null;
+  const ensureShapeLoaded = useShapeModules((s) => s.ensureLoaded);
+  const shapeModuleEntry = useShapeModules((s) =>
+    shapePluginId !== null ? s.modules[shapePluginId] : undefined,
+  );
+  useEffect(() => {
+    if (shapePluginId !== null) void ensureShapeLoaded(shapePluginId);
+  }, [shapePluginId, ensureShapeLoaded]);
+
+  // Pack ring radii into the plugin's contract once per (footprint,
+  // balances) change. Without the memo the layout call below would
+  // re-validate against a fresh object identity every render.
+  const shapeRingRadii = useMemo<ShapeRingRadii>(
+    () => ({
+      cancelRadius: rings.cancel,
+      innerInnerRadius: rings.cancel,
+      innerOuterRadius: rings.innerOuter,
+      innerLabelRadius: rings.innerLabel,
+      outerInnerRadius: rings.outerInner,
+      outerOuterRadius: rings.outerOuter,
+      outerLabelRadius: rings.outerLabel,
+    }),
+    [
+      rings.cancel,
+      rings.innerOuter,
+      rings.innerLabel,
+      rings.outerInner,
+      rings.outerOuter,
+      rings.outerLabel,
+    ],
+  );
+
+  // Layout for the *active ring* only (PR3c keeps the breadcrumb +
+  // preview rings as wedges so the dispatch is one branch site).
+  // `null` flows back to the wedge code path when the module isn't
+  // loaded yet or the plugin's output fails the structural check.
+  const activeRingSectors = isDrilled ? (outerSectors ?? []) : innerSectors;
+  const activeShapeLayout = useMemo<ShapeLayout | null>(() => {
+    if (shapeModuleEntry?.status !== 'ready') return null;
+    if (activeRingSectors.length === 0) return null;
+    let raw: unknown;
+    try {
+      raw = shapeModuleEntry.module.layout(activeRingSectors.length, shapeRingRadii);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[shape] layout() threw for plugin ${shapePluginId ?? '<unknown>'}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return null;
+    }
+    const validated = validateShapeLayout(raw, activeRingSectors.length);
+    if (!validated.ok) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[shape] layout() output rejected for plugin ${shapePluginId ?? '<unknown>'}: ${validated.reason}`,
+      );
+      return null;
+    }
+    return validated.layout;
+  }, [shapeModuleEntry, activeRingSectors.length, shapeRingRadii, shapePluginId]);
 
   // User size multiplier. The `/ devicePixelRatio` is a compositor-specific
   // correction, NOT standard behaviour: under plain Chromium a fixed CSS
@@ -311,21 +399,36 @@ export function PieMenu({
       >
         {/* Inner ring: active selection target at top level, dimmed
          *  breadcrumb once drilled in (with the drilled-into sector
-         *  marked as "you came from here"). */}
-        {innerSectors.map((node, i) => (
-          <SectorWedge
-            key={`inner-wedge-${i}`}
-            index={i}
-            sectorCount={innerSectors.length}
-            outerRadius={innerPieOuter}
-            innerRadius={innerRadius}
-            active={!isDrilled && activeSector === i}
-            cancel={isCancelNode(node)}
-            breadcrumb={isDrilled}
-            drilledInto={isDrilled && drilledIntoIndex === i}
-            rotation={innerRingRotation}
-          />
-        ))}
+         *  marked as "you came from here"). When a shape plugin is the
+         *  effective layout *and* the inner ring is the active ring
+         *  (top level), render the plugin's circles + labels in one
+         *  per-sector group instead of the wedge map below. The
+         *  breadcrumb case (drilled in) keeps the wedge so the visual
+         *  affordance "you came from here" stays consistent across
+         *  layouts. */}
+        {!isDrilled && activeShapeLayout !== null
+          ? renderShapeRing({
+              sectors: innerSectors,
+              layout: activeShapeLayout,
+              labelRadius: innerLabelRadius,
+              iconSize: innerIconSize,
+              activeSector,
+              keyPrefix: 'inner-shape',
+            })
+          : innerSectors.map((node, i) => (
+              <SectorWedge
+                key={`inner-wedge-${i}`}
+                index={i}
+                sectorCount={innerSectors.length}
+                outerRadius={innerPieOuter}
+                innerRadius={innerRadius}
+                active={!isDrilled && activeSector === i}
+                cancel={isCancelNode(node)}
+                breadcrumb={isDrilled}
+                drilledInto={isDrilled && drilledIntoIndex === i}
+                rotation={innerRingRotation}
+              />
+            ))}
         <circle
           className={`pie-cancel-center${cancelActive ? ' is-active' : ''}${rootCancel ? ' is-cancel' : ''}`}
           cx={0}
@@ -341,49 +444,71 @@ export function PieMenu({
         >
           {centerLabel}
         </text>
-        {innerSectors.map((node, i) => (
-          <SectorLabel
-            key={`inner-label-${i}`}
-            index={i}
-            sectorCount={innerSectors.length}
-            radius={innerLabelRadius}
-            node={node}
-            iconSize={innerIconSize}
-            breadcrumb={isDrilled}
-            rotation={innerRingRotation}
-          />
-        ))}
+        {/* Skip the inner label map when shape is active for this ring:
+            renderShapeRing above already drew the label as part of each
+            sector group, so a parallel wedge label map would double up. */}
+        {!isDrilled && activeShapeLayout !== null
+          ? null
+          : innerSectors.map((node, i) => (
+              <SectorLabel
+                key={`inner-label-${i}`}
+                index={i}
+                sectorCount={innerSectors.length}
+                radius={innerLabelRadius}
+                node={node}
+                iconSize={innerIconSize}
+                breadcrumb={isDrilled}
+                rotation={innerRingRotation}
+              />
+            ))}
         {/* Outer ring: active selection target once drilled in, or
          *  preview of the hovered branch's children at top level.
          *  Either way it's the *larger* concentric band — the only
          *  thing that changes is opacity + whether it's interactive. */}
         {outerSectors !== undefined && outerSectors.length > 0 && (
           <g className="pie-outer-ring">
-            {outerSectors.map((node, i) => (
-              <SectorWedge
-                key={`outer-wedge-${i}`}
-                index={i}
-                sectorCount={outerSectors.length}
-                outerRadius={outerRingOuterRadius}
-                innerRadius={outerRingInnerRadius}
-                active={isDrilled && activeSector === i}
-                cancel={isCancelNode(node)}
-                preview={!isDrilled}
-                rotation={outerRingRotation}
-              />
-            ))}
-            {outerSectors.map((node, i) => (
-              <SectorLabel
-                key={`outer-label-${i}`}
-                index={i}
-                sectorCount={outerSectors.length}
-                radius={outerLabelRadius}
-                node={node}
-                iconSize={outerIconSize}
-                preview={!isDrilled}
-                rotation={outerRingRotation}
-              />
-            ))}
+            {/* When drilled in and a shape plugin is the active layout,
+                render the outer ring's sectors as the plugin's circles +
+                labels in one group. The top-level preview case (not
+                drilled, branch-children preview) keeps the wedge map. */}
+            {isDrilled && activeShapeLayout !== null ? (
+              renderShapeRing({
+                sectors: outerSectors,
+                layout: activeShapeLayout,
+                labelRadius: outerLabelRadius,
+                iconSize: outerIconSize,
+                activeSector,
+                keyPrefix: 'outer-shape',
+              })
+            ) : (
+              <>
+                {outerSectors.map((node, i) => (
+                  <SectorWedge
+                    key={`outer-wedge-${i}`}
+                    index={i}
+                    sectorCount={outerSectors.length}
+                    outerRadius={outerRingOuterRadius}
+                    innerRadius={outerRingInnerRadius}
+                    active={isDrilled && activeSector === i}
+                    cancel={isCancelNode(node)}
+                    preview={!isDrilled}
+                    rotation={outerRingRotation}
+                  />
+                ))}
+                {outerSectors.map((node, i) => (
+                  <SectorLabel
+                    key={`outer-label-${i}`}
+                    index={i}
+                    sectorCount={outerSectors.length}
+                    radius={outerLabelRadius}
+                    node={node}
+                    iconSize={outerIconSize}
+                    preview={!isDrilled}
+                    rotation={outerRingRotation}
+                  />
+                ))}
+              </>
+            )}
           </g>
         )}
         {/* Active-plugin badge (#186): the app icon in the bottom-left corner
@@ -560,6 +685,77 @@ function SectorLabel({
       >
         {text}
       </text>
+    </>
+  );
+}
+
+/**
+ * Render one ring of sectors as a shape-plugin layout (#107 PR3c). Used
+ * by the active ring (inner at top level, outer when drilled in) when
+ * an `'shape'` plugin is the effective layout. The breadcrumb and
+ * preview rings stay on the wedge code path.
+ *
+ * Each sector is one `<g>` group containing the plugin's `<circle>`
+ * (the node body, positioned via `layout.nodes[i].cx,cy,r`), the node's
+ * icon if any, and the label at `layout.labels[i].x,y`. Classes mirror
+ * the wedge tokens (`pie-shape-node`, `is-active`, `is-cancel`) so the
+ * theme colours apply automatically — a shape plugin gets the same
+ * palette + opacity behaviour as the wedge default.
+ */
+function renderShapeRing(props: {
+  sectors: readonly MenuNode[];
+  layout: ShapeLayout;
+  /** Pixel radius the labels would have used in the wedge map; passed
+   *  to `segmentLabelFontPx` so the label's auto-fit matches the wedge
+   *  default (a few pixels' difference in actual `<text>` position
+   *  doesn't change the size). */
+  labelRadius: number;
+  iconSize: number;
+  activeSector: number | null | undefined;
+  keyPrefix: string;
+}): React.ReactElement {
+  const { sectors, layout, labelRadius, iconSize, activeSector, keyPrefix } = props;
+  return (
+    <>
+      {sectors.map((node, i) => {
+        const sn = layout.nodes[i]!;
+        const sl = layout.labels[i]!;
+        const active = activeSector === i;
+        const cancel = isCancelNode(node);
+        const hasIcon = iconSize > 0 && isRenderableIcon(node.icon);
+        const labelText = truncatePieLabel(node.label);
+        const className = ['pie-shape-node', active && 'is-active', cancel && 'is-cancel']
+          .filter(Boolean)
+          .join(' ');
+        return (
+          <g key={`${keyPrefix}-${i}`} className="pie-shape-group">
+            <circle cx={sn.cx} cy={sn.cy} r={sn.r} className={className} />
+            {hasIcon && (
+              <image
+                className="pie-icon"
+                href={node.icon}
+                x={sn.cx - iconSize / 2}
+                y={node.label.trim().length > 0 ? sn.cy - iconSize : sn.cy - iconSize / 2}
+                width={iconSize}
+                height={iconSize}
+                preserveAspectRatio="xMidYMid meet"
+              />
+            )}
+            <text
+              className="pie-label"
+              x={sl.x}
+              y={hasIcon ? sl.y + iconSize * 0.5 : sl.y}
+              textAnchor={sl.anchor}
+              dominantBaseline="middle"
+              style={{
+                fontSize: `calc(${segmentLabelFontPx(labelRadius, sectors.length, [...labelText].length)}px * var(--pie-label-scale, 1))`,
+              }}
+            >
+              {labelText}
+            </text>
+          </g>
+        );
+      })}
     </>
   );
 }

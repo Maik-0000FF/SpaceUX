@@ -342,6 +342,17 @@ export function resolvePuckFrame(args: {
   buttons?: readonly boolean[];
   /** Rising-edge memory from the previous frame. */
   edges: PuckEdges;
+  /** Optional sector-resolution override (#107 PR3c). When set, the
+   *  caller computes which sector the puck currently aims at via a
+   *  shape-plugin's `hitTest` instead of the built-in angular
+   *  `axesToSector` bucketing. The callback receives the rotated /
+   *  inverted aim-source axes (whatever the configured `aim` would
+   *  have fed into `axesToSector`) and the active ring's sector
+   *  count, and returns the sector index or null. Omit for the wedge
+   *  default; passing it does not affect any other gesture
+   *  resolution (drill / back / cycle / commit-center still run as
+   *  usual). */
+  hitTest?: (axes: SixAxes, sectorCount: number) => number | null;
 }): { outcome: PuckOutcome; edges: PuckEdges } {
   const { menuConfig, axes, navigation, sticky } = args;
   // Copy so the caller's memory is only updated via the returned value.
@@ -493,16 +504,27 @@ export function resolvePuckFrame(args: {
   // Hover threshold (low end of the aim band): the aimed sector lights up
   // once the aim passes nav.hoverDeadzone, immediately and the same at every
   // depth. axesToSector returns null below it.
+  //
+  // Shape-plugin hit-test override (#107 PR3c): when the caller passes
+  // `hitTest`, the plugin's geometry-appropriate sector resolution runs
+  // instead of the wedge default. The plugin receives the unmodified
+  // six-axis snapshot (no aim-source reduction, no ring-rotation), so
+  // the plugin can pick any combination of axes its layout needs
+  // (e.g. a planets layout reads tx/ty for "nearest node by distance",
+  // a hypothetical twist layout reads rz). The wedge default keeps the
+  // aim-source reduction + rotation it had before.
   const rawSec =
-    aimed === null
-      ? null
-      : axesToSector(rotateAxes(aimed, -ringRotation), {
-          ...DEFAULT_PIE_GEOMETRY,
-          sectorCount: current.length,
-          deadzone: nav.hoverDeadzone,
-          invertX: invert.x,
-          invertY: invert.y,
-        });
+    args.hitTest !== undefined
+      ? args.hitTest(axes, current.length)
+      : aimed === null
+        ? null
+        : axesToSector(rotateAxes(aimed, -ringRotation), {
+            ...DEFAULT_PIE_GEOMETRY,
+            sectorCount: current.length,
+            deadzone: nav.hoverDeadzone,
+            invertX: invert.x,
+            invertY: invert.y,
+          });
   // axesToSector clamps internal sectorCount to a minimum of 2, so a
   // 1-child ring can return index 1 — clamp out so sticky always lands
   // on an existing sector.

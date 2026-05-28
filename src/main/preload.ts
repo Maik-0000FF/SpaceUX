@@ -49,6 +49,8 @@ const bridge: SpaceUxBridge = {
     ipcRenderer.invoke(IpcChannel.GET_PIE_APPEARANCE) as Promise<PieAppearance>,
   onPieAppearanceChanged: (handler) =>
     subscribe<PieAppearance>(IpcChannel.PIE_APPEARANCE_CHANGED, handler),
+  getShapeSource: (pluginId: string) =>
+    ipcRenderer.invoke(IpcChannel.GET_SHAPE_SOURCE, pluginId) as Promise<string | null>,
 };
 
 contextBridge.exposeInMainWorld('spaceux', bridge);

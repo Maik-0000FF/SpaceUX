@@ -1,16 +1,19 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { OUTER_RING_OUTER_RATIO, ringRadii } from '@/core/pie-geometry';
 import { currentBranches, type DrillState } from '@/core/menu-nav';
-import { type ActionRef, type MenuConfig, type MenuNode } from '@/shared/menu';
+import { resolveShapeModel, type ActionRef, type MenuConfig, type MenuNode } from '@/shared/menu';
 import { type PieBadges } from '@/shared/ipc';
+import { type ShapeRingRadii } from '@/shared/shape-plugin-api';
 
 import { PieMenu } from './PieMenu';
 import { useDrillNavigation } from './hooks/useDrillNavigation';
 import { usePieAppearance } from './hooks/usePieAppearance';
 import { useSpaceMouse } from './hooks/useSpaceMouse';
+import { useShapeModules } from './state/shape-modules';
 
 /** Fire a node's action through main, swallowing nothing — dispatch
  *  failures surface on the renderer console so a user with devtools
@@ -97,6 +100,56 @@ export function App() {
   // `useDrillNavigation`. App.tsx owns the IPC subscription, the render,
   // and the close callbacks the hook invokes when an axis gesture
   // dismisses or commits the center.
+  // Shape-plugin context (#107 PR3c). Resolve the effective shape model
+  // from the menu config (per-menu override) layered over the appearance
+  // default; load the module via the live-overlay shape-modules store
+  // (lazy, coalesced). When both the appearance and the module are
+  // ready, hand `useDrillNavigation` a `shapeContext` so its hit-test
+  // path routes through the plugin's `hitTest` instead of the wedge
+  // `axesToSector`. `null` keeps the wedge default active.
+  const effectiveShape = menuConfig
+    ? resolveShapeModel(menuConfig.shapeModel, pieAppearance.shapeModel)
+    : null;
+  const shapePluginId =
+    effectiveShape !== null
+      ? effectiveShape.includes('/')
+        ? effectiveShape.split('/', 1)[0]!
+        : effectiveShape
+      : null;
+  const ensureShapeLoaded = useShapeModules((s) => s.ensureLoaded);
+  const shapeModuleEntry = useShapeModules((s) =>
+    shapePluginId !== null ? s.modules[shapePluginId] : undefined,
+  );
+  useEffect(() => {
+    if (shapePluginId !== null) void ensureShapeLoaded(shapePluginId);
+  }, [shapePluginId, ensureShapeLoaded]);
+
+  // Ring radii in the same packing the plugin contract expects, derived
+  // from the live overlay's footprint + balance sliders. Memoised on the
+  // scalar inputs so the closure identity inside `useDrillNavigation`
+  // stays stable across non-relevant renders.
+  const liveShapeRingRadii = useMemo<ShapeRingRadii>(() => {
+    const footprint = 240 * OUTER_RING_OUTER_RATIO;
+    const rings = ringRadii(footprint, pieAppearance.ringBalance, pieAppearance.centerBalance);
+    return {
+      cancelRadius: rings.cancel,
+      innerInnerRadius: rings.cancel,
+      innerOuterRadius: rings.innerOuter,
+      innerLabelRadius: rings.innerLabel,
+      outerInnerRadius: rings.outerInner,
+      outerOuterRadius: rings.outerOuter,
+      outerLabelRadius: rings.outerLabel,
+    };
+  }, [pieAppearance.ringBalance, pieAppearance.centerBalance]);
+
+  const shapeContext = useMemo(
+    () =>
+      shapeModuleEntry?.status === 'ready'
+        ? { module: shapeModuleEntry.module, ringRadii: liveShapeRingRadii }
+        : null,
+    [shapeModuleEntry, liveShapeRingRadii],
+  );
+
   const { drillState, dispatch, drillStateRef, resetTransientRefs } = useDrillNavigation({
     axes,
     buttons,
@@ -105,6 +158,7 @@ export function App() {
     onDismiss: dismissMenu,
     onCommitCenter: commitCenter,
     onActivate: activateNode,
+    shapeContext,
   });
 
   // Universal escape hatch: Escape always closes the open pie, regardless of
@@ -217,6 +271,7 @@ export function App() {
           scale={pieAppearance.scale}
           ringBalance={pieAppearance.ringBalance}
           centerBalance={pieAppearance.centerBalance}
+          shapeModel={pieAppearance.shapeModel}
           badge={pieBadges.plugin}
           workbenchBadge={pieBadges.workbench}
         />

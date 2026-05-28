@@ -44,6 +44,12 @@ import {
   type DrillState,
 } from '@/core/menu-nav';
 import { type MenuConfig, type MenuNode } from '@/shared/menu';
+import {
+  validateShapeLayout,
+  type ShapeLayout,
+  type ShapePluginModule,
+  type ShapeRingRadii,
+} from '@/shared/shape-plugin-api';
 
 export type UseDrillNavigation = {
   drillState: DrillState;
@@ -85,8 +91,15 @@ export function useDrillNavigation(opts: {
    *  its binding). The drill-state reset stays the hook's job, like
    *  `onCommitCenter`. */
   onActivate: (node: MenuNode | undefined) => void;
+  /** Active shape-plugin context (#107 PR3c). When set, the hook
+   *  computes the plugin's `layout(sectorCount, ringRadii)` (cached
+   *  per sectorCount) and passes the corresponding `hitTest` to
+   *  `resolvePuckFrame`, replacing the wedge-default sector resolution.
+   *  Omit (or pass `null`) for the wedge default. */
+  shapeContext?: { module: ShapePluginModule; ringRadii: ShapeRingRadii } | null;
 }): UseDrillNavigation {
   const { axes, buttons, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate } = opts;
+  const shapeContext = opts.shapeContext ?? null;
 
   const [drillState, dispatch] = useReducer(drillReducer, INITIAL_DRILL_STATE);
 
@@ -109,8 +122,58 @@ export function useDrillNavigation(opts: {
   const wasDrillRef = useRef<boolean>(true);
   const wasCycleRef = useRef<boolean>(true);
 
+  // Shape-plugin layout cache (#107 PR3c): the plugin's `layout()` is
+  // pure given (sectorCount, ringRadii), so the cache is keyed by the
+  // sectorCount; it's cleared when the active plugin module or the
+  // ringRadii change (a slider drag or a shape pick). Cached
+  // independently from PieMenu's render-side memo because the hit-test
+  // path runs in the gesture loop, not the React render loop.
+  const shapeLayoutCacheRef = useRef<{
+    module: ShapePluginModule | null;
+    ringRadii: ShapeRingRadii | null;
+    layouts: Map<number, ShapeLayout | null>;
+  }>({ module: null, ringRadii: null, layouts: new Map() });
+
   useEffect(() => {
     if (!menuOpen || !menuConfig) return;
+
+    // Build the optional shape hit-test closure. The wedge default is
+    // active when this stays undefined; resolvePuckFrame's signature
+    // tolerates both paths.
+    let hitTest:
+      | ((
+          axesArg: { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number },
+          sc: number,
+        ) => number | null)
+      | undefined;
+    if (shapeContext !== null) {
+      const cache = shapeLayoutCacheRef.current;
+      if (cache.module !== shapeContext.module || cache.ringRadii !== shapeContext.ringRadii) {
+        cache.module = shapeContext.module;
+        cache.ringRadii = shapeContext.ringRadii;
+        cache.layouts.clear();
+      }
+      // Resolve the layout for the *current* ring's sector count. Drill
+      // changes the sector count, so the cache miss on a new depth is
+      // expected and amortised.
+      const sectorCount = currentBranches(menuConfig, drillStateRef.current.navigation).length;
+      let layout = cache.layouts.get(sectorCount);
+      if (layout === undefined) {
+        try {
+          const raw = shapeContext.module.layout(sectorCount, shapeContext.ringRadii);
+          const validated = validateShapeLayout(raw, sectorCount);
+          layout = validated.ok ? validated.layout : null;
+        } catch {
+          layout = null;
+        }
+        cache.layouts.set(sectorCount, layout);
+      }
+      if (layout !== null) {
+        const { module, ringRadii } = shapeContext;
+        const layoutLocal = layout;
+        hitTest = (axesArg) => module.hitTest(axesArg, ringRadii, layoutLocal);
+      }
+    }
 
     // The whole per-frame decision lives in the pure resolver; the hook
     // just feeds it the live state + rising-edge memory and applies the
@@ -135,6 +198,7 @@ export function useDrillNavigation(opts: {
         drill: wasDrillRef.current,
         cycle: wasCycleRef.current,
       },
+      hitTest,
     });
     // Persist the next rising-edge memory regardless of the outcome — a
     // gesture that was active but didn't fire (held past a previous
@@ -193,7 +257,7 @@ export function useDrillNavigation(opts: {
       case 'none':
         break;
     }
-  }, [axes, buttons, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate]);
+  }, [axes, buttons, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate, shapeContext]);
 
   return {
     drillState,
