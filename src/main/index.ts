@@ -229,21 +229,29 @@ function toPluginInfo(manifest: PluginManifest, dir: string, hasCatalog = false)
     actionCount: manifest.actions?.length ?? 0,
     hasCatalog,
     badge: bakeBadge(dir, manifest.badge),
+    // Nav-style plugins ship presets via the manifest (no index.js is loaded);
+    // forwarded as-is so the editor's picker can merge them with built-ins.
+    navStylePresets: manifest.kind === 'nav-style' ? manifest.presets : undefined,
   };
 }
 
 /** Snapshot the installed plugins for the editor's manager: the live
- *  `function` plugins (already loaded for the action index) plus the
- *  `theme` plugins, which are listed but not executed yet (#47). */
+ *  `function` plugins (already loaded for the action index), the `theme`
+ *  plugins (#47, listed but not executed), and the `nav-style` plugins
+ *  whose presets the editor's navigation-style picker merges into its
+ *  dropdown. The two non-executable kinds load via manifest-only paths —
+ *  no `index.js` is imported for them. */
 async function buildPluginsState(): Promise<PluginsState> {
   const fnPlugins = loadedPlugins.map((p) =>
     toPluginInfo(p.manifest, p.dir, p.provideCatalog !== undefined),
   );
   const theme = await loadPluginManifests('theme', pluginRepoRoot);
   const themePlugins = theme.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
+  const navStyle = await loadPluginManifests('nav-style', pluginRepoRoot);
+  const navStylePlugins = navStyle.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
   return {
-    plugins: [...fnPlugins, ...themePlugins],
-    errors: [...pluginErrors, ...theme.errors],
+    plugins: [...fnPlugins, ...themePlugins, ...navStylePlugins],
+    errors: [...pluginErrors, ...theme.errors, ...navStyle.errors],
   };
 }
 

@@ -7,7 +7,7 @@ import os from 'node:os';
 import { pathToFileURL } from 'node:url';
 
 import { describeError } from '../shared/errors.js';
-import { validateNode } from '../shared/menu.js';
+import { validateNavigation, validateNode } from '../shared/menu.js';
 import {
   MIN_SUPPORTED_PLUGIN_API_VERSION,
   PLUGIN_API_VERSION,
@@ -34,6 +34,7 @@ import type { DaemonClient } from './daemon-client.js';
  *
  *   <root>/extensions/function/<id>/   — action / menu plugins (e.g. FreeCAD)
  *   <root>/extensions/theme/<id>/      — pie theme/design plugins (#47)
+ *   <root>/extensions/nav-style/<id>/  — navigation-style preset bundles
  *
  * Search roots, highest precedence first (first hit wins per id, so a
  * user copy shadows a system one):
@@ -218,8 +219,11 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   }
 
   // Every action named in the manifest must have a matching handler.
+  // `actions` is optional on the type so non-function manifests can omit it;
+  // validateManifest guarantees a non-empty array on the function-kind path
+  // this branch runs in, so the `?? []` is just a TS-narrowing nicety.
   const handlers: Record<string, ActionHandler> = {};
-  for (const action of manifest.actions) {
+  for (const action of manifest.actions ?? []) {
     const fn = mod.actions[action.name];
     if (typeof fn !== 'function') {
       return {
@@ -308,6 +312,37 @@ export function validateManifest(value: unknown): string | null {
         return 'action.label must be a non-empty string';
       if (seenNames.has(a.name)) return `action.name "${a.name}" appears more than once`;
       seenNames.add(a.name);
+    }
+  }
+
+  // `presets` is the nav-style payload — one or more {@link NavStylePresetDescriptor}s.
+  // Each preset's navigation block is validated against the same contract as an
+  // on-disk menu config (validateNavigation), so a malformed style can't soft-lock
+  // the picker after install. Same dedup logic as `actions`: a duplicate preset
+  // id within one manifest would shadow itself in the merged picker list silently.
+  if (m.kind === 'nav-style') {
+    if (!Array.isArray(m.presets) || m.presets.length === 0) {
+      return 'manifest field "presets" must be a non-empty array';
+    }
+    const seenIds = new Set<string>();
+    for (const preset of m.presets as unknown[]) {
+      if (typeof preset !== 'object' || preset === null) return 'every preset must be an object';
+      const p = preset as Record<string, unknown>;
+      if (typeof p.id !== 'string' || p.id.trim() === '')
+        return 'preset.id must be a non-empty string';
+      if (typeof p.label !== 'string' || p.label.trim() === '')
+        return 'preset.label must be a non-empty string';
+      if (typeof p.description !== 'string' || p.description.trim() === '')
+        return 'preset.description must be a non-empty string';
+      if (seenIds.has(p.id)) return `preset.id "${p.id}" appears more than once`;
+      seenIds.add(p.id);
+      const nav = validateNavigation(p.navigation, `preset "${p.id}" navigation`);
+      if (!nav.ok) return nav.reason;
+      // Replace the raw JSON block with the normalized one (validateNavigation
+      // fills in defaults and clamps the deadzones) so downstream consumers —
+      // the picker's exact-match against built-in presets, especially — see the
+      // canonical shape, not whatever the manifest happened to write.
+      p.navigation = nav.value;
     }
   }
 
@@ -434,7 +469,7 @@ export function indexActions(
 ): Record<string, { plugin: LoadedPlugin; descriptor: ActionDescriptor }> {
   const idx: Record<string, { plugin: LoadedPlugin; descriptor: ActionDescriptor }> = {};
   for (const plugin of plugins) {
-    for (const descriptor of plugin.manifest.actions) {
+    for (const descriptor of plugin.manifest.actions ?? []) {
       idx[`${plugin.manifest.id}/${descriptor.name}`] = { plugin, descriptor };
     }
   }

@@ -16,7 +16,7 @@
  * trigger.
  */
 
-import type { MenuNode } from './menu.js';
+import type { MenuNavigation, MenuNode } from './menu.js';
 
 /**
  * Current plugin API version emitted by the host. A plugin's
@@ -69,16 +69,38 @@ export type ActionDescriptor = {
 
 /** A plugin's category. Decides which subdirectory of the managed
  *  `extensions/` tree it installs into and how the host treats it:
- *    - `function` — contributes actions / a pie menu (e.g. FreeCAD).
- *    - `theme`    — styles the pie (theme/design plugin, #47).
+ *    - `function`   — contributes actions / a pie menu (e.g. FreeCAD).
+ *    - `theme`      — styles the pie (theme/design plugin, #47).
+ *    - `nav-style`  — declares one or more navigation-style presets
+ *                     ({@link NavStylePresetDescriptor}); pure data, no
+ *                     `index.js` is loaded.
  *  The folder name and this value are kept identical so a plugin is
  *  self-describing and the importer can route it without guessing. New
  *  categories are added here and to the loader's category list together. */
-export type PluginKind = 'function' | 'theme';
+export type PluginKind = 'function' | 'theme' | 'nav-style';
 
 /** Every recognised plugin kind, in one place so the loader, the importer,
  *  and the manifest validator agree on the set. */
-export const PLUGIN_KINDS: readonly PluginKind[] = ['function', 'theme'];
+export const PLUGIN_KINDS: readonly PluginKind[] = ['function', 'theme', 'nav-style'];
+
+/** One navigation-style preset shipped by a nav-style plugin. Mirrors the
+ *  built-in `NavigationPreset` in `shared/navigation-presets.ts`: a stable
+ *  `id` (namespaced by the host as `<pluginId>/<presetId>` when surfaced to
+ *  the picker so two plugins can ship the same preset name), a label/
+ *  description for the dropdown, and the full {@link MenuNavigation} block
+ *  the preset applies one-shot. The host validates `navigation` against
+ *  the same contract as on-disk configs (see :func:`validateNavigation`). */
+export type NavStylePresetDescriptor = {
+  /** Stable id within the plugin — namespaced to `<pluginId>/<id>` by the
+   *  host. Never change once shipped. */
+  id: string;
+  /** Dropdown label shown in the picker. */
+  label: string;
+  /** One-line description of the gesture model, shown under the dropdown. */
+  description: string;
+  /** The full navigation block this preset applies. */
+  navigation: MenuNavigation;
+};
 
 /** manifest.json shape. */
 export type PluginManifest = {
@@ -106,8 +128,16 @@ export type PluginManifest = {
   license: string;
   /** Optional homepage URL surfaced in the editor. */
   homepage?: string;
-  /** List of every action this plugin exposes. */
-  actions: ActionDescriptor[];
+  /** List of every action this plugin exposes. Required (non-empty) for
+   *  `kind: 'function'`; omitted on `theme` / `nav-style` plugins (the
+   *  manifest validator only enforces it on function plugins). */
+  actions?: ActionDescriptor[];
+  /** Navigation-style presets this plugin contributes — required (and
+   *  non-empty) for `kind: 'nav-style'`, ignored for other kinds. Each
+   *  preset's `navigation` block is validated against the same shape as
+   *  an on-disk menu config so a malformed style can't soft-lock the
+   *  picker after install. */
+  presets?: NavStylePresetDescriptor[];
   /** Optional badge icon (a plugin-dir-relative SVG path, e.g. `badge.svg`) —
    *  the plugin's own app icon, shown in the pie's bottom-left corner while
    *  this plugin's pie is the active source (#186), so the user sees which

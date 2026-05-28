@@ -10,7 +10,7 @@
  */
 
 import type { MenuConfig } from './menu';
-import type { PluginCatalog } from './plugin-types';
+import type { NavStylePresetDescriptor, PluginCatalog } from './plugin-types';
 
 export const IpcChannel = {
   /** Renderer subscribes; main pushes every axes snapshot. */
@@ -224,9 +224,11 @@ export type EditorAction = {
 /** A plugin category — the subdirectory of the managed `extensions/` tree a
  *  plugin lives in, and the value of its manifest `kind`. `function` plugins
  *  contribute actions/menus (e.g. FreeCAD); `theme` plugins style the pie
- *  (#47). The folder name, the manifest `kind`, and this union are kept in
- *  lockstep so a plugin is self-describing and the importer can route it. */
-export type PluginCategory = 'function' | 'theme';
+ *  (#47); `nav-style` plugins ship navigation-style presets the editor
+ *  picker merges with the built-ins. The folder name, the manifest `kind`,
+ *  and this union are kept in lockstep so a plugin is self-describing and
+ *  the importer can route it. */
+export type PluginCategory = 'function' | 'theme' | 'nav-style';
 
 /** One installed third-party plugin, as the editor's plugin manager lists it.
  *  Built-ins are excluded — they aren't user-managed. */
@@ -252,6 +254,11 @@ export type PluginInfo = {
   /** The plugin's badge icon as a baked data URI (#186), or undefined if it
    *  ships none — shown in the pie corner while this plugin's pie is active. */
   badge?: string;
+  /** Navigation-style presets the plugin contributes — present only for
+   *  `kind: 'nav-style'` plugins. The picker merges these with the built-in
+   *  presets so installing a nav-style plugin extends the dropdown. Each
+   *  entry's `navigation` block has been validated + normalized in main. */
+  navStylePresets?: NavStylePresetDescriptor[];
 };
 
 /** A plugin directory that failed to load, with the loader's reason. */
