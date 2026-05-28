@@ -205,11 +205,6 @@ export function PieMenu({
   // drifting on a non-pure plugin. The breadcrumb and preview rings
   // stay as wedges either way.
   const activeShapeLayout = shapeLayout;
-  // Local alias for readability at the dispatch sites below.
-  const activeRingSectors = isDrilled ? (outerSectors ?? []) : innerSectors;
-  // Reference to keep eslint-no-unused-vars from complaining when no
-  // shape rendering happens; the variable feeds into the JSX below.
-  void activeRingSectors;
 
   // User size multiplier. The `/ devicePixelRatio` is a compositor-specific
   // correction, NOT standard behaviour: under plain Chromium a fixed CSS

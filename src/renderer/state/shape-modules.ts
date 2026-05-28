@@ -12,9 +12,9 @@ import { createShapeModulesStore } from './shape-modules-factory';
  * `window.editor.getShapeSource` on the editor side).
  *
  * Two stores rather than one because each renderer window has its
- * own JS realm and its own bridge name. The store logic itself —
- * coalescing, blob-URL dynamic import, module-export validation,
- * error caching — lives in the factory exactly once.
+ * own JS realm and its own bridge name. The store logic itself
+ * (coalescing, blob-URL dynamic import, module-export validation,
+ * error caching) lives in the factory exactly once.
  */
 const store = createShapeModulesStore((pluginId) => window.spaceux.getShapeSource(pluginId));
 

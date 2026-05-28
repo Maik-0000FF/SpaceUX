@@ -168,7 +168,7 @@ export function useDrillNavigation(opts: {
 
   // Shape-plugin layout for the active ring (#107 PR3c). Computed once
   // per (module, ringRadii, sector count) tuple and shared with PieMenu
-  // via the returned `activeShapeLayout` — no parallel call site that
+  // via the returned `activeShapeLayout`; no parallel call site that
   // could drift if the plugin's `layout()` ever became non-pure. Memoed
   // on the navigation level so drilling recomputes naturally; ringRadii
   // identity is stable across renders thanks to App.tsx's memo.
