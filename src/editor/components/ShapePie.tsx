@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useMemo, type CSSProperties } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import { truncatePieLabel, segmentLabelFontPx } from '@/core/pie-geometry';
@@ -15,6 +15,7 @@ import {
 import { useShapeModules } from '../state/shape-modules';
 
 import styles from './MenuPreview.module.scss';
+import { sectorIcon } from './MenuPreview';
 
 /**
  * Render the active ring of a pie as a shape-plugin layout (#107 PR3b).
@@ -195,12 +196,10 @@ function ShapeSectorList(props: {
         const cancel = isCancelNode(node);
         const labelText = truncatePieLabel(node.label);
         const hasIcon = isRenderableIcon(node.icon);
-        const groupStyle: CSSProperties | undefined = dragFrom === i ? { opacity: 0.5 } : undefined;
         return (
           <g
             key={`shape-${i}`}
-            className={styles.wedgeGroup}
-            style={groupStyle}
+            className={`${styles.wedgeGroup} ${dragFrom === i ? styles.dragging : ''}`}
             role="button"
             tabIndex={0}
             aria-label={`${node.branches?.length ? 'Open' : 'Select'} ${node.label}`}
@@ -214,17 +213,7 @@ function ShapeSectorList(props: {
               r={sn.r}
               className={sectorClassName({ selected, isDropTarget, cancel })}
             />
-            {hasIcon && (
-              <image
-                className={styles.icon}
-                href={node.icon}
-                x={sn.cx - iconSize / 2}
-                y={node.label.trim().length > 0 ? sn.cy - iconSize : sn.cy - iconSize / 2}
-                width={iconSize}
-                height={iconSize}
-                preserveAspectRatio="xMidYMid meet"
-              />
-            )}
+            {sectorIcon(node, sn.cx, sn.cy, iconSize)}
             <text
               x={sl.x}
               y={hasIcon ? sl.y + iconSize * 0.5 : sl.y}

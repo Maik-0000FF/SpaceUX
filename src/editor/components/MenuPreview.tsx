@@ -46,8 +46,17 @@ const VIEW = FOOTPRINT; // viewBox half-extent (reserves the outer ring)
 /** A node's icon as an `<image>`, or null when the node has no renderable
  *  icon. Stacked above the label point (cx, cy); with an empty label it
  *  centres on the point instead. `iconSize` is the appearance-scaled size, so
- *  the preview tracks the live pie's icon size faithfully. */
-function sectorIcon(node: MenuNode, cx: number, cy: number, iconSize: number) {
+ *  the preview tracks the live pie's icon size faithfully.
+ *
+ *  Exported so ShapePie can reuse the same icon placement instead of
+ *  copy-pasting the `<image>` block; future tweaks (placement, sizing,
+ *  preserveAspectRatio) land in one place. */
+export function sectorIcon(
+  node: MenuNode,
+  cx: number,
+  cy: number,
+  iconSize: number,
+): React.ReactElement | null {
   if (!isRenderableIcon(node.icon)) return null;
   const top = node.label.trim().length > 0 ? cy - iconSize : cy - iconSize / 2;
   return (
@@ -105,6 +114,31 @@ export function MenuPreview() {
   const OUTER_OUTER_RADIUS = rings.outerOuter;
   const INNER_LABEL_RADIUS = rings.innerLabel;
   const OUTER_LABEL_RADIUS = rings.outerLabel;
+
+  // Repack the host's ring radii into the shape-plugin contract once per
+  // (ringBalance, centerBalance) tuple. Without the memo, this object
+  // literal would be a fresh reference every render, defeating the
+  // memo inside ShapePie that gates the plugin's `layout()` call:
+  // the layout would re-run at frame rate during live preview.
+  const shapeRingRadii = useMemo<ShapeRingRadii>(
+    () => ({
+      cancelRadius: INNER_RADIUS,
+      innerInnerRadius: INNER_RADIUS,
+      innerOuterRadius: INNER_PIE_OUTER,
+      innerLabelRadius: INNER_LABEL_RADIUS,
+      outerInnerRadius: OUTER_INNER_RADIUS,
+      outerOuterRadius: OUTER_OUTER_RADIUS,
+      outerLabelRadius: OUTER_LABEL_RADIUS,
+    }),
+    [
+      INNER_RADIUS,
+      INNER_PIE_OUTER,
+      INNER_LABEL_RADIUS,
+      OUTER_INNER_RADIUS,
+      OUTER_OUTER_RADIUS,
+      OUTER_LABEL_RADIUS,
+    ],
+  );
 
   // Active-plugin badge (#186): when this plugin's pie is the active source
   // (its dynamic menu or a curated workbench pie), show its app icon in the
@@ -395,19 +429,6 @@ export function MenuPreview() {
           // wedge" so the conditional below renders the wedge map directly.
           const effectiveShape = resolveShapeModel(config.shapeModel, appearance.shapeModel);
           if (effectiveShape === null) return wedgeMap;
-
-          // Pack the host's ring radii into the ShapeRingRadii contract
-          // (the plugin's layout signature). innerInnerRadius mirrors the
-          // cancel radius — the inner pie's inner edge is the centre hole.
-          const shapeRingRadii: ShapeRingRadii = {
-            cancelRadius: INNER_RADIUS,
-            innerInnerRadius: INNER_RADIUS,
-            innerOuterRadius: INNER_PIE_OUTER,
-            innerLabelRadius: INNER_LABEL_RADIUS,
-            outerInnerRadius: OUTER_INNER_RADIUS,
-            outerOuterRadius: OUTER_OUTER_RADIUS,
-            outerLabelRadius: OUTER_LABEL_RADIUS,
-          };
 
           const selectedIdx = livePreview ? liveSticky : selectedIndex;
           return (
