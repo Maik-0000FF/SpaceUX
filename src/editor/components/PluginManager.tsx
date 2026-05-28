@@ -94,6 +94,11 @@ export function PluginManager() {
                     {p.actionCount} action{p.actionCount === 1 ? '' : 's'}
                   </span>
                 )}
+                {p.kind === 'nav-style' && p.navStylePresets && (
+                  <span>
+                    {p.navStylePresets.length} preset{p.navStylePresets.length === 1 ? '' : 's'}
+                  </span>
+                )}
               </div>
               {p.removable ? (
                 <button

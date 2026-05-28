@@ -811,13 +811,18 @@ function validateCycleBinding(raw: unknown, where: string): GestureValidation<Cy
   return { ok: true, value: { inputs: inputs.value, priority } };
 }
 
-type NavigationValidation = { ok: true; value: MenuNavigation } | { ok: false; reason: string };
+export type NavigationValidation =
+  | { ok: true; value: MenuNavigation }
+  | { ok: false; reason: string };
 
 /** Validate the optional `navigation` block. Each gesture is optional;
  *  an omitted one defaults to *unbound* (empty inputs) — distinct from
  *  omitting the whole block, which falls back to the historical
- *  defaults via :func:`resolveNavigation`. */
-function validateNavigation(raw: unknown, where: string): NavigationValidation {
+ *  defaults via :func:`resolveNavigation`.
+ *
+ *  Exported so a plugin loader can validate a nav-style plugin's
+ *  declared presets against the same contract as on-disk menu configs. */
+export function validateNavigation(raw: unknown, where: string): NavigationValidation {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     return { ok: false, reason: `${where} must be an object when present` };
   }
