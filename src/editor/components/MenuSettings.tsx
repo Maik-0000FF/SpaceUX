@@ -18,6 +18,7 @@ import {
 import { useMenuSettings } from '../state/menu-settings';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 
+import { MenuShapeSelect } from './MenuShapeSelect';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
@@ -27,14 +28,14 @@ const TRIGGER_MODE_LABELS: Record<TriggerMode, string> = {
 };
 
 /**
- * Menu-level settings: the trigger button that opens this pie and what it
- * does once open. Operate on the whole config rather than a single node, so
- * Properties shows them in an always-present collapsible section above the
- * selection editor (reachable whatever is selected). The navigation gestures
- * + aim/deadzone live in their own sibling "Navigation" section (see
- * NavigationSettings); the centre/root is edited via its tree row (see
- * RootSettings); pie design — size, theme, opacity — lives in the preview
- * design bar (#107).
+ * Menu-level settings: the trigger button that opens this pie, what it does
+ * once open, and the per-menu shape-model override (#107). Operate on the
+ * whole config rather than a single node, so Properties shows them in an
+ * always-present collapsible section above the selection editor (reachable
+ * whatever is selected). The navigation gestures + aim/deadzone live in their
+ * own sibling "Navigation" section (see NavigationSettings); the centre/root
+ * is edited via its tree row (see RootSettings); pie design (size, theme,
+ * opacity, app-level shape model) lives in the preview design bar.
  */
 export function MenuSettings() {
   const config = useMenuSettings((s) => s.config);
@@ -133,6 +134,7 @@ export function MenuSettings() {
             : 'The button only opens the menu — commit items and close with your SpaceMouse gestures (the trigger button is then free to bind as an input).'}
         </span>
       </Row>
+      <MenuShapeSelect />
     </>
   );
 }
