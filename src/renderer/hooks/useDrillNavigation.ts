@@ -208,7 +208,7 @@ export function useDrillNavigation(opts: {
   // drilling, hovering a new branch, or swapping the plugin only
   // recomputes the slots that actually changed. Computed in the hook
   // (not in PieMenu) so the gesture-loop hit-test reads the same
-  // ShapeLayout object the renderer paints — no parallel call site
+  // ShapeLayout object the renderer paints; no parallel call site
   // that could drift on a non-pure plugin.
   const isDrilled = drillState.navigation.length > 0;
   const innerSectorCount = useMemo(() => {

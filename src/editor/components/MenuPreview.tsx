@@ -319,10 +319,12 @@ export function MenuPreview() {
         }}
         onPointerCancel={endDrag}
       >
-        {/* Breadcrumb ring (the parent menu) — only when drilled in.
-          Dimmed and clickable to navigate back up; the drilled-into node
-          is marked brighter. Suppressed when a shape plugin is the
-          effective layout so the preview shows only the active ring. */}
+        {/* Breadcrumb ring (the parent menu): only rendered when drilled.
+          Wedge default = dimmed + clickable to navigate back up;
+          drilled-into node marked brighter. When a shape plugin is the
+          effective layout, the breadcrumb sectors render via ShapePie
+          on the inner band instead (see the parallel block below), so
+          this wedge map is suppressed. */}
         {isDrilled &&
           effectiveShape === null &&
           parentRing.map((node, i) => {
@@ -369,6 +371,26 @@ export function MenuPreview() {
               </g>
             );
           })}
+
+        {/* Breadcrumb ring as plugin nodes: parallel to the wedge map
+          above, runs when a shape plugin is the effective layout and
+          we're drilled. Non-interactive in the editor for now (the
+          wedge breadcrumb above is the canonical clickable navigation
+          path); same visual parity as the live overlay's inner band. */}
+        {isDrilled && effectiveShape !== null && parentRing.length > 0 && (
+          <g aria-hidden="true" className={styles.previewGroup}>
+            <ShapePie
+              shapeKey={effectiveShape}
+              sectors={parentRing}
+              ringRadii={shapeRingRadii}
+              ring="inner"
+              selectedIndex={null}
+              iconSize={breadcrumbIconSize}
+              labelRadius={INNER_LABEL_RADIUS}
+              fallback={null}
+            />
+          </g>
+        )}
 
         {/* Active ring (the current menu): select / drag-reorder / drill.
             When a shape plugin is active (resolveShapeModel returns a
@@ -509,6 +531,26 @@ export function MenuPreview() {
               </g>
             );
           })}
+
+        {/* Preview ring as plugin nodes: parallel to the wedge map
+          above, runs when a shape plugin is the effective layout, at
+          top level, and a branch is hovered (so previewSectors is
+          non-empty). Same non-interactive aria-hidden treatment as
+          the wedge preview. */}
+        {effectiveShape !== null && previewSectors && previewSectors.length > 0 && (
+          <g aria-hidden="true" className={styles.previewGroup}>
+            <ShapePie
+              shapeKey={effectiveShape}
+              sectors={previewSectors}
+              ringRadii={shapeRingRadii}
+              ring="outer"
+              selectedIndex={null}
+              iconSize={previewIconSize}
+              labelRadius={OUTER_LABEL_RADIUS}
+              fallback={null}
+            />
+          </g>
+        )}
 
         {/* Centre target — mirrors the live pie (PieMenu.tsx): the
           configurable center field's label, falling back to the ✕ glyph
