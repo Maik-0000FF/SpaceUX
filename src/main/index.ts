@@ -1419,6 +1419,43 @@ app.whenReady().then(async () => {
       // Always return the refreshed state; surface a real delete error (#221).
       return result.ok ? { ok: true, state } : { ok: false, reason: result.reason, state };
     },
+    getShapeSource: async (pluginId) => {
+      // Resolve the shape plugin's entry source on demand: scan the
+      // shape category, find the plugin by id, read its `shape.entry`
+      // relative to the install dir, return the UTF-8 source. The
+      // validator (PR1) already constrained the entry path so we can
+      // trust the join without a second sanitisation pass. Null on any
+      // failure (no plugin, wrong kind, read error, size cap); the
+      // renderer's store treats null as "unavailable" and surfaces a
+      // user-facing reason elsewhere.
+      try {
+        const { plugins } = await loadPluginManifests('shape', pluginRepoRoot);
+        const found = plugins.find(({ manifest }) => manifest.id === pluginId);
+        if (!found || found.manifest.kind !== 'shape' || !found.manifest.shape) {
+          // eslint-disable-next-line no-console
+          console.warn(`[shape] getShapeSource: plugin "${pluginId}" not found / not a shape`);
+          return null;
+        }
+        const entryPath = path.join(found.dir, found.manifest.shape.entry);
+        const source = await fs.readFile(entryPath, 'utf8');
+        // Size cap: a shape plugin is pure compute; anything larger than
+        // 1 MiB is almost certainly a packaged bundle the manifest's
+        // entry shouldn't be pointing at directly. Soft guard.
+        const MAX_SOURCE_BYTES = 1 << 20;
+        if (Buffer.byteLength(source, 'utf8') > MAX_SOURCE_BYTES) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[shape] getShapeSource: plugin "${pluginId}" entry exceeds ${MAX_SOURCE_BYTES} bytes; rejecting`,
+          );
+          return null;
+        }
+        return source;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`[shape] getShapeSource("${pluginId}"): ${describeError(err)}`);
+        return null;
+      }
+    },
     getPluginCatalog: async (pluginId, loadAll) => {
       const plugin = loadedPlugins.find((p) => p.manifest.id === pluginId);
       if (!plugin?.provideCatalog) {
