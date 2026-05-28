@@ -7,8 +7,12 @@ import { DEFAULT_NAVIGATION, validateMenuConfig, MENU_CONFIG_VERSION } from '../
 import { NAVIGATION_PRESETS, matchNavigationPreset } from '../src/shared/navigation-presets';
 
 describe('navigation presets (#160)', () => {
-  it('ships the four styles with unique ids', () => {
-    expect(NAVIGATION_PRESETS.map((p) => p.id)).toEqual(['aiming', 'push', 'twist', 'pressLift']);
+  it('ships only the aiming preset as a built-in (#195: others moved to a plugin)', () => {
+    // PR3 of #195 reduced the built-in set to just `aiming`: the previous
+    // push / twist / pressLift presets moved to the twist-press-lift
+    // nav-style plugin. This test pins the slim default so a future
+    // accidental re-add doesn't sneak back through.
+    expect(NAVIGATION_PRESETS.map((p) => p.id)).toEqual(['aiming']);
   });
 
   it('every preset is a structurally valid navigation block', () => {
@@ -21,15 +25,6 @@ describe('navigation presets (#160)', () => {
       expect(r.ok, `${preset.id} should validate`).toBe(true);
       // Round-trips unchanged through the validator (no clamping/coercion).
       if (r.ok) expect(r.config.navigation).toEqual(preset.navigation);
-    }
-  });
-
-  it('the twist styles bind an axis to cycle so twist aiming can actually move', () => {
-    // The soft-lock guard: aim:'twist' needs a steppable (axis) cycle input.
-    for (const id of ['twist', 'pressLift'] as const) {
-      const preset = NAVIGATION_PRESETS.find((p) => p.id === id)!;
-      expect(preset.navigation.aim).toBe('twist');
-      expect(preset.navigation.cycle.inputs.some((i) => i.kind === 'axis')).toBe(true);
     }
   });
 
