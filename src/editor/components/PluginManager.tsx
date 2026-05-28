@@ -97,6 +97,7 @@ export function PluginManager() {
                     {p.navStylePresets.length} preset{p.navStylePresets.length === 1 ? '' : 's'}
                   </span>
                 )}
+                {p.kind === 'shape' && p.shape && <span>{p.shape.label}</span>}
               </div>
               {p.removable ? (
                 <button

@@ -35,6 +35,7 @@ import type { DaemonClient } from './daemon-client.js';
  *   <root>/extensions/function/<id>/   — action / menu plugins (e.g. FreeCAD)
  *   <root>/extensions/theme/<id>/      — pie theme/design plugins (#47)
  *   <root>/extensions/nav-style/<id>/  — navigation-style preset bundles
+ *   <root>/extensions/shape/<id>/      — pie shape model plugins (#107)
  *
  * Search roots, highest precedence first (first hit wins per id, so a
  * user copy shadows a system one):
@@ -361,6 +362,51 @@ export function validateManifest(value: unknown): string | null {
     }
   } else if (m.presets !== undefined) {
     return 'manifest field "presets" is only valid on a nav-style plugin';
+  }
+
+  // `shape` is the shape-plugin payload: one {@link ShapePluginDescriptor}
+  // (id / label / description / entry path). Required on shape manifests;
+  // rejected on every other kind. The entry path is structurally checked
+  // here (non-empty string, no `..` traversal, no absolute path); the file
+  // is only opened later (PR2's renderer runtime), so a non-existent file
+  // doesn't fail the validator. One shape per plugin to keep the picker
+  // unambiguous (a plugin id maps to exactly one shape entry).
+  if (m.kind === 'shape') {
+    if (typeof m.shape !== 'object' || m.shape === null || Array.isArray(m.shape)) {
+      return 'manifest field "shape" must be an object';
+    }
+    const s = m.shape as Record<string, unknown>;
+    if (typeof s.id !== 'string' || s.id.trim() === '')
+      return 'shape.id must be a non-empty string';
+    if (typeof s.label !== 'string' || s.label.trim() === '')
+      return 'shape.label must be a non-empty string';
+    if (typeof s.description !== 'string' || s.description.trim() === '')
+      return 'shape.description must be a non-empty string';
+    if (typeof s.entry !== 'string' || s.entry.trim() === '')
+      return "shape.entry must be a non-empty string (path to the plugin's JS module)";
+    // The entry is joined to the plugin dir at load time. Keep it a single
+    // POSIX-relative path that can't escape the plugin folder: no absolute
+    // path, no embedded backslash (the rest of the plugin tree uses
+    // POSIX separators; `\` would be a literal filename char on POSIX but
+    // a directory separator on Windows, so accepting it would let a
+    // manifest's intent diverge across platforms), no NUL byte (Node's
+    // fs layer rejects these with a less actionable error downstream),
+    // no `..` segment.
+    if (s.entry.startsWith('/') || s.entry.startsWith('\\'))
+      return 'shape.entry must be a relative path, not absolute';
+    if (s.entry.includes('\\'))
+      return 'shape.entry must use POSIX forward slashes, not backslashes';
+    if (s.entry.includes('\0')) return 'shape.entry must not contain a NUL byte';
+    if (s.entry.split('/').some((seg) => seg === '..'))
+      return 'shape.entry must not contain ".." segments';
+    // Require `.js` deliberately: `.mjs` is rejected so plugin authors don't
+    // split into two extensions for the same loader path. PR2's runtime
+    // treats every shape entry as an ES module; using `.js` with top-level
+    // `import` / `export` works in the renderer's dynamic import.
+    if (!s.entry.toLowerCase().endsWith('.js'))
+      return 'shape.entry must point to a JavaScript file (.js)';
+  } else if (m.shape !== undefined) {
+    return 'manifest field "shape" is only valid on a shape plugin';
   }
 
   // Optional plugin-provided menu (#76). Only a structural check here — the

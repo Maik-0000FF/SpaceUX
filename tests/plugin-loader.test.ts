@@ -342,6 +342,147 @@ describe('validateManifest — cross-kind field rejection', () => {
   });
 });
 
+/** Build a minimal shape manifest. Shape plugins carry a single
+ *  `shape` descriptor (id / label / description / entry) and no
+ *  `actions`. The entry path is validated structurally; the file isn't
+ *  opened by the validator. */
+function shapeManifestBase(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    apiVersion: PLUGIN_API_VERSION,
+    kind: 'shape',
+    id: 'org.example.shape',
+    name: 'Test Shape',
+    version: '0.0.1',
+    license: 'GPL-3.0-or-later',
+    shape: {
+      id: 'orbit',
+      label: 'Orbit',
+      description: 'Round nodes in an orbit around the centre.',
+      entry: 'index.js',
+    },
+    ...overrides,
+  };
+}
+
+describe('validateManifest — shape kind', () => {
+  it('accepts a minimal valid shape manifest', () => {
+    expect(validateManifest(shapeManifestBase())).toBeNull();
+  });
+
+  it('rejects a shape manifest with no shape field', () => {
+    const m = shapeManifestBase();
+    delete m.shape;
+    expect(validateManifest(m)).toMatch(/"shape" must be an object/);
+  });
+
+  it('rejects shape.id / .label / .description being blank', () => {
+    const base = shapeManifestBase().shape as Record<string, unknown>;
+    expect(validateManifest(shapeManifestBase({ shape: { ...base, id: '' } }))).toMatch(
+      /shape\.id/,
+    );
+    expect(validateManifest(shapeManifestBase({ shape: { ...base, label: '' } }))).toMatch(
+      /shape\.label/,
+    );
+    expect(validateManifest(shapeManifestBase({ shape: { ...base, description: '' } }))).toMatch(
+      /shape\.description/,
+    );
+  });
+
+  it('rejects an entry that is empty, absolute, contains "..", or is not .js', () => {
+    const base = shapeManifestBase().shape as Record<string, unknown>;
+    expect(validateManifest(shapeManifestBase({ shape: { ...base, entry: '' } }))).toMatch(
+      /shape\.entry/,
+    );
+    expect(
+      validateManifest(shapeManifestBase({ shape: { ...base, entry: '/etc/passwd' } })),
+    ).toMatch(/relative path/);
+    expect(
+      validateManifest(shapeManifestBase({ shape: { ...base, entry: '../escape.js' } })),
+    ).toMatch(/".."/);
+    expect(
+      validateManifest(shapeManifestBase({ shape: { ...base, entry: 'a/b/../c.js' } })),
+    ).toMatch(/".."/);
+    expect(validateManifest(shapeManifestBase({ shape: { ...base, entry: 'index.ts' } }))).toMatch(
+      /\.js/,
+    );
+    // `.mjs` is rejected on purpose so a plugin author doesn't split entries
+    // across two extensions for the same loader path (PR2's runtime treats
+    // every shape entry as an ES module via `.js`).
+    expect(validateManifest(shapeManifestBase({ shape: { ...base, entry: 'index.mjs' } }))).toMatch(
+      /\.js/,
+    );
+  });
+
+  it('rejects an entry with an embedded backslash or NUL byte', () => {
+    // The path must stay POSIX-relative (the rest of the plugin tree does);
+    // a literal backslash would be a filename char on POSIX and a separator
+    // on Windows, so we refuse it outright to keep the manifest's meaning
+    // portable. A NUL byte trips Node's fs layer downstream with a less
+    // actionable error, so the validator catches it first.
+    const base = shapeManifestBase().shape as Record<string, unknown>;
+    expect(
+      validateManifest(shapeManifestBase({ shape: { ...base, entry: 'sub\\bad.js' } })),
+    ).toMatch(/backslash/);
+    expect(
+      validateManifest(shapeManifestBase({ shape: { ...base, entry: 'bad\0name.js' } })),
+    ).toMatch(/NUL/);
+  });
+
+  it('accepts an entry with a case-variant .JS extension (case-insensitive check)', () => {
+    // The endsWith check is case-insensitive (the comment in the validator
+    // says so), so an author capitalising the extension still passes.
+    const base = shapeManifestBase().shape as Record<string, unknown>;
+    expect(
+      validateManifest(shapeManifestBase({ shape: { ...base, entry: 'index.JS' } })),
+    ).toBeNull();
+  });
+
+  it('rejects a shape plugin that carries a stray actions array', () => {
+    const m = shapeManifestBase({ actions: [{ name: 'do', label: 'Do' }] });
+    expect(validateManifest(m)).toMatch(/"actions" is only valid on a function plugin/);
+  });
+
+  it('rejects a shape plugin that carries a stray presets array', () => {
+    const m = shapeManifestBase({
+      presets: [
+        {
+          id: 'x',
+          label: 'X',
+          description: 'X',
+          navigation: {
+            aim: 'push',
+            drillIn: { inputs: [] },
+            back: { inputs: [] },
+            cycle: { inputs: [], priority: 'lateral' },
+            commitCenter: { inputs: [] },
+            activate: { inputs: [] },
+          },
+        },
+      ],
+    });
+    expect(validateManifest(m)).toMatch(/"presets" is only valid on a nav-style plugin/);
+  });
+
+  it('rejects a function plugin that carries a stray shape field', () => {
+    const fn = manifestBase({
+      shape: { id: 'x', label: 'X', description: 'X', entry: 'index.js' },
+    });
+    expect(validateManifest(fn)).toMatch(/"shape" is only valid on a shape plugin/);
+  });
+
+  it('rejects a nav-style plugin that carries a stray shape field', () => {
+    const m = navStyleManifestBase({
+      shape: { id: 'x', label: 'X', description: 'X', entry: 'index.js' },
+    });
+    expect(validateManifest(m)).toMatch(/"shape" is only valid on a shape plugin/);
+  });
+
+  it('still rejects a menu on a shape plugin (menus are function-only)', () => {
+    const m = shapeManifestBase({ menu: { root: {} } });
+    expect(validateManifest(m)).toMatch(/"menu" is only valid on a function plugin/);
+  });
+});
+
 describe('bundled extensions are valid manifests', () => {
   it('extensions/nav-style/org.spaceux.twist-press-lift/manifest.json passes the validator', () => {
     // Smoke test: the plugin ships with the repo and is the canonical example
