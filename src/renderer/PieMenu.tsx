@@ -692,14 +692,14 @@ function SectorLabel({
 /**
  * Render one ring of sectors as a shape-plugin layout (#107 PR3c). Used
  * by the active ring (inner at top level, outer when drilled in) when
- * an `'shape'` plugin is the effective layout. The breadcrumb and
+ * a `'shape'` plugin is the effective layout. The breadcrumb and
  * preview rings stay on the wedge code path.
  *
  * Each sector is one `<g>` group containing the plugin's `<circle>`
  * (the node body, positioned via `layout.nodes[i].cx,cy,r`), the node's
  * icon if any, and the label at `layout.labels[i].x,y`. Classes mirror
  * the wedge tokens (`pie-shape-node`, `is-active`, `is-cancel`) so the
- * theme colours apply automatically — a shape plugin gets the same
+ * theme colours apply automatically; a shape plugin gets the same
  * palette + opacity behaviour as the wedge default.
  */
 function renderShapeRing(props: {

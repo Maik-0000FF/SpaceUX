@@ -48,8 +48,40 @@ import {
   validateShapeLayout,
   type ShapeLayout,
   type ShapePluginModule,
+  type ShapePuckAxes,
   type ShapeRingRadii,
 } from '@/shared/shape-plugin-api';
+
+/**
+ * Defensive wrap around a shape plugin's `hitTest`. Catches throws and
+ * normalises the return so a buggy plugin can't (a) spam the gesture
+ * loop with errors at 60Hz or (b) leak a non-integer / out-of-range
+ * sector index into the downstream sticky-selection logic. Any
+ * abnormal return folds to `null` (no sector hovered), matching the
+ * wedge default's `aimed === null` short-circuit. Exported (with the
+ * leading underscore convention) so tests can pin the behaviour
+ * without a React harness; production callers go through the hook
+ * below.
+ */
+export function _safeShapeHitTest(
+  module: ShapePluginModule,
+  ringRadii: ShapeRingRadii,
+  layout: ShapeLayout,
+  axes: ShapePuckAxes,
+  sectorCount: number,
+): number | null {
+  let r: unknown;
+  try {
+    r = module.hitTest(axes, ringRadii, layout);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(`[shape] hitTest() threw: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+  if (r === null) return null;
+  if (typeof r !== 'number' || !Number.isInteger(r) || r < 0 || r >= sectorCount) return null;
+  return r;
+}
 
 export type UseDrillNavigation = {
   drillState: DrillState;
@@ -171,7 +203,10 @@ export function useDrillNavigation(opts: {
       if (layout !== null) {
         const { module, ringRadii } = shapeContext;
         const layoutLocal = layout;
-        hitTest = (axesArg) => module.hitTest(axesArg, ringRadii, layoutLocal);
+        // Route through `_safeShapeHitTest` so a buggy plugin can't
+        // spam the gesture loop with throws or feed NaN / negative
+        // indices into the downstream sticky-selection logic.
+        hitTest = (axesArg, sc) => _safeShapeHitTest(module, ringRadii, layoutLocal, axesArg, sc);
       }
     }
 
