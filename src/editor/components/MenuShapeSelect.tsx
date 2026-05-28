@@ -14,9 +14,9 @@ import { Row } from './Row';
 
 /** Sentinel values for the three-state per-menu override (#107).
  *  `''` (wedge) matches `PieShapeSelect`'s convention; `__inherit__`
- *  is reserved by the leading underscores (manifest ids can't start
- *  with `__`, see the plugin-id charset constraints), so it can't
- *  collide with a plugin-contributed shape key. */
+ *  contains no slash, so it can't collide with a plugin-contributed
+ *  `<pluginId>/<shapeId>` key (the format enforced by `shapeKey`
+ *  below and read by `App.tsx`'s inverse split). */
 const INHERIT_VALUE = '__inherit__';
 const WEDGE_VALUE = '';
 
