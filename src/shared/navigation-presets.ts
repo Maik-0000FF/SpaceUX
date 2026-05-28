@@ -146,8 +146,20 @@ export const NAVIGATION_PRESETS: readonly NavigationPreset[] = [
 ];
 
 /** The id of the preset whose bindings exactly match `nav`, or `null` when
- *  the bindings are a custom combination (no preset matches) — drives the
- *  "Custom" entry in the style dropdown. */
-export function matchNavigationPreset(nav: MenuNavigation): NavigationPresetId | null {
-  return NAVIGATION_PRESETS.find((preset) => isEqual(preset.navigation, nav))?.id ?? null;
+ *  the bindings are a custom combination (no preset matches). Drives the
+ *  "Custom" entry in the style dropdown.
+ *
+ *  `extra` is the merged list of plugin-contributed presets (#195) the
+ *  caller wants to match against in addition to the built-ins. Each entry's
+ *  `id` is opaque to this function (the picker namespaces plugin ids as
+ *  `<pluginId>/<presetId>` before passing them in); built-ins win on a tie
+ *  because they're consulted first, so the same `id` collision can't change
+ *  semantics. */
+export function matchNavigationPreset(
+  nav: MenuNavigation,
+  extra: readonly { id: string; navigation: MenuNavigation }[] = [],
+): string | null {
+  const builtIn = NAVIGATION_PRESETS.find((preset) => isEqual(preset.navigation, nav));
+  if (builtIn) return builtIn.id;
+  return extra.find((preset) => isEqual(preset.navigation, nav))?.id ?? null;
 }

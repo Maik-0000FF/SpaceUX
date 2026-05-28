@@ -3,38 +3,36 @@
 
 import { useEffect, useState } from 'react';
 
-import type { PluginCategory, PluginsState } from '@/shared/ipc';
+import type { PluginCategory } from '@/shared/ipc';
 
 import { confirm } from '../state/confirm';
+import { usePluginsState } from '../state/plugins';
 import { notify } from '../state/toasts';
 
 import styles from './PluginManager.module.scss';
 
-const EMPTY: PluginsState = { plugins: [], errors: [] };
-
 /**
  * Plugin manager (#NNN): import a downloaded plugin *folder* (it's copied into
  * SpaceUX's managed `extensions/<kind>/` tree), list what's installed, and
- * remove plugins. Users don't point the loader at arbitrary paths — import is
+ * remove plugins. Users don't point the loader at arbitrary paths; import is
  * the one way in, so the on-disk layout stays canonical.
  *
- * Rendered inline on the Settings page. State is pulled on mount and after
- * every import/uninstall (main returns the refreshed state).
+ * Rendered inline on the Settings page. The list reads from the shared
+ * {@link usePluginsState} store so the navigation-style picker (#195) sees
+ * the same plugins without polling its own copy: on every successful import
+ * or uninstall this component pushes the fresh snapshot main returned into
+ * the store, and every subscriber re-renders.
  */
 export function PluginManager() {
-  const [state, setState] = useState<PluginsState>(EMPTY);
+  const plugins = usePluginsState((s) => s.plugins);
+  const errors = usePluginsState((s) => s.errors);
+  const ensureLoaded = usePluginsState((s) => s.ensureLoaded);
+  const setPluginsState = usePluginsState((s) => s.setState);
   const [busy, setBusy] = useState(false);
 
-  const refresh = (): void => {
-    window.editor
-      .getPlugins()
-      .then(setState)
-      .catch(() => {
-        // Keep the last good state — a failed pull shouldn't blank the list.
-      });
-  };
-
-  useEffect(refresh, []);
+  useEffect(() => {
+    void ensureLoaded();
+  }, [ensureLoaded]);
 
   const doImport = (): void => {
     setBusy(true);
@@ -42,7 +40,7 @@ export function PluginManager() {
       .importPlugin()
       .then((r) => {
         if (r.ok === true) {
-          setState(r.state);
+          setPluginsState(r.state);
           notify('success', `Imported ${r.installed.name} (${r.installed.kind}).`);
         } else if (r.ok === false) notify('error', r.reason);
         // r.ok === 'cancelled' → the picker was dismissed; nothing to do.
@@ -61,7 +59,7 @@ export function PluginManager() {
     setBusy(true);
     try {
       const r = await window.editor.uninstallPlugin(kind, id);
-      setState(r.state);
+      setPluginsState(r.state);
       notify(r.ok ? 'success' : 'error', r.ok ? `Removed ${name}.` : r.reason);
     } finally {
       setBusy(false);
@@ -75,11 +73,11 @@ export function PluginManager() {
           Import plugin…
         </button>
       </div>
-      {state.plugins.length === 0 ? (
+      {plugins.length === 0 ? (
         <p className={styles.empty}>No plugins installed yet.</p>
       ) : (
         <ul className={styles.list}>
-          {state.plugins.map((p) => (
+          {plugins.map((p) => (
             <li key={`${p.kind}/${p.id}`} className={styles.item}>
               <div className={styles.itemHead}>
                 <span className={styles.itemName}>{p.name}</span>
@@ -124,11 +122,11 @@ export function PluginManager() {
         </ul>
       )}
 
-      {state.errors.length > 0 && (
+      {errors.length > 0 && (
         <div className={styles.errorsSection}>
           <h3 className={styles.subhead}>Could not load</h3>
           <ul className={styles.list}>
-            {state.errors.map((e) => (
+            {errors.map((e) => (
               <li key={e.dir} className={styles.errorItem}>
                 <span className={styles.itemMeta}>{e.dir}</span>
                 <span className={styles.error}>{e.reason}</span>
