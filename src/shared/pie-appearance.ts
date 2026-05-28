@@ -86,7 +86,32 @@ export const DEFAULT_PIE_APPEARANCE: PieAppearance = {
   centerBalance: 0.5,
   fontUi: '',
   fontMono: '',
+  shapeModel: null,
 };
+
+/** Length cap for a stored shape-model identifier. The renderer accepts
+ *  any non-empty string and falls back to the wedge default when the
+ *  reference doesn't resolve to an installed plugin, so the structural
+ *  guard here is only against absurd inputs (a hand-edited settings file
+ *  with a megabyte string). The composite key is `<pluginId>/<shapeId>`,
+ *  so 200 chars is generous: each side is a reverse-DNS-style id that
+ *  comfortably fits in 80. */
+export const SHAPE_MODEL_MAX_LEN = 200;
+
+/** Normalise a shape-model id from an untrusted source. Strips control
+ *  characters, trims, caps the length, and folds an empty result to
+ *  `null` (the wedge default). A `null` input passes through unchanged.
+ *  Does NOT verify the id resolves to an installed plugin; the renderer
+ *  treats an unknown id as "fall back to wedge" so a saved appearance
+ *  survives the plugin being uninstalled. */
+export function clampShapeModel(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string') return null;
+  // eslint-disable-next-line no-control-regex
+  const cleaned = value.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim();
+  if (cleaned === '') return null;
+  return cleaned.slice(0, SHAPE_MODEL_MAX_LEN);
+}
 
 /** Normalise a font-family override: strip control characters, trim, and cap
  *  the length. An empty result means "use the bundled default". */
@@ -151,6 +176,14 @@ export function sanitizePieAppearancePatch(patch: unknown): Partial<PieAppearanc
   }
   if (typeof p.fontMono === 'string') {
     clean.fontMono = clampFontFamily(p.fontMono);
+  }
+  // `shapeModel` accepts `null` (the wedge default) or a non-empty string
+  // (clamped + trimmed); anything else is dropped from the patch instead
+  // of being silently coerced. The renderer's fallback to wedge handles
+  // an unknown id at runtime, so we don't gatekeep against installed
+  // plugins at the IPC boundary.
+  if (p.shapeModel === null || typeof p.shapeModel === 'string') {
+    clean.shapeModel = clampShapeModel(p.shapeModel);
   }
   return clean;
 }

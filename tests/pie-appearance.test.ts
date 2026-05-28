@@ -9,6 +9,7 @@ import {
   clampPieIconScale,
   clampPieLabelScale,
   clampPieOpacity,
+  clampShapeModel,
   FONT_FAMILY_MAX_LEN,
   PIE_BALANCE_MAX,
   PIE_BALANCE_MIN,
@@ -18,6 +19,7 @@ import {
   PIE_LABEL_SCALE_MIN,
   PIE_OPACITY_MAX,
   PIE_OPACITY_MIN,
+  SHAPE_MODEL_MAX_LEN,
   sanitizePieAppearancePatch,
 } from '../src/shared/pie-appearance';
 
@@ -144,5 +146,59 @@ describe('sanitizePieAppearancePatch', () => {
 
   it('returns an empty patch when no known keys are present', () => {
     expect(sanitizePieAppearancePatch({ blur: 5, foo: 'bar' })).toEqual({});
+  });
+
+  it('accepts null shapeModel (the wedge default)', () => {
+    expect(sanitizePieAppearancePatch({ shapeModel: null })).toEqual({ shapeModel: null });
+  });
+
+  it('accepts a non-empty shapeModel string', () => {
+    expect(sanitizePieAppearancePatch({ shapeModel: 'org.example.shape/planets' })).toEqual({
+      shapeModel: 'org.example.shape/planets',
+    });
+  });
+
+  it('folds blank-only shapeModel strings to null', () => {
+    // An empty or whitespace-only string is meaningless; sanitizer
+    // collapses it to the wedge default rather than persisting an empty
+    // override that would never resolve.
+    expect(sanitizePieAppearancePatch({ shapeModel: '' })).toEqual({ shapeModel: null });
+    expect(sanitizePieAppearancePatch({ shapeModel: '   ' })).toEqual({ shapeModel: null });
+  });
+
+  it('drops a non-string / non-null shapeModel from the patch', () => {
+    // Anything that isn't `string | null` is dropped (matches the
+    // pattern other fields use: invalid types disappear from the patch
+    // rather than being coerced).
+    expect(sanitizePieAppearancePatch({ shapeModel: 42 })).toEqual({});
+    expect(sanitizePieAppearancePatch({ shapeModel: false })).toEqual({});
+    expect(sanitizePieAppearancePatch({ shapeModel: { id: 'x' } })).toEqual({});
+  });
+});
+
+describe('clampShapeModel', () => {
+  it('passes null through unchanged (the wedge default sentinel)', () => {
+    expect(clampShapeModel(null)).toBeNull();
+  });
+
+  it('keeps a non-empty trimmed string', () => {
+    expect(clampShapeModel('org.example.shape/planets')).toBe('org.example.shape/planets');
+    expect(clampShapeModel('  org.example.shape/planets  ')).toBe('org.example.shape/planets');
+  });
+
+  it('folds blank / whitespace-only / control-char-only strings to null', () => {
+    expect(clampShapeModel('')).toBeNull();
+    expect(clampShapeModel('   ')).toBeNull();
+    expect(clampShapeModel('\u0000\u0001')).toBeNull();
+  });
+
+  it('caps overly long ids', () => {
+    expect(clampShapeModel('x'.repeat(500))).toHaveLength(SHAPE_MODEL_MAX_LEN);
+  });
+
+  it('returns null for non-string non-null inputs', () => {
+    expect(clampShapeModel(42)).toBeNull();
+    expect(clampShapeModel(undefined)).toBeNull();
+    expect(clampShapeModel({ id: 'x' })).toBeNull();
   });
 });
