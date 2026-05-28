@@ -184,6 +184,13 @@ export function MenuPreview() {
   const isDrilled = viewPath.length > 0;
   const parentRing = isDrilled ? ringBranches(config, viewPath.slice(0, -1)) : [];
   const drilledIntoIndex = isDrilled ? viewPath[viewPath.length - 1]! : -1;
+  // Effective shape model resolves once per render so the breadcrumb +
+  // preview rings and the active-ring dispatch agree on whether a shape
+  // plugin is in play. When non-null, the surrounding wedge bands are
+  // suppressed so the preview shows only the active ring + centre, the
+  // same way the live overlay does (the breadcrumb / preview-of-children
+  // metaphors don't translate to orbital nodes).
+  const effectiveShape = resolveShapeModel(config.shapeModel, appearance.shapeModel);
 
   // Depth dots (shared look with the live overlay): first dot = the centre,
   // then one per ring level (1 + deepest path). Active = the centre when the
@@ -312,10 +319,12 @@ export function MenuPreview() {
         }}
         onPointerCancel={endDrag}
       >
-        {/* Breadcrumb ring (the parent menu) — only when drilled in. Dimmed
-          and clickable to navigate back up; the drilled-into node is
-          marked brighter. */}
+        {/* Breadcrumb ring (the parent menu) — only when drilled in.
+          Dimmed and clickable to navigate back up; the drilled-into node
+          is marked brighter. Suppressed when a shape plugin is the
+          effective layout so the preview shows only the active ring. */}
         {isDrilled &&
+          effectiveShape === null &&
           parentRing.map((node, i) => {
             const c = sectorCenterAngle(i, parentRing.length) + breadcrumbRotation;
             const h = Math.PI / parentRing.length;
@@ -423,11 +432,10 @@ export function MenuPreview() {
             );
           });
 
-          // Effective shape model: per-menu override layers over the
-          // appearance default (`undefined` inherits, `null` forces wedge,
-          // string forces a plugin shape). `null` here means "render as
-          // wedge" so the conditional below renders the wedge map directly.
-          const effectiveShape = resolveShapeModel(config.shapeModel, appearance.shapeModel);
+          // The effective shape model was resolved at the top of the
+          // component so the breadcrumb / preview gates can read it
+          // too. `null` means "render as wedge" -- return the wedge
+          // map directly. A non-null key dispatches to ShapePie below.
           if (effectiveShape === null) return wedgeMap;
 
           const selectedIdx = livePreview ? liveSticky : selectedIndex;
@@ -461,8 +469,11 @@ export function MenuPreview() {
 
         {/* Preview ring: the hovered branch's children, dimmed and
           non-interactive, in the outer band — overlay parity so the author
-          sees what's inside before drilling. */}
-        {previewSectors &&
+          sees what's inside before drilling. Suppressed when a shape
+          plugin is the effective layout so the orbital preview stays
+          clean (matches the live overlay's behaviour). */}
+        {effectiveShape === null &&
+          previewSectors &&
           previewSectors.length > 0 &&
           previewSectors.map((node, i) => {
             const c = sectorCenterAngle(i, previewSectors.length) + previewRotation;

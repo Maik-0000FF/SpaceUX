@@ -35,7 +35,12 @@ const TAU = Math.PI * 2;
  * a 1-sector pie still works via the floor below).
  */
 export function layout(sectorCount, ringRadii) {
-  const n = Math.max(1, Math.floor(sectorCount));
+  // `Math.max(0, ...)` honours the contract: validateShapeLayout()
+  // expects exactly `sectorCount` nodes, so a zero-sector pie must
+  // produce an empty layout, not a one-node fallback. The for-loop
+  // below skips entirely on n=0; the n=1 chord-degenerate case
+  // falls through to the ring-thickness cap further down.
+  const n = Math.max(0, Math.floor(sectorCount));
   const orbit = ringRadii.outerLabelRadius;
   // Half-chord between adjacent planet centres along the orbit:
   // chord = 2 * orbit * sin(pi/n), so the half-chord is the radius
@@ -69,31 +74,32 @@ export function layout(sectorCount, ringRadii) {
  * Resolve which planet (sector index) the puck is currently aiming at,
  * or null when the puck is inside the centre / cancel zone.
  *
- * Approach: convert raw puck axes to a screen-space position using the
- * wedge default's invert convention (invertY=true: "push forward" +ty
- * is treated as math-up, i.e. screen-up), then return the index of the
- * planet whose centre is closest to that position. Nearest-by-distance
- * is the natural mapping for an orbital layout (the user points at a
- * planet), and it stays well-defined even when the puck deflects past
- * the orbit radius.
+ * Approach: treat raw puck (tx, ty) as the puck's screen-space position,
+ * matching the wedge default's MenuConfig-level convention
+ * (DEFAULT_AXIS_INVERT.y = false, so axesToSector reads y = -axes.ty
+ * and a "push forward" with axes.ty < 0 lights sector 0 at the top).
+ * Then return the index of the planet whose centre is closest to that
+ * position. Nearest-by-distance is the natural mapping for an orbital
+ * layout (the user points at a planet) and it stays well-defined even
+ * when the puck deflects past the orbit radius.
  *
- * Limitations the contract revision may address later:
- *  - The per-device `axisInvert` flags from the menu config aren't
- *    plumbed to the plugin yet, so a user with invertY=false (raw
- *    evdev convention) sees the planets respond to pushes in the
- *    opposite vertical direction than the wedge default would. The
- *    hardcoded `+ty -> screen-up` matches the DEFAULT_PIE_GEOMETRY
- *    fallback the wedge default uses when no override is set.
+ * Limitations a future contract revision should address:
+ *  - The per-device `axisInvert` flags from `MenuConfig` aren't plumbed
+ *    to the plugin yet. The plugin hardcodes the host's default
+ *    (`{x: false, y: false}`), which is what the wedge runtime uses
+ *    when the config doesn't override; a user who flips invertY in
+ *    their per-device profile would see the planets respond on the
+ *    opposite vertical axis than the wedge default.
  *  - The cancel-zone gate compares pixel-space `cancelRadius` against
  *    raw axis magnitudes; on a SpaceMouse where one axis unit roughly
  *    corresponds to one pixel of intended deflection this lines up,
  *    but a future contract revision should pass `hoverDeadzone`
- *    explicitly so the threshold matches the same units the host's
- *    own wedge default uses.
+ *    explicitly so the threshold matches the units the host's own
+ *    wedge default uses.
  */
 export function hitTest(axes, ringRadii, layout) {
   const px = axes.tx;
-  const py = -axes.ty;
+  const py = axes.ty;
   if (Math.hypot(px, py) < ringRadii.cancelRadius) return null;
   let bestIndex = -1;
   let bestDistSq = Infinity;

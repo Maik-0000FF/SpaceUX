@@ -46,6 +46,38 @@ describe('planets layout()', () => {
     }
   });
 
+  it('handles a zero-sector pie (validator requires nodes.length === sectorCount)', () => {
+    // The host short-circuits the empty-ring case before calling
+    // the plugin, but the contract still says the plugin must
+    // produce exactly `sectorCount` entries. A one-node fallback
+    // would propagate to any plugin author copying this as a
+    // template.
+    const raw = planets.layout(0, RING_RADII);
+    const validated = validateShapeLayout(raw, 0);
+    expect(validated.ok).toBe(true);
+    if (validated.ok) {
+      expect(validated.layout.nodes).toHaveLength(0);
+      expect(validated.layout.labels).toHaveLength(0);
+    }
+  });
+
+  it('handles a single-sector pie (chord-degenerate, ring-thickness cap takes over)', () => {
+    const raw = planets.layout(1, RING_RADII);
+    const validated = validateShapeLayout(raw, 1);
+    expect(validated.ok).toBe(true);
+    if (validated.ok) {
+      expect(validated.layout.nodes).toHaveLength(1);
+      // Single planet sits at the top of the orbit, sized by the
+      // ring-thickness cap (the chord term degenerates to Infinity at
+      // n=1, so Math.min picks the thickness cap).
+      const node = validated.layout.nodes[0]!;
+      expect(node.cx).toBeCloseTo(0, 5);
+      expect(node.cy).toBeCloseTo(-RING_RADII.outerLabelRadius, 5);
+      const halfThickness = (RING_RADII.outerOuterRadius - RING_RADII.outerInnerRadius) / 2;
+      expect(node.r).toBeLessThanOrEqual(halfThickness);
+    }
+  });
+
   it('places sector 0 at "12 o\'clock" (matches the wedge convention so push-forward keeps hovering it)', () => {
     const { nodes } = planets.layout(4, RING_RADII);
     expect(nodes[0]!.cx).toBeCloseTo(0, 5);
@@ -112,38 +144,42 @@ describe('planets hitTest()', () => {
       planets.hitTest({ tx: 10, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 }, RING_RADII, layout4),
     ).toBe(null);
     expect(
-      planets.hitTest({ tx: 0, ty: -10, tz: 0, rx: 0, ry: 0, rz: 0 }, RING_RADII, layout4),
+      planets.hitTest({ tx: 0, ty: 10, tz: 0, rx: 0, ry: 0, rz: 0 }, RING_RADII, layout4),
     ).toBe(null);
   });
 
-  it('hovers sector 0 (top) when the puck is pushed forward (+ty maps to math-up under the default invertY=true)', () => {
+  it('hovers sector 0 (top) when the puck is pushed forward (raw evdev: axes.ty < 0 = screen-up = sector 0)', () => {
+    // The host's wedge default uses MenuConfig-level invertY=false
+    // (DEFAULT_AXIS_INVERT), so a puck push "forward" lands on
+    // axes.ty < 0. The plugin uses the same sign convention so
+    // switching from wedge to planets doesn't flip the up/down axis.
     expect(
       planets.hitTest(
-        { tx: 0, ty: RING_RADII.outerLabelRadius, tz: 0, rx: 0, ry: 0, rz: 0 },
+        { tx: 0, ty: -RING_RADII.outerLabelRadius, tz: 0, rx: 0, ry: 0, rz: 0 },
         RING_RADII,
         layout4,
       ),
     ).toBe(0);
   });
 
-  it('hovers sector 1 (right) for +tx, sector 2 (down) for -ty, sector 3 (left) for -tx', () => {
+  it('hovers sector 1 (right) for +tx, sector 2 (down) for +ty, sector 3 (left) for -tx', () => {
     const r = RING_RADII.outerLabelRadius;
     expect(planets.hitTest({ tx: r, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 }, RING_RADII, layout4)).toBe(
       1,
     );
-    expect(
-      planets.hitTest({ tx: 0, ty: -r, tz: 0, rx: 0, ry: 0, rz: 0 }, RING_RADII, layout4),
-    ).toBe(2);
+    expect(planets.hitTest({ tx: 0, ty: r, tz: 0, rx: 0, ry: 0, rz: 0 }, RING_RADII, layout4)).toBe(
+      2,
+    );
     expect(
       planets.hitTest({ tx: -r, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 }, RING_RADII, layout4),
     ).toBe(3);
   });
 
   it('ignores tilt / twist axes (only tx/ty drive selection)', () => {
-    // Puck pushed forward at full orbit magnitude on +ty, plus arbitrary
+    // Puck pushed forward at full orbit magnitude, plus arbitrary
     // tilt/twist noise: still picks sector 0.
     const idx = planets.hitTest(
-      { tx: 0, ty: RING_RADII.outerLabelRadius, tz: 500, rx: 250, ry: -300, rz: 400 },
+      { tx: 0, ty: -RING_RADII.outerLabelRadius, tz: 500, rx: 250, ry: -300, rz: 400 },
       RING_RADII,
       layout4,
     );
@@ -152,14 +188,15 @@ describe('planets hitTest()', () => {
 
   it('breaks the tie deterministically when the puck is equidistant from two adjacent planets', () => {
     // Between sector 0 (top) and sector 1 (right): half-orbit push along
-    // the diagonal. Distance to both planets is identical; the loop's
-    // tie-breaker (strict-less-than) keeps the first match, so sector 0
-    // wins. Test pins the convention so a future loop rewrite doesn't
-    // flip selection direction without notice.
+    // the upper-right diagonal in screen-coords (+tx, -ty). Distance to
+    // both planets is identical; the loop's tie-breaker (strict-less-than)
+    // keeps the first match, so sector 0 wins. Test pins the convention
+    // so a future loop rewrite doesn't flip selection direction without
+    // notice.
     const r = RING_RADII.outerLabelRadius;
     const diag = r / Math.SQRT2;
     expect(
-      planets.hitTest({ tx: diag, ty: diag, tz: 0, rx: 0, ry: 0, rz: 0 }, RING_RADII, layout4),
+      planets.hitTest({ tx: diag, ty: -diag, tz: 0, rx: 0, ry: 0, rz: 0 }, RING_RADII, layout4),
     ).toBe(0);
   });
 
@@ -169,7 +206,7 @@ describe('planets hitTest()', () => {
     // a hidden hover-deadzone on top.
     const justPast = RING_RADII.cancelRadius + 1;
     const idx = planets.hitTest(
-      { tx: 0, ty: justPast, tz: 0, rx: 0, ry: 0, rz: 0 },
+      { tx: 0, ty: -justPast, tz: 0, rx: 0, ry: 0, rz: 0 },
       RING_RADII,
       layout4,
     );

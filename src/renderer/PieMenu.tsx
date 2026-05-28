@@ -329,24 +329,26 @@ export function PieMenu({
         width={displaySize}
         height={displaySize}
       >
-        {/* Inner ring: active selection target at top level, dimmed
-         *  breadcrumb once drilled in (with the drilled-into sector
-         *  marked as "you came from here"). When a shape plugin is the
-         *  effective layout *and* the inner ring is the active ring
-         *  (top level), render the plugin's circles + labels in one
-         *  per-sector group instead of the wedge map below. The
-         *  breadcrumb case (drilled in) keeps the wedge so the visual
-         *  affordance "you came from here" stays consistent across
-         *  layouts. */}
-        {!isDrilled && activeShapeLayout !== null
-          ? renderShapeRing({
-              sectors: innerSectors,
-              layout: activeShapeLayout,
-              labelRadius: innerLabelRadius,
-              iconSize: innerIconSize,
-              activeSector,
-              keyPrefix: 'inner-shape',
-            })
+        {/* Inner ring. When the wedge default is the effective layout,
+         *  it doubles as the active selection target at top level and a
+         *  dimmed breadcrumb once drilled in (with the drilled-into
+         *  sector marked as "you came from here"). When a shape plugin is
+         *  the effective layout, only the *active* ring renders: at top
+         *  level the inner ring becomes the plugin's circles + labels;
+         *  drilled, the inner ring is hidden so the plugin's pie shows
+         *  only the active sectors plus the centre cancel (the
+         *  breadcrumb metaphor doesn't translate to orbital nodes). */}
+        {activeShapeLayout !== null
+          ? !isDrilled
+            ? renderShapeRing({
+                sectors: innerSectors,
+                layout: activeShapeLayout,
+                labelRadius: innerLabelRadius,
+                iconSize: innerIconSize,
+                activeSector,
+                keyPrefix: 'inner-shape',
+              })
+            : null
           : innerSectors.map((node, i) => (
               <SectorWedge
                 key={`inner-wedge-${i}`}
@@ -376,10 +378,13 @@ export function PieMenu({
         >
           {centerLabel}
         </text>
-        {/* Skip the inner label map when shape is active for this ring:
-            renderShapeRing above already drew the label as part of each
-            sector group, so a parallel wedge label map would double up. */}
-        {!isDrilled && activeShapeLayout !== null
+        {/* Inner labels: skipped entirely when shape is the effective
+            layout. Top level (active ring): renderShapeRing above
+            already drew the label as part of each sector group, so a
+            parallel wedge label map would double up. Drilled: the
+            wedge inner ring isn't rendered, so its labels would float
+            on an empty band. */}
+        {activeShapeLayout !== null
           ? null
           : innerSectors.map((node, i) => (
               <SectorLabel
@@ -393,56 +398,59 @@ export function PieMenu({
                 rotation={innerRingRotation}
               />
             ))}
-        {/* Outer ring: active selection target once drilled in, or
-         *  preview of the hovered branch's children at top level.
-         *  Either way it's the *larger* concentric band — the only
-         *  thing that changes is opacity + whether it's interactive. */}
-        {outerSectors !== undefined && outerSectors.length > 0 && (
-          <g className="pie-outer-ring">
-            {/* When drilled in and a shape plugin is the active layout,
-                render the outer ring's sectors as the plugin's circles +
-                labels in one group. The top-level preview case (not
-                drilled, branch-children preview) keeps the wedge map. */}
-            {isDrilled && activeShapeLayout !== null ? (
-              renderShapeRing({
-                sectors: outerSectors,
-                layout: activeShapeLayout,
-                labelRadius: outerLabelRadius,
-                iconSize: outerIconSize,
-                activeSector,
-                keyPrefix: 'outer-shape',
-              })
-            ) : (
-              <>
-                {outerSectors.map((node, i) => (
-                  <SectorWedge
-                    key={`outer-wedge-${i}`}
-                    index={i}
-                    sectorCount={outerSectors.length}
-                    outerRadius={outerRingOuterRadius}
-                    innerRadius={outerRingInnerRadius}
-                    active={isDrilled && activeSector === i}
-                    cancel={isCancelNode(node)}
-                    preview={!isDrilled}
-                    rotation={outerRingRotation}
-                  />
-                ))}
-                {outerSectors.map((node, i) => (
-                  <SectorLabel
-                    key={`outer-label-${i}`}
-                    index={i}
-                    sectorCount={outerSectors.length}
-                    radius={outerLabelRadius}
-                    node={node}
-                    iconSize={outerIconSize}
-                    preview={!isDrilled}
-                    rotation={outerRingRotation}
-                  />
-                ))}
-              </>
-            )}
-          </g>
-        )}
+        {/* Outer ring. With the wedge default, this is the active
+         *  selection target once drilled in, or a dimmed preview of
+         *  the hovered branch's children at top level. With a shape
+         *  plugin, only the *active* ring renders: drilled, the outer
+         *  ring becomes the plugin's circles + labels; at top level,
+         *  the outer band is hidden so the plugin's pie shows only
+         *  the active sectors plus the centre cancel (the
+         *  preview-of-children metaphor doesn't translate to orbital
+         *  nodes). */}
+        {outerSectors !== undefined &&
+          outerSectors.length > 0 &&
+          (activeShapeLayout === null || isDrilled) && (
+            <g className="pie-outer-ring">
+              {activeShapeLayout !== null ? (
+                renderShapeRing({
+                  sectors: outerSectors,
+                  layout: activeShapeLayout,
+                  labelRadius: outerLabelRadius,
+                  iconSize: outerIconSize,
+                  activeSector,
+                  keyPrefix: 'outer-shape',
+                })
+              ) : (
+                <>
+                  {outerSectors.map((node, i) => (
+                    <SectorWedge
+                      key={`outer-wedge-${i}`}
+                      index={i}
+                      sectorCount={outerSectors.length}
+                      outerRadius={outerRingOuterRadius}
+                      innerRadius={outerRingInnerRadius}
+                      active={isDrilled && activeSector === i}
+                      cancel={isCancelNode(node)}
+                      preview={!isDrilled}
+                      rotation={outerRingRotation}
+                    />
+                  ))}
+                  {outerSectors.map((node, i) => (
+                    <SectorLabel
+                      key={`outer-label-${i}`}
+                      index={i}
+                      sectorCount={outerSectors.length}
+                      radius={outerLabelRadius}
+                      node={node}
+                      iconSize={outerIconSize}
+                      preview={!isDrilled}
+                      rotation={outerRingRotation}
+                    />
+                  ))}
+                </>
+              )}
+            </g>
+          )}
         {/* Active-plugin badge (#186): the app icon in the bottom-left corner
           outside the outer ring band. Sized off the pie geometry, so it scales
           with the pie size (not the item icon-scale). Decorative. */}
