@@ -232,15 +232,19 @@ function toPluginInfo(manifest: PluginManifest, dir: string, hasCatalog = false)
     // Nav-style plugins ship presets via the manifest (no index.js is loaded);
     // forwarded as-is so the editor's picker can merge them with built-ins.
     navStylePresets: manifest.kind === 'nav-style' ? manifest.presets : undefined,
+    // Shape plugins (#107) ship one shape descriptor (the entry source is
+    // pulled lazily in PR2's renderer runtime, not embedded here).
+    shape: manifest.kind === 'shape' ? manifest.shape : undefined,
   };
 }
 
 /** Snapshot the installed plugins for the editor's manager: the live
- *  `function` plugins (already loaded for the action index), the `theme`
- *  plugins (#47, listed but not executed), and the `nav-style` plugins
- *  whose presets the editor's navigation-style picker merges into its
- *  dropdown. The two non-executable kinds load via manifest-only paths
- *  (no `index.js` is imported for them). */
+ *  `function` plugins (already loaded for the action index), plus three
+ *  manifest-only categories listed but not executed at this stage:
+ *  `theme` (#47), `nav-style` (#195), and `shape` (#107 as a plugin).
+ *  PR2 of the shape series adds a renderer-side runtime that pulls the
+ *  shape entry source on demand; here we just include the descriptor in
+ *  the PluginInfo so the manager UI shows it. */
 async function buildPluginsState(): Promise<PluginsState> {
   const fnPlugins = loadedPlugins.map((p) =>
     toPluginInfo(p.manifest, p.dir, p.provideCatalog !== undefined),
@@ -249,9 +253,11 @@ async function buildPluginsState(): Promise<PluginsState> {
   const themePlugins = theme.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
   const navStyle = await loadPluginManifests('nav-style', pluginRepoRoot);
   const navStylePlugins = navStyle.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
+  const shape = await loadPluginManifests('shape', pluginRepoRoot);
+  const shapePlugins = shape.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
   return {
-    plugins: [...fnPlugins, ...themePlugins, ...navStylePlugins],
-    errors: [...pluginErrors, ...theme.errors, ...navStyle.errors],
+    plugins: [...fnPlugins, ...themePlugins, ...navStylePlugins, ...shapePlugins],
+    errors: [...pluginErrors, ...theme.errors, ...navStyle.errors, ...shape.errors],
   };
 }
 

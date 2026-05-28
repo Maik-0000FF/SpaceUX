@@ -10,7 +10,11 @@
  */
 
 import type { MenuConfig } from './menu';
-import type { NavStylePresetDescriptor, PluginCatalog } from './plugin-types';
+import type {
+  NavStylePresetDescriptor,
+  PluginCatalog,
+  ShapePluginDescriptor,
+} from './plugin-types';
 
 export const IpcChannel = {
   /** Renderer subscribes; main pushes every axes snapshot. */
@@ -225,10 +229,12 @@ export type EditorAction = {
  *  plugin lives in, and the value of its manifest `kind`. `function` plugins
  *  contribute actions/menus (e.g. FreeCAD); `theme` plugins style the pie
  *  (#47); `nav-style` plugins ship navigation-style presets the editor
- *  picker merges with the built-ins. The folder name, the manifest `kind`,
- *  and this union are kept in lockstep so a plugin is self-describing and
- *  the importer can route it. */
-export type PluginCategory = 'function' | 'theme' | 'nav-style';
+ *  picker merges with the built-ins; `shape` plugins contribute a pie
+ *  shape model (planets, polygon, ...; #107 as a plugin) whose runtime is
+ *  loaded into the renderer alongside the unchanged wedge default. The
+ *  folder name, the manifest `kind`, and this union are kept in lockstep
+ *  so a plugin is self-describing and the importer can route it. */
+export type PluginCategory = 'function' | 'theme' | 'nav-style' | 'shape';
 
 /** One installed third-party plugin, as the editor's plugin manager lists it.
  *  Built-ins are excluded — they aren't user-managed. */
@@ -259,6 +265,11 @@ export type PluginInfo = {
    *  presets so installing a nav-style plugin extends the dropdown. Each
    *  entry's `navigation` block has been validated + normalised in main. */
   navStylePresets?: NavStylePresetDescriptor[];
+  /** Pie shape model this plugin contributes (#107 as a plugin). Present
+   *  only for `kind: 'shape'` plugins; the renderer pulls the entry source
+   *  via a separate IPC channel when the shape gets selected (the picker
+   *  needs only the descriptor metadata to render the dropdown). */
+  shape?: ShapePluginDescriptor;
 };
 
 /** A plugin directory that failed to load, with the loader's reason. */

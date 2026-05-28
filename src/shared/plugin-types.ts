@@ -74,14 +74,21 @@ export type ActionDescriptor = {
  *    - `nav-style`: declares one or more navigation-style presets
  *                   ({@link NavStylePresetDescriptor}). Pure data, no
  *                   `index.js` is loaded.
+ *    - `shape`:     contributes a pie shape model ({@link ShapePluginDescriptor}):
+ *                   layout + hit-test for non-wedge layouts (e.g. planets,
+ *                   polygon). Carries an `index.js` whose source the
+ *                   renderer executes via a Blob-URL dynamic import; the
+ *                   wedge default code path (`describeWedgePath`,
+ *                   `axesToSector`) stays untouched and is the active path
+ *                   whenever no shape plugin is selected (#107).
  *  The folder name and this value are kept identical so a plugin is
  *  self-describing and the importer can route it without guessing. New
  *  categories are added here and to the loader's category list together. */
-export type PluginKind = 'function' | 'theme' | 'nav-style';
+export type PluginKind = 'function' | 'theme' | 'nav-style' | 'shape';
 
 /** Every recognised plugin kind, in one place so the loader, the importer,
  *  and the manifest validator agree on the set. */
-export const PLUGIN_KINDS: readonly PluginKind[] = ['function', 'theme', 'nav-style'];
+export const PLUGIN_KINDS: readonly PluginKind[] = ['function', 'theme', 'nav-style', 'shape'];
 
 /** One navigation-style preset shipped by a nav-style plugin. Mirrors the
  *  built-in `NavigationPreset` in `shared/navigation-presets.ts`: a stable
@@ -106,6 +113,35 @@ export type NavStylePresetDescriptor = {
   description: string;
   /** The full navigation block this preset applies. */
   navigation: MenuNavigation;
+};
+
+/** Declaration of a pie shape model contributed by a `kind: 'shape'` plugin
+ *  (#107 as a plugin). The descriptor itself is pure data; the actual
+ *  layout / hit-test functions live in the plugin's `index.js` and are
+ *  loaded into the renderer process at runtime (Blob-URL dynamic import).
+ *
+ *  Wedge (the built-in default) is not a shape plugin: it stays as the
+ *  unmodified core code path in `pie-geometry.ts` / `pie-path.ts`, and any
+ *  installed shape plugin sits alongside it as an opt-in alternative.
+ *
+ *  Two plugins may ship the same `id` (e.g. both call a shape "orbit"); the
+ *  picker is expected to surface the plugin id alongside the descriptor
+ *  when disambiguation is needed — same pattern as nav-style presets. */
+export type ShapePluginDescriptor = {
+  /** Stable id within the plugin (e.g. `"planets"`). Combined with the
+   *  plugin id to form the value the picker writes into
+   *  `PieAppearance.shapeModel` (`<pluginId>/<id>`). Never change once
+   *  shipped. */
+  id: string;
+  /** Dropdown label shown in the shape picker. */
+  label: string;
+  /** One-line description shown under the dropdown. */
+  description: string;
+  /** Plugin-dir-relative path to the JavaScript module that exports the
+   *  shape's runtime functions (today only `index.js`, always at the root
+   *  of the plugin folder). Path is sanitised by the importer so a
+   *  manifest can't escape the plugin folder. */
+  entry: string;
 };
 
 /** manifest.json shape. */
@@ -146,6 +182,14 @@ export type PluginManifest = {
    *  so a malformed style is rejected at load instead of slipping into the
    *  picker. */
   presets?: NavStylePresetDescriptor[];
+  /** Shape model this plugin contributes (#107 as a plugin). Required for
+   *  `kind: 'shape'`; rejected on every other kind (mirrors the `actions`
+   *  / `presets` / `menu` rules). Only one shape per plugin: a plugin is a
+   *  single layout, not a bundle, to keep the picker entry per-plugin
+   *  unambiguous. The runtime code lives in the JS file named by
+   *  `shape.entry` and is loaded into the renderer process at runtime;
+   *  PR2 of the series wires that runtime. */
+  shape?: ShapePluginDescriptor;
   /** Optional badge icon (a plugin-dir-relative SVG path, e.g. `badge.svg`) —
    *  the plugin's own app icon, shown in the pie's bottom-left corner while
    *  this plugin's pie is the active source (#186), so the user sees which
