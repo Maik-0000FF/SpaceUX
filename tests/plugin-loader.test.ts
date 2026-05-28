@@ -495,6 +495,18 @@ describe('bundled extensions are valid manifests', () => {
     const parsed: unknown = JSON.parse(raw);
     expect(validateManifest(parsed)).toBeNull();
   });
+
+  it('extensions/shape/org.spaceux.planets/manifest.json passes the validator', () => {
+    // Smoke test: the planets plugin is the canonical shape-plugin
+    // example bundled with the repo (#107 PR4). Same drift guard as
+    // the nav-style sibling above.
+    const raw = readFileSync(
+      path.join(REPO_ROOT, 'extensions/shape/org.spaceux.planets/manifest.json'),
+      'utf8',
+    );
+    const parsed: unknown = JSON.parse(raw);
+    expect(validateManifest(parsed)).toBeNull();
+  });
 });
 
 describe('plugin API version invariants', () => {

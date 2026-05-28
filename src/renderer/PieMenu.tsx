@@ -32,14 +32,19 @@ const TAU = Math.PI * 2;
 
 export type PieMenuProps = {
   axes: { tx: number; ty: number };
-  /** Shape-plugin layout for the active ring (#107). Computed by
-   *  `useDrillNavigation` from the resolved shape model so this
-   *  component and the hit-test path always read the same layout,
-   *  and validated against the plugin's contract (`validateShapeLayout`).
-   *  `null` = the wedge default code path is active. Optional so
-   *  callers (screenshots, tests) that never render shapes can omit
-   *  it. */
-  shapeLayout?: ShapeLayout | null;
+  /** Shape-plugin layout for the inner ring slot (#107 PR4). Computed
+   *  by `useDrillNavigation` from the resolved shape model so this
+   *  component and the hit-test path always read the same layout, and
+   *  validated against the plugin's contract (`validateShapeLayout`).
+   *  When non-null, the inner ring renders as plugin nodes instead of
+   *  the wedge inner band. Optional so callers (screenshots, tests)
+   *  that never render shapes can omit it. */
+  innerShapeLayout?: ShapeLayout | null;
+  /** Shape-plugin layout for the outer ring slot (#107 PR4). Same
+   *  semantics as `innerShapeLayout` but for the outer band. The two
+   *  layouts together let the planets pie render both the active ring
+   *  and the breadcrumb / preview as orbital nodes simultaneously. */
+  outerShapeLayout?: ShapeLayout | null;
   /** Anchor point in renderer-window coords. The pie centre sits at
    *  this point so the menu opens "at the cursor" wherever the user
    *  triggered it. Omit to fall back to viewport-centre. */
@@ -114,7 +119,8 @@ export function PieMenu({
   centerBalance = 0.5,
   badge = null,
   workbenchBadge = null,
-  shapeLayout = null,
+  innerShapeLayout = null,
+  outerShapeLayout = null,
 }: PieMenuProps) {
   // Resolve ring roles from the navigation stack. At top level the
   // *inner* pie is the active selection target; once drilled in the
@@ -196,15 +202,14 @@ export function PieMenu({
   const outerRingInnerRadius = rings.outerInner;
   const viewportSize = outerRingOuterRadius * 2;
 
-  // Shape-plugin dispatch (#107). The caller (App.tsx via
-  // `useDrillNavigation`) owns the layout computation; this component
-  // just renders what arrives via `shapeLayout`. A non-null layout
-  // means a shape plugin is the active layout for the active ring;
-  // `null` means the wedge default code path runs. Keeping the layout
-  // call in one place stops PieMenu and the hit-test loop from
-  // drifting on a non-pure plugin. The breadcrumb and preview rings
-  // stay as wedges either way.
-  const activeShapeLayout = shapeLayout;
+  // Shape-plugin dispatch (#107 PR4). The caller (App.tsx via
+  // `useDrillNavigation`) owns layout computation for both ring slots;
+  // this component just renders what arrives. A non-null layout for a
+  // slot means a shape plugin is the active layout for that band; null
+  // falls back to the wedge default for that band. The two slots are
+  // independent so the planets pie can show inner=active +
+  // outer=preview-children simultaneously, just like the wedge default
+  // does with breadcrumb + active.
 
   // User size multiplier. The `/ devicePixelRatio` is a compositor-specific
   // correction, NOT standard behaviour: under plain Chromium a fixed CSS
@@ -329,22 +334,23 @@ export function PieMenu({
         width={displaySize}
         height={displaySize}
       >
-        {/* Inner ring: active selection target at top level, dimmed
-         *  breadcrumb once drilled in (with the drilled-into sector
-         *  marked as "you came from here"). When a shape plugin is the
-         *  effective layout *and* the inner ring is the active ring
-         *  (top level), render the plugin's circles + labels in one
-         *  per-sector group instead of the wedge map below. The
-         *  breadcrumb case (drilled in) keeps the wedge so the visual
-         *  affordance "you came from here" stays consistent across
-         *  layouts. */}
-        {!isDrilled && activeShapeLayout !== null
+        {/* Inner ring. With the wedge default, this is the active
+         *  selection target at top level and a dimmed breadcrumb once
+         *  drilled (with the drilled-into sector marked "you came from
+         *  here"). With a shape plugin's `innerShapeLayout`, the same
+         *  band renders as orbital nodes: the active sectors at top
+         *  level, the breadcrumb-of-parent-items when drilled. */}
+        {innerShapeLayout !== null
           ? renderShapeRing({
               sectors: innerSectors,
-              layout: activeShapeLayout,
+              layout: innerShapeLayout,
               labelRadius: innerLabelRadius,
               iconSize: innerIconSize,
-              activeSector,
+              // Active highlight only fires on the ring the puck is
+              // currently navigating (the active ring). At top level
+              // that's the inner ring; once drilled the inner is the
+              // breadcrumb, so no live highlight.
+              activeSector: !isDrilled ? activeSector : null,
               keyPrefix: 'inner-shape',
             })
           : innerSectors.map((node, i) => (
@@ -376,10 +382,11 @@ export function PieMenu({
         >
           {centerLabel}
         </text>
-        {/* Skip the inner label map when shape is active for this ring:
-            renderShapeRing above already drew the label as part of each
-            sector group, so a parallel wedge label map would double up. */}
-        {!isDrilled && activeShapeLayout !== null
+        {/* Inner labels: skipped entirely when the inner ring is
+            rendering as plugin nodes. renderShapeRing above already
+            drew each label as part of the sector group, so a parallel
+            wedge label map would double up. */}
+        {innerShapeLayout !== null
           ? null
           : innerSectors.map((node, i) => (
               <SectorLabel
@@ -393,23 +400,24 @@ export function PieMenu({
                 rotation={innerRingRotation}
               />
             ))}
-        {/* Outer ring: active selection target once drilled in, or
-         *  preview of the hovered branch's children at top level.
-         *  Either way it's the *larger* concentric band — the only
-         *  thing that changes is opacity + whether it's interactive. */}
+        {/* Outer ring. With the wedge default, this is the active
+         *  selection target once drilled in, or a dimmed preview of
+         *  the hovered branch's children at top level. With a shape
+         *  plugin's `outerShapeLayout`, the same band renders as
+         *  orbital nodes: the active sectors when drilled, the
+         *  preview-of-children when hovering a branch at top level. */}
         {outerSectors !== undefined && outerSectors.length > 0 && (
           <g className="pie-outer-ring">
-            {/* When drilled in and a shape plugin is the active layout,
-                render the outer ring's sectors as the plugin's circles +
-                labels in one group. The top-level preview case (not
-                drilled, branch-children preview) keeps the wedge map. */}
-            {isDrilled && activeShapeLayout !== null ? (
+            {outerShapeLayout !== null ? (
               renderShapeRing({
                 sectors: outerSectors,
-                layout: activeShapeLayout,
+                layout: outerShapeLayout,
                 labelRadius: outerLabelRadius,
                 iconSize: outerIconSize,
-                activeSector,
+                // Active highlight only fires once drilled in (when
+                // the outer ring is the active ring); at top level
+                // the outer band is the preview, non-interactive.
+                activeSector: isDrilled ? activeSector : null,
                 keyPrefix: 'outer-shape',
               })
             ) : (

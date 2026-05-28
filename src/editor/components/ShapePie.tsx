@@ -10,6 +10,7 @@ import {
   validateShapeLayout,
   type ShapeLayout,
   type ShapeRingRadii,
+  type ShapeRingSlot,
 } from '@/shared/shape-plugin-api';
 
 import { useShapeModules } from '../state/shape-modules';
@@ -46,6 +47,11 @@ export type ShapePieProps = {
   /** Ring radii passed to the plugin's `layout`. Same shape the host
    *  computes for the wedge default. */
   ringRadii: ShapeRingRadii;
+  /** Which ring slot this instance is rendering (#107 PR4). Forwarded
+   *  to the plugin so it can pick the right orbit (`inner` for the
+   *  inner band / breadcrumb, `outer` for the outer band / preview).
+   *  Defaults to `inner` so PR3b callers stay working. */
+  ring?: ShapeRingSlot;
   /** The currently-selected sector index, or null. Drives the
    *  `is-active` class on its <circle>. */
   selectedIndex: number | null;
@@ -96,6 +102,7 @@ export function ShapePie({
   selectedIndex,
   iconSize,
   labelRadius,
+  ring = 'inner',
   dropTo = null,
   dragFrom = null,
   onSectorPointerDown,
@@ -124,7 +131,7 @@ export function ShapePie({
     if (moduleEntry?.status !== 'ready') return null;
     let raw: unknown;
     try {
-      raw = moduleEntry.module.layout(sectors.length, ringRadii);
+      raw = moduleEntry.module.layout(sectors.length, ringRadii, ring);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn(
@@ -139,7 +146,7 @@ export function ShapePie({
       return null;
     }
     return validated.layout;
-  }, [moduleEntry, sectors.length, ringRadii, pluginId]);
+  }, [moduleEntry, sectors.length, ringRadii, pluginId, ring]);
 
   // No module loaded yet, or layout failed validation: render the
   // caller-supplied fallback (the wedge map) so the pie stays filled.
