@@ -60,6 +60,11 @@ export interface EditorIpcDeps {
   /** Pull a plugin's command catalog for the editor palette (#76 D2): invokes
    *  the plugin's `provideCatalog` with a timeout. */
   getPluginCatalog: (pluginId: string, loadAll: boolean) => Promise<PluginCatalogResult>;
+  /** Read the JS source of a shape plugin's `shape.entry` file (#107 PR2)
+   *  for the renderer's Blob-URL dynamic import. Returns null when the
+   *  plugin isn't found / wrong kind / source can't be read; main logs
+   *  the precise reason. */
+  getShapeSource: (pluginId: string) => Promise<string | null>;
   /** Ids of curated per-workbench pies that exist on disk (#193). */
   getWorkbenchMenus: () => Promise<string[]>;
   /** Seed a curated pie for a workbench from the live catalog (#193): pull the
@@ -145,6 +150,10 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
     IpcChannel.EDITOR_GET_PLUGIN_CATALOG,
     (_evt, pluginId: string, loadAll: boolean): Promise<PluginCatalogResult> =>
       deps.getPluginCatalog(pluginId, loadAll),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_GET_SHAPE_SOURCE,
+    (_evt, pluginId: string): Promise<string | null> => deps.getShapeSource(pluginId),
   );
   ipcMain.handle(
     IpcChannel.EDITOR_GET_WORKBENCH_MENUS,

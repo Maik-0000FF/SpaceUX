@@ -149,6 +149,12 @@ export type EditorBridge = {
    *  requests the complete set even when that's expensive (FreeCAD cycles
    *  every workbench). Resolves with the catalog or a failure reason. */
   getPluginCatalog(pluginId: string, loadAll: boolean): Promise<PluginCatalogResult>;
+  /** Pull a shape plugin's entry-file source (#107 PR2): resolves to the
+   *  raw JS string, or null when the plugin can't be found / read. The
+   *  renderer creates a Blob URL from the source and dynamic-imports it
+   *  to load the plugin's `layout` + `hitTest` functions into the
+   *  renderer process. Cached by the renderer's shape-modules store. */
+  getShapeSource(pluginId: string): Promise<string | null>;
   /** Pull the ids of curated per-workbench pies on mount (#193). */
   getWorkbenchMenus(): Promise<WorkbenchMenusState>;
   /** Subscribe to curated-pie add/remove changes. Returns an unsubscribe fn. */

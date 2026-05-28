@@ -159,6 +159,14 @@ export const IpcChannel = {
    *  the plugin's `provideCatalog` (with a timeout); a plugin without one, or
    *  an unreachable bridge, yields `{ ok: false, reason }`. */
   EDITOR_GET_PLUGIN_CATALOG: 'spaceux:editor:plugins:catalog',
+  /** Editor pulls a shape plugin's entry-file source (#107 PR2): invoke(pluginId)
+   *  → string | null. Main resolves the plugin's `shape.entry` against its
+   *  install dir, reads the JS file as UTF-8, and returns the source. The
+   *  renderer creates a Blob URL and dynamic-imports it; sources are pulled
+   *  lazily (first selection) and cached renderer-side. Returns null on any
+   *  failure (plugin not found, wrong kind, file read error, size cap), with
+   *  the reason logged in main. */
+  EDITOR_GET_SHAPE_SOURCE: 'spaceux:editor:plugins:shape-source',
   /** Editor pulls the ids of curated per-workbench pies on mount (#193, PR2c):
    *  invoke → {@link WorkbenchMenusState}. Tells the FreeCAD dropdown which
    *  workbenches already have a curated pie. */
