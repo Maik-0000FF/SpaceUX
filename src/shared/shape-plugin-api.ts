@@ -92,7 +92,18 @@ export type ShapePluginModule = {
  *  on failure. Exported so the renderer's loader and unit tests share
  *  the same contract; the validator is intentionally narrow (only
  *  checks the two function exports exist) so a plugin can grow extra
- *  exports without breaking load. */
+ *  exports without breaking load.
+ *
+ *  Two things this validator deliberately does NOT do:
+ *   - It does not check the *return shape* of `layout` / `hitTest`.
+ *     A plugin returning the wrong shape will be caught downstream at
+ *     the first render call (defensive parsing is the render-side's
+ *     job; see PR3's render dispatch).
+ *   - Validation runs *after* the imported module's top-level code has
+ *     executed. A plugin that does `globalThis.x = 'pwn'` at top level
+ *     has already done so by the time we reject; the contract here
+ *     vouches for the exports, not for the load-time side effects. The
+ *     same trust contract applies as for `kind: 'function'` plugins. */
 export function validateShapePluginModule(mod: unknown): string | null {
   if (typeof mod !== 'object' || mod === null) {
     return 'shape plugin module is not an object';

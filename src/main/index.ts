@@ -1437,19 +1437,22 @@ app.whenReady().then(async () => {
           return null;
         }
         const entryPath = path.join(found.dir, found.manifest.shape.entry);
-        const source = await fs.readFile(entryPath, 'utf8');
         // Size cap: a shape plugin is pure compute; anything larger than
         // 1 MiB is almost certainly a packaged bundle the manifest's
-        // entry shouldn't be pointing at directly. Soft guard.
+        // entry shouldn't be pointing at directly. Soft guard. Stat
+        // first so an oversized file (or a symlink to a black-hole
+        // device like /dev/zero) is rejected before we read it into
+        // memory.
         const MAX_SOURCE_BYTES = 1 << 20;
-        if (Buffer.byteLength(source, 'utf8') > MAX_SOURCE_BYTES) {
+        const stat = await fs.stat(entryPath);
+        if (stat.size > MAX_SOURCE_BYTES) {
           // eslint-disable-next-line no-console
           console.warn(
             `[shape] getShapeSource: plugin "${pluginId}" entry exceeds ${MAX_SOURCE_BYTES} bytes; rejecting`,
           );
           return null;
         }
-        return source;
+        return await fs.readFile(entryPath, 'utf8');
       } catch (err) {
         // eslint-disable-next-line no-console
         console.warn(`[shape] getShapeSource("${pluginId}"): ${describeError(err)}`);
