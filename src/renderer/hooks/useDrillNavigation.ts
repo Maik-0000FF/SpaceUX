@@ -50,7 +50,38 @@ import {
   type ShapePluginModule,
   type ShapePuckAxes,
   type ShapeRingRadii,
+  type ShapeRingSlot,
 } from '@/shared/shape-plugin-api';
+
+/** Build one ring slot's shape layout for the host, or null on any
+ *  failure path (no module, no ring, layout threw, layout output
+ *  rejected). Kept module-local so the inner + outer memos can call
+ *  it without diverging on edge-case handling. */
+function buildRingLayout(
+  module: ShapePluginModule,
+  ringRadii: ShapeRingRadii,
+  sectorCount: number,
+  ring: ShapeRingSlot,
+): ShapeLayout | null {
+  if (sectorCount === 0) return null;
+  let raw: unknown;
+  try {
+    raw = module.layout(sectorCount, ringRadii, ring);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[shape] layout(${ring}) threw: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return null;
+  }
+  const validated = validateShapeLayout(raw, sectorCount);
+  if (!validated.ok) {
+    // eslint-disable-next-line no-console
+    console.warn(`[shape] layout(${ring}) rejected: ${validated.reason}`);
+    return null;
+  }
+  return validated.layout;
+}
 
 /**
  * Defensive wrap around a shape plugin's `hitTest`. Catches throws and
@@ -99,14 +130,17 @@ export type UseDrillNavigation = {
    *  frame. The user has to release past each threshold and
    *  re-engage before the corresponding gesture registers. */
   resetTransientRefs: () => void;
-  /** Shape-plugin layout for the current active ring (#107 PR3c).
-   *  Computed once per (module, ringRadii, sector count) and shared
-   *  between the gesture-loop hit-test (which routes through
-   *  `_safeShapeHitTest`) and PieMenu's render so the two can't
-   *  drift on a non-pure plugin. `null` when no shape plugin is
-   *  active, the module isn't loaded yet, the active ring is empty,
-   *  or the plugin's `layout()` output failed validation. */
-  activeShapeLayout: ShapeLayout | null;
+  /** Shape-plugin layout for the inner ring slot (#107 PR4). Inner
+   *  is the active ring at top level, and the breadcrumb of parent
+   *  items once drilled in. `null` when no shape plugin is active,
+   *  the module isn't loaded yet, the slot's ring is empty, or the
+   *  plugin's `layout()` output failed validation. */
+  innerShapeLayout: ShapeLayout | null;
+  /** Shape-plugin layout for the outer ring slot (#107 PR4). Outer
+   *  is the active ring when drilled in, and the preview of the
+   *  hovered branch's children at top level. Same null semantics as
+   *  innerShapeLayout. */
+  outerShapeLayout: ShapeLayout | null;
 };
 
 export function useDrillNavigation(opts: {
@@ -166,32 +200,49 @@ export function useDrillNavigation(opts: {
   const wasDrillRef = useRef<boolean>(true);
   const wasCycleRef = useRef<boolean>(true);
 
-  // Shape-plugin layout for the active ring (#107 PR3c). Computed once
-  // per (module, ringRadii, sector count) tuple and shared with PieMenu
-  // via the returned `activeShapeLayout`; no parallel call site that
-  // could drift if the plugin's `layout()` ever became non-pure. Memoed
-  // on the navigation level so drilling recomputes naturally; ringRadii
-  // identity is stable across renders thanks to App.tsx's memo.
-  const activeShapeLayout = useMemo<ShapeLayout | null>(() => {
-    if (shapeContext === null || menuConfig === null) return null;
-    const sectorCount = currentBranches(menuConfig, drillState.navigation).length;
-    if (sectorCount === 0) return null;
-    let raw: unknown;
-    try {
-      raw = shapeContext.module.layout(sectorCount, shapeContext.ringRadii);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn(`[shape] layout() threw: ${err instanceof Error ? err.message : String(err)}`);
-      return null;
+  // Shape-plugin layouts for the inner + outer ring slots (#107 PR4).
+  // Both rings render simultaneously when a shape plugin is active so
+  // the planets-style pie keeps the wedge default's "active ring +
+  // breadcrumb / preview" layering (just rendered as orbital nodes
+  // instead of slices). Each ring's layout is memoed independently so
+  // drilling, hovering a new branch, or swapping the plugin only
+  // recomputes the slots that actually changed. Computed in the hook
+  // (not in PieMenu) so the gesture-loop hit-test reads the same
+  // ShapeLayout object the renderer paints — no parallel call site
+  // that could drift on a non-pure plugin.
+  const isDrilled = drillState.navigation.length > 0;
+  const innerSectorCount = useMemo(() => {
+    if (menuConfig === null) return 0;
+    // At top level, the inner ring is the active ring. Once drilled,
+    // it's the parent ring (the breadcrumb).
+    const path = isDrilled ? drillState.navigation.slice(0, -1) : drillState.navigation;
+    return currentBranches(menuConfig, path).length;
+  }, [menuConfig, drillState.navigation, isDrilled]);
+  const outerSectorCount = useMemo(() => {
+    if (menuConfig === null) return 0;
+    if (isDrilled) {
+      // Drilled: outer ring carries the active items.
+      return currentBranches(menuConfig, drillState.navigation).length;
     }
-    const validated = validateShapeLayout(raw, sectorCount);
-    if (!validated.ok) {
-      // eslint-disable-next-line no-console
-      console.warn(`[shape] layout() rejected: ${validated.reason}`);
-      return null;
-    }
-    return validated.layout;
-  }, [shapeContext, menuConfig, drillState.navigation]);
+    // Top level: outer ring previews the children of the currently
+    // hovered branch, mirroring the wedge default's preview band.
+    // No hovered sector => no outer ring.
+    const sticky = drillState.stickyChildIndex;
+    if (sticky === null) return 0;
+    const ring = currentBranches(menuConfig, drillState.navigation);
+    const hovered = ring[sticky];
+    return hovered?.branches?.length ?? 0;
+  }, [menuConfig, drillState.navigation, drillState.stickyChildIndex, isDrilled]);
+  const innerShapeLayout = useMemo<ShapeLayout | null>(() => {
+    if (shapeContext === null) return null;
+    return buildRingLayout(shapeContext.module, shapeContext.ringRadii, innerSectorCount, 'inner');
+  }, [shapeContext, innerSectorCount]);
+  const outerShapeLayout = useMemo<ShapeLayout | null>(() => {
+    if (shapeContext === null) return null;
+    return buildRingLayout(shapeContext.module, shapeContext.ringRadii, outerSectorCount, 'outer');
+  }, [shapeContext, outerSectorCount]);
+  // The hit-test runs against whichever layout the active ring uses.
+  const activeShapeLayout = isDrilled ? outerShapeLayout : innerShapeLayout;
 
   useEffect(() => {
     if (!menuOpen || !menuConfig) return;
@@ -316,7 +367,8 @@ export function useDrillNavigation(opts: {
     drillState,
     dispatch,
     drillStateRef,
-    activeShapeLayout,
+    innerShapeLayout,
+    outerShapeLayout,
     resetTransientRefs: () => {
       // Reset to `true` (not `false`) so a still-deflected puck at
       // MENU_OPEN doesn't claim a phantom rising edge on frame 1.

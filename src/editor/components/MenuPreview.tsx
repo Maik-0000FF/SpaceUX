@@ -434,8 +434,11 @@ export function MenuPreview() {
 
           // The effective shape model was resolved at the top of the
           // component so the breadcrumb / preview gates can read it
-          // too. `null` means "render as wedge" -- return the wedge
-          // map directly. A non-null key dispatches to ShapePie below.
+          // too. `null` means render as wedge, so return the wedge
+          // map directly. A non-null key dispatches to ShapePie, with
+          // the ring slot picked to match which band the active ring
+          // sits in (inner at top level, outer once drilled). This
+          // matches the live overlay's per-slot dispatch.
           if (effectiveShape === null) return wedgeMap;
 
           const selectedIdx = livePreview ? liveSticky : selectedIndex;
@@ -444,6 +447,7 @@ export function MenuPreview() {
               shapeKey={effectiveShape}
               sectors={currentRing}
               ringRadii={shapeRingRadii}
+              ring={isDrilled ? 'outer' : 'inner'}
               selectedIndex={selectedIdx}
               iconSize={activeIconSize}
               labelRadius={activeLabel}

@@ -74,16 +74,30 @@ export type ShapeLayout = {
   labels: readonly ShapeLabel[];
 };
 
+/** Which concentric band of the pie a layout call is computing
+ *  positions for. The host calls `layout` once per visible ring so the
+ *  plugin can place its nodes on the inner vs outer orbit; ring slots
+ *  match the wedge default's "inner pie" + "outer ring" bands. */
+export type ShapeRingSlot = 'inner' | 'outer';
+
 /** The pure compute functions a shape plugin must export from its
  *  `index.js`. Both are stateless and side-effect-free: `layout` is
- *  called per pie open / drill, `hitTest` runs at frame rate. */
+ *  called per pie open / drill (potentially once per visible ring),
+ *  `hitTest` runs at frame rate. */
 export type ShapePluginModule = {
-  /** Compute layout for a given sector count + ring radii. Must return
-   *  exactly `sectorCount` nodes and labels, in sector-index order. */
-  layout(sectorCount: number, ringRadii: ShapeRingRadii): ShapeLayout;
+  /** Compute layout for a given sector count + ring radii on the
+   *  specified ring slot (#107). The plugin uses the slot to pick the
+   *  appropriate fields from `ringRadii` (e.g. `innerLabelRadius` for
+   *  `ring === 'inner'`, `outerLabelRadius` for `ring === 'outer'`) so
+   *  the host can render both bands as plugin nodes simultaneously
+   *  (active ring + breadcrumb / preview). Must return exactly
+   *  `sectorCount` nodes and labels, in sector-index order. */
+  layout(sectorCount: number, ringRadii: ShapeRingRadii, ring: ShapeRingSlot): ShapeLayout;
   /** Map a puck axes snapshot to a hovered sector index, or null when no
    *  sector is hovered (the centre / cancel zone). Replaces the wedge
-   *  default's `atan2`-bucketed hit-test for this layout only. */
+   *  default's `atan2`-bucketed hit-test for this layout only. The host
+   *  only calls hitTest against the *active* ring's layout, so the
+   *  plugin doesn't need a separate ring slot here. */
   hitTest(axes: ShapePuckAxes, ringRadii: ShapeRingRadii, layout: ShapeLayout): number | null;
 };
 

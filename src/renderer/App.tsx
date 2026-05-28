@@ -150,17 +150,23 @@ export function App() {
     [shapeModuleEntry, liveShapeRingRadii],
   );
 
-  const { drillState, dispatch, drillStateRef, resetTransientRefs, activeShapeLayout } =
-    useDrillNavigation({
-      axes,
-      buttons,
-      menuConfig,
-      menuOpen: menuAnchor !== null,
-      onDismiss: dismissMenu,
-      onCommitCenter: commitCenter,
-      onActivate: activateNode,
-      shapeContext,
-    });
+  const {
+    drillState,
+    dispatch,
+    drillStateRef,
+    resetTransientRefs,
+    innerShapeLayout,
+    outerShapeLayout,
+  } = useDrillNavigation({
+    axes,
+    buttons,
+    menuConfig,
+    menuOpen: menuAnchor !== null,
+    onDismiss: dismissMenu,
+    onCommitCenter: commitCenter,
+    onActivate: activateNode,
+    shapeContext,
+  });
 
   // Universal escape hatch: Escape always closes the open pie, regardless of
   // trigger mode or which gestures are bound. Guarantees closability even
@@ -272,7 +278,8 @@ export function App() {
           scale={pieAppearance.scale}
           ringBalance={pieAppearance.ringBalance}
           centerBalance={pieAppearance.centerBalance}
-          shapeLayout={activeShapeLayout}
+          innerShapeLayout={innerShapeLayout}
+          outerShapeLayout={outerShapeLayout}
           badge={pieBadges.plugin}
           workbenchBadge={pieBadges.workbench}
         />

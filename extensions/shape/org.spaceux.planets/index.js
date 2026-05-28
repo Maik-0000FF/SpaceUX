@@ -34,14 +34,22 @@ const TAU = Math.PI * 2;
  * sector count (the host clamps sectorCount to >= 2 effectively;
  * a 1-sector pie still works via the floor below).
  */
-export function layout(sectorCount, ringRadii) {
+export function layout(sectorCount, ringRadii, ring) {
   // `Math.max(0, ...)` honours the contract: validateShapeLayout()
   // expects exactly `sectorCount` nodes, so a zero-sector pie must
   // produce an empty layout, not a one-node fallback. The for-loop
   // below skips entirely on n=0; the n=1 chord-degenerate case
   // falls through to the ring-thickness cap further down.
   const n = Math.max(0, Math.floor(sectorCount));
-  const orbit = ringRadii.outerLabelRadius;
+  // Pick orbit + ring-thickness cap based on which slot the host is
+  // asking for. Both rings render simultaneously when both have
+  // content (the wedge default's behaviour: active + breadcrumb /
+  // preview); the plugin picks its own orbit per call so a planet on
+  // the inner band sits inside its band and a planet on the outer
+  // band sits inside its band. Unknown `ring` values fall back to
+  // the outer slot for forward-compat.
+  const isInner = ring === 'inner';
+  const orbit = isInner ? ringRadii.innerLabelRadius : ringRadii.outerLabelRadius;
   // Half-chord between adjacent planet centres along the orbit:
   // chord = 2 * orbit * sin(pi/n), so the half-chord is the radius
   // budget before adjacent planets would touch. Use ~70% of that so
@@ -49,10 +57,12 @@ export function layout(sectorCount, ringRadii) {
   // A single-sector pie (n=1) gets the chord term degenerate, so
   // fall back to the ring-thickness cap below.
   const halfChord = n >= 2 ? orbit * Math.sin(Math.PI / n) : Infinity;
-  // Cap by half the outer ring's thickness so a planet never bleeds
-  // past the ring band. Important at small sector counts where the
-  // chord-derived radius would dwarf the ring.
-  const halfThickness = (ringRadii.outerOuterRadius - ringRadii.outerInnerRadius) / 2;
+  // Cap by half the ring's thickness so a planet never bleeds past
+  // the band. Inner ring's "outer edge" is its outer radius; outer
+  // ring's "outer edge" is its outer radius.
+  const halfThickness = isInner
+    ? (ringRadii.innerOuterRadius - ringRadii.innerInnerRadius) / 2
+    : (ringRadii.outerOuterRadius - ringRadii.outerInnerRadius) / 2;
   const planetRadius = Math.min(halfChord * 0.7, halfThickness * 0.95);
   const nodes = [];
   const labels = [];
