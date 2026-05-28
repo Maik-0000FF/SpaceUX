@@ -106,6 +106,33 @@
   stroke-width: 2.5;
 }
 
+// Shape-plugin node (#107 PR3b). One per sector when a shape plugin is
+// active; takes the wedge's place visually but is a circle. Borrows the
+// wedge token palette so selection / cancel / drop-target states line up
+// with what the user already knows from the wedge default.
+.shapeNode {
+  fill: var(--wedge-bg);
+  stroke: var(--pie-border);
+  stroke-width: 1.5;
+  cursor: pointer;
+}
+
+.shapeNodeSelected {
+  fill: var(--wedge-bg-active);
+  stroke: var(--pie-border-active);
+  stroke-width: 2;
+}
+
+.shapeNodeCancel {
+  fill: var(--wedge-bg-cancel);
+  stroke: var(--pie-border-cancel);
+}
+
+.shapeNodeDropTarget {
+  stroke: var(--pie-border-active);
+  stroke-width: 2.5;
+}
+
 .label {
   fill: var(--pie-label);
   font-family: var(--pie-font-ui);

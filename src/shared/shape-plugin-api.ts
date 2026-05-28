@@ -87,6 +87,82 @@ export type ShapePluginModule = {
   hitTest(axes: ShapePuckAxes, ringRadii: ShapeRingRadii, layout: ShapeLayout): number | null;
 };
 
+/** Validate the runtime output of a shape plugin's `layout(...)` call.
+ *  PR2's module-shape validator only checks that `layout` / `hitTest`
+ *  are exported as functions; it can't check what `layout` *returns* at
+ *  call time. This guard runs the defensive check the renderer needs:
+ *  the return value is an object with `nodes` and `labels` arrays of
+ *  exactly `sectorCount` items, and each item carries the right
+ *  numeric / enum fields.
+ *
+ *  Returns `null` on success (with the value cast to {@link ShapeLayout})
+ *  or a human-readable reason on failure. The renderer falls back to
+ *  the wedge code path on failure so a malformed plugin output can't
+ *  blank the pie or render NaN coordinates. */
+export function validateShapeLayout(
+  value: unknown,
+  sectorCount: number,
+): { ok: true; layout: ShapeLayout } | { ok: false; reason: string } {
+  if (typeof value !== 'object' || value === null) {
+    return { ok: false, reason: 'layout() must return an object' };
+  }
+  const v = value as { nodes?: unknown; labels?: unknown };
+  if (!Array.isArray(v.nodes)) {
+    return { ok: false, reason: 'layout().nodes must be an array' };
+  }
+  if (!Array.isArray(v.labels)) {
+    return { ok: false, reason: 'layout().labels must be an array' };
+  }
+  if (v.nodes.length !== sectorCount) {
+    return {
+      ok: false,
+      reason: `layout().nodes has ${v.nodes.length} entries; expected ${sectorCount} (one per sector)`,
+    };
+  }
+  if (v.labels.length !== sectorCount) {
+    return {
+      ok: false,
+      reason: `layout().labels has ${v.labels.length} entries; expected ${sectorCount} (one per sector)`,
+    };
+  }
+  for (let i = 0; i < sectorCount; i += 1) {
+    const n = v.nodes[i] as { cx?: unknown; cy?: unknown; r?: unknown };
+    if (typeof n !== 'object' || n === null) {
+      return { ok: false, reason: `layout().nodes[${i}] must be an object` };
+    }
+    for (const key of ['cx', 'cy', 'r'] as const) {
+      if (typeof n[key] !== 'number' || !Number.isFinite(n[key])) {
+        return {
+          ok: false,
+          reason: `layout().nodes[${i}].${key} must be a finite number`,
+        };
+      }
+    }
+    if ((n.r as number) < 0) {
+      return { ok: false, reason: `layout().nodes[${i}].r must be non-negative` };
+    }
+    const l = v.labels[i] as { x?: unknown; y?: unknown; anchor?: unknown };
+    if (typeof l !== 'object' || l === null) {
+      return { ok: false, reason: `layout().labels[${i}] must be an object` };
+    }
+    for (const key of ['x', 'y'] as const) {
+      if (typeof l[key] !== 'number' || !Number.isFinite(l[key])) {
+        return {
+          ok: false,
+          reason: `layout().labels[${i}].${key} must be a finite number`,
+        };
+      }
+    }
+    if (l.anchor !== 'start' && l.anchor !== 'middle' && l.anchor !== 'end') {
+      return {
+        ok: false,
+        reason: `layout().labels[${i}].anchor must be 'start', 'middle', or 'end'`,
+      };
+    }
+  }
+  return { ok: true, layout: value as ShapeLayout };
+}
+
 /** Structural validator for a module imported from a shape plugin's
  *  source. Returns `null` on success or a single human-readable reason
  *  on failure. Exported so the renderer's loader and unit tests share

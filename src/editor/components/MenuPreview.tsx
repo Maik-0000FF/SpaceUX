@@ -16,7 +16,8 @@ import {
   truncatePieLabel,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import { isCancelNode, type MenuNode } from '@/shared/menu';
+import { isCancelNode, resolveShapeModel, type MenuNode } from '@/shared/menu';
+import { type ShapeRingRadii } from '@/shared/shape-plugin-api';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useLivePreviewNavigation } from '../hooks/useLivePreviewNavigation';
@@ -28,6 +29,7 @@ import { nodeKey } from '../state/node-keys';
 import { ringBranches } from '../state/selectors';
 
 import styles from './MenuPreview.module.scss';
+import { ShapePie } from './ShapePie';
 
 const TAU = Math.PI * 2;
 
@@ -44,8 +46,17 @@ const VIEW = FOOTPRINT; // viewBox half-extent (reserves the outer ring)
 /** A node's icon as an `<image>`, or null when the node has no renderable
  *  icon. Stacked above the label point (cx, cy); with an empty label it
  *  centres on the point instead. `iconSize` is the appearance-scaled size, so
- *  the preview tracks the live pie's icon size faithfully. */
-function sectorIcon(node: MenuNode, cx: number, cy: number, iconSize: number) {
+ *  the preview tracks the live pie's icon size faithfully.
+ *
+ *  Exported so ShapePie can reuse the same icon placement instead of
+ *  copy-pasting the `<image>` block; future tweaks (placement, sizing,
+ *  preserveAspectRatio) land in one place. */
+export function sectorIcon(
+  node: MenuNode,
+  cx: number,
+  cy: number,
+  iconSize: number,
+): React.ReactElement | null {
   if (!isRenderableIcon(node.icon)) return null;
   const top = node.label.trim().length > 0 ? cy - iconSize : cy - iconSize / 2;
   return (
@@ -103,6 +114,31 @@ export function MenuPreview() {
   const OUTER_OUTER_RADIUS = rings.outerOuter;
   const INNER_LABEL_RADIUS = rings.innerLabel;
   const OUTER_LABEL_RADIUS = rings.outerLabel;
+
+  // Repack the host's ring radii into the shape-plugin contract once per
+  // (ringBalance, centerBalance) tuple. Without the memo, this object
+  // literal would be a fresh reference every render, defeating the
+  // memo inside ShapePie that gates the plugin's `layout()` call:
+  // the layout would re-run at frame rate during live preview.
+  const shapeRingRadii = useMemo<ShapeRingRadii>(
+    () => ({
+      cancelRadius: INNER_RADIUS,
+      innerInnerRadius: INNER_RADIUS,
+      innerOuterRadius: INNER_PIE_OUTER,
+      innerLabelRadius: INNER_LABEL_RADIUS,
+      outerInnerRadius: OUTER_INNER_RADIUS,
+      outerOuterRadius: OUTER_OUTER_RADIUS,
+      outerLabelRadius: OUTER_LABEL_RADIUS,
+    }),
+    [
+      INNER_RADIUS,
+      INNER_PIE_OUTER,
+      INNER_LABEL_RADIUS,
+      OUTER_INNER_RADIUS,
+      OUTER_OUTER_RADIUS,
+      OUTER_LABEL_RADIUS,
+    ],
+  );
 
   // Active-plugin badge (#186): when this plugin's pie is the active source
   // (its dynamic menu or a curated workbench pie), show its app icon in the
@@ -325,61 +361,103 @@ export function MenuPreview() {
             );
           })}
 
-        {/* Active ring (the current menu): select / drag-reorder / drill. */}
-        {currentRing.map((node, i) => {
-          const c = sectorCenterAngle(i, count) + activeRotation;
-          const d = describeWedgePath(activeOuter, activeInner, c - half, c + half);
-          // While live, the highlight follows the puck (liveSticky); otherwise
-          // it's the click selection. The click selection still drives editing.
-          const selected = livePreview ? liveSticky === i : selectedIndex === i;
-          const isDropTarget = dragFrom !== null && dropTo === i && dropTo !== dragFrom;
-          const lx = Math.sin(c) * activeLabel;
-          const ly = -Math.cos(c) * activeLabel;
-          const labelText = truncatePieLabel(node.label);
+        {/* Active ring (the current menu): select / drag-reorder / drill.
+            When a shape plugin is active (resolveShapeModel returns a
+            non-null key), the map below is wrapped in a ShapePie that
+            renders the same sectors as the plugin's layout output;
+            ShapePie's `fallback` keeps the wedge map reachable while the
+            plugin is loading or if its layout output fails validation. */}
+        {(() => {
+          const wedgeMap = currentRing.map((node, i) => {
+            const c = sectorCenterAngle(i, count) + activeRotation;
+            const d = describeWedgePath(activeOuter, activeInner, c - half, c + half);
+            // While live, the highlight follows the puck (liveSticky); otherwise
+            // it's the click selection. The click selection still drives editing.
+            const selected = livePreview ? liveSticky === i : selectedIndex === i;
+            const isDropTarget = dragFrom !== null && dropTo === i && dropTo !== dragFrom;
+            const lx = Math.sin(c) * activeLabel;
+            const ly = -Math.cos(c) * activeLabel;
+            const labelText = truncatePieLabel(node.label);
+            return (
+              <g
+                key={nodeKey(node)}
+                className={`${styles.wedgeGroup} ${dragFrom === i ? styles.dragging : ''}`}
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  setDragFrom(i);
+                  setDropTo(i);
+                  svgRef.current?.setPointerCapture(e.pointerId);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    if (currentRing[i]?.branches?.length) drillInto(i);
+                    else selectNode(i);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`${node.branches?.length ? 'Open' : 'Select'} ${node.label}`}
+                aria-pressed={selected}
+              >
+                <path
+                  d={d}
+                  className={`${styles.wedge} ${selected ? styles.wedgeSelected : ''} ${
+                    isDropTarget ? styles.wedgeDropTarget : ''
+                  } ${isCancelNode(node) ? styles.wedgeCancel : ''}`}
+                />
+                {sectorIcon(node, lx, ly, activeIconSize)}
+                <text
+                  x={lx}
+                  y={isRenderableIcon(node.icon) ? ly + activeIconSize * 0.5 : ly}
+                  className={styles.label}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  style={{
+                    fontSize: `calc(${segmentLabelFontPx(activeLabel, count, [...labelText].length)}px * var(--pie-label-scale, 1))`,
+                  }}
+                >
+                  {labelText}
+                </text>
+              </g>
+            );
+          });
+
+          // Effective shape model: per-menu override layers over the
+          // appearance default (`undefined` inherits, `null` forces wedge,
+          // string forces a plugin shape). `null` here means "render as
+          // wedge" so the conditional below renders the wedge map directly.
+          const effectiveShape = resolveShapeModel(config.shapeModel, appearance.shapeModel);
+          if (effectiveShape === null) return wedgeMap;
+
+          const selectedIdx = livePreview ? liveSticky : selectedIndex;
           return (
-            <g
-              key={nodeKey(node)}
-              className={`${styles.wedgeGroup} ${dragFrom === i ? styles.dragging : ''}`}
-              onPointerDown={(e) => {
+            <ShapePie
+              shapeKey={effectiveShape}
+              sectors={currentRing}
+              ringRadii={shapeRingRadii}
+              selectedIndex={selectedIdx}
+              iconSize={activeIconSize}
+              labelRadius={activeLabel}
+              dropTo={dropTo}
+              dragFrom={dragFrom}
+              onSectorPointerDown={(i, e) => {
                 if (e.button !== 0) return;
                 setDragFrom(i);
                 setDropTo(i);
                 svgRef.current?.setPointerCapture(e.pointerId);
               }}
-              onKeyDown={(e) => {
+              onSectorKeyDown={(i, e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
                   if (currentRing[i]?.branches?.length) drillInto(i);
                   else selectNode(i);
                 }
               }}
-              role="button"
-              tabIndex={0}
-              aria-label={`${node.branches?.length ? 'Open' : 'Select'} ${node.label}`}
-              aria-pressed={selected}
-            >
-              <path
-                d={d}
-                className={`${styles.wedge} ${selected ? styles.wedgeSelected : ''} ${
-                  isDropTarget ? styles.wedgeDropTarget : ''
-                } ${isCancelNode(node) ? styles.wedgeCancel : ''}`}
-              />
-              {sectorIcon(node, lx, ly, activeIconSize)}
-              <text
-                x={lx}
-                y={isRenderableIcon(node.icon) ? ly + activeIconSize * 0.5 : ly}
-                className={styles.label}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                style={{
-                  fontSize: `calc(${segmentLabelFontPx(activeLabel, count, [...labelText].length)}px * var(--pie-label-scale, 1))`,
-                }}
-              >
-                {labelText}
-              </text>
-            </g>
+              fallback={wedgeMap}
+            />
           );
-        })}
+        })()}
 
         {/* Preview ring: the hovered branch's children, dimmed and
           non-interactive, in the outer band — overlay parity so the author
