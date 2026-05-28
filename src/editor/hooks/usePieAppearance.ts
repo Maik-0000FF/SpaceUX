@@ -34,6 +34,7 @@ export function usePieAppearance(): {
   setCenterBalance: (centerBalance: number) => void;
   setFontUi: (fontUi: string) => void;
   setFontMono: (fontMono: string) => void;
+  setShapeModel: (shapeModel: string | null) => void;
 } {
   const [appearance, setAppearance] = useState<PieAppearance>(DEFAULT_PIE_APPEARANCE);
 
@@ -103,6 +104,11 @@ export function usePieAppearance(): {
     window.editor.setPieAppearance({ fontMono });
   }, []);
 
+  const setShapeModel = useCallback((shapeModel: string | null) => {
+    setAppearance((a) => ({ ...a, shapeModel }));
+    window.editor.setPieAppearance({ shapeModel });
+  }, []);
+
   return {
     appearance,
     setTheme,
@@ -114,5 +120,6 @@ export function usePieAppearance(): {
     setCenterBalance,
     setFontUi,
     setFontMono,
+    setShapeModel,
   };
 }

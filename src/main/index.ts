@@ -605,6 +605,7 @@ async function persistActiveAppearance(): Promise<void> {
     pieCenterBalance: globalAppearance.centerBalance,
     pieFontUi: globalAppearance.fontUi,
     pieFontMono: globalAppearance.fontMono,
+    pieShapeModel: globalAppearance.shapeModel,
   });
 }
 
@@ -1637,6 +1638,7 @@ app.on('before-quit', () => {
         pieCenterBalance: globalAppearance.centerBalance,
         pieFontUi: globalAppearance.fontUi,
         pieFontMono: globalAppearance.fontMono,
+        pieShapeModel: globalAppearance.shapeModel,
       });
     }
   }

@@ -80,6 +80,7 @@ describe('app-settings', () => {
         centerBalance: 0.5,
         fontUi: '',
         fontMono: '',
+        shapeModel: null,
       });
     });
 
@@ -103,6 +104,7 @@ describe('app-settings', () => {
         centerBalance: 0.5,
         fontUi: 'Cantarell, sans-serif',
         fontMono: 'monospace',
+        shapeModel: null,
       });
     });
 
@@ -118,6 +120,7 @@ describe('app-settings', () => {
         centerBalance: 0.5,
         fontUi: '',
         fontMono: '',
+        shapeModel: null,
       });
     });
 

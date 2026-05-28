@@ -101,6 +101,7 @@ describe('loadDeviceProfile', () => {
         centerBalance: 0.5,
         fontUi: '',
         fontMono: '',
+        shapeModel: null,
       });
     }
   });
@@ -129,6 +130,7 @@ describe('resolveActiveConfig', () => {
     centerBalance: 0.5,
     fontUi: '',
     fontMono: '',
+    shapeModel: null,
   };
   const loaded: ProfileLoadResult = {
     status: 'loaded',
@@ -237,6 +239,7 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
       centerBalance: 0.5,
       fontUi: 'Cantarell, sans-serif',
       fontMono: '',
+      shapeModel: null,
     };
     const result = await writeDeviceProfile('046d-c62b', DEFAULT_MENU_CONFIG, appearance, dir);
     expect(result.ok).toBe(true);
@@ -270,6 +273,7 @@ describe('listDeviceProfiles / writeDeviceProfile / deleteDeviceProfile', () => 
       centerBalance: 0.5,
       fontUi: '',
       fontMono: '',
+      shapeModel: null,
     };
     writeDeviceProfileSync('046d-c62b', DEFAULT_MENU_CONFIG, appearance, dir);
     const loaded = await loadDeviceProfile('046d-c62b', dir);

@@ -14,6 +14,7 @@ import {
   builtinAction,
   isCancelNode,
   resolveAxisInvert,
+  resolveShapeModel,
   validateMenuConfig,
 } from '../src/shared/menu';
 
@@ -929,6 +930,74 @@ describe('resolveAxisInvert', () => {
 
   it('passes through a fully specified override unchanged', () => {
     expect(resolveAxisInvert({ axisInvert: { x: true, y: true } })).toEqual({ x: true, y: true });
+  });
+});
+
+describe('resolveShapeModel (#107)', () => {
+  // Three-state per-menu override layered over the app-level appearance:
+  //   undefined → inherit, null → force wedge, string → force plugin.
+  // The resolver is pure; the renderer takes care of falling back to
+  // wedge when the resolved string doesn't match an installed plugin.
+
+  it('inherits the appearance default when the menu omits the field', () => {
+    expect(resolveShapeModel(undefined, null)).toBeNull();
+    expect(resolveShapeModel(undefined, 'org.spaceux.planets/planets')).toBe(
+      'org.spaceux.planets/planets',
+    );
+  });
+
+  it('forces wedge when the menu explicitly sets null, regardless of appearance', () => {
+    expect(resolveShapeModel(null, null)).toBeNull();
+    // Per-menu null overrides an appearance pointing at a plugin shape.
+    expect(resolveShapeModel(null, 'org.spaceux.planets/planets')).toBeNull();
+  });
+
+  it('forces a plugin shape when the menu sets one, regardless of appearance', () => {
+    expect(resolveShapeModel('org.example.other/x', null)).toBe('org.example.other/x');
+    expect(resolveShapeModel('org.example.other/x', 'org.spaceux.planets/planets')).toBe(
+      'org.example.other/x',
+    );
+  });
+});
+
+describe('validateMenuConfig — shapeModel field (#107)', () => {
+  function configWith(shapeModel: unknown): unknown {
+    return {
+      version: MENU_CONFIG_VERSION,
+      shapeModel,
+      root: { label: '', branches: [{ label: 'x' }] },
+    };
+  }
+
+  it('accepts a null shapeModel (force wedge for this menu)', () => {
+    const r = validateMenuConfig(configWith(null));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.shapeModel).toBeNull();
+  });
+
+  it('accepts a non-empty string shapeModel (force a plugin shape)', () => {
+    const r = validateMenuConfig(configWith('org.spaceux.planets/planets'));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.shapeModel).toBe('org.spaceux.planets/planets');
+  });
+
+  it('accepts an omitted shapeModel field (inherit semantics)', () => {
+    const r = validateMenuConfig({
+      version: MENU_CONFIG_VERSION,
+      root: { label: '', branches: [{ label: 'x' }] },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.config.shapeModel).toBeUndefined();
+  });
+
+  it('rejects a non-string non-null shapeModel', () => {
+    const r = validateMenuConfig(configWith(42));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/shapeModel/);
+  });
+
+  it('rejects an empty / whitespace-only string (use null or omit instead)', () => {
+    expect(validateMenuConfig(configWith('')).ok).toBe(false);
   });
 });
 

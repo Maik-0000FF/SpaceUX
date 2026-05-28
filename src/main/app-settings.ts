@@ -15,6 +15,7 @@ import {
   clampPieOpacity,
   clampPieBalance,
   clampPieScale,
+  clampShapeModel,
   DEFAULT_PIE_APPEARANCE,
   PIE_THEMES,
 } from '../shared/pie-appearance.js';
@@ -42,6 +43,7 @@ export type AppSettings = {
   pieCenterBalance?: number;
   pieFontUi?: string;
   pieFontMono?: string;
+  pieShapeModel?: string | null;
 };
 
 const FILENAME = 'app-settings.json';
@@ -98,6 +100,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
   if (typeof obj.pieFontMono === 'string') {
     out.pieFontMono = clampFontFamily(obj.pieFontMono);
   }
+  if (obj.pieShapeModel === null || typeof obj.pieShapeModel === 'string') {
+    out.pieShapeModel = clampShapeModel(obj.pieShapeModel);
+  }
   return out;
 }
 
@@ -114,6 +119,7 @@ export async function loadPieAppearance(): Promise<PieAppearance> {
     centerBalance: s.pieCenterBalance ?? DEFAULT_PIE_APPEARANCE.centerBalance,
     fontUi: s.pieFontUi ?? DEFAULT_PIE_APPEARANCE.fontUi,
     fontMono: s.pieFontMono ?? DEFAULT_PIE_APPEARANCE.fontMono,
+    shapeModel: s.pieShapeModel ?? DEFAULT_PIE_APPEARANCE.shapeModel,
   };
 }
 

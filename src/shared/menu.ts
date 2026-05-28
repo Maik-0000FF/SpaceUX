@@ -377,6 +377,26 @@ export function resolveAxisInvert(
   };
 }
 
+/** Resolve the effective pie shape model for a given menu + appearance
+ *  (#107). Three-state per-menu override layers over the app-level
+ *  default:
+ *
+ *   - `menuConfig.shapeModel === undefined` — inherit `appearanceShapeModel`.
+ *   - `menuConfig.shapeModel === null` — force the built-in wedge for
+ *     this menu, regardless of what the appearance asks for.
+ *   - `menuConfig.shapeModel === string` — force that plugin shape, even
+ *     if the appearance is on wedge.
+ *
+ *  Returns `null` (wedge) or the plugin shape id. The renderer treats
+ *  an unknown id as wedge, so this resolver doesn't gatekeep against
+ *  installed plugins; that fallback is the renderer's concern. */
+export function resolveShapeModel(
+  menuShapeModel: string | null | undefined,
+  appearanceShapeModel: string | null,
+): string | null {
+  return menuShapeModel === undefined ? appearanceShapeModel : menuShapeModel;
+}
+
 /** The six SpaceMouse axes, in the order the daemon broadcasts them.
  *  Used to name the axis an :type:`AxisActivation` watches. */
 export const MENU_AXES = ['tx', 'ty', 'tz', 'rx', 'ry', 'rz'] as const;
@@ -418,6 +438,21 @@ export type MenuConfig = {
    *  drive the runtime; a later PR migrates onto this block and removes
    *  them. */
   navigation?: MenuNavigation;
+  /** Per-menu pie shape override (#107). Three-state field that
+   *  takes precedence over the app-level
+   *  :data:`PieAppearance.shapeModel` when set:
+   *
+   *   - omitted (`undefined`) — inherit the app-level shape;
+   *   - `null` — force the built-in wedge for this menu;
+   *   - a string — force the plugin-contributed shape with that id
+   *     (`<pluginId>/<shapeId>` from a shape plugin's manifest).
+   *
+   *  Resolution lives in :func:`resolveShapeModel`. Optional and
+   *  additive: an existing `menu.json` works unchanged, and the
+   *  renderer falls back to wedge when the string doesn't match an
+   *  installed plugin (so removing the plugin can't soft-lock a
+   *  saved menu). */
+  shapeModel?: string | null;
   /** The rooted menu tree. `root.branches` is the top-level ring
    *  (clockwise from 12 o'clock; the pie's sector count =
    *  `root.branches.length`, with no separate "count" knob). The root
@@ -518,6 +553,7 @@ const KNOWN_MENU_CONFIG_FIELDS: readonly string[] = [
   // is no longer read into the config.
   'scale',
   'navigation',
+  'shapeModel',
   'root',
 ];
 const KNOWN_NAVIGATION_FIELDS: readonly string[] = [
@@ -662,6 +698,29 @@ export function validateMenuConfig(value: unknown): MenuConfigValidation {
     if (!navResult.ok) return { ok: false, reason: navResult.reason };
     result.navigation = navResult.value;
     warnNavigationConflicts(navResult.value);
+  }
+  // Per-menu shape model override (#107). Three-state field: undefined
+  // inherits, null forces wedge, non-empty string forces a plugin shape.
+  // We tolerate any string structurally; the renderer falls back to wedge
+  // for unknown ids so a saved menu survives the plugin being uninstalled.
+  if (obj.shapeModel !== undefined) {
+    if (obj.shapeModel !== null && typeof obj.shapeModel !== 'string') {
+      return {
+        ok: false,
+        reason: 'menu config field "shapeModel" must be a string, null, or omitted',
+      };
+    }
+    if (typeof obj.shapeModel === 'string' && obj.shapeModel.trim() === '') {
+      // An empty string is meaningless (does it mean wedge? does it mean
+      // inherit?); reject so the user picks one of the three valid states
+      // instead of getting a silently-coerced fallback.
+      return {
+        ok: false,
+        reason:
+          'menu config field "shapeModel" must not be an empty string (use null for wedge or omit to inherit)',
+      };
+    }
+    result.shapeModel = obj.shapeModel;
   }
 
   warnUnknownFields(obj, KNOWN_MENU_CONFIG_FIELDS, 'menu config');

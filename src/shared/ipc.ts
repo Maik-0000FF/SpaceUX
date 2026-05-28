@@ -409,6 +409,14 @@ export type PieAppearance = {
    *  `''` = the bundled default (`var(--font-mono)`, JetBrains Mono). Affects
    *  pie-context monospace text (the dev debug panel today). */
   fontMono: string;
+  /** Pie shape model (#107). `null` = the built-in wedge (default,
+   *  unchanged); a string is a plugin-contributed shape, namespaced as
+   *  `<pluginId>/<shapeId>`. The renderer falls back to wedge when this
+   *  references a plugin that isn't installed, so a saved appearance
+   *  doesn't soft-lock the pie if the user removes the shape plugin
+   *  later. App-level default; a per-menu `MenuConfig.shapeModel`
+   *  override takes precedence when set (see `resolveShapeModel`). */
+  shapeModel: string | null;
 };
 
 /** Config plus the on-disk mtime it was read at. The editor snapshots
