@@ -239,8 +239,8 @@ function toPluginInfo(manifest: PluginManifest, dir: string, hasCatalog = false)
  *  `function` plugins (already loaded for the action index), the `theme`
  *  plugins (#47, listed but not executed), and the `nav-style` plugins
  *  whose presets the editor's navigation-style picker merges into its
- *  dropdown. The two non-executable kinds load via manifest-only paths —
- *  no `index.js` is imported for them. */
+ *  dropdown. The two non-executable kinds load via manifest-only paths
+ *  (no `index.js` is imported for them). */
 async function buildPluginsState(): Promise<PluginsState> {
   const fnPlugins = loadedPlugins.map((p) =>
     toPluginInfo(p.manifest, p.dir, p.provideCatalog !== undefined),

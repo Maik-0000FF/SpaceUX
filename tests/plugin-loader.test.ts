@@ -110,11 +110,18 @@ describe('validateManifest — structural fields', () => {
   });
 
   it('accepts a theme plugin without an actions array', () => {
-    // Theme plugins (#47) carry no actions — the `actions` contract only
+    // Theme plugins (#47) carry no actions; the `actions` contract only
     // applies to function plugins. A theme manifest minus actions is valid.
     const theme = manifestBase({ kind: 'theme' });
     delete theme.actions;
     expect(validateManifest(theme)).toBeNull();
+  });
+
+  it('rejects a theme plugin that carries a stray actions array', () => {
+    // Symmetric to the menu / presets rules: a field that doesn't belong on
+    // this kind is a manifest error, not silently ignored.
+    const theme = manifestBase({ kind: 'theme' });
+    expect(validateManifest(theme)).toMatch(/"actions" is only valid on a function plugin/);
   });
 
   it('still requires actions for a function plugin', () => {
@@ -177,9 +184,9 @@ describe('validateManifest — structural fields', () => {
   });
 });
 
-/** Build a minimal nav-style manifest — different shape from the function
- *  base (no `actions`, instead a `presets` array). One reasonable preset
- *  is included so the validator's preset-level branch is exercised. */
+/** Build a minimal nav-style manifest, a different shape from the function
+ *  base (no `actions`, instead a `presets` array). One reasonable preset is
+ *  included so the validator's preset-level branch is exercised. */
 function navStyleManifestBase(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     apiVersion: PLUGIN_API_VERSION,
@@ -271,6 +278,60 @@ describe('validateManifest — nav-style kind', () => {
   it('still rejects a menu on a nav-style plugin (menus are function-only)', () => {
     const m = navStyleManifestBase({ menu: { root: {} } });
     expect(validateManifest(m)).toMatch(/"menu" is only valid on a function plugin/);
+  });
+
+  it('rejects a nav-style plugin that carries a stray actions array', () => {
+    // Mirror of "rejects a theme plugin with stray actions": every kind-
+    // specific field is policed on the kinds it doesn't belong to.
+    const m = navStyleManifestBase({ actions: [{ name: 'do', label: 'Do' }] });
+    expect(validateManifest(m)).toMatch(/"actions" is only valid on a function plugin/);
+  });
+});
+
+describe('validateManifest — cross-kind field rejection', () => {
+  it('rejects a function plugin that carries a stray presets array', () => {
+    // The presets field is the nav-style payload; on a function manifest it's
+    // a misplaced field, not a silently-ignored extra (symmetric to actions /
+    // menu on non-function plugins).
+    const fn = manifestBase({
+      presets: [
+        {
+          id: 'x',
+          label: 'X',
+          description: 'X',
+          navigation: {
+            aim: 'push',
+            drillIn: { inputs: [] },
+            back: { inputs: [] },
+            cycle: { inputs: [], priority: 'lateral' },
+            commitCenter: { inputs: [] },
+            activate: { inputs: [] },
+          },
+        },
+      ],
+    });
+    expect(validateManifest(fn)).toMatch(/"presets" is only valid on a nav-style plugin/);
+  });
+
+  it('rejects a theme plugin that carries a stray presets array', () => {
+    const theme = manifestBase({ kind: 'theme' });
+    delete theme.actions;
+    (theme as Record<string, unknown>).presets = [
+      {
+        id: 'x',
+        label: 'X',
+        description: 'X',
+        navigation: {
+          aim: 'push',
+          drillIn: { inputs: [] },
+          back: { inputs: [] },
+          cycle: { inputs: [], priority: 'lateral' },
+          commitCenter: { inputs: [] },
+          activate: { inputs: [] },
+        },
+      },
+    ];
+    expect(validateManifest(theme)).toMatch(/"presets" is only valid on a nav-style plugin/);
   });
 });
 

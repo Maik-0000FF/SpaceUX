@@ -252,6 +252,15 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
  * in-memory fixtures; production callers should go through
  * `loadPlugins`, which calls this internally before importing the
  * plugin's `index.js`.
+ *
+ * Side effect: on a successful nav-style validation, each preset's
+ * `navigation` block is rewritten in place with the normalised value
+ * returned by :func:`validateNavigation` (defaults filled in, deadzones
+ * clamped). Callers that hand a freshly-parsed manifest in and then
+ * read it back get the canonical shape. On a per-preset failure the
+ * already-rewritten earlier presets stay rewritten in the input, but
+ * the only production caller discards the parsed object on error so
+ * the side effect is unobservable.
  */
 export function validateManifest(value: unknown): string | null {
   if (typeof value !== 'object' || value === null) return 'manifest is not a JSON object';
@@ -290,9 +299,10 @@ export function validateManifest(value: unknown): string | null {
     }
   }
 
-  // `actions` is the function-plugin payload. Theme plugins (#47) carry a
-  // different, not-yet-defined shape, so the `actions` contract only applies
-  // to `kind: "function"`; a theme manifest without actions is valid here.
+  // `actions` is the function-plugin payload. Required (non-empty) on a
+  // function manifest; rejected on every other kind so a stray field can't
+  // slip through unvalidated (symmetric to the `menu` and `presets` rules
+  // below). Theme manifests (#47) carry a different, not-yet-defined shape.
   if (m.kind === 'function') {
     if (!Array.isArray(m.actions) || m.actions.length === 0) {
       return 'manifest field "actions" must be a non-empty array';
@@ -313,13 +323,18 @@ export function validateManifest(value: unknown): string | null {
       if (seenNames.has(a.name)) return `action.name "${a.name}" appears more than once`;
       seenNames.add(a.name);
     }
+  } else if (m.actions !== undefined) {
+    return 'manifest field "actions" is only valid on a function plugin';
   }
 
-  // `presets` is the nav-style payload — one or more {@link NavStylePresetDescriptor}s.
-  // Each preset's navigation block is validated against the same contract as an
-  // on-disk menu config (validateNavigation), so a malformed style can't soft-lock
-  // the picker after install. Same dedup logic as `actions`: a duplicate preset
-  // id within one manifest would shadow itself in the merged picker list silently.
+  // `presets` is the nav-style payload: one or more
+  // {@link NavStylePresetDescriptor}s. Each preset's navigation block is
+  // validated against the same contract as an on-disk menu config
+  // (validateNavigation), so a malformed style is rejected at load instead
+  // of slipping into the picker. Same dedup as `actions`: a duplicate
+  // preset id within one manifest would silently shadow itself in the
+  // merged picker list. Rejected outright on any other kind, mirroring
+  // `actions` / `menu`.
   if (m.kind === 'nav-style') {
     if (!Array.isArray(m.presets) || m.presets.length === 0) {
       return 'manifest field "presets" must be a non-empty array';
@@ -338,12 +353,14 @@ export function validateManifest(value: unknown): string | null {
       seenIds.add(p.id);
       const nav = validateNavigation(p.navigation, `preset "${p.id}" navigation`);
       if (!nav.ok) return nav.reason;
-      // Replace the raw JSON block with the normalized one (validateNavigation
-      // fills in defaults and clamps the deadzones) so downstream consumers —
-      // the picker's exact-match against built-in presets, especially — see the
-      // canonical shape, not whatever the manifest happened to write.
+      // Rewrite the raw JSON block with the normalised one (validateNavigation
+      // fills in defaults and clamps the deadzones), so downstream consumers
+      // (the picker's exact-match against built-in presets, especially) see
+      // the canonical shape, not whatever the manifest happened to write.
       p.navigation = nav.value;
     }
+  } else if (m.presets !== undefined) {
+    return 'manifest field "presets" is only valid on a nav-style plugin';
   }
 
   // Optional plugin-provided menu (#76). Only a structural check here — the

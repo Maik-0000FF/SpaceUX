@@ -254,10 +254,10 @@ export type PluginInfo = {
   /** The plugin's badge icon as a baked data URI (#186), or undefined if it
    *  ships none — shown in the pie corner while this plugin's pie is active. */
   badge?: string;
-  /** Navigation-style presets the plugin contributes — present only for
+  /** Navigation-style presets the plugin contributes. Present only for
    *  `kind: 'nav-style'` plugins. The picker merges these with the built-in
    *  presets so installing a nav-style plugin extends the dropdown. Each
-   *  entry's `navigation` block has been validated + normalized in main. */
+   *  entry's `navigation` block has been validated + normalised in main. */
   navStylePresets?: NavStylePresetDescriptor[];
 };
 

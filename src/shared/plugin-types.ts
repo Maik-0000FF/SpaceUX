@@ -71,9 +71,9 @@ export type ActionDescriptor = {
  *  `extensions/` tree it installs into and how the host treats it:
  *    - `function`   — contributes actions / a pie menu (e.g. FreeCAD).
  *    - `theme`      — styles the pie (theme/design plugin, #47).
- *    - `nav-style`  — declares one or more navigation-style presets
- *                     ({@link NavStylePresetDescriptor}); pure data, no
- *                     `index.js` is loaded.
+ *    - `nav-style`: declares one or more navigation-style presets
+ *                   ({@link NavStylePresetDescriptor}). Pure data, no
+ *                   `index.js` is loaded.
  *  The folder name and this value are kept identical so a plugin is
  *  self-describing and the importer can route it without guessing. New
  *  categories are added here and to the loader's category list together. */
@@ -85,14 +85,20 @@ export const PLUGIN_KINDS: readonly PluginKind[] = ['function', 'theme', 'nav-st
 
 /** One navigation-style preset shipped by a nav-style plugin. Mirrors the
  *  built-in `NavigationPreset` in `shared/navigation-presets.ts`: a stable
- *  `id` (namespaced by the host as `<pluginId>/<presetId>` when surfaced to
- *  the picker so two plugins can ship the same preset name), a label/
- *  description for the dropdown, and the full {@link MenuNavigation} block
- *  the preset applies one-shot. The host validates `navigation` against
- *  the same contract as on-disk configs (see :func:`validateNavigation`). */
+ *  `id`, a label/description for the dropdown, and the full
+ *  {@link MenuNavigation} block the preset applies one-shot. The host
+ *  validates `navigation` against the same contract as on-disk configs
+ *  (see :func:`validateNavigation`).
+ *
+ *  Two plugins may ship the same `id` (e.g. both call a preset "twist"); the
+ *  picker is expected to namespace plugin-provided ids as
+ *  `<pluginId>/<id>` when merging them with the built-in list, so the
+ *  merged map stays unique. That merge lands in a follow-up PR; nothing in
+ *  this manifest contract requires the namespacing to be done at load. */
 export type NavStylePresetDescriptor = {
-  /** Stable id within the plugin — namespaced to `<pluginId>/<id>` by the
-   *  host. Never change once shipped. */
+  /** Stable id within the plugin. The picker will namespace it as
+   *  `<pluginId>/<id>` when merging with the built-in preset list (see the
+   *  type doc above). Never change once shipped. */
   id: string;
   /** Dropdown label shown in the picker. */
   label: string;
@@ -129,14 +135,16 @@ export type PluginManifest = {
   /** Optional homepage URL surfaced in the editor. */
   homepage?: string;
   /** List of every action this plugin exposes. Required (non-empty) for
-   *  `kind: 'function'`; omitted on `theme` / `nav-style` plugins (the
-   *  manifest validator only enforces it on function plugins). */
+   *  `kind: 'function'`; rejected on every other kind (mirrors the `menu`
+   *  and `presets` rules), so a manifest can't carry a stray field that
+   *  the loader would silently ignore. */
   actions?: ActionDescriptor[];
-  /** Navigation-style presets this plugin contributes — required (and
-   *  non-empty) for `kind: 'nav-style'`, ignored for other kinds. Each
-   *  preset's `navigation` block is validated against the same shape as
-   *  an on-disk menu config so a malformed style can't soft-lock the
-   *  picker after install. */
+  /** Navigation-style presets this plugin contributes. Required and
+   *  non-empty for `kind: 'nav-style'`; rejected on every other kind
+   *  (mirrors the `actions` and `menu` rules). Each preset's `navigation`
+   *  block is validated against the same shape as an on-disk menu config,
+   *  so a malformed style is rejected at load instead of slipping into the
+   *  picker. */
   presets?: NavStylePresetDescriptor[];
   /** Optional badge icon (a plugin-dir-relative SVG path, e.g. `badge.svg`) —
    *  the plugin's own app icon, shown in the pie's bottom-left corner while
