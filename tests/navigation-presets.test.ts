@@ -47,4 +47,26 @@ describe('navigation presets (#160)', () => {
     // The shipped default navigation isn't one of the named styles either.
     expect(matchNavigationPreset(DEFAULT_NAVIGATION)).toBeNull();
   });
+
+  it('matches a plugin-contributed preset when no built-in matches (#195)', () => {
+    // Mirrors what NavigationStyle.tsx passes in: a list of plugin presets
+    // keyed by `<pluginId>/<presetId>`. A unique custom nav block matches the
+    // plugin entry and the namespaced key comes back as the dropdown value.
+    const custom = structuredClone(NAVIGATION_PRESETS[0]!.navigation);
+    custom.deadzone += 5;
+    expect(matchNavigationPreset(custom, [{ id: 'org.example.x/style', navigation: custom }])).toBe(
+      'org.example.x/style',
+    );
+  });
+
+  it('built-ins win when a plugin preset duplicates a built-in navigation block', () => {
+    // Two presets with the same block: the built-in's id is returned, so a
+    // plugin can never silently shadow a built-in by shipping the same shape.
+    const aim = NAVIGATION_PRESETS.find((p) => p.id === 'aiming')!;
+    expect(
+      matchNavigationPreset(structuredClone(aim.navigation), [
+        { id: 'org.example.x/aim-clone', navigation: aim.navigation },
+      ]),
+    ).toBe('aiming');
+  });
 });

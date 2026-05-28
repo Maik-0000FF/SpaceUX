@@ -1,10 +1,17 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
 import { validateManifest } from '../src/main/plugin-loader';
 import { MIN_SUPPORTED_PLUGIN_API_VERSION, PLUGIN_API_VERSION } from '../src/shared/plugin-types';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(__dirname, '..');
 
 /** Build a minimal manifest object that passes every field other than
  *  the one a given test wants to mutate. Keeps the per-test fixture
@@ -332,6 +339,20 @@ describe('validateManifest — cross-kind field rejection', () => {
       },
     ];
     expect(validateManifest(theme)).toMatch(/"presets" is only valid on a nav-style plugin/);
+  });
+});
+
+describe('bundled extensions are valid manifests', () => {
+  it('extensions/nav-style/org.spaceux.twist-press-lift/manifest.json passes the validator', () => {
+    // Smoke test: the plugin ships with the repo and is the canonical example
+    // of a nav-style plugin. If its manifest ever drifts out of contract this
+    // test fires before the editor's user-facing import.
+    const raw = readFileSync(
+      path.join(REPO_ROOT, 'extensions/nav-style/org.spaceux.twist-press-lift/manifest.json'),
+      'utf8',
+    );
+    const parsed: unknown = JSON.parse(raw);
+    expect(validateManifest(parsed)).toBeNull();
   });
 });
 
