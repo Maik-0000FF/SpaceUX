@@ -1437,14 +1437,25 @@ app.whenReady().then(async () => {
           return null;
         }
         const entryPath = path.join(found.dir, found.manifest.shape.entry);
-        // Size cap: a shape plugin is pure compute; anything larger than
-        // 1 MiB is almost certainly a packaged bundle the manifest's
-        // entry shouldn't be pointing at directly. Soft guard. Stat
-        // first so an oversized file (or a symlink to a black-hole
-        // device like /dev/zero) is rejected before we read it into
-        // memory.
-        const MAX_SOURCE_BYTES = 1 << 20;
+        // Stat first so we can reject non-regular files (a symlink
+        // resolving to a character / block device, a pipe, a socket)
+        // before reading: fs.stat reports `size: 0` for /dev/zero, so
+        // the size cap below alone wouldn't catch that case. A
+        // legitimate plugin entry is always a regular `.js` file.
         const stat = await fs.stat(entryPath);
+        if (!stat.isFile()) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[shape] getShapeSource: plugin "${pluginId}" entry is not a regular file; rejecting`,
+          );
+          return null;
+        }
+        // Size cap: a shape plugin is pure compute; anything larger
+        // than 1 MiB is almost certainly a packaged bundle the
+        // manifest's entry shouldn't be pointing at directly. Soft
+        // guard, applied to the stat'd size so we never pull an
+        // oversized file into memory.
+        const MAX_SOURCE_BYTES = 1 << 20;
         if (stat.size > MAX_SOURCE_BYTES) {
           // eslint-disable-next-line no-console
           console.warn(
