@@ -68,7 +68,7 @@ export function PieShapeSelect() {
   const isUnknown = value !== WEDGE_VALUE && currentPlugin === undefined;
   // Tooltip walks the three states: orphan reference (plugin gone),
   // active plugin (its own description), or wedge default. The orphan
-  // message has to acknowledge the broken reference explicitly — the
+  // message has to acknowledge the broken reference explicitly; the
   // generic "rendering as wedge" text would imply the user picked wedge
   // when in fact they picked something the host can no longer resolve.
   const title = isUnknown
