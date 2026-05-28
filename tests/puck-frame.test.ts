@@ -770,21 +770,22 @@ describe('resolvePuckFrame — shape-plugin hit-test override (#107 PR3c)', () =
 
   it('uses the callback instead of axesToSector when provided', () => {
     // The callback gets the unmodified axes (no aim-source reduction,
-    // no rotation) plus the sector count.
-    let received: { tx: number; ty: number; sectorCount: number } | null = null;
+    // no rotation). The plugin already knows the active ring's size
+    // via its own layout output, so the host doesn't plumb a count.
+    let received: { tx: number; ty: number } | null = null;
     resolvePuckFrame({
       menuConfig: config(nav({})),
       axes: axes({ tx: 1, ty: 2 }),
       navigation: [],
       sticky: null,
       edges: FRESH,
-      hitTest: (a, sectorCount) => {
-        received = { tx: a.tx, ty: a.ty, sectorCount };
+      hitTest: (a) => {
+        received = { tx: a.tx, ty: a.ty };
         return 0;
       },
     });
     expect(received).not.toBeNull();
-    expect(received).toEqual({ tx: 1, ty: 2, sectorCount: SECTORS.length });
+    expect(received).toEqual({ tx: 1, ty: 2 });
   });
 
   it('passes the raw six-axis snapshot, not the reduced aim source', () => {

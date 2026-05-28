@@ -33,7 +33,7 @@
  * a drill, pop, dismiss, or center activation can register.
  */
 
-import { useEffect, useReducer, useRef, type Dispatch, type RefObject } from 'react';
+import { useEffect, useMemo, useReducer, useRef, type Dispatch, type RefObject } from 'react';
 
 import {
   currentBranches,
@@ -68,7 +68,6 @@ export function _safeShapeHitTest(
   ringRadii: ShapeRingRadii,
   layout: ShapeLayout,
   axes: ShapePuckAxes,
-  sectorCount: number,
 ): number | null {
   let r: unknown;
   try {
@@ -79,6 +78,11 @@ export function _safeShapeHitTest(
     return null;
   }
   if (r === null) return null;
+  // Bound-check against the layout's node count: the plugin already
+  // committed to the sector count when it produced the layout, so this
+  // is the natural source of truth (and means callers don't have to
+  // plumb the count separately).
+  const sectorCount = layout.nodes.length;
   if (typeof r !== 'number' || !Number.isInteger(r) || r < 0 || r >= sectorCount) return null;
   return r;
 }
@@ -95,6 +99,14 @@ export type UseDrillNavigation = {
    *  frame. The user has to release past each threshold and
    *  re-engage before the corresponding gesture registers. */
   resetTransientRefs: () => void;
+  /** Shape-plugin layout for the current active ring (#107 PR3c).
+   *  Computed once per (module, ringRadii, sector count) and shared
+   *  between the gesture-loop hit-test (which routes through
+   *  `_safeShapeHitTest`) and PieMenu's render so the two can't
+   *  drift on a non-pure plugin. `null` when no shape plugin is
+   *  active, the module isn't loaded yet, the active ring is empty,
+   *  or the plugin's `layout()` output failed validation. */
+  activeShapeLayout: ShapeLayout | null;
 };
 
 export function useDrillNavigation(opts: {
@@ -154,17 +166,32 @@ export function useDrillNavigation(opts: {
   const wasDrillRef = useRef<boolean>(true);
   const wasCycleRef = useRef<boolean>(true);
 
-  // Shape-plugin layout cache (#107 PR3c): the plugin's `layout()` is
-  // pure given (sectorCount, ringRadii), so the cache is keyed by the
-  // sectorCount; it's cleared when the active plugin module or the
-  // ringRadii change (a slider drag or a shape pick). Cached
-  // independently from PieMenu's render-side memo because the hit-test
-  // path runs in the gesture loop, not the React render loop.
-  const shapeLayoutCacheRef = useRef<{
-    module: ShapePluginModule | null;
-    ringRadii: ShapeRingRadii | null;
-    layouts: Map<number, ShapeLayout | null>;
-  }>({ module: null, ringRadii: null, layouts: new Map() });
+  // Shape-plugin layout for the active ring (#107 PR3c). Computed once
+  // per (module, ringRadii, sector count) tuple and shared with PieMenu
+  // via the returned `activeShapeLayout` — no parallel call site that
+  // could drift if the plugin's `layout()` ever became non-pure. Memoed
+  // on the navigation level so drilling recomputes naturally; ringRadii
+  // identity is stable across renders thanks to App.tsx's memo.
+  const activeShapeLayout = useMemo<ShapeLayout | null>(() => {
+    if (shapeContext === null || menuConfig === null) return null;
+    const sectorCount = currentBranches(menuConfig, drillState.navigation).length;
+    if (sectorCount === 0) return null;
+    let raw: unknown;
+    try {
+      raw = shapeContext.module.layout(sectorCount, shapeContext.ringRadii);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(`[shape] layout() threw: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+    const validated = validateShapeLayout(raw, sectorCount);
+    if (!validated.ok) {
+      // eslint-disable-next-line no-console
+      console.warn(`[shape] layout() rejected: ${validated.reason}`);
+      return null;
+    }
+    return validated.layout;
+  }, [shapeContext, menuConfig, drillState.navigation]);
 
   useEffect(() => {
     if (!menuOpen || !menuConfig) return;
@@ -173,41 +200,22 @@ export function useDrillNavigation(opts: {
     // active when this stays undefined; resolvePuckFrame's signature
     // tolerates both paths.
     let hitTest:
-      | ((
-          axesArg: { tx: number; ty: number; tz: number; rx: number; ry: number; rz: number },
-          sc: number,
-        ) => number | null)
+      | ((axesArg: {
+          tx: number;
+          ty: number;
+          tz: number;
+          rx: number;
+          ry: number;
+          rz: number;
+        }) => number | null)
       | undefined;
-    if (shapeContext !== null) {
-      const cache = shapeLayoutCacheRef.current;
-      if (cache.module !== shapeContext.module || cache.ringRadii !== shapeContext.ringRadii) {
-        cache.module = shapeContext.module;
-        cache.ringRadii = shapeContext.ringRadii;
-        cache.layouts.clear();
-      }
-      // Resolve the layout for the *current* ring's sector count. Drill
-      // changes the sector count, so the cache miss on a new depth is
-      // expected and amortised.
-      const sectorCount = currentBranches(menuConfig, drillStateRef.current.navigation).length;
-      let layout = cache.layouts.get(sectorCount);
-      if (layout === undefined) {
-        try {
-          const raw = shapeContext.module.layout(sectorCount, shapeContext.ringRadii);
-          const validated = validateShapeLayout(raw, sectorCount);
-          layout = validated.ok ? validated.layout : null;
-        } catch {
-          layout = null;
-        }
-        cache.layouts.set(sectorCount, layout);
-      }
-      if (layout !== null) {
-        const { module, ringRadii } = shapeContext;
-        const layoutLocal = layout;
-        // Route through `_safeShapeHitTest` so a buggy plugin can't
-        // spam the gesture loop with throws or feed NaN / negative
-        // indices into the downstream sticky-selection logic.
-        hitTest = (axesArg, sc) => _safeShapeHitTest(module, ringRadii, layoutLocal, axesArg, sc);
-      }
+    if (shapeContext !== null && activeShapeLayout !== null) {
+      const { module, ringRadii } = shapeContext;
+      const layoutLocal = activeShapeLayout;
+      // Route through `_safeShapeHitTest` so a buggy plugin can't spam
+      // the gesture loop with throws or feed NaN / negative indices
+      // into the downstream sticky-selection logic.
+      hitTest = (axesArg) => _safeShapeHitTest(module, ringRadii, layoutLocal, axesArg);
     }
 
     // The whole per-frame decision lives in the pure resolver; the hook
@@ -292,12 +300,23 @@ export function useDrillNavigation(opts: {
       case 'none':
         break;
     }
-  }, [axes, buttons, menuConfig, menuOpen, onDismiss, onCommitCenter, onActivate, shapeContext]);
+  }, [
+    axes,
+    buttons,
+    menuConfig,
+    menuOpen,
+    onDismiss,
+    onCommitCenter,
+    onActivate,
+    shapeContext,
+    activeShapeLayout,
+  ]);
 
   return {
     drillState,
     dispatch,
     drillStateRef,
+    activeShapeLayout,
     resetTransientRefs: () => {
       // Reset to `true` (not `false`) so a still-deflected puck at
       // MENU_OPEN doesn't claim a phantom rising edge on frame 1.

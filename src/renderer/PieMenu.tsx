@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useMemo, type CSSProperties } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import { currentBranches, menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
@@ -23,28 +23,23 @@ import {
   isCancelNode,
   resolveAxisInvert,
   resolveNavigation,
-  resolveShapeModel,
   type MenuConfig,
   type MenuNode,
 } from '@/shared/menu';
-import {
-  validateShapeLayout,
-  type ShapeLayout,
-  type ShapeRingRadii,
-} from '@/shared/shape-plugin-api';
-
-import { useShapeModules } from './state/shape-modules';
+import { type ShapeLayout } from '@/shared/shape-plugin-api';
 
 const TAU = Math.PI * 2;
 
 export type PieMenuProps = {
   axes: { tx: number; ty: number };
-  /** Pie appearance's shape model id, layered with `menuConfig.shapeModel`
-   *  per the three-state override rules (#107). `null` = the wedge
-   *  default; a string is the namespaced `<pluginId>/<shapeId>` of an
-   *  installed shape plugin. Optional so callers (screenshots, tests)
-   *  that never render shapes can omit it. */
-  shapeModel?: string | null;
+  /** Shape-plugin layout for the active ring (#107). Computed by
+   *  `useDrillNavigation` from the resolved shape model so this
+   *  component and the hit-test path always read the same layout,
+   *  and validated against the plugin's contract (`validateShapeLayout`).
+   *  `null` = the wedge default code path is active. Optional so
+   *  callers (screenshots, tests) that never render shapes can omit
+   *  it. */
+  shapeLayout?: ShapeLayout | null;
   /** Anchor point in renderer-window coords. The pie centre sits at
    *  this point so the menu opens "at the cursor" wherever the user
    *  triggered it. Omit to fall back to viewport-centre. */
@@ -119,7 +114,7 @@ export function PieMenu({
   centerBalance = 0.5,
   badge = null,
   workbenchBadge = null,
-  shapeModel: appearanceShapeModel = null,
+  shapeLayout = null,
 }: PieMenuProps) {
   // Resolve ring roles from the navigation stack. At top level the
   // *inner* pie is the active selection target; once drilled in the
@@ -201,78 +196,20 @@ export function PieMenu({
   const outerRingInnerRadius = rings.outerInner;
   const viewportSize = outerRingOuterRadius * 2;
 
-  // Shape-plugin dispatch (#107 PR3c): resolve the effective shape
-  // model from the menu config (per-menu override) layered over the
-  // appearance default. `null` → render the active ring as wedges
-  // (the untouched default code path); a string id → call the
-  // plugin's `layout()` + render circles. The breadcrumb and preview
-  // rings stay as wedges either way.
-  const effectiveShape = resolveShapeModel(config.shapeModel, appearanceShapeModel);
-  const shapePluginId =
-    effectiveShape !== null
-      ? effectiveShape.includes('/')
-        ? effectiveShape.split('/', 1)[0]!
-        : effectiveShape
-      : null;
-  const ensureShapeLoaded = useShapeModules((s) => s.ensureLoaded);
-  const shapeModuleEntry = useShapeModules((s) =>
-    shapePluginId !== null ? s.modules[shapePluginId] : undefined,
-  );
-  useEffect(() => {
-    if (shapePluginId !== null) void ensureShapeLoaded(shapePluginId);
-  }, [shapePluginId, ensureShapeLoaded]);
-
-  // Pack ring radii into the plugin's contract once per (footprint,
-  // balances) change. Without the memo the layout call below would
-  // re-validate against a fresh object identity every render.
-  const shapeRingRadii = useMemo<ShapeRingRadii>(
-    () => ({
-      cancelRadius: rings.cancel,
-      innerInnerRadius: rings.cancel,
-      innerOuterRadius: rings.innerOuter,
-      innerLabelRadius: rings.innerLabel,
-      outerInnerRadius: rings.outerInner,
-      outerOuterRadius: rings.outerOuter,
-      outerLabelRadius: rings.outerLabel,
-    }),
-    [
-      rings.cancel,
-      rings.innerOuter,
-      rings.innerLabel,
-      rings.outerInner,
-      rings.outerOuter,
-      rings.outerLabel,
-    ],
-  );
-
-  // Layout for the *active ring* only (PR3c keeps the breadcrumb +
-  // preview rings as wedges so the dispatch is one branch site).
-  // `null` flows back to the wedge code path when the module isn't
-  // loaded yet or the plugin's output fails the structural check.
+  // Shape-plugin dispatch (#107). The caller (App.tsx via
+  // `useDrillNavigation`) owns the layout computation; this component
+  // just renders what arrives via `shapeLayout`. A non-null layout
+  // means a shape plugin is the active layout for the active ring;
+  // `null` means the wedge default code path runs. Keeping the layout
+  // call in one place stops PieMenu and the hit-test loop from
+  // drifting on a non-pure plugin. The breadcrumb and preview rings
+  // stay as wedges either way.
+  const activeShapeLayout = shapeLayout;
+  // Local alias for readability at the dispatch sites below.
   const activeRingSectors = isDrilled ? (outerSectors ?? []) : innerSectors;
-  const activeShapeLayout = useMemo<ShapeLayout | null>(() => {
-    if (shapeModuleEntry?.status !== 'ready') return null;
-    if (activeRingSectors.length === 0) return null;
-    let raw: unknown;
-    try {
-      raw = shapeModuleEntry.module.layout(activeRingSectors.length, shapeRingRadii);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[shape] layout() threw for plugin ${shapePluginId ?? '<unknown>'}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return null;
-    }
-    const validated = validateShapeLayout(raw, activeRingSectors.length);
-    if (!validated.ok) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[shape] layout() output rejected for plugin ${shapePluginId ?? '<unknown>'}: ${validated.reason}`,
-      );
-      return null;
-    }
-    return validated.layout;
-  }, [shapeModuleEntry, activeRingSectors.length, shapeRingRadii, shapePluginId]);
+  // Reference to keep eslint-no-unused-vars from complaining when no
+  // shape rendering happens; the variable feeds into the JSX below.
+  void activeRingSectors;
 
   // User size multiplier. The `/ devicePixelRatio` is a compositor-specific
   // correction, NOT standard behaviour: under plain Chromium a fixed CSS

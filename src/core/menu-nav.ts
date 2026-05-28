@@ -345,14 +345,17 @@ export function resolvePuckFrame(args: {
   /** Optional sector-resolution override (#107 PR3c). When set, the
    *  caller computes which sector the puck currently aims at via a
    *  shape-plugin's `hitTest` instead of the built-in angular
-   *  `axesToSector` bucketing. The callback receives the rotated /
-   *  inverted aim-source axes (whatever the configured `aim` would
-   *  have fed into `axesToSector`) and the active ring's sector
-   *  count, and returns the sector index or null. Omit for the wedge
+   *  `axesToSector` bucketing. The callback receives the raw
+   *  six-axis snapshot (no aim-source reduction, no ring-rotation)
+   *  and returns the sector index or null. The caller is expected to
+   *  bound-check the returned index against the active ring; the
+   *  in-tree adapter (`_safeShapeHitTest`) derives the bound from
+   *  the layout it closed over so the host doesn't need to plumb
+   *  the sector count through this callback. Omit for the wedge
    *  default; passing it does not affect any other gesture
    *  resolution (drill / back / cycle / commit-center still run as
    *  usual). */
-  hitTest?: (axes: SixAxes, sectorCount: number) => number | null;
+  hitTest?: (axes: SixAxes) => number | null;
 }): { outcome: PuckOutcome; edges: PuckEdges } {
   const { menuConfig, axes, navigation, sticky } = args;
   // Copy so the caller's memory is only updated via the returned value.
@@ -515,7 +518,7 @@ export function resolvePuckFrame(args: {
   // aim-source reduction + rotation it had before.
   const rawSec =
     args.hitTest !== undefined
-      ? args.hitTest(axes, current.length)
+      ? args.hitTest(axes)
       : aimed === null
         ? null
         : axesToSector(rotateAxes(aimed, -ringRotation), {

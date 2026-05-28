@@ -53,12 +53,12 @@ describe('_safeShapeHitTest', () => {
 
   it('passes through a valid integer sector index', () => {
     const mod = makeModule(() => 2);
-    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBe(2);
+    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBe(2);
   });
 
   it('passes through null (no sector hovered)', () => {
     const mod = makeModule(() => null);
-    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBeNull();
+    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBeNull();
   });
 
   it('catches a throw and folds to null', () => {
@@ -66,7 +66,7 @@ describe('_safeShapeHitTest', () => {
     const mod = makeModule(() => {
       throw new Error('plugin bug');
     });
-    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBeNull();
+    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBeNull();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('hitTest() threw'));
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('plugin bug'));
   });
@@ -76,29 +76,29 @@ describe('_safeShapeHitTest', () => {
     // hit currentRing[-1] downstream, which is undefined and could
     // surface as a phantom hover.
     const mod = makeModule(() => -1);
-    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBeNull();
+    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBeNull();
   });
 
   it('folds an out-of-range index to null', () => {
     const mod = makeModule(() => 99);
-    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBeNull();
+    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBeNull();
     // Exactly sectorCount is also out of range (sectors are 0..N-1).
     const modBoundary = makeModule(() => 4);
-    expect(_safeShapeHitTest(modBoundary, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBeNull();
+    expect(_safeShapeHitTest(modBoundary, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBeNull();
   });
 
   it('folds a non-integer index to null', () => {
     // 1.5 % 5 = 1.5 → fractional index used as array key gives
     // undefined. The guard catches this before it propagates.
     const mod = makeModule(() => 1.5);
-    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBeNull();
+    expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBeNull();
   });
 
   it('folds NaN / Infinity to null', () => {
     const modNaN = makeModule(() => NaN);
-    expect(_safeShapeHitTest(modNaN, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBeNull();
+    expect(_safeShapeHitTest(modNaN, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBeNull();
     const modInf = makeModule(() => Infinity);
-    expect(_safeShapeHitTest(modInf, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBeNull();
+    expect(_safeShapeHitTest(modInf, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBeNull();
   });
 
   it('folds non-number returns to null (a buggy plugin returns a string / object)', () => {
@@ -106,7 +106,7 @@ describe('_safeShapeHitTest', () => {
     // return anything. Each non-conforming type collapses to null.
     for (const bad of ['1', '2', true, false, undefined, { sector: 1 }, [1], () => 1]) {
       const mod = makeModule(() => bad as unknown as number | null);
-      expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES, 4)).toBeNull();
+      expect(_safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, ZERO_AXES)).toBeNull();
     }
   });
 
@@ -121,7 +121,7 @@ describe('_safeShapeHitTest', () => {
       return 0;
     });
     const axes: ShapePuckAxes = { tx: 1, ty: 2, tz: 3, rx: 4, ry: 5, rz: 6 };
-    _safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, axes, 4);
+    _safeShapeHitTest(mod, FAKE_RING_RADII, FAKE_LAYOUT, axes);
     expect(received).not.toBeNull();
     expect(received).toEqual({ axes, ringRadii: FAKE_RING_RADII, layout: FAKE_LAYOUT });
   });
