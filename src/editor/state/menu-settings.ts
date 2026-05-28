@@ -115,6 +115,13 @@ type MenuSettingsState = {
   /** Replace the whole navigation block (gesture↔input bindings). The
    *  editor builds the new value immutably and hands it in. */
   setNavigation: (navigation: MenuNavigation) => void;
+  /** Set the per-menu shape-model override (#107). Three-state:
+   *  `undefined` removes the field so the menu inherits the app
+   *  appearance default, `null` forces the built-in wedge for this
+   *  menu, a non-empty string forces that plugin shape. The validator
+   *  in :func:`assertValidMenuConfig` rejects an empty string; callers
+   *  must use one of the three forms above. */
+  setShapeModel: (shapeModel: string | null | undefined) => void;
 };
 
 /** Return a copy of `config` with an editor-only stable id (see
@@ -358,6 +365,14 @@ export const useMenuSettings = create<MenuSettingsState>()(
         set((state) => {
           if (state.readOnly || !state.config) return;
           state.config.navigation = navigation;
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      setShapeModel: (shapeModel) =>
+        set((state) => {
+          if (state.readOnly || !state.config) return;
+          if (shapeModel === undefined) delete state.config.shapeModel;
+          else state.config.shapeModel = shapeModel;
           state.origin = 'local';
           state.dirty = true;
         }),

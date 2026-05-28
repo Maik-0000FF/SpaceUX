@@ -506,6 +506,45 @@ describe('menu-settings navigation', () => {
   });
 });
 
+describe('menu-settings shape-model override', () => {
+  const load = () =>
+    useMenuSettings.getState().setConfig({
+      config: {
+        version: DEFAULT_MENU_CONFIG.version,
+        root: { label: '', branches: [{ label: 'A' }] },
+      },
+      mtime: 1,
+    });
+
+  it('setShapeModel(undefined) deletes the field so the menu inherits', () => {
+    load();
+    useMenuSettings.getState().setShapeModel('org.spaceux.planets/planets');
+    expect(useMenuSettings.getState().config?.shapeModel).toBe('org.spaceux.planets/planets');
+    useMenuSettings.getState().setShapeModel(undefined);
+    // 'shapeModel' must not be present on the config object at all
+    // (vs. set to undefined) so the resolver sees inherit, not wedge.
+    expect('shapeModel' in (useMenuSettings.getState().config ?? {})).toBe(false);
+    expect(useMenuSettings.getState().origin).toBe('local');
+    expect(useMenuSettings.getState().dirty).toBe(true);
+  });
+
+  it('setShapeModel(null) forces wedge for this menu', () => {
+    load();
+    useMenuSettings.getState().setShapeModel(null);
+    expect(useMenuSettings.getState().config?.shapeModel).toBeNull();
+    expect(useMenuSettings.getState().origin).toBe('local');
+    expect(useMenuSettings.getState().dirty).toBe(true);
+  });
+
+  it('setShapeModel(string) forces that plugin shape', () => {
+    load();
+    useMenuSettings.getState().setShapeModel('org.spaceux.planets/planets');
+    expect(useMenuSettings.getState().config?.shapeModel).toBe('org.spaceux.planets/planets');
+    expect(useMenuSettings.getState().origin).toBe('local');
+    expect(useMenuSettings.getState().dirty).toBe(true);
+  });
+});
+
 describe('moveNodeBetween', () => {
   // A (leaf), B (branch) → [B0 (leaf), B1 (branch) → [B1a (leaf)]].
   const nested = (): MenuConfig => ({
