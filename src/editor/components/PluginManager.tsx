@@ -27,7 +27,7 @@ export function PluginManager() {
   const plugins = usePluginsState((s) => s.plugins);
   const errors = usePluginsState((s) => s.errors);
   const ensureLoaded = usePluginsState((s) => s.ensureLoaded);
-  const setPluginsState = usePluginsState((s) => s.setState);
+  const applyPluginsSnapshot = usePluginsState((s) => s.applySnapshot);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export function PluginManager() {
       .importPlugin()
       .then((r) => {
         if (r.ok === true) {
-          setPluginsState(r.state);
+          applyPluginsSnapshot(r.state);
           notify('success', `Imported ${r.installed.name} (${r.installed.kind}).`);
         } else if (r.ok === false) notify('error', r.reason);
         // r.ok === 'cancelled' → the picker was dismissed; nothing to do.
@@ -59,7 +59,7 @@ export function PluginManager() {
     setBusy(true);
     try {
       const r = await window.editor.uninstallPlugin(kind, id);
-      setPluginsState(r.state);
+      applyPluginsSnapshot(r.state);
       notify(r.ok ? 'success' : 'error', r.ok ? `Removed ${name}.` : r.reason);
     } finally {
       setBusy(false);

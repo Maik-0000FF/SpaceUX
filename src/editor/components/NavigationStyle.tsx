@@ -111,7 +111,14 @@ export function NavigationStyle() {
           <optgroup label="From plugins">
             {pluginPresets.map((p) => (
               <option key={p.key} value={p.key}>
-                {p.label}
+                {/* Append the source plugin's name when it adds information
+                    (two plugins can ship a preset called "twist"). Suppress
+                    when the plugin and the preset share a label, which is
+                    the common single-preset-per-plugin case where the suffix
+                    would just duplicate the line. */}
+                {p.pluginName && p.pluginName !== p.label
+                  ? `${p.label} · ${p.pluginName}`
+                  : p.label}
               </option>
             ))}
           </optgroup>
