@@ -76,6 +76,13 @@ export type SpaceUxBridge = {
   getPieAppearance(): Promise<PieAppearance>;
   /** Main pushes the appearance when it changes (editor edit). */
   onPieAppearanceChanged(handler: (appearance: PieAppearance) => void): () => void;
+  /** Pull a shape plugin's entry-file source (#107). Mirrors the editor
+   *  bridge's `getShapeSource`: the live overlay needs the same access
+   *  so the pie can render plugin-supplied layouts via PieMenu. Resolves
+   *  to the raw JS string, or null when the plugin can't be found /
+   *  read. The renderer creates a Blob URL from the source and
+   *  dynamic-imports it (script-src 'self' blob:). */
+  getShapeSource(pluginId: string): Promise<string | null>;
 };
 
 /**

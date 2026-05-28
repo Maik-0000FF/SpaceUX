@@ -152,7 +152,7 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
       deps.getPluginCatalog(pluginId, loadAll),
   );
   ipcMain.handle(
-    IpcChannel.EDITOR_GET_SHAPE_SOURCE,
+    IpcChannel.GET_SHAPE_SOURCE,
     (_evt, pluginId: string): Promise<string | null> => deps.getShapeSource(pluginId),
   );
   ipcMain.handle(
