@@ -57,14 +57,25 @@ export const usePluginsState = create<PluginsStoreState>((set, get) => ({
     // Synchronously stash the promise *before* yielding, so a second
     // ensureLoaded call in the same tick observes `pending` and returns
     // the same promise instead of starting a parallel IPC pull.
-    const promise = window.editor
+    let promise: Promise<void>;
+    promise = window.editor
       .getPlugins()
       .then((next) => {
+        // Stale-write guard: between this pull starting and now, an
+        // `applySnapshot` may have written a fresher snapshot (e.g. the
+        // user imported a plugin while the initial mount-pull was in
+        // flight). `applySnapshot` clears `pending`, so when ours no
+        // longer matches, drop the result and keep the fresher state.
+        if (get().pending !== promise) return;
         set({ plugins: next.plugins, errors: next.errors, loaded: true, pending: null });
       })
       .catch(() => {
         // Keep the last good state; a failed pull shouldn't blank the list.
         // Leave `loaded` as-is so a later call can retry from idle / error.
+        // Same staleness check as the success path: if a fresher snapshot
+        // already landed, don't undo it by clearing a `pending` we no
+        // longer own.
+        if (get().pending !== promise) return;
         set({ pending: null });
       });
     set({ pending: promise });

@@ -59,6 +59,42 @@ describe('usePluginsState', () => {
     expect(usePluginsState.getState().loaded).toBe(true);
   });
 
+  it('applySnapshot during an in-flight ensureLoaded wins (stale-write guard)', async () => {
+    // Race: ensureLoaded fires an IPC pull; before it resolves, a Plugin
+    // Manager import calls applySnapshot with the fresh post-import state.
+    // The in-flight pull then resolves with the pre-import data; without
+    // the guard it would overwrite the fresher snapshot.
+    let resolveGet: (v: { plugins: never[]; errors: never[] }) => void = () => {};
+    getPlugins.mockImplementationOnce(
+      () =>
+        new Promise((res) => {
+          resolveGet = res;
+        }),
+    );
+    const ensure = usePluginsState.getState().ensureLoaded();
+    // While the pull is in flight, an import lands a snapshot of its own.
+    usePluginsState.getState().applySnapshot({
+      plugins: [
+        {
+          id: 'org.example.imported',
+          name: 'Imported',
+          version: '1.0.0',
+          kind: 'function',
+          dir: '/fake/imported',
+          removable: true,
+          actionCount: 2,
+          hasCatalog: false,
+        },
+      ],
+      errors: [],
+    });
+    // Now the pre-import IPC pull settles. The guard must drop the result.
+    resolveGet({ plugins: [], errors: [] });
+    await ensure;
+    expect(usePluginsState.getState().plugins).toHaveLength(1);
+    expect(usePluginsState.getState().plugins[0]?.id).toBe('org.example.imported');
+  });
+
   it('applySnapshot replaces the contents and marks loaded', async () => {
     // The Plugin Manager calls this after a successful import / uninstall
     // so other readers re-render with the fresh main-returned state, no
