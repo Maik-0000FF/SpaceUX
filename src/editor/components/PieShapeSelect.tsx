@@ -66,15 +66,21 @@ export function PieShapeSelect() {
   const value = appearance.shapeModel ?? WEDGE_VALUE;
   const currentPlugin = pluginShapes.find((s) => s.key === value);
   const isUnknown = value !== WEDGE_VALUE && currentPlugin === undefined;
-  const title =
-    currentPlugin?.description ?? 'Render the pie as the built-in wedge slices (default).';
+  // Tooltip walks the three states: orphan reference (plugin gone),
+  // active plugin (its own description), or wedge default. The orphan
+  // message has to acknowledge the broken reference explicitly — the
+  // generic "rendering as wedge" text would imply the user picked wedge
+  // when in fact they picked something the host can no longer resolve.
+  const title = isUnknown
+    ? `Plugin not installed: ${value}. The pie renders as wedge until you install it.`
+    : (currentPlugin?.description ?? 'Render the pie as the built-in wedge slices (default).');
 
   return (
     <label className={styles.control}>
       <span className={styles.label}>Shape</span>
       <select
         className={styles.select}
-        value={isUnknown ? value : (value ?? WEDGE_VALUE)}
+        value={value}
         title={title}
         onChange={(e) => {
           const next = e.target.value;
