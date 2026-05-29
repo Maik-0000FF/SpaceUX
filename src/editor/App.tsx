@@ -72,29 +72,38 @@ export function App() {
     if (!config || !stashed) return;
     const MAX_OVERWRITE_ATTEMPTS = 3;
     let expectedMtime: number | null = stashed.mtime;
-    for (let attempt = 1; attempt <= MAX_OVERWRITE_ATTEMPTS; attempt++) {
-      const result = await window.editor.setMenuConfig(config, expectedMtime);
-      const s = useMenuSettings.getState();
-      if (result.ok === true) {
-        s.markSaved(result.mtime);
-        s.clearConflict();
-        return;
+    try {
+      for (let attempt = 1; attempt <= MAX_OVERWRITE_ATTEMPTS; attempt++) {
+        const result = await window.editor.setMenuConfig(config, expectedMtime);
+        const s = useMenuSettings.getState();
+        if (result.ok === true) {
+          s.markSaved(result.mtime);
+          s.clearConflict();
+          return;
+        }
+        if (result.ok === false) {
+          s.setSaveError(result.reason);
+          return;
+        }
+        // result.ok === 'conflict'. Refresh the stash to the current on-disk
+        // version so a follow-up Reload adopts the latest, not the now-
+        // superseded snapshot, and use the new mtime for the next attempt.
+        const snapshot = await window.editor.getMenuConfig();
+        s.setConflict(snapshot, 'external');
+        expectedMtime = snapshot.mtime;
       }
-      if (result.ok === false) {
-        s.setSaveError(result.reason);
-        return;
-      }
-      // result.ok === 'conflict'. Refresh the stash to the current on-disk
-      // version so a follow-up Reload adopts the latest, not the now-
-      // superseded snapshot, and use the new mtime for the next attempt.
-      const snapshot = await window.editor.getMenuConfig();
-      s.setConflict(snapshot, 'external');
-      expectedMtime = snapshot.mtime;
+      notify(
+        'error',
+        'The active configuration kept changing while saving. Pause the external editor and try Overwrite again.',
+      );
+    } catch (err) {
+      // Belt-and-suspenders: the setMenuConfig / getMenuConfig handlers return
+      // result objects rather than throwing, but a future IPC reshape (or a
+      // transport-level Electron error) could still reject the await. Surface
+      // it as a save error instead of letting the rejection bubble out of the
+      // onClick path silently.
+      useMenuSettings.getState().setSaveError(err instanceof Error ? err.message : String(err));
     }
-    notify(
-      'error',
-      'The active configuration kept changing while saving. Pause the external editor and try Overwrite again.',
-    );
   };
 
   return (
