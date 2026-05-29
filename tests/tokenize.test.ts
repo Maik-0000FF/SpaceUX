@@ -4,17 +4,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { tokenize } from '../src/main/builtins/tokenize';
-// Drift-guard: the example plugin duplicates tokenize because plugins
-// can't import host internals. Importing both lets us run the same
-// spec table against each and catch divergence at test time rather
-// than via a user-facing parse mismatch.
-//
-// The plugin is plain JS without a .d.ts, so TS doesn't see the
-// `tokenize` export. The runtime drift-guard tests below assert the
-// function shape; `@ts-expect-error` will fire if a future .d.ts
-// makes the suppression unnecessary.
-// @ts-expect-error -- plain-JS plugin module, no type declarations
-import { tokenize as pluginTokenize } from '../extensions/function/example-launch/index.js';
 
 describe('tokenize', () => {
   it('returns empty array for empty or pure-whitespace input', () => {
@@ -92,34 +81,4 @@ describe('tokenize', () => {
     expect(tokenize('"a\tb"')).toEqual(['a\tb']);
     expect(tokenize('"a\nb"')).toEqual(['a\nb']);
   });
-});
-
-describe('drift guard: built-in vs. example-plugin tokenize', () => {
-  // The example plugin in extensions/function/example-launch/ duplicates the
-  // tokenize function because plugins can't import host internals.
-  // The two implementations must agree on every input; this
-  // spec table runs the same cases through both and asserts
-  // identical output. A divergence here means one side picked up
-  // an escape rule the other didn't.
-  const cases: { name: string; input: string }[] = [
-    { name: 'empty', input: '' },
-    { name: 'whitespace only', input: '   \t\n  ' },
-    { name: 'simple split', input: 'a b c' },
-    { name: 'quoted path with spaces', input: 'xdg-open "Mein File.pdf"' },
-    { name: 'single-quoted', input: "echo 'hello world'" },
-    { name: 'concatenated quotes', input: "'a''b'" },
-    { name: 'mid-token quote', input: 'a"b c"d' },
-    { name: 'unbalanced double quote', input: 'cmd "unbalanced' },
-    { name: 'unbalanced single quote', input: "cmd 'unbalanced" },
-    { name: 'empty quoted token', input: 'cmd ""' },
-    { name: 'leading empty token', input: '"" cmd' },
-    { name: 'bare opening quote', input: '"' },
-    { name: 'literal backslash', input: 'a\\b\\c' },
-    { name: 'tab inside quotes', input: '"a\tb"' },
-  ];
-  for (const c of cases) {
-    it(`agrees on ${c.name}`, () => {
-      expect(pluginTokenize(c.input)).toEqual(tokenize(c.input));
-    });
-  }
 });

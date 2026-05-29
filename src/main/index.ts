@@ -97,7 +97,7 @@ import {
   resolveFreecadModDir,
   uninstallBridge,
 } from './freecad-bridge.js';
-import { resourceBase, resourcePath } from './resources.js';
+import { resourcePath } from './resources.js';
 import { createTray } from './tray.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -137,12 +137,11 @@ let mainWindow: BrowserWindow | null = null;
 let kwinCursor: KWinCursorService | null = null;
 const daemon = new DaemonClient();
 let actionIndex: ReturnType<typeof indexActions> = {};
-// Loaded `function` plugins + their load errors, and the repo root used to
-// (re)load them. Kept so the editor's plugin manager can rebuild the action
-// index after an import/uninstall without an app restart.
+// Loaded `function` plugins + their load errors. Kept so the editor's
+// plugin manager can rebuild the action index after an import/uninstall
+// without an app restart.
 let loadedPlugins: LoadedPlugin[] = [];
 let pluginErrors: { dir: string; reason: string }[] = [];
-let pluginRepoRoot = '';
 // The *active* menu config — either the global menu.json (fallback) or
 // the connected device's profile (#113). Conflict-detection + write-back
 // state for the editor: `mtime` is the on-disk mtime the active config
@@ -249,11 +248,11 @@ async function buildPluginsState(): Promise<PluginsState> {
   const fnPlugins = loadedPlugins.map((p) =>
     toPluginInfo(p.manifest, p.dir, p.provideCatalog !== undefined),
   );
-  const theme = await loadPluginManifests('theme', pluginRepoRoot);
+  const theme = await loadPluginManifests('theme');
   const themePlugins = theme.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
-  const navStyle = await loadPluginManifests('nav-style', pluginRepoRoot);
+  const navStyle = await loadPluginManifests('nav-style');
   const navStylePlugins = navStyle.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
-  const shape = await loadPluginManifests('shape', pluginRepoRoot);
+  const shape = await loadPluginManifests('shape');
   const shapePlugins = shape.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
   return {
     plugins: [...fnPlugins, ...themePlugins, ...navStylePlugins, ...shapePlugins],
@@ -265,7 +264,7 @@ async function buildPluginsState(): Promise<PluginsState> {
  *  Called after an import/uninstall so a freshly managed plugin takes effect
  *  without restarting the app, and the editor re-pulls its Action dropdown. */
 async function reloadFunctionPlugins(): Promise<void> {
-  const { plugins, errors } = await loadPlugins('function', pluginRepoRoot);
+  const { plugins, errors } = await loadPlugins('function');
   loadedPlugins = plugins;
   pluginErrors = errors;
   for (const err of errors) {
@@ -1275,11 +1274,7 @@ app.whenReady().then(async () => {
     }
   }
 
-  // Packaging-aware base for built-in plugins (extensions/): the repo root
-  // unpackaged, process.resourcesPath packaged — see resources.ts.
-  const resourceRoot = resourceBase;
-  pluginRepoRoot = resourceRoot;
-  const { plugins, errors } = await loadPlugins('function', resourceRoot);
+  const { plugins, errors } = await loadPlugins('function');
   loadedPlugins = plugins;
   pluginErrors = errors;
   for (const err of errors) {
@@ -1430,7 +1425,7 @@ app.whenReady().then(async () => {
       // renderer's store treats null as "unavailable" and surfaces a
       // user-facing reason elsewhere.
       try {
-        const { plugins } = await loadPluginManifests('shape', pluginRepoRoot);
+        const { plugins } = await loadPluginManifests('shape');
         const found = plugins.find(({ manifest }) => manifest.id === pluginId);
         if (!found || found.manifest.kind !== 'shape' || !found.manifest.shape) {
           // eslint-disable-next-line no-console
