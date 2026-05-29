@@ -16,7 +16,7 @@ import {
   truncatePieLabel,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
-import { isCancelNode, resolveShapeModel, type MenuNode } from '@/shared/menu';
+import { isCancelNode, resolveShapeModel } from '@/shared/menu';
 import { type ShapeRingRadii } from '@/shared/shape-plugin-api';
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
@@ -29,6 +29,7 @@ import { nodeKey } from '../state/node-keys';
 import { ringBranches } from '../state/selectors';
 
 import styles from './MenuPreview.module.scss';
+import { sectorIcon } from './sectorIcon';
 import { ShapePie } from './ShapePie';
 
 const TAU = Math.PI * 2;
@@ -42,35 +43,6 @@ const TAU = Math.PI * 2;
 // per-ring radii are resolved per render from the appearance (see below).
 const FOOTPRINT = 240 * OUTER_RING_OUTER_RATIO;
 const VIEW = FOOTPRINT; // viewBox half-extent (reserves the outer ring)
-
-/** A node's icon as an `<image>`, or null when the node has no renderable
- *  icon. Stacked above the label point (cx, cy); with an empty label it
- *  centres on the point instead. `iconSize` is the appearance-scaled size, so
- *  the preview tracks the live pie's icon size faithfully.
- *
- *  Exported so ShapePie can reuse the same icon placement instead of
- *  copy-pasting the `<image>` block; future tweaks (placement, sizing,
- *  preserveAspectRatio) land in one place. */
-export function sectorIcon(
-  node: MenuNode,
-  cx: number,
-  cy: number,
-  iconSize: number,
-): React.ReactElement | null {
-  if (!isRenderableIcon(node.icon)) return null;
-  const top = node.label.trim().length > 0 ? cy - iconSize : cy - iconSize / 2;
-  return (
-    <image
-      className={styles.icon}
-      href={node.icon}
-      x={cx - iconSize / 2}
-      y={top}
-      width={iconSize}
-      height={iconSize}
-      preserveAspectRatio="xMidYMid meet"
-    />
-  );
-}
 
 /**
  * Centre stage: the menu drawn exactly as the live pie shows it. The
