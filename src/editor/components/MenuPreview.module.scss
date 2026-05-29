@@ -107,25 +107,39 @@
 }
 
 // Shape-plugin node (#107 PR3b). One per sector when a shape plugin is
-// active; takes the wedge's place visually but is a circle. Borrows the
-// wedge token palette so selection / cancel / drop-target states line up
-// with what the user already knows from the wedge default.
+// active; takes the wedge's place visually but is a circle. Mirrors
+// .pie-shape-node in src/renderer/style.css for the live-overlay
+// equivalent: defines its own wedge token family so theme colours apply
+// even though .shapeNode is rendered as a sibling of .wedge (not inside
+// it), and selection / cancel / drop-target states line up with what the
+// user already knows from the wedge default. Without these local
+// definitions the editor preview reads --wedge-bg as unset and falls back
+// to the SVG fill initial — the visible "shape plugin looks wrong in the
+// editor preview" of #273.
 .shapeNode {
-  fill: var(--wedge-bg);
+  --wedge-bg: var(--pie-bg);
+  --wedge-bg-active: var(--sector-color, var(--pie-bg-active));
+  @include pieFill(var(--wedge-bg));
   stroke: var(--pie-border);
   stroke-width: 1.5;
   cursor: pointer;
 }
 
 .shapeNodeSelected {
-  fill: var(--wedge-bg-active);
+  // Editor-only highlight on the active sector: bright border + width.
+  // The live overlay relies on the fill alone (axis-driven, no need for
+  // an extra border cue); the preview is mouse-driven so the highlight
+  // gives the user feedback before the click commits.
+  @include pieFill(var(--wedge-bg-active));
   stroke: var(--pie-border-active);
   stroke-width: 2;
 }
 
+// Cancel-bound shape node: re-point the wedge token family to the red
+// cancel palette, same as .wedgeCancel does for the wedge layout.
 .shapeNodeCancel {
-  fill: var(--wedge-bg-cancel);
-  stroke: var(--pie-border-cancel);
+  --wedge-bg: var(--pie-cancel-bg);
+  --wedge-bg-active: var(--pie-cancel-bg-active);
 }
 
 .shapeNodeDropTarget {
