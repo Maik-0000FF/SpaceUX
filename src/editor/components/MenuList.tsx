@@ -18,7 +18,7 @@ import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTarget } from '../state/reorder';
 import { nextNodeId, nodeKey, uniqueItemLabel } from '../state/node-keys';
-import { ringBranches } from '../state/selectors';
+import { nextSelectionAfterDelete, ringBranches } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
 
@@ -63,7 +63,7 @@ export function MenuList() {
   const config = useMenuSettings((s) => s.config);
   const addNode = useMenuSettings((s) => s.addNode);
   const moveNode = useMenuSettings((s) => s.moveNode);
-  const deleteNode = useMenuSettings((s) => s.deleteNode);
+  const deleteOrCollapseNode = useMenuSettings((s) => s.deleteOrCollapseNode);
   const updateNodeAt = useMenuSettings((s) => s.updateNodeAt);
   const viewPath = useAppState((s) => s.viewPath);
   const selectedIndex = useAppState((s) => s.selectedIndex);
@@ -163,7 +163,7 @@ export function MenuList() {
     setExpanded((prev) => new Set(prev).add(key));
   };
 
-  const removeItem = async (ring: number[], index: number, ringLen: number): Promise<void> => {
+  const removeItem = async (ring: number[], index: number): Promise<void> => {
     const before = useMenuSettings.getState().config;
     const node = before ? ringBranches(before, ring)[index] : undefined;
     if (node) {
@@ -174,21 +174,16 @@ export function MenuList() {
       const live = useMenuSettings.getState().config;
       if (!live || ringBranches(live, ring)[index]?.id !== node.id) return;
     }
-    // Deleting the last child of a *submenu* would leave it empty (invalid),
-    // so instead drop the submenu level: the parent (at `ring`) becomes a
-    // plain leaf again. The top-level ring (ring []) is exempt — it can be
-    // emptied down to just the centre, so it deletes normally below.
-    if (ring.length > 0 && ringLen <= 1) {
-      updateNodeAt(ring, (s) => {
-        delete s.branches;
-      });
-      selectPath(ring);
-      return;
-    }
-    deleteNode(ring, index);
+    // The store action picks delete vs. collapse from the live state
+    // (deleting a submenu's last child collapses the parent to a leaf,
+    // root ring can normally empty down to the centre); see
+    // menu-settings.ts:deleteOrCollapseNode (#82). The selection rule is
+    // shared via `nextSelectionAfterDelete` so a future change to either
+    // branch can't drift the two apart.
+    deleteOrCollapseNode(ring, index);
     const after = useMenuSettings.getState().config;
-    const remaining = after ? ringBranches(after, ring).length : 0;
-    selectPath(remaining > 0 ? [...ring, Math.min(index, remaining - 1)] : []);
+    if (!after) return;
+    selectPath(nextSelectionAfterDelete(after, ring, index));
   };
 
   const addTopLevel = (): void => {
@@ -435,7 +430,7 @@ export function MenuList() {
                   }
                   aria-label={`Delete ${node.label}`}
                   disabled={readOnly}
-                  onClick={() => void removeItem(ringPath, i, ringLen)}
+                  onClick={() => void removeItem(ringPath, i)}
                 >
                   🗑
                 </button>

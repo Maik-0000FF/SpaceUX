@@ -15,7 +15,12 @@ import {
 import { useAppState } from '../src/editor/state/app-state';
 import { useMenuSettings } from '../src/editor/state/menu-settings';
 import { pathOfNodeId } from '../src/editor/state/move-targets';
-import { ringBranches, nodeAtPath, selectedPath } from '../src/editor/state/selectors';
+import {
+  nextSelectionAfterDelete,
+  nodeAtPath,
+  ringBranches,
+  selectedPath,
+} from '../src/editor/state/selectors';
 
 // The editor's selection store and path resolver are pure logic, so
 // they're exercised here without a DOM — the components that consume
@@ -226,6 +231,126 @@ describe('menu-settings', () => {
     const state = useMenuSettings.getState();
     expect(state.dirty).toBe(false);
     expect(state.mtime).toBe(999);
+  });
+
+  describe('deleteOrCollapseNode (#82)', () => {
+    // Build a tree with two top-level sectors:
+    //   - [0] = a leaf
+    //   - [1] = a branch with one child at [1, 0] (the "last child" case)
+    // Add another branch [2] with two children to cover the normal-delete
+    // path inside a non-collapsing submenu.
+    function makeTree() {
+      const cancelAction = { id: 'org.spaceux.builtins/cancel', config: {} };
+      useMenuSettings.getState().setConfig({
+        config: {
+          ...DEFAULT_MENU_CONFIG,
+          root: {
+            ...DEFAULT_MENU_CONFIG.root,
+            branches: [
+              { label: 'leaf-0', action: cancelAction },
+              { label: 'sub-1', branches: [{ label: 'sub-1-only', action: cancelAction }] },
+              {
+                label: 'sub-2',
+                branches: [
+                  { label: 'sub-2-a', action: cancelAction },
+                  { label: 'sub-2-b', action: cancelAction },
+                ],
+              },
+            ],
+          },
+        },
+        mtime: 1,
+      });
+    }
+
+    it("collapses the parent to a leaf when deleting a submenu's last child", () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([1], 0);
+      const sub1 = useMenuSettings.getState().config?.root.branches![1];
+      // The parent stays in place (its label / action unchanged) but its
+      // `branches` is gone — it's a leaf again.
+      expect(sub1?.label).toBe('sub-1');
+      expect(sub1?.branches).toBeUndefined();
+      expect(useMenuSettings.getState().dirty).toBe(true);
+    });
+
+    it('normal-deletes a child when its submenu has more siblings', () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([2], 0);
+      const sub2 = useMenuSettings.getState().config?.root.branches![2];
+      expect(sub2?.branches?.length).toBe(1);
+      expect(sub2?.branches?.[0]?.label).toBe('sub-2-b');
+      expect(useMenuSettings.getState().dirty).toBe(true);
+    });
+
+    it('allows the root ring to be emptied down to the centre (no last-item guard)', () => {
+      // Three top-level sectors → delete each in turn from the end. Even the
+      // last deletion goes through; the menu can sit on just the centre.
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([], 2);
+      useMenuSettings.getState().deleteOrCollapseNode([], 1);
+      useMenuSettings.getState().deleteOrCollapseNode([], 0);
+      const root = useMenuSettings.getState().config?.root;
+      expect(root?.branches?.length ?? 0).toBe(0);
+    });
+
+    it('is a no-op in readOnly mode', () => {
+      makeTree();
+      const before = useMenuSettings.getState().config!;
+      useMenuSettings.getState().setReadOnly(true);
+      useMenuSettings.getState().deleteOrCollapseNode([2], 0);
+      const after = useMenuSettings.getState().config!;
+      expect(after).toEqual(before);
+      expect(useMenuSettings.getState().dirty).toBe(false);
+    });
+
+    it('is a no-op for an out-of-range index', () => {
+      makeTree();
+      const before = useMenuSettings.getState().config!;
+      useMenuSettings.getState().deleteOrCollapseNode([2], 99);
+      const after = useMenuSettings.getState().config!;
+      expect(after).toEqual(before);
+      expect(useMenuSettings.getState().dirty).toBe(false);
+    });
+
+    // Selection rule pinned via the shared helper. The MenuList view calls
+    // `nextSelectionAfterDelete(after, ring, index)` post-mutation; without
+    // these the collapsed-submenu case silently steers selection into the
+    // just-removed subtree (because `currentBranches` falls back to the
+    // root ring on a leaf path segment).
+    it('selection after collapsing a submenu lands on the now-leaf parent', () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([1], 0);
+      const after = useMenuSettings.getState().config!;
+      expect(nextSelectionAfterDelete(after, [1], 0)).toEqual([1]);
+    });
+
+    it('selection after normal delete lands on a neighbour in the same ring', () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([2], 0);
+      const after = useMenuSettings.getState().config!;
+      // sub-2 had ['sub-2-a', 'sub-2-b']; deleting index 0 leaves one item
+      // and the rule clamps the next selection to min(0, 0) = 0.
+      expect(nextSelectionAfterDelete(after, [2], 0)).toEqual([2, 0]);
+    });
+
+    it('selection after emptying the root lands on the centre', () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([], 2);
+      useMenuSettings.getState().deleteOrCollapseNode([], 1);
+      useMenuSettings.getState().deleteOrCollapseNode([], 0);
+      const after = useMenuSettings.getState().config!;
+      expect(nextSelectionAfterDelete(after, [], 0)).toEqual([]);
+    });
+
+    it('clamps the post-delete index to the new last sector if the trailing one was removed', () => {
+      makeTree();
+      // Delete the last child of sub-2 (index 1 of 2); the next selection
+      // must clamp to index 0, the new last.
+      useMenuSettings.getState().deleteOrCollapseNode([2], 1);
+      const after = useMenuSettings.getState().config!;
+      expect(nextSelectionAfterDelete(after, [2], 1)).toEqual([2, 0]);
+    });
   });
 
   it('setConflict stashes the external snapshot + cause; clearConflict / setConfig clear it', () => {
