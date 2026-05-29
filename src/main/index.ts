@@ -193,8 +193,10 @@ const pluginHost: PluginHostCapabilities = {
  *  Populated by the EDITOR_GET_PLUGIN_UNINSTALL_HOOK handler; consumed by
  *  EDITOR_PERFORM_PLUGIN_UNINSTALL_HOOK. The renderer asks for the
  *  descriptor, shows the user-facing confirm, and then asks main to run the
- *  cached closure on confirmation. Cleared on both completion paths so a
- *  cancelled prompt doesn't leak the closure across plugin lifecycles. */
+ *  cached closure on confirmation. Cleared on every plugin-uninstall
+ *  invocation (whether the renderer ran the perform or the user cancelled
+ *  the second confirm) so a cancelled prompt doesn't retain the closure
+ *  across the plugin's own lifecycle. */
 const pendingUninstallPerforms = new Map<string, () => Promise<ProfileActionResult>>();
 // The *active* menu config — either the global menu.json (fallback) or
 // the connected device's profile (#113). Conflict-detection + write-back
@@ -813,6 +815,11 @@ async function getCursor(): Promise<{ x: number; y: number }> {
 /** A plugin provider that hangs (e.g. an unresponsive FreeCAD socket) must not
  *  freeze the pie open — cap how long we wait for the dynamic menu. */
 const DYNAMIC_MENU_TIMEOUT_MS = 2000;
+/** Timeout for a plugin's uninstall-hook `perform` (#267). Generous compared
+ *  to the descriptor query because the perform may do real filesystem work
+ *  (removing an addon directory, e.g. FreeCAD's bridge); still bounded so a
+ *  hung third-party closure can't block the editor's busy state forever. */
+const UNINSTALL_PERFORM_TIMEOUT_MS = 15000;
 
 /** Resolve `promise`, or reject with `message` after `ms`. The original
  *  promise is left to settle on its own (no cancellation primitive in the
@@ -1494,6 +1501,12 @@ app.whenReady().then(async () => {
       return { ok: true, installed, state };
     },
     uninstallPlugin: async (kind, id) => {
+      // Always clear a leftover uninstall-hook perform-closure (#267): if
+      // the user cancelled the secondary "Plugin cleanup" confirm,
+      // performPluginUninstallHook never ran and the cached entry would
+      // outlive the plugin itself. The renderer reaches this IPC on every
+      // Remove path, so clearing here is the single chokepoint.
+      pendingUninstallPerforms.delete(id);
       const result = await uninstallPlugin(kind, id);
       await reloadFunctionPlugins();
       const state = await buildPluginsState();
@@ -1543,7 +1556,11 @@ app.whenReady().then(async () => {
         return { ok: false, reason: 'no uninstall hook is pending for this plugin' };
       }
       try {
-        return await perform();
+        return await withTimeout(
+          perform(),
+          UNINSTALL_PERFORM_TIMEOUT_MS,
+          `plugin uninstall hook timed out after ${UNINSTALL_PERFORM_TIMEOUT_MS}ms`,
+        );
       } catch (err) {
         return { ok: false, reason: describeError(err) };
       }
