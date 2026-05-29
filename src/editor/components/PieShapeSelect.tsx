@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo } from 'react';
 
-import { formatPluginKey } from '../../shared/plugin-key';
+import { formatPluginKey } from '@/shared/plugin-key';
 import { usePieAppearance } from '../hooks/usePieAppearance';
 import { usePluginsState } from '../state/plugins';
 
