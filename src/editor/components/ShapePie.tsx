@@ -17,7 +17,7 @@ import {
 import { useShapeModules } from '../state/shape-modules';
 
 import styles from './MenuPreview.module.scss';
-import { sectorIcon } from './MenuPreview';
+import { sectorIcon } from './sectorIcon';
 
 /**
  * Render the active ring of a pie as a shape-plugin layout (#107 PR3b).
