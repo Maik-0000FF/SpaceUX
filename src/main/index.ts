@@ -74,6 +74,7 @@ import {
   type LoadedPlugin,
 } from './plugin-loader.js';
 import { importPluginFromFolder, uninstallPlugin } from './plugin-installer.js';
+import { scanPluginUsage, type MenuRef } from './plugin-usage-scan.js';
 import {
   PLUGIN_MENU_ID_PREFIX,
   isPluginMenuId,
@@ -1459,6 +1460,54 @@ app.whenReady().then(async () => {
       broadcastPluginInvalidated({ pluginId: id, kind });
       // Always return the refreshed state; surface a real delete error (#221).
       return result.ok ? { ok: true, state } : { ok: false, reason: result.reason, state };
+    },
+    scanPluginUsages: async (pluginId, kind) => {
+      // Gather every saved menu source: the global fallback, every device
+      // profile (each carries its own MenuConfig + optional bundled
+      // PieAppearance, #113), and every curated per-workbench pie (#193).
+      // Each ref carries the appearance that effectively applies to it so
+      // the scanner can resolve `shapeModel: undefined` (inherit) against
+      // the right baseline. The scanner is pure; this handler does the IO
+      // and labels each ref for the editor's Remove confirm.
+      const menus: MenuRef[] = [];
+
+      // loadMenuConfig always resolves to a config (real or the built-in
+      // default), so include it unconditionally. The fallback inherits the
+      // global appearance.
+      const fallback = await loadMenuConfig(menuConfigSearchPaths());
+      menus.push({
+        name: 'Global menu (fallback)',
+        config: fallback.config,
+        appearance: pieAppearance,
+      });
+
+      for (const profileId of await listDeviceProfiles()) {
+        const prof = await loadDeviceProfile(profileId);
+        if (prof.status === 'loaded') {
+          menus.push({
+            name: `Device profile ${profileId}`,
+            config: prof.config,
+            // A profile's bundled appearance wins for that profile; only
+            // fall back to the global one when the profile didn't ship its
+            // own (the historical bare-MenuConfig profile shape).
+            appearance: prof.appearance ?? pieAppearance,
+          });
+        }
+      }
+
+      for (const wbId of await listWorkbenchMenus()) {
+        const wb = await loadWorkbenchMenu(wbId);
+        if (wb.status === 'loaded') {
+          // Use the wb: id verbatim — the file name carries the plugin +
+          // workbench key already and resolving a richer label would need
+          // the plugin's catalog (overkill for the confirm message).
+          // Workbench menus don't bundle their own appearance, so they
+          // inherit the global one.
+          menus.push({ name: wbId, config: wb.config, appearance: pieAppearance });
+        }
+      }
+
+      return scanPluginUsage(pluginId, kind, menus, pieAppearance);
     },
     getShapeSource: async (pluginId) => {
       // Resolve the shape plugin's entry source on demand: look the plugin

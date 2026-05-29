@@ -18,6 +18,11 @@
   font-size: 13px;
   line-height: 1.45;
   color: var(--editor-fg);
+  // Preserve newlines from the caller's message so a multi-line confirm
+  // body (e.g. the Plugin Manager's "Currently used by:" list, #265)
+  // renders one item per line. Spaces still collapse, so plain
+  // single-line messages are unaffected.
+  white-space: pre-line;
 }
 
 .actions {

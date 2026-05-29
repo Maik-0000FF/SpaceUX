@@ -20,6 +20,7 @@ import {
   type PluginImportResult,
   type PluginsState,
   type PluginUninstallResult,
+  type PluginUsageReport,
   type ProfileActionResult,
   type ThemeChoice,
   type WorkbenchMenusState,
@@ -57,6 +58,10 @@ export interface EditorIpcDeps {
   /** Uninstall a plugin (delete its managed folder) and reload; resolves to the
    *  refreshed state plus whether the delete actually succeeded (#221). */
   uninstallPlugin: (kind: PluginCategory, id: string) => Promise<PluginUninstallResult>;
+  /** Scan saved menu configs + the global appearance for references to a
+   *  plugin (#265): the Plugin Manager's Remove confirm shows where the
+   *  plugin is in use before the user clicks through. */
+  scanPluginUsages: (pluginId: string, kind: PluginCategory) => Promise<PluginUsageReport>;
   /** Pull a plugin's command catalog for the editor palette (#76 D2): invokes
    *  the plugin's `provideCatalog` with a timeout. */
   getPluginCatalog: (pluginId: string, loadAll: boolean) => Promise<PluginCatalogResult>;
@@ -145,6 +150,11 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
     IpcChannel.EDITOR_UNINSTALL_PLUGIN,
     (_evt, kind: PluginCategory, id: string): Promise<PluginUninstallResult> =>
       deps.uninstallPlugin(kind, id),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_SCAN_PLUGIN_USAGES,
+    (_evt, pluginId: string, kind: PluginCategory): Promise<PluginUsageReport> =>
+      deps.scanPluginUsages(pluginId, kind),
   );
   ipcMain.handle(
     IpcChannel.EDITOR_GET_PLUGIN_CATALOG,

@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 
-import type { PluginCategory } from '@/shared/ipc';
+import type { PluginCategory, PluginUsageReport } from '@/shared/ipc';
 
 import { confirm } from '../state/confirm';
 import { usePluginsState } from '../state/plugins';
@@ -49,9 +49,41 @@ export function PluginManager() {
   };
 
   const remove = async (kind: PluginCategory, id: string, name: string): Promise<void> => {
+    // Scan for references BEFORE opening the confirm so the user sees which
+    // menus + the global appearance reference this plugin (#265). nav-style
+    // and theme always come back empty today; rendering still shows the
+    // base message in that case. The scan is informational only: if it
+    // fails (IPC error, transient profile read), fall back to the plain
+    // single-line message instead of blocking Remove on a side feature.
+    let usages: PluginUsageReport | null = null;
+    try {
+      usages = await window.editor.scanPluginUsages(id, kind);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[plugin manager] usage scan failed for ${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    const lines = [`Remove "${name}"? This deletes its installed files.`];
+    if (usages !== null && (usages.menus.length > 0 || usages.globalAppearance)) {
+      lines.push('', 'Currently used by:');
+      if (usages.menus.length > 0) {
+        // Cap the list so a config with many profiles doesn't push the
+        // confirm buttons offscreen; the count still reflects the total.
+        const MAX_MENU_LINES = 6;
+        const head = usages.menus.slice(0, MAX_MENU_LINES);
+        for (const m of head) lines.push(`• ${m}`);
+        if (usages.menus.length > head.length) {
+          lines.push(`• …and ${usages.menus.length - head.length} more`);
+        }
+      }
+      if (usages.globalAppearance) {
+        lines.push('• Global appearance (will fall back to the host default)');
+      }
+    }
     const ok = await confirm({
       title: 'Remove plugin?',
-      message: `Remove "${name}"? This deletes its installed files.`,
+      message: lines.join('\n'),
       confirmLabel: 'Remove',
       destructive: true,
     });

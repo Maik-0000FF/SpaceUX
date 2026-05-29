@@ -154,6 +154,12 @@ export const IpcChannel = {
   /** Editor uninstalls an installed plugin (deletes its managed folder),
    *  identified by kind + id. invoke → the new {@link PluginsState}. */
   EDITOR_UNINSTALL_PLUGIN: 'spaceux:editor:plugins:uninstall',
+  /** Editor scans all saved menu configs + the global appearance for
+   *  references to a specific plugin (#265). Result populates the Remove
+   *  confirm so the user sees which menus fall back to the host default
+   *  before clicking through. invoke(pluginId, kind) →
+   *  {@link PluginUsageReport}. */
+  EDITOR_SCAN_PLUGIN_USAGES: 'spaceux:editor:plugins:scan-usages',
   /** Main broadcasts to both renderer windows (editor + live overlay) when
    *  a plugin's on-disk source has changed: it was uninstalled or
    *  re-imported. Renderer-side caches keyed by plugin id (currently the
@@ -322,6 +328,17 @@ export type PluginUninstallResult =
 export type PluginInvalidatedPayload = {
   pluginId: string;
   kind: PluginCategory;
+};
+
+/** Where a plugin is referenced in saved state (#265): the named menus that
+ *  point at it (in their `shapeModel` for shape plugins, or their action
+ *  tree for function plugins) plus a flag for the global appearance.
+ *  Consumed by the Plugin Manager's Remove confirm so the user sees the
+ *  consequences before clicking through. nav-style and theme always
+ *  resolve to empty today (see plugin-usage-scan.ts for why). */
+export type PluginUsageReport = {
+  menus: string[];
+  globalAppearance: boolean;
 };
 
 /** Result of an editor command-catalog pull (#76 D2). Failure (no such plugin,
