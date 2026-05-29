@@ -31,6 +31,7 @@ import type {
   PluginCatalogResult,
   PluginCategory,
   PluginImportResult,
+  PluginInvalidatedPayload,
   PluginsState,
   PluginUninstallResult,
   FreecadBridgeInstallResult,
@@ -83,6 +84,12 @@ export type SpaceUxBridge = {
    *  read. The renderer creates a Blob URL from the source and
    *  dynamic-imports it (script-src 'self' blob:). */
   getShapeSource(pluginId: string): Promise<string | null>;
+  /** Subscribe to plugin-invalidation events (#269): a plugin was
+   *  uninstalled or re-imported, so any renderer-side cache keyed on its
+   *  id (currently the shape-modules store) should drop its entry. The
+   *  handler filters on `kind` because each cache only owns one kind.
+   *  Returns an unsubscribe fn. */
+  onPluginInvalidated(handler: (payload: PluginInvalidatedPayload) => void): () => void;
 };
 
 /**
@@ -162,6 +169,12 @@ export type EditorBridge = {
    *  to load the plugin's `layout` + `hitTest` functions into the
    *  renderer process. Cached by the renderer's shape-modules store. */
   getShapeSource(pluginId: string): Promise<string | null>;
+  /** Subscribe to plugin-invalidation events (#269): a plugin was
+   *  uninstalled or re-imported, so any renderer-side cache keyed on its
+   *  id (currently the shape-modules store) should drop its entry. The
+   *  handler filters on `kind` because each cache only owns one kind.
+   *  Returns an unsubscribe fn. */
+  onPluginInvalidated(handler: (payload: PluginInvalidatedPayload) => void): () => void;
   /** Pull the ids of curated per-workbench pies on mount (#193). */
   getWorkbenchMenus(): Promise<WorkbenchMenusState>;
   /** Subscribe to curated-pie add/remove changes. Returns an unsubscribe fn. */

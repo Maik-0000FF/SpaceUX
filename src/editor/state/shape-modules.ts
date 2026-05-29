@@ -16,7 +16,17 @@ import { createShapeModulesStore } from '../../renderer/state/shape-modules-fact
  * (coalescing, blob-URL dynamic import, module-export validation,
  * error caching) lives in the factory exactly once.
  */
-const store = createShapeModulesStore((pluginId) => window.editor.getShapeSource(pluginId));
+// The factory invokes `subscribePluginInvalidated` eagerly at construction.
+// Guard the window access so a renderer reload / test environment without
+// a fully populated bridge doesn't throw on module load; the real bridge is
+// always present in the editor window at runtime.
+const store = createShapeModulesStore(
+  (pluginId) => window.editor.getShapeSource(pluginId),
+  (handler) =>
+    typeof window !== 'undefined' && typeof window.editor?.onPluginInvalidated === 'function'
+      ? window.editor.onPluginInvalidated(handler)
+      : () => {},
+);
 
 export const useShapeModules = store.useShapeModules;
 export const _setShapeImporterForTests = store._setShapeImporterForTests;

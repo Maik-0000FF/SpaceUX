@@ -3,6 +3,7 @@
 
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
+import { type PluginInvalidatedPayload } from '@/shared/ipc';
 import { validateShapePluginModule, type ShapePluginModule } from '@/shared/shape-plugin-api';
 
 /**
@@ -56,11 +57,18 @@ async function defaultBlobUrlImporter(source: string): Promise<unknown> {
   }
 }
 
-/** Create a shape-modules zustand store bound to the given
- *  `getSource` IPC method. Returns the store hook + a test-only
+/** Create a shape-modules zustand store bound to the given `getSource` IPC
+ *  method. `subscribePluginInvalidated` is optional: when provided, the
+ *  factory subscribes to plugin-invalidation events (#269) and drops the
+ *  cached entry for any shape plugin whose source changed on disk
+ *  (uninstall or re-import). Tests typically omit it so no real bridge is
+ *  needed in the test environment. Returns the store hook + a test-only
  *  setter for the importer; both are scoped to this factory call so
  *  swapping the importer for one store doesn't affect any other. */
-export function createShapeModulesStore(getSource: (pluginId: string) => Promise<string | null>): {
+export function createShapeModulesStore(
+  getSource: (pluginId: string) => Promise<string | null>,
+  subscribePluginInvalidated?: (handler: (payload: PluginInvalidatedPayload) => void) => () => void,
+): {
   useShapeModules: UseBoundStore<StoreApi<ShapeModulesStoreState>>;
   _setShapeImporterForTests: (next: ShapeSourceImporter | null) => void;
 } {
@@ -78,8 +86,21 @@ export function createShapeModulesStore(getSource: (pluginId: string) => Promise
       // ensureLoaded call in the same tick observes `loading` and
       // returns the same promise instead of starting a parallel
       // IPC + import.
+      //
+      // `loadingEntry` is captured by the IIFE below so each post-await
+      // step can identity-check `get().modules[pluginId]` against it. If a
+      // concurrent `clear` (or another load that replaced the entry) ran
+      // mid-flight, the check fails and the in-flight result is dropped
+      // instead of overwriting the cleared / replaced state. Without that
+      // guard, an invalidation arriving between the load start and its
+      // resolution would silently re-cache the stale module (#269 race).
+      // The assignment lands before the first await suspends, so the
+      // closure observes the populated reference on every resume.
+      let loadingEntry: ShapeModuleEntry;
+      const stillUs = () => get().modules[pluginId] === loadingEntry;
       const promise = (async () => {
         const source = await getSource(pluginId);
+        if (!stillUs()) return;
         if (source === null) {
           set((s) => ({
             modules: {
@@ -93,6 +114,7 @@ export function createShapeModulesStore(getSource: (pluginId: string) => Promise
         try {
           mod = await importer(source);
         } catch (err) {
+          if (!stillUs()) return;
           set((s) => ({
             modules: {
               ...s.modules,
@@ -104,6 +126,7 @@ export function createShapeModulesStore(getSource: (pluginId: string) => Promise
           }));
           return;
         }
+        if (!stillUs()) return;
         const reason = validateShapePluginModule(mod);
         if (reason !== null) {
           set((s) => ({
@@ -118,8 +141,9 @@ export function createShapeModulesStore(getSource: (pluginId: string) => Promise
           },
         }));
       })();
+      loadingEntry = { status: 'loading', promise };
       set((s) => ({
-        modules: { ...s.modules, [pluginId]: { status: 'loading', promise } },
+        modules: { ...s.modules, [pluginId]: loadingEntry },
       }));
       return promise;
     },
@@ -135,6 +159,17 @@ export function createShapeModulesStore(getSource: (pluginId: string) => Promise
       return entry?.status === 'ready' ? entry.module : null;
     },
   }));
+
+  // Wire renderer-side cache invalidation (#269). The bridge broadcasts on
+  // every plugin import + uninstall regardless of kind; this store only
+  // cares about the shape kind, so the handler filters before clearing.
+  // No unsubscribe is kept because the store lives for the lifetime of the
+  // renderer window — leak isn't observable.
+  if (subscribePluginInvalidated) {
+    subscribePluginInvalidated((payload) => {
+      if (payload.kind === 'shape') useShapeModules.getState().clear(payload.pluginId);
+    });
+  }
 
   return {
     useShapeModules,

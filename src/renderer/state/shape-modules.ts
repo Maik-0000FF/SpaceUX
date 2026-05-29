@@ -16,7 +16,17 @@ import { createShapeModulesStore } from './shape-modules-factory';
  * (coalescing, blob-URL dynamic import, module-export validation,
  * error caching) lives in the factory exactly once.
  */
-const store = createShapeModulesStore((pluginId) => window.spaceux.getShapeSource(pluginId));
+// The factory invokes `subscribePluginInvalidated` eagerly at construction.
+// Guard the window access so a renderer reload / test environment without
+// a fully populated bridge doesn't throw on module load; the real bridge is
+// always present in the overlay window at runtime.
+const store = createShapeModulesStore(
+  (pluginId) => window.spaceux.getShapeSource(pluginId),
+  (handler) =>
+    typeof window !== 'undefined' && typeof window.spaceux?.onPluginInvalidated === 'function'
+      ? window.spaceux.onPluginInvalidated(handler)
+      : () => {},
+);
 
 export const useShapeModules = store.useShapeModules;
 export const _setShapeImporterForTests = store._setShapeImporterForTests;
