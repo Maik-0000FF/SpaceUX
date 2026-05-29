@@ -228,6 +228,87 @@ describe('menu-settings', () => {
     expect(state.mtime).toBe(999);
   });
 
+  describe('deleteOrCollapseNode (#82)', () => {
+    // Build a tree with two top-level sectors:
+    //   - [0] = a leaf
+    //   - [1] = a branch with one child at [1, 0] (the "last child" case)
+    // Add another branch [2] with two children to cover the normal-delete
+    // path inside a non-collapsing submenu.
+    function makeTree() {
+      const cancelAction = { id: 'org.spaceux.builtins/cancel', config: {} };
+      useMenuSettings.getState().setConfig({
+        config: {
+          ...DEFAULT_MENU_CONFIG,
+          root: {
+            ...DEFAULT_MENU_CONFIG.root,
+            branches: [
+              { label: 'leaf-0', action: cancelAction },
+              { label: 'sub-1', branches: [{ label: 'sub-1-only', action: cancelAction }] },
+              {
+                label: 'sub-2',
+                branches: [
+                  { label: 'sub-2-a', action: cancelAction },
+                  { label: 'sub-2-b', action: cancelAction },
+                ],
+              },
+            ],
+          },
+        },
+        mtime: 1,
+      });
+    }
+
+    it("collapses the parent to a leaf when deleting a submenu's last child", () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([1], 0);
+      const sub1 = useMenuSettings.getState().config?.root.branches![1];
+      // The parent stays in place (its label / action unchanged) but its
+      // `branches` is gone — it's a leaf again.
+      expect(sub1?.label).toBe('sub-1');
+      expect(sub1?.branches).toBeUndefined();
+      expect(useMenuSettings.getState().dirty).toBe(true);
+    });
+
+    it('normal-deletes a child when its submenu has more siblings', () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([2], 0);
+      const sub2 = useMenuSettings.getState().config?.root.branches![2];
+      expect(sub2?.branches?.length).toBe(1);
+      expect(sub2?.branches?.[0]?.label).toBe('sub-2-b');
+      expect(useMenuSettings.getState().dirty).toBe(true);
+    });
+
+    it('allows the root ring to be emptied down to the centre (no last-item guard)', () => {
+      // Three top-level sectors → delete each in turn from the end. Even the
+      // last deletion goes through; the menu can sit on just the centre.
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([], 2);
+      useMenuSettings.getState().deleteOrCollapseNode([], 1);
+      useMenuSettings.getState().deleteOrCollapseNode([], 0);
+      const root = useMenuSettings.getState().config?.root;
+      expect(root?.branches?.length ?? 0).toBe(0);
+    });
+
+    it('is a no-op in readOnly mode', () => {
+      makeTree();
+      const before = useMenuSettings.getState().config!;
+      useMenuSettings.getState().setReadOnly(true);
+      useMenuSettings.getState().deleteOrCollapseNode([2], 0);
+      const after = useMenuSettings.getState().config!;
+      expect(after).toEqual(before);
+      expect(useMenuSettings.getState().dirty).toBe(false);
+    });
+
+    it('is a no-op for an out-of-range index', () => {
+      makeTree();
+      const before = useMenuSettings.getState().config!;
+      useMenuSettings.getState().deleteOrCollapseNode([2], 99);
+      const after = useMenuSettings.getState().config!;
+      expect(after).toEqual(before);
+      expect(useMenuSettings.getState().dirty).toBe(false);
+    });
+  });
+
   it('setConflict stashes the external snapshot + cause; clearConflict / setConfig clear it', () => {
     const external = { config: DEFAULT_MENU_CONFIG, mtime: 555 };
     useMenuSettings.getState().setConflict(external, 'device');

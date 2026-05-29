@@ -86,6 +86,15 @@ type MenuSettingsState = {
    *  if it would empty the ring (the validator requires a non-empty
    *  menu / non-empty submenu) or the index/path is invalid. */
   deleteNode: (ringPath: readonly number[], index: number) => void;
+  /** Remove the node at `index` from the ring at `ringPath`, OR drop the
+   *  submenu level when this would otherwise empty a submenu ring: the
+   *  parent (at `ringPath`) becomes a leaf again (its `branches` array is
+   *  removed). The root ring (`ringPath` `[]`) has no last-item guard, so
+   *  deleting its last node empties the menu down to just the centre.
+   *  No-op on readOnly, invalid path/index, or an empty target ring.
+   *  Mirrors what `MenuList.removeItem` decides in the view, extracted
+   *  here (#82) so the document mutation is unit-testable. */
+  deleteOrCollapseNode: (ringPath: readonly number[], index: number) => void;
   /** Reorder the ring at `ringPath` so the one at `from` ends up at
    *  `to`. No-op for invalid indices. */
   moveNode: (ringPath: readonly number[], from: number, to: number) => void;
@@ -272,6 +281,25 @@ export const useMenuSettings = create<MenuSettingsState>()(
           // meaningless — delete the submenu node in its parent instead).
           if (ringPath.length > 0 && ring.length <= 1) return;
           ring.splice(index, 1);
+          state.origin = 'local';
+          state.dirty = true;
+        }),
+      deleteOrCollapseNode: (ringPath, index) =>
+        set((state) => {
+          if (state.readOnly || !state.config) return;
+          const ring = draftRingAt(state.config, ringPath);
+          if (!ring) return;
+          if (index < 0 || index >= ring.length) return;
+          if (ringPath.length > 0 && ring.length <= 1) {
+            // Submenu's last child: drop the submenu level instead of leaving
+            // an empty (validator-invalid) submenu. The parent at `ringPath`
+            // becomes a plain leaf again.
+            const parent = draftNodeAt(state.config, ringPath);
+            if (!parent) return;
+            delete parent.branches;
+          } else {
+            ring.splice(index, 1);
+          }
           state.origin = 'local';
           state.dirty = true;
         }),
