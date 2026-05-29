@@ -69,6 +69,7 @@ import {
   loadPlugins,
   makeActionContext,
   userExtensionsRoot,
+  type InstalledPlugin,
   type LoadedPlugin,
 } from './plugin-loader.js';
 import { importPluginFromFolder, uninstallPlugin } from './plugin-installer.js';
@@ -142,6 +143,13 @@ let actionIndex: ReturnType<typeof indexActions> = {};
 // without an app restart.
 let loadedPlugins: LoadedPlugin[] = [];
 let pluginErrors: { dir: string; reason: string }[] = [];
+// Cached shape-plugin manifests, keyed by plugin id. Populated at startup
+// and refreshed by every `buildPluginsState` (which runs on import / uninstall
+// and on each editor `getPlugins` IPC), so the handler that resolves a shape
+// source by id can do an O(1) lookup instead of re-walking the extensions
+// tree on every pull. Mirrors `loadedPlugins` for the function kind.
+let loadedShapeManifests: Map<string, InstalledPlugin> = new Map();
+let shapeLoadErrors: { dir: string; reason: string }[] = [];
 // The *active* menu config — either the global menu.json (fallback) or
 // the connected device's profile (#113). Conflict-detection + write-back
 // state for the editor: `mtime` is the on-disk mtime the active config
@@ -237,13 +245,22 @@ function toPluginInfo(manifest: PluginManifest, dir: string, hasCatalog = false)
   };
 }
 
+/** Rebuild the shape-manifest cache from disk. Called on startup and from
+ *  every `buildPluginsState` so import / uninstall changes propagate without
+ *  needing a separate invalidation step on the call sites. */
+async function refreshShapeManifestCache(): Promise<void> {
+  const { plugins, errors } = await loadPluginManifests('shape');
+  loadedShapeManifests = new Map(plugins.map((p) => [p.manifest.id, p]));
+  shapeLoadErrors = errors;
+}
+
 /** Snapshot the installed plugins for the editor's manager: the live
  *  `function` plugins (already loaded for the action index), plus three
  *  manifest-only categories listed but not executed at this stage:
  *  `theme` (#47), `nav-style` (#195), and `shape` (#107 as a plugin).
  *  PR2 of the shape series adds a renderer-side runtime that pulls the
- *  shape entry source on demand; here we just include the descriptor in
- *  the PluginInfo so the manager UI shows it. */
+ *  shape entry source on demand; the cached `loadedShapeManifests` lets
+ *  that resolve happen in O(1) instead of re-walking the tree. */
 async function buildPluginsState(): Promise<PluginsState> {
   const fnPlugins = loadedPlugins.map((p) =>
     toPluginInfo(p.manifest, p.dir, p.provideCatalog !== undefined),
@@ -252,11 +269,13 @@ async function buildPluginsState(): Promise<PluginsState> {
   const themePlugins = theme.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
   const navStyle = await loadPluginManifests('nav-style');
   const navStylePlugins = navStyle.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
-  const shape = await loadPluginManifests('shape');
-  const shapePlugins = shape.plugins.map(({ manifest, dir }) => toPluginInfo(manifest, dir));
+  await refreshShapeManifestCache();
+  const shapePlugins = Array.from(loadedShapeManifests.values()).map(({ manifest, dir }) =>
+    toPluginInfo(manifest, dir),
+  );
   return {
     plugins: [...fnPlugins, ...themePlugins, ...navStylePlugins, ...shapePlugins],
-    errors: [...pluginErrors, ...theme.errors, ...navStyle.errors, ...shape.errors],
+    errors: [...pluginErrors, ...theme.errors, ...navStyle.errors, ...shapeLoadErrors],
   };
 }
 
@@ -1287,6 +1306,11 @@ app.whenReady().then(async () => {
   // which the indexer reports through its normal duplicate path.
   actionIndex = indexActions([BUILTIN_PLUGIN, ...plugins]);
 
+  // Prime the shape-manifest cache so the live renderer's first
+  // `getShapeSource` pull (it can fire before the editor ever opens, when a
+  // saved appearance references a shape plugin) hits a populated map.
+  await refreshShapeManifestCache();
+
   const searchPaths = menuConfigSearchPaths();
   menuSearchPaths = searchPaths;
   const menuResult = await loadMenuConfig(searchPaths);
@@ -1416,18 +1440,17 @@ app.whenReady().then(async () => {
       return result.ok ? { ok: true, state } : { ok: false, reason: result.reason, state };
     },
     getShapeSource: async (pluginId) => {
-      // Resolve the shape plugin's entry source on demand: scan the
-      // shape category, find the plugin by id, read its `shape.entry`
-      // relative to the install dir, return the UTF-8 source. The
-      // validator (PR1) already constrained the entry path so we can
-      // trust the join without a second sanitisation pass. Null on any
-      // failure (no plugin, wrong kind, read error, size cap); the
-      // renderer's store treats null as "unavailable" and surfaces a
-      // user-facing reason elsewhere.
+      // Resolve the shape plugin's entry source on demand: look the plugin
+      // up in the cached manifest map, read its `shape.entry` relative to
+      // the install dir, return the UTF-8 source. The validator (PR1)
+      // already constrained the entry path so we can trust the join without
+      // a second sanitisation pass. Null on any failure (no plugin, missing
+      // shape descriptor, read error, size cap); the renderer's store
+      // treats null as "unavailable" and surfaces a user-facing reason
+      // elsewhere.
       try {
-        const { plugins } = await loadPluginManifests('shape');
-        const found = plugins.find(({ manifest }) => manifest.id === pluginId);
-        if (!found || found.manifest.kind !== 'shape' || !found.manifest.shape) {
+        const found = loadedShapeManifests.get(pluginId);
+        if (!found || !found.manifest.shape) {
           // eslint-disable-next-line no-console
           console.warn(`[shape] getShapeSource: plugin "${pluginId}" not found / not a shape`);
           return null;
