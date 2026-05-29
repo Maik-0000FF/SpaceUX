@@ -34,6 +34,7 @@ import type {
   PluginInvalidatedPayload,
   PluginsState,
   PluginUninstallResult,
+  PluginUsageReport,
   FreecadBridgeInstallResult,
   FreecadBridgeStatus,
   ProfileActionResult,
@@ -175,6 +176,11 @@ export type EditorBridge = {
    *  handler filters on `kind` because each cache only owns one kind.
    *  Returns an unsubscribe fn. */
   onPluginInvalidated(handler: (payload: PluginInvalidatedPayload) => void): () => void;
+  /** Scan saved menu configs + the global appearance for references to a
+   *  plugin (#265). The Remove confirm uses the result to show which
+   *  menus fall back to the host default before the user clicks through.
+   *  nav-style and theme always resolve to an empty report today. */
+  scanPluginUsages(pluginId: string, kind: PluginCategory): Promise<PluginUsageReport>;
   /** Pull the ids of curated per-workbench pies on mount (#193). */
   getWorkbenchMenus(): Promise<WorkbenchMenusState>;
   /** Subscribe to curated-pie add/remove changes. Returns an unsubscribe fn. */

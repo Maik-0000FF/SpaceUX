@@ -19,6 +19,7 @@ import {
   type PluginInvalidatedPayload,
   type PluginsState,
   type PluginUninstallResult,
+  type PluginUsageReport,
   type ProfileActionResult,
   type FreecadBridgeInstallResult,
   type FreecadBridgeStatus,
@@ -91,6 +92,12 @@ const bridge: EditorBridge = {
       kind,
       id,
     ) as Promise<PluginUninstallResult>,
+  scanPluginUsages: (pluginId: string, kind: PluginCategory) =>
+    ipcRenderer.invoke(
+      IpcChannel.EDITOR_SCAN_PLUGIN_USAGES,
+      pluginId,
+      kind,
+    ) as Promise<PluginUsageReport>,
   getPluginCatalog: (pluginId: string, loadAll: boolean) =>
     ipcRenderer.invoke(
       IpcChannel.EDITOR_GET_PLUGIN_CATALOG,

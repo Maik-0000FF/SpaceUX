@@ -49,9 +49,31 @@ export function PluginManager() {
   };
 
   const remove = async (kind: PluginCategory, id: string, name: string): Promise<void> => {
+    // Scan for references BEFORE opening the confirm so the user sees which
+    // menus + the global appearance reference this plugin (#265). nav-style
+    // and theme always come back empty today; rendering still shows the
+    // base message in that case.
+    const usages = await window.editor.scanPluginUsages(id, kind);
+    const lines = [`Remove "${name}"? This deletes its installed files.`];
+    if (usages.menus.length > 0 || usages.globalAppearance) {
+      lines.push('', 'Currently used by:');
+      if (usages.menus.length > 0) {
+        // Cap the list so a config with many profiles doesn't push the
+        // confirm buttons offscreen; the count still reflects the total.
+        const MAX_MENU_LINES = 6;
+        const head = usages.menus.slice(0, MAX_MENU_LINES);
+        for (const m of head) lines.push(`• ${m}`);
+        if (usages.menus.length > head.length) {
+          lines.push(`• …and ${usages.menus.length - head.length} more`);
+        }
+      }
+      if (usages.globalAppearance) {
+        lines.push('• Global appearance (will fall back to the host default)');
+      }
+    }
     const ok = await confirm({
       title: 'Remove plugin?',
-      message: `Remove "${name}"? This deletes its installed files.`,
+      message: lines.join('\n'),
       confirmLabel: 'Remove',
       destructive: true,
     });
