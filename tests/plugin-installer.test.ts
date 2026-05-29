@@ -110,10 +110,14 @@ describe('importPluginFromFolder', () => {
   });
 
   it('rejects a manifest id that is unsafe as a path segment', async () => {
+    // The id `../../etc/evil` carries slashes, leading dot, and `..` — every
+    // one of those is rejected by the manifest validator's charset rule, so
+    // the import fails at the manifest-read step (wrapped as "not a valid
+    // plugin folder") before any filesystem write happens.
     const src = await makeSrcPlugin('eviltree', functionManifest('../../etc/evil'));
     const result = await importPluginFromFolder(src);
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toMatch(/not a valid plugin identifier/);
+    if (!result.ok) expect(result.reason).toMatch(/manifest field "id"/);
   });
 
   it('replaces an existing install on re-import (clean update, no orphans)', async () => {
