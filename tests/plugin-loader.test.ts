@@ -476,6 +476,67 @@ describe('validateManifest — shape kind', () => {
   });
 });
 
+describe('validateManifest — id / item-id charset', () => {
+  // Plugin ids and namespaced item ids (action.name, preset.id, shape.id)
+  // become both a filesystem path segment and the prefix of the saved
+  // namespace key `<pluginId>/<itemId>`. The validator rejects anything
+  // that would silently break either contract: path separators (`/`,
+  // `\\`), whitespace, control chars, `..` traversal, or a leading
+  // dash / dot / underscore (the first char must be alnum so a hidden
+  // dotfile-style id can't slip in either).
+
+  const INVALID_IDS: { id: string; tag: string }[] = [
+    { id: 'has/slash', tag: 'forward slash' },
+    { id: 'has space', tag: 'space' },
+    { id: 'has\ttab', tag: 'tab' },
+    { id: 'has\nnewline', tag: 'newline' },
+    { id: 'has\0nul', tag: 'NUL byte' },
+    { id: 'hasctl', tag: 'control char' },
+    { id: '-dash-leading', tag: 'leading dash' },
+    { id: '.dot-leading', tag: 'leading dot' },
+    { id: '_underscore-leading', tag: 'leading underscore' },
+    { id: 'parent..traverse', tag: 'double-dot traversal' },
+  ];
+
+  const VALID_IDS = ['org.spaceux.example', 'a', 'A1', 'reverse-DNS_style.id-1'];
+
+  it('rejects manifest.id with disallowed characters or leading non-alnum', () => {
+    for (const { id, tag } of INVALID_IDS) {
+      const reason = validateManifest(manifestBase({ id }));
+      expect(reason, `manifest.id=${JSON.stringify(id)} (${tag})`).toMatch(/"id"/);
+    }
+  });
+
+  it('accepts manifest.id values matching the reverse-DNS-style charset', () => {
+    for (const id of VALID_IDS) {
+      expect(validateManifest(manifestBase({ id })), `manifest.id=${id}`).toBeNull();
+    }
+  });
+
+  it('rejects action.name with disallowed characters', () => {
+    for (const { id, tag } of INVALID_IDS) {
+      const reason = validateManifest(manifestBase({ actions: [{ name: id, label: 'X' }] }));
+      expect(reason, `action.name=${JSON.stringify(id)} (${tag})`).toMatch(/action\.name/);
+    }
+  });
+
+  it('rejects preset.id with disallowed characters', () => {
+    const base = (navStyleManifestBase().presets as Array<Record<string, unknown>>)[0]!;
+    for (const { id, tag } of INVALID_IDS) {
+      const reason = validateManifest(navStyleManifestBase({ presets: [{ ...base, id }] }));
+      expect(reason, `preset.id=${JSON.stringify(id)} (${tag})`).toMatch(/preset\.id/);
+    }
+  });
+
+  it('rejects shape.id with disallowed characters', () => {
+    const base = shapeManifestBase().shape as Record<string, unknown>;
+    for (const { id, tag } of INVALID_IDS) {
+      const reason = validateManifest(shapeManifestBase({ shape: { ...base, id } }));
+      expect(reason, `shape.id=${JSON.stringify(id)} (${tag})`).toMatch(/shape\.id/);
+    }
+  });
+});
+
 describe('plugin API version invariants', () => {
   it('keeps MIN_SUPPORTED_PLUGIN_API_VERSION at or below PLUGIN_API_VERSION', () => {
     // Cheap invariant: if a future bump accidentally raises the

@@ -12,6 +12,7 @@ import {
   MIN_SUPPORTED_PLUGIN_API_VERSION,
   PLUGIN_API_VERSION,
   PLUGIN_KINDS,
+  isSafePluginId,
   type ActionContext,
   type ActionDescriptor,
   type ActionHandler,
@@ -297,6 +298,13 @@ export function validateManifest(value: unknown): string | null {
       return `manifest field "${key}" must be a non-empty string`;
     }
   }
+  // The plugin id becomes both a filesystem path segment and the prefix of
+  // every saved namespace key (`<pluginId>/<itemId>`). Constrain its charset
+  // up front so a `/`, whitespace, or `..` traversal can never reach those
+  // boundaries silently. See `isSafePluginId` for the rule.
+  if (!isSafePluginId(m.id as string)) {
+    return `manifest field "id" must use only letters, digits, dots, dashes, and underscores (no path separators, whitespace, or ".." segments)`;
+  }
 
   // `actions` is the function-plugin payload. Required (non-empty) on a
   // function manifest; rejected on every other kind so a stray field can't
@@ -317,6 +325,8 @@ export function validateManifest(value: unknown): string | null {
       const a = action as Record<string, unknown>;
       if (typeof a.name !== 'string' || a.name.trim() === '')
         return 'action.name must be a non-empty string';
+      if (!isSafePluginId(a.name))
+        return `action.name "${a.name}" must use only letters, digits, dots, dashes, and underscores (no path separators, whitespace, or ".." segments)`;
       if (typeof a.label !== 'string' || a.label.trim() === '')
         return 'action.label must be a non-empty string';
       if (seenNames.has(a.name)) return `action.name "${a.name}" appears more than once`;
@@ -344,6 +354,8 @@ export function validateManifest(value: unknown): string | null {
       const p = preset as Record<string, unknown>;
       if (typeof p.id !== 'string' || p.id.trim() === '')
         return 'preset.id must be a non-empty string';
+      if (!isSafePluginId(p.id))
+        return `preset.id "${p.id}" must use only letters, digits, dots, dashes, and underscores (no path separators, whitespace, or ".." segments)`;
       if (typeof p.label !== 'string' || p.label.trim() === '')
         return 'preset.label must be a non-empty string';
       if (typeof p.description !== 'string' || p.description.trim() === '')
@@ -376,6 +388,8 @@ export function validateManifest(value: unknown): string | null {
     const s = m.shape as Record<string, unknown>;
     if (typeof s.id !== 'string' || s.id.trim() === '')
       return 'shape.id must be a non-empty string';
+    if (!isSafePluginId(s.id))
+      return `shape.id "${s.id}" must use only letters, digits, dots, dashes, and underscores (no path separators, whitespace, or ".." segments)`;
     if (typeof s.label !== 'string' || s.label.trim() === '')
       return 'shape.label must be a non-empty string';
     if (typeof s.description !== 'string' || s.description.trim() === '')

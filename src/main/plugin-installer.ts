@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { describeError } from '../shared/errors.js';
-import type { PluginManifest } from '../shared/plugin-types.js';
+import { isSafePluginId, type PluginManifest } from '../shared/plugin-types.js';
 
 import { pluginInstallDir, readPluginManifest, userExtensionsRoot } from './plugin-loader.js';
 
@@ -24,17 +24,6 @@ export type ImportOutcome =
   | { ok: false; reason: string };
 
 /**
- * A plugin id is used verbatim as a single path segment (the install dir) and
- * as the prefix of every action key, so it must be one safe segment — no
- * separators, no `..` traversal. validateManifest only checks it's non-empty;
- * this is the boundary where it becomes a filesystem path, so the stricter
- * rule lives here. Reverse-DNS dots/dashes/underscores are allowed.
- */
-function isSafePluginId(id: string): boolean {
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id) && !id.includes('..');
-}
-
-/**
  * Import the plugin folder at `srcDir`: validate its manifest, then copy the
  * whole folder into the user-writable extensions tree under `<kind>/<id>/`.
  * Re-importing an id replaces the existing copy (an in-place update). Returns
@@ -49,9 +38,6 @@ export async function importPluginFromFolder(srcDir: string): Promise<ImportOutc
     return { ok: false, reason: `not a valid plugin folder: ${read.reason}` };
   }
   const { manifest } = read;
-  if (!isSafePluginId(manifest.id)) {
-    return { ok: false, reason: `manifest id "${manifest.id}" is not a valid plugin identifier` };
-  }
 
   const target = pluginInstallDir(manifest.kind, manifest.id);
 

@@ -90,6 +90,28 @@ export type PluginKind = 'function' | 'theme' | 'nav-style' | 'shape';
  *  and the manifest validator agree on the set. */
 export const PLUGIN_KINDS: readonly PluginKind[] = ['function', 'theme', 'nav-style', 'shape'];
 
+/** Charset rule for a plugin id or namespaced item id (action name, preset
+ *  id, shape id). Permits letters, digits, dots, dashes, and underscores;
+ *  must start with a letter or digit. Reverse-DNS style (`org.example.thing`)
+ *  passes.
+ *
+ *  Plugin/item ids are used both as a filesystem path segment
+ *  (`<userExtensionsRoot>/<kind>/<pluginId>/`) and as the prefix half of the
+ *  saved namespace key `<pluginId>/<itemId>` in menu configs. A `/`,
+ *  whitespace, control char, or `..` traversal in an id would silently break
+ *  the namespace parser (the editor's picker would fail to resolve the saved
+ *  selection and fall back to the host default). Rejecting it at validation
+ *  time pins the contract before either contract gets a chance to break. */
+export const SAFE_PLUGIN_ID_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/** True iff `id` is a valid plugin id, action name, preset id, or shape id.
+ *  See {@link SAFE_PLUGIN_ID_REGEX} for the allowed charset. The extra
+ *  `..`-substring check rejects path-traversal patterns the regex alone
+ *  would permit in the middle of an id (e.g. `a..b`). */
+export function isSafePluginId(id: string): boolean {
+  return SAFE_PLUGIN_ID_REGEX.test(id) && !id.includes('..');
+}
+
 /** One navigation-style preset shipped by a nav-style plugin. Mirrors the
  *  built-in `NavigationPreset` in `shared/navigation-presets.ts`: a stable
  *  `id`, a label/description for the dropdown, and the full
