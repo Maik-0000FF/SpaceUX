@@ -16,6 +16,7 @@ import {
   type PluginCatalogResult,
   type PluginCategory,
   type PluginImportResult,
+  type PluginInvalidatedPayload,
   type PluginsState,
   type PluginUninstallResult,
   type ProfileActionResult,
@@ -98,6 +99,12 @@ const bridge: EditorBridge = {
     ) as Promise<PluginCatalogResult>,
   getShapeSource: (pluginId: string) =>
     ipcRenderer.invoke(IpcChannel.GET_SHAPE_SOURCE, pluginId) as Promise<string | null>,
+  onPluginInvalidated: (handler) => {
+    const listener = (_evt: IpcRendererEvent, payload: PluginInvalidatedPayload) =>
+      handler(payload);
+    ipcRenderer.on(IpcChannel.PLUGIN_INVALIDATED, listener);
+    return () => ipcRenderer.off(IpcChannel.PLUGIN_INVALIDATED, listener);
+  },
   getWorkbenchMenus: () =>
     ipcRenderer.invoke(IpcChannel.EDITOR_GET_WORKBENCH_MENUS) as Promise<WorkbenchMenusState>,
   onWorkbenchMenusChanged: (handler) => {

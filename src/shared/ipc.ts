@@ -154,6 +154,13 @@ export const IpcChannel = {
   /** Editor uninstalls an installed plugin (deletes its managed folder),
    *  identified by kind + id. invoke → the new {@link PluginsState}. */
   EDITOR_UNINSTALL_PLUGIN: 'spaceux:editor:plugins:uninstall',
+  /** Main broadcasts to both renderer windows (editor + live overlay) when
+   *  a plugin's on-disk source has changed: it was uninstalled or
+   *  re-imported. Renderer-side caches keyed by plugin id (currently the
+   *  shape-modules store, #269) drop their entry so the next consumer
+   *  re-fetches against the new disk state instead of serving a stale
+   *  module from V8. Payload: {@link PluginInvalidatedPayload}. */
+  PLUGIN_INVALIDATED: 'spaceux:plugin:invalidated',
   /** Editor pulls a plugin's command catalog for the palette (#76 D2):
    *  invoke({ pluginId, loadAll }) → {@link PluginCatalogResult}. Main calls
    *  the plugin's `provideCatalog` (with a timeout); a plugin without one, or
@@ -307,6 +314,15 @@ export type PluginImportResult =
 export type PluginUninstallResult =
   | { ok: true; state: PluginsState }
   | { ok: false; reason: string; state: PluginsState };
+
+/** Payload of the {@link IpcChannel.PLUGIN_INVALIDATED} broadcast. The
+ *  renderer's per-plugin caches (shape-modules today, #269) use `kind` to
+ *  filter — they only care about their own kind — and `pluginId` to drop
+ *  the matching entry. */
+export type PluginInvalidatedPayload = {
+  pluginId: string;
+  kind: PluginCategory;
+};
 
 /** Result of an editor command-catalog pull (#76 D2). Failure (no such plugin,
  *  no `provideCatalog`, or an unreachable bridge) carries a reason the palette

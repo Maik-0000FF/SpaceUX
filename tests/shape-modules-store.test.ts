@@ -3,7 +3,9 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { type PluginInvalidatedPayload } from '../src/shared/ipc';
 import { _setShapeImporterForTests, useShapeModules } from '../src/editor/state/shape-modules';
+import { createShapeModulesStore } from '../src/renderer/state/shape-modules-factory';
 
 /**
  * Renderer-side shape-module store (#107 PR2): pulls a shape plugin's
@@ -154,5 +156,67 @@ describe('useShapeModules', () => {
     pendingResolve!({ layout: () => ({}), hitTest: () => null });
     await pending;
     expect(get('org.example.slow')).not.toBeNull();
+  });
+});
+
+describe('createShapeModulesStore: plugin invalidation (#269)', () => {
+  // The wrapper modules (editor + renderer) subscribe at construction by
+  // passing a real bridge call through; here we exercise the factory
+  // directly with a stub subscribe so we can capture and fire the
+  // invalidation handler without an Electron bridge or a renderer window.
+
+  function buildStore() {
+    let captured: ((payload: PluginInvalidatedPayload) => void) | null = null;
+    const store = createShapeModulesStore(
+      () => Promise.resolve('export const layout = ...'),
+      (handler) => {
+        captured = handler;
+        return () => {};
+      },
+    );
+    store._setShapeImporterForTests(async () => ({
+      layout: () => ({ nodes: [], labels: [] }),
+      hitTest: () => null,
+    }));
+    return { store, fire: (p: PluginInvalidatedPayload) => captured?.(p) };
+  }
+
+  it('drops the cached entry when a shape plugin is invalidated', async () => {
+    // Mirrors the real flow: a shape plugin loads (planets), then main
+    // broadcasts that planets was uninstalled or re-imported, and the
+    // store invalidates its cache so the next ensureLoaded refetches.
+    const { store, fire } = buildStore();
+    const { ensureLoaded } = store.useShapeModules.getState();
+    await ensureLoaded('org.example.planets');
+    expect(store.useShapeModules.getState().modules['org.example.planets']?.status).toBe('ready');
+
+    fire({ pluginId: 'org.example.planets', kind: 'shape' });
+
+    expect(store.useShapeModules.getState().modules['org.example.planets']).toBeUndefined();
+  });
+
+  it('ignores invalidations for non-shape kinds', async () => {
+    // Each renderer-side cache owns one kind; a function-plugin uninstall
+    // shouldn't reach into the shape store and clear unrelated state.
+    const { store, fire } = buildStore();
+    const { ensureLoaded } = store.useShapeModules.getState();
+    await ensureLoaded('org.example.planets');
+
+    fire({ pluginId: 'org.example.planets', kind: 'function' });
+    fire({ pluginId: 'org.example.planets', kind: 'theme' });
+    fire({ pluginId: 'org.example.planets', kind: 'nav-style' });
+
+    expect(store.useShapeModules.getState().modules['org.example.planets']?.status).toBe('ready');
+  });
+
+  it('is a no-op for plugin ids that were never loaded', async () => {
+    // Renderer subscribes broadly (main broadcasts on every plugin
+    // import + uninstall); ids the store never cached must not flip a
+    // status or otherwise materialise an entry.
+    const { store, fire } = buildStore();
+
+    fire({ pluginId: 'org.example.unknown', kind: 'shape' });
+
+    expect(store.useShapeModules.getState().modules['org.example.unknown']).toBeUndefined();
   });
 });

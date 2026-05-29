@@ -3,6 +3,7 @@
 
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
+import { type PluginInvalidatedPayload } from '@/shared/ipc';
 import { validateShapePluginModule, type ShapePluginModule } from '@/shared/shape-plugin-api';
 
 /**
@@ -56,11 +57,18 @@ async function defaultBlobUrlImporter(source: string): Promise<unknown> {
   }
 }
 
-/** Create a shape-modules zustand store bound to the given
- *  `getSource` IPC method. Returns the store hook + a test-only
+/** Create a shape-modules zustand store bound to the given `getSource` IPC
+ *  method. `subscribePluginInvalidated` is optional: when provided, the
+ *  factory subscribes to plugin-invalidation events (#269) and drops the
+ *  cached entry for any shape plugin whose source changed on disk
+ *  (uninstall or re-import). Tests typically omit it so no real bridge is
+ *  needed in the test environment. Returns the store hook + a test-only
  *  setter for the importer; both are scoped to this factory call so
  *  swapping the importer for one store doesn't affect any other. */
-export function createShapeModulesStore(getSource: (pluginId: string) => Promise<string | null>): {
+export function createShapeModulesStore(
+  getSource: (pluginId: string) => Promise<string | null>,
+  subscribePluginInvalidated?: (handler: (payload: PluginInvalidatedPayload) => void) => () => void,
+): {
   useShapeModules: UseBoundStore<StoreApi<ShapeModulesStoreState>>;
   _setShapeImporterForTests: (next: ShapeSourceImporter | null) => void;
 } {
@@ -135,6 +143,17 @@ export function createShapeModulesStore(getSource: (pluginId: string) => Promise
       return entry?.status === 'ready' ? entry.module : null;
     },
   }));
+
+  // Wire renderer-side cache invalidation (#269). The bridge broadcasts on
+  // every plugin import + uninstall regardless of kind; this store only
+  // cares about the shape kind, so the handler filters before clearing.
+  // No unsubscribe is kept because the store lives for the lifetime of the
+  // renderer window — leak isn't observable.
+  if (subscribePluginInvalidated) {
+    subscribePluginInvalidated((payload) => {
+      if (payload.kind === 'shape') useShapeModules.getState().clear(payload.pluginId);
+    });
+  }
 
   return {
     useShapeModules,

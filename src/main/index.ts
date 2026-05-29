@@ -19,6 +19,7 @@ import {
   type PieAppearance,
   type PieBadges,
   type PluginInfo,
+  type PluginInvalidatedPayload,
   type PluginsState,
   type ProfileActionResult,
   type ProfilesState,
@@ -252,6 +253,16 @@ async function refreshShapeManifestCache(): Promise<void> {
   const { plugins, errors } = await loadPluginManifests('shape');
   loadedShapeManifests = new Map(plugins.map((p) => [p.manifest.id, p]));
   shapeLoadErrors = errors;
+}
+
+/** Broadcast a plugin's invalidation to both renderer windows (editor + live
+ *  overlay) so their per-plugin caches drop the matching entry. Fired after
+ *  every plugin import (covers re-imports of an existing id) and uninstall
+ *  (#269); without this the shape-modules store would keep serving the
+ *  removed plugin's module from V8 across pie opens. */
+function broadcastPluginInvalidated(payload: PluginInvalidatedPayload): void {
+  sendToEditor(IpcChannel.PLUGIN_INVALIDATED, payload);
+  mainWindow?.webContents.send(IpcChannel.PLUGIN_INVALIDATED, payload);
 }
 
 /** Snapshot the installed plugins for the editor's manager: the live
@@ -1426,6 +1437,11 @@ app.whenReady().then(async () => {
       // needs the fresh listing below, no rebuild / dropdown refresh.
       if (outcome.manifest.kind === 'function') await reloadFunctionPlugins();
       const state = await buildPluginsState();
+      // Tell renderer caches keyed on plugin id (shape-modules today, #269)
+      // to drop their entry: covers re-import of an existing id, where the
+      // on-disk source is fresh and the cached V8 module is stale. A first-
+      // time import is a no-op on the renderer side since nothing was cached.
+      broadcastPluginInvalidated({ pluginId: outcome.manifest.id, kind: outcome.manifest.kind });
       const installed =
         state.plugins.find(
           (p) => p.id === outcome.manifest.id && p.kind === outcome.manifest.kind,
@@ -1436,6 +1452,11 @@ app.whenReady().then(async () => {
       const result = await uninstallPlugin(kind, id);
       await reloadFunctionPlugins();
       const state = await buildPluginsState();
+      // Drop the renderer-side cache for this plugin id (#269) even when the
+      // disk delete itself failed: if the manifest is gone but residual files
+      // remain, the next load attempt fails through the existing error path,
+      // which is preferable to keeping a stale module live.
+      broadcastPluginInvalidated({ pluginId: id, kind });
       // Always return the refreshed state; surface a real delete error (#221).
       return result.ok ? { ok: true, state } : { ok: false, reason: result.reason, state };
     },

@@ -10,6 +10,7 @@ import {
   type MenuOpenPayload,
   type PieAppearance,
   type PieBadges,
+  type PluginInvalidatedPayload,
 } from '../shared/ipc.js';
 import type { MenuConfig } from '../shared/menu.js';
 
@@ -51,6 +52,8 @@ const bridge: SpaceUxBridge = {
     subscribe<PieAppearance>(IpcChannel.PIE_APPEARANCE_CHANGED, handler),
   getShapeSource: (pluginId: string) =>
     ipcRenderer.invoke(IpcChannel.GET_SHAPE_SOURCE, pluginId) as Promise<string | null>,
+  onPluginInvalidated: (handler) =>
+    subscribe<PluginInvalidatedPayload>(IpcChannel.PLUGIN_INVALIDATED, handler),
 };
 
 contextBridge.exposeInMainWorld('spaceux', bridge);
