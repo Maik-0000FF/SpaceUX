@@ -11,9 +11,10 @@ import { pluginInstallDir, readPluginManifest, userExtensionsRoot } from './plug
 
 /**
  * Plugin installation: copy a downloaded plugin *folder* into the managed
- * `extensions/<kind>/<id>/` tree, and remove it again. Users import rather
- * than point the loader at arbitrary paths, so the on-disk layout stays
- * canonical and the loader only ever scans trusted, host-owned directories.
+ * user-writable extensions tree (`<userExtensionsRoot>/<kind>/<id>/`), and
+ * remove it again. Users import rather than point the loader at arbitrary
+ * paths, so the on-disk layout stays canonical and the loader only ever scans
+ * trusted, host-owned directories.
  *
  * (Folder import only for now; archive/.zip import is a later addition.)
  */
@@ -35,9 +36,10 @@ function isSafePluginId(id: string): boolean {
 
 /**
  * Import the plugin folder at `srcDir`: validate its manifest, then copy the
- * whole folder into the user-writable `extensions/<kind>/<id>/`. Re-importing
- * an id replaces the existing copy (an in-place update). Returns the manifest
- * and final directory on success, or a human-readable reason on failure.
+ * whole folder into the user-writable extensions tree under `<kind>/<id>/`.
+ * Re-importing an id replaces the existing copy (an in-place update). Returns
+ * the manifest and final directory on success, or a human-readable reason on
+ * failure.
  */
 export async function importPluginFromFolder(srcDir: string): Promise<ImportOutcome> {
   const resolvedSrc = path.resolve(srcDir);

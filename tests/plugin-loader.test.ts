@@ -1,17 +1,10 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 import { validateManifest } from '../src/main/plugin-loader';
 import { MIN_SUPPORTED_PLUGIN_API_VERSION, PLUGIN_API_VERSION } from '../src/shared/plugin-types';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, '..');
 
 /** Build a minimal manifest object that passes every field other than
  *  the one a given test wants to mutate. Keeps the per-test fixture
@@ -480,32 +473,6 @@ describe('validateManifest — shape kind', () => {
   it('still rejects a menu on a shape plugin (menus are function-only)', () => {
     const m = shapeManifestBase({ menu: { root: {} } });
     expect(validateManifest(m)).toMatch(/"menu" is only valid on a function plugin/);
-  });
-});
-
-describe('bundled extensions are valid manifests', () => {
-  it('extensions/nav-style/org.spaceux.twist-press-lift/manifest.json passes the validator', () => {
-    // Smoke test: the plugin ships with the repo and is the canonical example
-    // of a nav-style plugin. If its manifest ever drifts out of contract this
-    // test fires before the editor's user-facing import.
-    const raw = readFileSync(
-      path.join(REPO_ROOT, 'extensions/nav-style/org.spaceux.twist-press-lift/manifest.json'),
-      'utf8',
-    );
-    const parsed: unknown = JSON.parse(raw);
-    expect(validateManifest(parsed)).toBeNull();
-  });
-
-  it('extensions/shape/org.spaceux.planets/manifest.json passes the validator', () => {
-    // Smoke test: the planets plugin is the canonical shape-plugin
-    // example bundled with the repo (#107 PR4). Same drift guard as
-    // the nav-style sibling above.
-    const raw = readFileSync(
-      path.join(REPO_ROOT, 'extensions/shape/org.spaceux.planets/manifest.json'),
-      'utf8',
-    );
-    const parsed: unknown = JSON.parse(raw);
-    expect(validateManifest(parsed)).toBeNull();
   });
 });
 

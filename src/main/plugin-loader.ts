@@ -28,14 +28,14 @@ import { dedupPreserveOrder } from '../shared/util.js';
 import type { DaemonClient } from './daemon-client.js';
 
 /**
- * Discover, validate, and import plugins from the managed `extensions/`
- * tree. Plugins live in a per-category subdirectory keyed by their
- * manifest `kind`, so the layout is self-describing and future-proof:
+ * Discover, validate, and import installed plugins. Plugins live in a
+ * per-category subdirectory keyed by their manifest `kind`, so the layout
+ * is self-describing and future-proof:
  *
- *   <root>/extensions/function/<id>/   — action / menu plugins (e.g. FreeCAD)
- *   <root>/extensions/theme/<id>/      — pie theme/design plugins (#47)
- *   <root>/extensions/nav-style/<id>/  — navigation-style preset bundles
- *   <root>/extensions/shape/<id>/      — pie shape model plugins (#107)
+ *   <root>/function/<id>/   — action / menu plugins (e.g. FreeCAD)
+ *   <root>/theme/<id>/      — pie theme/design plugins (#47)
+ *   <root>/nav-style/<id>/  — navigation-style preset bundles
+ *   <root>/shape/<id>/      — pie shape model plugins (#107)
  *
  * Search roots, highest precedence first (first hit wins per id, so a
  * user copy shadows a system one):
@@ -43,7 +43,6 @@ import type { DaemonClient } from './daemon-client.js';
  *      extensions) — the user-writable root the importer copies into.
  *   2. /usr/local/share/spaceux/extensions
  *   3. /usr/share/spaceux/extensions
- *   4. <repo>/extensions  (development convenience)
  *
  * Users don't point the loader at arbitrary folders; they *import* a
  * downloaded plugin (see plugin-installer), which copies it into the
@@ -92,18 +91,17 @@ export function userExtensionsRoot(): string {
 }
 
 /** Every extensions root to search, highest precedence first. */
-export function extensionRoots(repoRoot?: string): string[] {
+export function extensionRoots(): string[] {
   return dedupPreserveOrder<string>([
     userExtensionsRoot(),
     '/usr/local/share/spaceux/extensions',
     '/usr/share/spaceux/extensions',
-    repoRoot ? path.join(repoRoot, 'extensions') : null,
   ]);
 }
 
 /** The per-category scan dirs (`<root>/<category>`) across every root. */
-export function pluginCategoryPaths(category: PluginKind, repoRoot?: string): string[] {
-  return extensionRoots(repoRoot).map((root) => path.join(root, category));
+export function pluginCategoryPaths(category: PluginKind): string[] {
+  return extensionRoots().map((root) => path.join(root, category));
 }
 
 /** Absolute install directory for a plugin of the given kind + id in the
@@ -119,11 +117,11 @@ export function pluginInstallDir(kind: PluginKind, id: string): string {
  * mismatch (a plugin dropped in the wrong folder) is reported as an error
  * rather than loaded, so the on-disk layout stays trustworthy.
  */
-export async function loadPlugins(category: PluginKind, repoRoot?: string): Promise<LoadResult> {
+export async function loadPlugins(category: PluginKind): Promise<LoadResult> {
   const out: LoadResult = { plugins: [], errors: [] };
   const seenIds = new Set<string>();
 
-  for (const root of pluginCategoryPaths(category, repoRoot)) {
+  for (const root of pluginCategoryPaths(category)) {
     let entries: string[];
     try {
       entries = await fs.readdir(root);
@@ -465,13 +463,12 @@ export type InstalledPlugin = { manifest: PluginManifest; dir: string };
  */
 export async function loadPluginManifests(
   category: PluginKind,
-  repoRoot?: string,
 ): Promise<{ plugins: InstalledPlugin[]; errors: { dir: string; reason: string }[] }> {
   const plugins: InstalledPlugin[] = [];
   const errors: { dir: string; reason: string }[] = [];
   const seenIds = new Set<string>();
 
-  for (const root of pluginCategoryPaths(category, repoRoot)) {
+  for (const root of pluginCategoryPaths(category)) {
     let entries: string[];
     try {
       entries = await fs.readdir(root);
