@@ -24,6 +24,7 @@ import { useUndoRedoShortcuts } from './hooks/useUndoRedoShortcuts';
 import { useWriteBack } from './hooks/useWriteBack';
 import { adopt } from './state/adopt';
 import { useMenuSettings } from './state/menu-settings';
+import { notify } from './state/toasts';
 
 import styles from './App.module.scss';
 
@@ -59,25 +60,50 @@ export function App() {
   };
 
   // Keep local edits: write them over the on-disk version using its
-  // current mtime so the write's own conflict check passes.
-  const overwrite = (): void => {
+  // current mtime so the write's own conflict check passes. If a follow-up
+  // external save (e.g. VS Code autosave) lands between the conflict was
+  // raised and the click, the first write returns ok:'conflict' with a
+  // bumped mtime; retry up to a few times with the fresh mtime so a steady
+  // external editor doesn't make Overwrite look like a silent no-op (#275).
+  // After the bounded attempts, surface a toast so the user knows the
+  // click did register and what they need to do.
+  const overwrite = async (): Promise<void> => {
     const { config, conflict: stashed } = useMenuSettings.getState();
     if (!config || !stashed) return;
-    void window.editor.setMenuConfig(config, stashed.mtime).then((result) => {
-      const s = useMenuSettings.getState();
-      if (result.ok === true) {
-        s.markSaved(result.mtime);
-        s.clearConflict();
-      } else if (result.ok === 'conflict') {
-        // Raced another external write — refresh the stash to the current
-        // on-disk version so a follow-up Reload adopts the latest, not
-        // the now-superseded snapshot. A write race is a file-level
-        // conflict regardless of what first raised the banner.
-        void window.editor.getMenuConfig().then((snapshot) => s.setConflict(snapshot, 'external'));
-      } else {
-        s.setSaveError(result.reason);
+    const MAX_OVERWRITE_ATTEMPTS = 3;
+    let expectedMtime: number | null = stashed.mtime;
+    try {
+      for (let attempt = 1; attempt <= MAX_OVERWRITE_ATTEMPTS; attempt++) {
+        const result = await window.editor.setMenuConfig(config, expectedMtime);
+        const s = useMenuSettings.getState();
+        if (result.ok === true) {
+          s.markSaved(result.mtime);
+          s.clearConflict();
+          return;
+        }
+        if (result.ok === false) {
+          s.setSaveError(result.reason);
+          return;
+        }
+        // result.ok === 'conflict'. Refresh the stash to the current on-disk
+        // version so a follow-up Reload adopts the latest, not the now-
+        // superseded snapshot, and use the new mtime for the next attempt.
+        const snapshot = await window.editor.getMenuConfig();
+        s.setConflict(snapshot, 'external');
+        expectedMtime = snapshot.mtime;
       }
-    });
+      notify(
+        'error',
+        'The active configuration kept changing while saving. Pause the external editor and try Overwrite again.',
+      );
+    } catch (err) {
+      // Belt-and-suspenders: the setMenuConfig / getMenuConfig handlers return
+      // result objects rather than throwing, but a future IPC reshape (or a
+      // transport-level Electron error) could still reject the await. Surface
+      // it as a save error instead of letting the rejection bubble out of the
+      // onClick path silently.
+      useMenuSettings.getState().setSaveError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (
