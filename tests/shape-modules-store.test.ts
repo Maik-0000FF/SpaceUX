@@ -219,4 +219,41 @@ describe('createShapeModulesStore: plugin invalidation (#269)', () => {
 
     expect(store.useShapeModules.getState().modules['org.example.unknown']).toBeUndefined();
   });
+
+  it('drops the load result when clear runs before the in-flight import completes', async () => {
+    // Race scenario: ensureLoaded fired, the IPC + import are mid-flight,
+    // an invalidation arrives and clears the entry, and then the
+    // importer resolves with the old source. The post-resolve set must
+    // detect that the loading entry it created is no longer current and
+    // drop its result instead of re-cacheing the stale module.
+    let resolveImporter: ((m: unknown) => void) | null = null;
+    const store = createShapeModulesStore(
+      () => Promise.resolve('export const layout = ...'),
+      () => () => {},
+    );
+    store._setShapeImporterForTests(
+      () =>
+        new Promise((res) => {
+          resolveImporter = res;
+        }),
+    );
+
+    const { ensureLoaded, clear } = store.useShapeModules.getState();
+    const pending = ensureLoaded('org.example.planets');
+    // Drain to the importer await so `resolveImporter` is the real one,
+    // mirroring the existing "get returns null while still loading" test.
+    await vi.waitFor(() => {
+      if (resolveImporter === null) throw new Error('importer not yet invoked');
+    });
+    expect(store.useShapeModules.getState().modules['org.example.planets']?.status).toBe('loading');
+
+    clear('org.example.planets');
+    expect(store.useShapeModules.getState().modules['org.example.planets']).toBeUndefined();
+
+    resolveImporter!({ layout: () => ({ nodes: [], labels: [] }), hitTest: () => null });
+    await pending;
+
+    // No stale module wrote back over the cleared entry.
+    expect(store.useShapeModules.getState().modules['org.example.planets']).toBeUndefined();
+  });
 });

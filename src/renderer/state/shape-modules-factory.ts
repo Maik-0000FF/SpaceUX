@@ -86,8 +86,21 @@ export function createShapeModulesStore(
       // ensureLoaded call in the same tick observes `loading` and
       // returns the same promise instead of starting a parallel
       // IPC + import.
+      //
+      // `loadingEntry` is captured by the IIFE below so each post-await
+      // step can identity-check `get().modules[pluginId]` against it. If a
+      // concurrent `clear` (or another load that replaced the entry) ran
+      // mid-flight, the check fails and the in-flight result is dropped
+      // instead of overwriting the cleared / replaced state. Without that
+      // guard, an invalidation arriving between the load start and its
+      // resolution would silently re-cache the stale module (#269 race).
+      // The assignment lands before the first await suspends, so the
+      // closure observes the populated reference on every resume.
+      let loadingEntry: ShapeModuleEntry;
+      const stillUs = () => get().modules[pluginId] === loadingEntry;
       const promise = (async () => {
         const source = await getSource(pluginId);
+        if (!stillUs()) return;
         if (source === null) {
           set((s) => ({
             modules: {
@@ -101,6 +114,7 @@ export function createShapeModulesStore(
         try {
           mod = await importer(source);
         } catch (err) {
+          if (!stillUs()) return;
           set((s) => ({
             modules: {
               ...s.modules,
@@ -112,6 +126,7 @@ export function createShapeModulesStore(
           }));
           return;
         }
+        if (!stillUs()) return;
         const reason = validateShapePluginModule(mod);
         if (reason !== null) {
           set((s) => ({
@@ -126,8 +141,9 @@ export function createShapeModulesStore(
           },
         }));
       })();
+      loadingEntry = { status: 'loading', promise };
       set((s) => ({
-        modules: { ...s.modules, [pluginId]: { status: 'loading', promise } },
+        modules: { ...s.modules, [pluginId]: loadingEntry },
       }));
       return promise;
     },
