@@ -135,10 +135,16 @@ export function useLivePreviewNavigation(
         break;
       case 'back':
         // Pop a level toward the centre. 'dismiss' (from the centre) is
-        // suppressed: the sandbox never closes.
+        // suppressed: the sandbox never closes. Mirror the overlay's
+        // `drillReducer` pop action (src/core/menu-nav.ts): after the pop,
+        // sticky lands on the index we just came from, so the now-active
+        // ring shows that sector as a breadcrumb. Without this the editor
+        // preview dropped the highlight on every back step (#185) and one
+        // level on a deep back-out felt skipped.
         if (outcome.mode === 'pop') {
+          const poppedIndex = navigation[navigation.length - 1] ?? null;
           drillTo(navigation.length - 1);
-          setSticky(null);
+          setSticky(poppedIndex);
         }
         break;
       case 'exitToCenter':
