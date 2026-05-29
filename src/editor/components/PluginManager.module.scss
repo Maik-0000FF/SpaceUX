@@ -84,6 +84,16 @@
   color: var(--editor-fg-dim);
 }
 
+// Kind sections (#220): one per non-empty plugin kind, headed by a
+// .subhead that names the kind ('Function' / 'Theme' / 'Navigation-style' /
+// 'Shape'). The per-item kind badge stays as a redundant cue so a row
+// scrolled away from its heading still says what it is at a glance.
+.kindSection {
+  & + & {
+    margin-top: 12px;
+  }
+}
+
 .itemMeta {
   grid-area: meta;
   display: flex;

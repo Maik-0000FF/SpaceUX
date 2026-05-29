@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 
 import type { PluginCategory, PluginUsageReport } from '@/shared/ipc';
+import { PLUGIN_KINDS } from '@/shared/plugin-types';
 
 import { confirm } from '../state/confirm';
 import { usePluginsState } from '../state/plugins';
@@ -11,8 +12,20 @@ import { notify } from '../state/toasts';
 
 import styles from './PluginManager.module.scss';
 
+/** User-facing section heading for each plugin kind (#220). The on-disk
+ *  string ('function' / 'theme' / etc.) is the canonical key; this map is
+ *  only for the manager UI. Keep it short — the surrounding context already
+ *  says "Plugin manager", so a heading like "Function plugins" reads
+ *  redundantly. */
+const KIND_HEADING: Record<PluginCategory, string> = {
+  function: 'Function',
+  theme: 'Theme',
+  'nav-style': 'Navigation-style',
+  shape: 'Shape',
+};
+
 /**
- * Plugin manager (#NNN): import a downloaded plugin *folder* (it's copied into
+ * Plugin manager (#167): import a downloaded plugin *folder* (it's copied into
  * SpaceUX's managed `extensions/<kind>/` tree), list what's installed, and
  * remove plugins. Users don't point the loader at arbitrary paths; import is
  * the one way in, so the on-disk layout stays canonical.
@@ -140,51 +153,65 @@ export function PluginManager() {
       {plugins.length === 0 ? (
         <p className={styles.empty}>No plugins installed yet.</p>
       ) : (
-        <ul className={styles.list}>
-          {plugins.map((p) => (
-            <li key={`${p.kind}/${p.id}`} className={styles.item}>
-              <div className={styles.itemHead}>
-                <span className={styles.itemName}>{p.name}</span>
-                <span className={styles.kindBadge}>{p.kind}</span>
-              </div>
-              <div className={styles.itemMeta}>
-                <span>
-                  {p.id} · v{p.version}
-                </span>
-                {p.kind === 'function' && (
-                  <span>
-                    {p.actionCount} action{p.actionCount === 1 ? '' : 's'}
-                  </span>
-                )}
-                {p.kind === 'nav-style' && p.navStylePresets && (
-                  <span>
-                    {p.navStylePresets.length} preset{p.navStylePresets.length === 1 ? '' : 's'}
-                  </span>
-                )}
-                {p.kind === 'shape' && p.shape && <span>{p.shape.label}</span>}
-              </div>
-              {p.removable ? (
-                <button
-                  type="button"
-                  className={styles.removeButton}
-                  onClick={() => void remove(p.kind, p.id, p.name)}
-                  disabled={busy}
-                >
-                  Remove
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className={styles.removeButton}
-                  disabled
-                  title="Bundled with the app (loaded from the project or a system folder) — not removable here."
-                >
-                  Remove
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+        // Section per plugin kind (#220). PLUGIN_KINDS gives the canonical
+        // order so themes don't suddenly precede functions if the install
+        // sequence happened to vary; empty kinds collapse out so the manager
+        // only shows what the user actually has.
+        PLUGIN_KINDS.map((kind) => {
+          const kindPlugins = plugins.filter((p) => p.kind === kind);
+          if (kindPlugins.length === 0) return null;
+          return (
+            <section key={kind} className={styles.kindSection}>
+              <h3 className={styles.subhead}>{KIND_HEADING[kind]}</h3>
+              <ul className={styles.list}>
+                {kindPlugins.map((p) => (
+                  <li key={`${p.kind}/${p.id}`} className={styles.item}>
+                    <div className={styles.itemHead}>
+                      <span className={styles.itemName}>{p.name}</span>
+                      <span className={styles.kindBadge}>{p.kind}</span>
+                    </div>
+                    <div className={styles.itemMeta}>
+                      <span>
+                        {p.id} · v{p.version}
+                      </span>
+                      {p.kind === 'function' && (
+                        <span>
+                          {p.actionCount} action{p.actionCount === 1 ? '' : 's'}
+                        </span>
+                      )}
+                      {p.kind === 'nav-style' && p.navStylePresets && (
+                        <span>
+                          {p.navStylePresets.length} preset
+                          {p.navStylePresets.length === 1 ? '' : 's'}
+                        </span>
+                      )}
+                      {p.kind === 'shape' && p.shape && <span>{p.shape.label}</span>}
+                    </div>
+                    {p.removable ? (
+                      <button
+                        type="button"
+                        className={styles.removeButton}
+                        onClick={() => void remove(p.kind, p.id, p.name)}
+                        disabled={busy}
+                      >
+                        Remove
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={styles.removeButton}
+                        disabled
+                        title="Bundled with the app (loaded from the project or a system folder) — not removable here."
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          );
+        })
       )}
 
       {errors.length > 0 && (
