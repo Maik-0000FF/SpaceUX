@@ -326,7 +326,7 @@ export function validateManifest(value: unknown): string | null {
       if (typeof a.name !== 'string' || a.name.trim() === '')
         return 'action.name must be a non-empty string';
       if (!isSafePluginId(a.name))
-        return `action.name "${a.name}" must use only letters, digits, dots, dashes, and underscores`;
+        return `action.name "${a.name}" must use only letters, digits, dots, dashes, and underscores (no path separators, whitespace, or ".." segments)`;
       if (typeof a.label !== 'string' || a.label.trim() === '')
         return 'action.label must be a non-empty string';
       if (seenNames.has(a.name)) return `action.name "${a.name}" appears more than once`;
@@ -355,7 +355,7 @@ export function validateManifest(value: unknown): string | null {
       if (typeof p.id !== 'string' || p.id.trim() === '')
         return 'preset.id must be a non-empty string';
       if (!isSafePluginId(p.id))
-        return `preset.id "${p.id}" must use only letters, digits, dots, dashes, and underscores`;
+        return `preset.id "${p.id}" must use only letters, digits, dots, dashes, and underscores (no path separators, whitespace, or ".." segments)`;
       if (typeof p.label !== 'string' || p.label.trim() === '')
         return 'preset.label must be a non-empty string';
       if (typeof p.description !== 'string' || p.description.trim() === '')
@@ -389,7 +389,7 @@ export function validateManifest(value: unknown): string | null {
     if (typeof s.id !== 'string' || s.id.trim() === '')
       return 'shape.id must be a non-empty string';
     if (!isSafePluginId(s.id))
-      return `shape.id "${s.id}" must use only letters, digits, dots, dashes, and underscores`;
+      return `shape.id "${s.id}" must use only letters, digits, dots, dashes, and underscores (no path separators, whitespace, or ".." segments)`;
     if (typeof s.label !== 'string' || s.label.trim() === '')
       return 'shape.label must be a non-empty string';
     if (typeof s.description !== 'string' || s.description.trim() === '')
