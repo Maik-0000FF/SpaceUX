@@ -6,6 +6,7 @@ import { useEffect, useMemo } from 'react';
 import { isRenderableIcon } from '@/core/icon';
 import { truncatePieLabel, segmentLabelFontPx } from '@/core/pie-geometry';
 import { isCancelNode, type MenuNode } from '@/shared/menu';
+import { parsePluginKey } from '@/shared/plugin-key';
 import {
   validateShapeLayout,
   type ShapeLayout,
@@ -112,8 +113,11 @@ export function ShapePie({
   // Pull the plugin id from the namespaced key (`<pluginId>/<shapeId>`).
   // The runtime store loads by plugin id; the shape id is a within-plugin
   // selector that PR3b doesn't dispatch on (a plugin ships one shape, so
-  // the key uniquely identifies the layout-function pair).
-  const pluginId = shapeKey.includes('/') ? shapeKey.split('/', 1)[0]! : shapeKey;
+  // the key uniquely identifies the layout-function pair). A malformed
+  // saved key (no slash, empty half) resolves to '' which the store can't
+  // load, so `moduleEntry` stays unready and the caller's `fallback` wedge
+  // renders, never a blank pie.
+  const pluginId = parsePluginKey(shapeKey)?.pluginId ?? '';
 
   const ensureLoaded = useShapeModules((s) => s.ensureLoaded);
   const moduleEntry = useShapeModules((s) => s.modules[pluginId]);

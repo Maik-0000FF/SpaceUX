@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo } from 'react';
 
+import { formatPluginKey } from '../../shared/plugin-key';
 import { usePieAppearance } from '../hooks/usePieAppearance';
 import { usePluginsState } from '../state/plugins';
 
@@ -13,14 +14,6 @@ import styles from './PieShapeSelect.module.scss';
  *  which can't collide with this literal because a manifest id can't be
  *  the empty string). */
 const WEDGE_VALUE = '';
-
-/** Namespace a plugin's shape id (#107). The reverse-DNS plugin id plus
- *  the in-plugin shape id, joined by `/`, mirrors the action / nav-style
- *  preset conventions. Pure formatter so the picker, the appearance
- *  resolver, and the runtime store can all agree on one literal. */
-function shapeKey(pluginId: string, shapeId: string): string {
-  return `${pluginId}/${shapeId}`;
-}
 
 /**
  * Pie shape model quick-pick for the preview design bar (#107). Lists the
@@ -52,7 +45,7 @@ export function PieShapeSelect() {
         p.kind === 'shape' && p.shape
           ? [
               {
-                key: shapeKey(p.id, p.shape.id),
+                key: formatPluginKey(p.id, p.shape.id),
                 pluginName: p.name,
                 label: p.shape.label,
                 description: p.shape.description,
