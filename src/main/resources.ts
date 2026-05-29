@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url';
  */
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
-export const resourceBase: string = app.isPackaged
+const resourceBase: string = app.isPackaged
   ? process.resourcesPath
   : path.resolve(moduleDir, '..', '..');
 
