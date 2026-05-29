@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { type MenuConfig, type MenuNode } from '../shared/menu.js';
+import { resolveShapeModel, type MenuConfig, type MenuNode } from '../shared/menu.js';
 import { type PieAppearance, type PluginCategory, type PluginUsageReport } from '../shared/ipc.js';
 
 /**
@@ -43,17 +43,6 @@ export type MenuRef = {
   appearance: PieAppearance;
 };
 
-/** Resolve the shape model that actually renders this menu: a per-menu
- *  override wins (string or `null` = force wedge); `undefined` inherits
- *  from the menu's effective appearance. Returns null when the wedge
- *  default is in effect. Mirrors `resolveShapeModel` in shared/menu but
- *  picks up the menu-effective appearance instead of the host's global
- *  one, so a device profile's bundled override is honoured. */
-function effectiveShapeFor(menu: MenuRef): string | null {
-  if (menu.config.shapeModel === undefined) return menu.appearance.shapeModel;
-  return menu.config.shapeModel;
-}
-
 /** True iff any node in the (sub)tree carries an action id starting with
  *  `<prefix>` (i.e. namespaced under the target plugin). */
 function treeHasPluginAction(node: MenuNode, prefix: string): boolean {
@@ -77,10 +66,11 @@ export function scanPluginUsage(
 
   if (kind === 'shape') {
     for (const m of menus) {
-      // Use the resolved effective shape so a menu with `shapeModel:
-      // undefined` (inherit) under a profile-bundled appearance that
-      // targets the plugin still gets caught.
-      const effective = effectiveShapeFor(m);
+      // Use the same resolver the renderer uses, so a menu with
+      // `shapeModel: undefined` (inherit) under a profile-bundled
+      // appearance that targets the plugin still gets caught — and stays
+      // bit-equivalent to the runtime path if the precedence ever evolves.
+      const effective = resolveShapeModel(m.config.shapeModel, m.appearance.shapeModel);
       if (typeof effective === 'string' && effective.startsWith(prefix)) {
         report.menus.push(m.name);
       }
