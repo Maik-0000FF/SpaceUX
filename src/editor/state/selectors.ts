@@ -23,6 +23,30 @@ export function nodeAtPath(config: MenuConfig, path: readonly number[]): MenuNod
   return ring[path[path.length - 1]!] ?? null;
 }
 
+/**
+ * Where the selection should land after `deleteOrCollapseNode(ring, index)`
+ * has mutated `after`. The rule is the same for both branches the action
+ * picks: focus a neighbour in the still-populated ring, or fall back to the
+ * ring path itself (the now-leaf parent when the submenu collapsed, or the
+ * centre when the root ring emptied).
+ *
+ * This must NOT go through `currentBranches`. That helper falls back to the
+ * root ring when a path segment hits a leaf, which makes a collapsed submenu
+ * look like a populated root ring and would steer the selection into the
+ * just-removed subtree. Resolve the parent directly with `nodeAtPath` (or
+ * the root for an empty ring path) and read its `branches` length.
+ */
+export function nextSelectionAfterDelete(
+  after: MenuConfig,
+  ring: readonly number[],
+  index: number,
+): number[] {
+  const parent = ring.length === 0 ? after.root : nodeAtPath(after, ring);
+  const remaining = parent?.branches?.length ?? 0;
+  if (remaining === 0) return [...ring];
+  return [...ring, Math.min(index, remaining - 1)];
+}
+
 /** Full index path to the selected node, or null when nothing is
  *  selected. Combines the view path with the in-ring selection. */
 export function selectedPath(

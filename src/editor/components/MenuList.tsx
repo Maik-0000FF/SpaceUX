@@ -18,7 +18,7 @@ import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
 import { moveTarget } from '../state/reorder';
 import { nextNodeId, nodeKey, uniqueItemLabel } from '../state/node-keys';
-import { ringBranches } from '../state/selectors';
+import { nextSelectionAfterDelete, ringBranches } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
 
@@ -177,15 +177,13 @@ export function MenuList() {
     // The store action picks delete vs. collapse from the live state
     // (deleting a submenu's last child collapses the parent to a leaf,
     // root ring can normally empty down to the centre); see
-    // menu-settings.ts:deleteOrCollapseNode (#82).
+    // menu-settings.ts:deleteOrCollapseNode (#82). The selection rule is
+    // shared via `nextSelectionAfterDelete` so a future change to either
+    // branch can't drift the two apart.
     deleteOrCollapseNode(ring, index);
     const after = useMenuSettings.getState().config;
     if (!after) return;
-    const remaining = ringBranches(after, ring).length;
-    // Same selection rule for both branches: a non-empty ring leaves us
-    // on a neighbour, an emptied ring (collapsed submenu or emptied root)
-    // lands on the ring path itself (the now-leaf parent, or the centre).
-    selectPath(remaining > 0 ? [...ring, Math.min(index, remaining - 1)] : ring);
+    selectPath(nextSelectionAfterDelete(after, ring, index));
   };
 
   const addTopLevel = (): void => {

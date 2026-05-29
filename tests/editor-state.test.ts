@@ -15,7 +15,12 @@ import {
 import { useAppState } from '../src/editor/state/app-state';
 import { useMenuSettings } from '../src/editor/state/menu-settings';
 import { pathOfNodeId } from '../src/editor/state/move-targets';
-import { ringBranches, nodeAtPath, selectedPath } from '../src/editor/state/selectors';
+import {
+  nextSelectionAfterDelete,
+  nodeAtPath,
+  ringBranches,
+  selectedPath,
+} from '../src/editor/state/selectors';
 
 // The editor's selection store and path resolver are pure logic, so
 // they're exercised here without a DOM — the components that consume
@@ -306,6 +311,45 @@ describe('menu-settings', () => {
       const after = useMenuSettings.getState().config!;
       expect(after).toEqual(before);
       expect(useMenuSettings.getState().dirty).toBe(false);
+    });
+
+    // Selection rule pinned via the shared helper. The MenuList view calls
+    // `nextSelectionAfterDelete(after, ring, index)` post-mutation; without
+    // these the collapsed-submenu case silently steers selection into the
+    // just-removed subtree (because `currentBranches` falls back to the
+    // root ring on a leaf path segment).
+    it('selection after collapsing a submenu lands on the now-leaf parent', () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([1], 0);
+      const after = useMenuSettings.getState().config!;
+      expect(nextSelectionAfterDelete(after, [1], 0)).toEqual([1]);
+    });
+
+    it('selection after normal delete lands on a neighbour in the same ring', () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([2], 0);
+      const after = useMenuSettings.getState().config!;
+      // sub-2 had ['sub-2-a', 'sub-2-b']; deleting index 0 leaves one item
+      // and the rule clamps the next selection to min(0, 0) = 0.
+      expect(nextSelectionAfterDelete(after, [2], 0)).toEqual([2, 0]);
+    });
+
+    it('selection after emptying the root lands on the centre', () => {
+      makeTree();
+      useMenuSettings.getState().deleteOrCollapseNode([], 2);
+      useMenuSettings.getState().deleteOrCollapseNode([], 1);
+      useMenuSettings.getState().deleteOrCollapseNode([], 0);
+      const after = useMenuSettings.getState().config!;
+      expect(nextSelectionAfterDelete(after, [], 0)).toEqual([]);
+    });
+
+    it('clamps the post-delete index to the new last sector if the trailing one was removed', () => {
+      makeTree();
+      // Delete the last child of sub-2 (index 1 of 2); the next selection
+      // must clamp to index 0, the new last.
+      useMenuSettings.getState().deleteOrCollapseNode([2], 1);
+      const after = useMenuSettings.getState().config!;
+      expect(nextSelectionAfterDelete(after, [2], 1)).toEqual([2, 0]);
     });
   });
 
