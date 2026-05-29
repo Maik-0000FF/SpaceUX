@@ -16,6 +16,7 @@
  * trigger.
  */
 
+import type { FreecadBridgeStatus, ProfileActionResult } from './ipc.js';
 import type { MenuNavigation, MenuNode } from './menu.js';
 
 /**
@@ -299,6 +300,25 @@ export type PluginMenu = {
   root: MenuNode;
 };
 
+/** Host-side capabilities a plugin may consume through {@link ActionContext}.
+ *  Today the only entry is the FreeCAD bridge — the first plugin (#267) that
+ *  needs to clean up state outside SpaceUX's managed extensions tree. Other
+ *  host integrations slot in alongside as new plugins need them. */
+export type PluginHostCapabilities = {
+  /** FreeCAD bridge addon controls (#189): same operations the editor's
+   *  bridge installer UI uses, exposed to a function plugin so it can poll
+   *  status and tear the addon down from its own lifecycle hooks
+   *  (`provideUninstall` today). */
+  freecadBridge: {
+    /** Current status of the bridge addon: resolved Mod dir + whether the
+     *  addon is present, or unresolved with a reason. */
+    getStatus: () => FreecadBridgeStatus;
+    /** Remove the addon from the resolved Mod dir. Resolves with a reason
+     *  on failure (no Mod dir, fs error). */
+    uninstall: () => Promise<ProfileActionResult>;
+  };
+};
+
 /** Runtime context passed to every action invocation. */
 export type ActionContext = {
   /** Logger scoped to this plugin — output prefixed with the plugin id. */
@@ -319,6 +339,9 @@ export type ActionContext = {
    *  plugin firing during the startup race is treated the same as a
    *  daemon without injection capability. */
   injectAvailable: () => boolean;
+  /** Host-side operations the plugin may invoke. See
+   *  {@link PluginHostCapabilities} for the typed surface. */
+  host: PluginHostCapabilities;
 };
 
 /** Signature every action implementation must match. Plugins
@@ -437,6 +460,34 @@ export type PluginTriggerReserver = (
   req: { button: number; reserve: boolean },
 ) => void | Promise<void>;
 
+/**
+ * Optional teardown hook (#267). The Plugin Manager calls this just before it
+ * uninstalls the plugin, so the plugin can declare any host-side artefacts it
+ * left around outside SpaceUX's managed extensions tree (today: FreeCAD's
+ * bridge addon in FreeCAD's Mod dir) and offer a user-facing teardown step.
+ *
+ * Return `null` when there's nothing to clean up (the typical case — the
+ * plugin's installed files are all main has to remove). Return a descriptor
+ * to opt in to a second confirm dialog: the host shows `message` and, on the
+ * user's Yes, runs `perform`. Return value of `perform` is surfaced as a
+ * success / error toast.
+ *
+ * The hook runs while the plugin is still loaded (host removes the plugin
+ * files only after the perform settles), so closures and module state are
+ * alive throughout the cleanup.
+ */
+export type PluginUninstallProvider = (
+  ctx: ActionContext,
+) => Promise<PluginUninstallDescriptor | null>;
+
+export type PluginUninstallDescriptor = {
+  /** Confirm-dialog message. Plugin owns the text — including any
+   *  path/state details a generic host wouldn't know. */
+  message: string;
+  /** The cleanup action. Host invokes it after the user confirms. */
+  perform: () => Promise<ProfileActionResult>;
+};
+
 /** Shape of `module.exports` (or `export default`) from a plugin's index.js. */
 export type PluginModule = {
   actions: Record<string, ActionHandler>;
@@ -448,4 +499,6 @@ export type PluginModule = {
   provideContext?: PluginContextProvider;
   /** Optional trigger-button reserver — see {@link PluginTriggerReserver}. */
   reserveTrigger?: PluginTriggerReserver;
+  /** Optional teardown hook — see {@link PluginUninstallProvider}. */
+  provideUninstall?: PluginUninstallProvider;
 };

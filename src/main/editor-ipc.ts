@@ -19,6 +19,7 @@ import {
   type PluginCategory,
   type PluginImportResult,
   type PluginsState,
+  type PluginUninstallDescriptorRequest,
   type PluginUninstallResult,
   type PluginUsageReport,
   type ProfileActionResult,
@@ -62,6 +63,12 @@ export interface EditorIpcDeps {
    *  plugin (#265): the Plugin Manager's Remove confirm shows where the
    *  plugin is in use before the user clicks through. */
   scanPluginUsages: (pluginId: string, kind: PluginCategory) => Promise<PluginUsageReport>;
+  /** Ask main for a plugin's uninstall hook descriptor (#267): main calls
+   *  the plugin's `provideUninstall(ctx)`, caches the closure, and returns
+   *  the user-facing message for the secondary Remove confirm. */
+  getPluginUninstallHook: (pluginId: string) => Promise<PluginUninstallDescriptorRequest>;
+  /** Run the cached uninstall-hook perform-closure for `pluginId` (#267). */
+  performPluginUninstallHook: (pluginId: string) => Promise<ProfileActionResult>;
   /** Pull a plugin's command catalog for the editor palette (#76 D2): invokes
    *  the plugin's `provideCatalog` with a timeout. */
   getPluginCatalog: (pluginId: string, loadAll: boolean) => Promise<PluginCatalogResult>;
@@ -155,6 +162,16 @@ export function wireEditorIpc(deps: EditorIpcDeps): void {
     IpcChannel.EDITOR_SCAN_PLUGIN_USAGES,
     (_evt, pluginId: string, kind: PluginCategory): Promise<PluginUsageReport> =>
       deps.scanPluginUsages(pluginId, kind),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_GET_PLUGIN_UNINSTALL_HOOK,
+    (_evt, pluginId: string): Promise<PluginUninstallDescriptorRequest> =>
+      deps.getPluginUninstallHook(pluginId),
+  );
+  ipcMain.handle(
+    IpcChannel.EDITOR_PERFORM_PLUGIN_UNINSTALL_HOOK,
+    (_evt, pluginId: string): Promise<ProfileActionResult> =>
+      deps.performPluginUninstallHook(pluginId),
   );
   ipcMain.handle(
     IpcChannel.EDITOR_GET_PLUGIN_CATALOG,

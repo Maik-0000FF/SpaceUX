@@ -90,6 +90,38 @@ export function PluginManager() {
     if (!ok) return;
     setBusy(true);
     try {
+      // Plugin teardown hook (#267): ask main if the plugin declared a
+      // cleanup step (e.g. FreeCAD wants to offer removing its bridge addon
+      // from FreeCAD's Mod dir). The hook fires while the plugin is still
+      // loaded so closures and module state are alive; the actual perform
+      // runs only after the user confirms a second dialog. Skip silently
+      // when the hook is unavailable or the query failed — plugin uninstall
+      // is the primary action and shouldn't be gated on a side feature.
+      let hookMessage: string | null = null;
+      try {
+        const hook = await window.editor.getPluginUninstallHook(id);
+        if (hook.available) hookMessage = hook.message;
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[plugin manager] uninstall hook query failed for ${id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      if (hookMessage !== null) {
+        const hookOk = await confirm({
+          title: 'Plugin cleanup',
+          message: hookMessage,
+          confirmLabel: 'Run cleanup',
+          destructive: true,
+        });
+        if (hookOk) {
+          const hookResult = await window.editor.performPluginUninstallHook(id);
+          notify(
+            hookResult.ok ? 'success' : 'error',
+            hookResult.ok ? 'Cleanup done.' : hookResult.reason,
+          );
+        }
+      }
       const r = await window.editor.uninstallPlugin(kind, id);
       applyPluginsSnapshot(r.state);
       notify(r.ok ? 'success' : 'error', r.ok ? `Removed ${name}.` : r.reason);
