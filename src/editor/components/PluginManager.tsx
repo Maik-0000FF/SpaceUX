@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 
-import type { PluginCategory } from '@/shared/ipc';
+import type { PluginCategory, PluginUsageReport } from '@/shared/ipc';
 
 import { confirm } from '../state/confirm';
 import { usePluginsState } from '../state/plugins';
@@ -52,10 +52,20 @@ export function PluginManager() {
     // Scan for references BEFORE opening the confirm so the user sees which
     // menus + the global appearance reference this plugin (#265). nav-style
     // and theme always come back empty today; rendering still shows the
-    // base message in that case.
-    const usages = await window.editor.scanPluginUsages(id, kind);
+    // base message in that case. The scan is informational only: if it
+    // fails (IPC error, transient profile read), fall back to the plain
+    // single-line message instead of blocking Remove on a side feature.
+    let usages: PluginUsageReport | null = null;
+    try {
+      usages = await window.editor.scanPluginUsages(id, kind);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[plugin manager] usage scan failed for ${id}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     const lines = [`Remove "${name}"? This deletes its installed files.`];
-    if (usages.menus.length > 0 || usages.globalAppearance) {
+    if (usages !== null && (usages.menus.length > 0 || usages.globalAppearance)) {
       lines.push('', 'Currently used by:');
       if (usages.menus.length > 0) {
         // Cap the list so a config with many profiles doesn't push the

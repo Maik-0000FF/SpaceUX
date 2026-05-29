@@ -36,7 +36,23 @@ export type MenuRef = {
   /** Human-readable label for the report (e.g. "Device profile 256f:c652"). */
   name: string;
   config: MenuConfig;
+  /** The appearance that effectively applies to this menu. For a device
+   *  profile with a bundled appearance (#113) it's that bundle; otherwise
+   *  it's the global app-level appearance. Used to resolve the per-menu
+   *  shape model when `config.shapeModel` is `undefined` (inherit). */
+  appearance: PieAppearance;
 };
+
+/** Resolve the shape model that actually renders this menu: a per-menu
+ *  override wins (string or `null` = force wedge); `undefined` inherits
+ *  from the menu's effective appearance. Returns null when the wedge
+ *  default is in effect. Mirrors `resolveShapeModel` in shared/menu but
+ *  picks up the menu-effective appearance instead of the host's global
+ *  one, so a device profile's bundled override is honoured. */
+function effectiveShapeFor(menu: MenuRef): string | null {
+  if (menu.config.shapeModel === undefined) return menu.appearance.shapeModel;
+  return menu.config.shapeModel;
+}
 
 /** True iff any node in the (sub)tree carries an action id starting with
  *  `<prefix>` (i.e. namespaced under the target plugin). */
@@ -61,7 +77,11 @@ export function scanPluginUsage(
 
   if (kind === 'shape') {
     for (const m of menus) {
-      if (typeof m.config.shapeModel === 'string' && m.config.shapeModel.startsWith(prefix)) {
+      // Use the resolved effective shape so a menu with `shapeModel:
+      // undefined` (inherit) under a profile-bundled appearance that
+      // targets the plugin still gets caught.
+      const effective = effectiveShapeFor(m);
+      if (typeof effective === 'string' && effective.startsWith(prefix)) {
         report.menus.push(m.name);
       }
     }

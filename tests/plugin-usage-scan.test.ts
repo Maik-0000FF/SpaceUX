@@ -9,10 +9,15 @@ import { DEFAULT_MENU_CONFIG } from '../src/shared/menu';
 import { type MenuConfig, type MenuNode } from '../src/shared/menu';
 import { type PieAppearance } from '../src/shared/ipc';
 
-function makeMenu(name: string, overrides: Partial<MenuConfig> = {}): MenuRef {
+function makeMenu(
+  name: string,
+  overrides: Partial<MenuConfig> = {},
+  appearance: PieAppearance = DEFAULT_PIE_APPEARANCE,
+): MenuRef {
   return {
     name,
     config: { ...DEFAULT_MENU_CONFIG, ...overrides },
+    appearance,
   };
 }
 
@@ -63,6 +68,36 @@ describe('scanPluginUsage — shape kind', () => {
     // `startsWith` and matches a key like `other.org.spaceux.planets/orbit`
     // that contains the plugin id mid-string.
     const a = makeMenu('A', { shapeModel: 'other.org.spaceux.planets/orbit' });
+    const report = scanPluginUsage('org.spaceux.planets', 'shape', [a], emptyAppearance);
+    expect(report.menus).toEqual([]);
+  });
+
+  it('reports a menu that inherits from a per-menu appearance pointing at the plugin', () => {
+    // Device profiles can bundle their own PieAppearance (#113). A menu in
+    // such a profile may have `shapeModel: undefined` (inherit) and still
+    // effectively render via the plugin because the profile's appearance
+    // targets it. The scan must follow that inheritance.
+    const profileAppearance: PieAppearance = {
+      ...DEFAULT_PIE_APPEARANCE,
+      shapeModel: 'org.spaceux.planets/planets',
+    };
+    const a = makeMenu('Inherit', {}, profileAppearance);
+    const report = scanPluginUsage('org.spaceux.planets', 'shape', [a], emptyAppearance);
+    expect(report.menus).toEqual(['Inherit']);
+    // The *global* appearance still doesn't point at the plugin; that flag
+    // tracks the app-level default, not per-profile bundles.
+    expect(report.globalAppearance).toBe(false);
+  });
+
+  it('does not report a menu whose null override forces wedge, even if its appearance targets the plugin', () => {
+    // `shapeModel: null` is an explicit "force the built-in wedge here",
+    // overriding whatever the appearance says. The scan respects that — the
+    // menu does not in fact use the plugin.
+    const profileAppearance: PieAppearance = {
+      ...DEFAULT_PIE_APPEARANCE,
+      shapeModel: 'org.spaceux.planets/planets',
+    };
+    const a = makeMenu('ForceWedge', { shapeModel: null }, profileAppearance);
     const report = scanPluginUsage('org.spaceux.planets', 'shape', [a], emptyAppearance);
     expect(report.menus).toEqual([]);
   });
