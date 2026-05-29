@@ -34,6 +34,7 @@ import type {
   PluginInvalidatedPayload,
   PluginsState,
   PluginUninstallResult,
+  PluginUninstallDescriptorRequest,
   PluginUsageReport,
   FreecadBridgeInstallResult,
   FreecadBridgeStatus,
@@ -181,6 +182,15 @@ export type EditorBridge = {
    *  menus fall back to the host default before the user clicks through.
    *  nav-style and theme always resolve to an empty report today. */
   scanPluginUsages(pluginId: string, kind: PluginCategory): Promise<PluginUsageReport>;
+  /** Pull a plugin's optional uninstall-hook descriptor (#267): main calls
+   *  the plugin's `provideUninstall(ctx)`, caches the perform-closure, and
+   *  returns the user-facing message — or `{ available: false }` when the
+   *  plugin has no hook or it returned null. */
+  getPluginUninstallHook(pluginId: string): Promise<PluginUninstallDescriptorRequest>;
+  /** Run the cached uninstall-hook perform-closure (#267). Call after the
+   *  user confirms the secondary Remove dialog raised from the descriptor
+   *  returned by {@link getPluginUninstallHook}. */
+  performPluginUninstallHook(pluginId: string): Promise<ProfileActionResult>;
   /** Pull the ids of curated per-workbench pies on mount (#193). */
   getWorkbenchMenus(): Promise<WorkbenchMenusState>;
   /** Subscribe to curated-pie add/remove changes. Returns an unsubscribe fn. */

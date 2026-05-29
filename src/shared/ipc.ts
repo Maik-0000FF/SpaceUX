@@ -160,6 +160,19 @@ export const IpcChannel = {
    *  before clicking through. invoke(pluginId, kind) →
    *  {@link PluginUsageReport}. */
   EDITOR_SCAN_PLUGIN_USAGES: 'spaceux:editor:plugins:scan-usages',
+  /** Editor asks main whether a plugin has a teardown step it wants to
+   *  offer (#267). Main calls the plugin's `provideUninstall(ctx)` hook
+   *  and returns the descriptor for the second confirm dialog, or null
+   *  when the plugin has nothing to clean up. The perform-closure stays
+   *  cached in main; the editor calls EDITOR_PERFORM_PLUGIN_UNINSTALL_HOOK
+   *  to run it after the user confirms. invoke(pluginId) →
+   *  {@link PluginUninstallDescriptorRequest}. */
+  EDITOR_GET_PLUGIN_UNINSTALL_HOOK: 'spaceux:editor:plugins:get-uninstall-hook',
+  /** Editor asks main to run the cached uninstall-hook perform-closure
+   *  for `pluginId` (#267). invoke(pluginId) → {@link ProfileActionResult}.
+   *  Returns `ok: false` when no hook was cached (e.g. another plugin's
+   *  Remove flow superseded this one). */
+  EDITOR_PERFORM_PLUGIN_UNINSTALL_HOOK: 'spaceux:editor:plugins:perform-uninstall-hook',
   /** Main broadcasts to both renderer windows (editor + live overlay) when
    *  a plugin's on-disk source has changed: it was uninstalled or
    *  re-imported. Renderer-side caches keyed by plugin id (currently the
@@ -329,6 +342,14 @@ export type PluginInvalidatedPayload = {
   pluginId: string;
   kind: PluginCategory;
 };
+
+/** Renderer-visible half of a plugin's teardown hook (#267). The perform
+ *  step lives in main as a cached closure; the editor only sees the message
+ *  to display in the second Remove confirm. `null` when the plugin has no
+ *  teardown hook or the host couldn't run it. */
+export type PluginUninstallDescriptorRequest =
+  | { available: true; message: string }
+  | { available: false };
 
 /** Where a plugin is referenced in saved state (#265): the named menus that
  *  point at it (in their `shapeModel` for shape plugins, or their action

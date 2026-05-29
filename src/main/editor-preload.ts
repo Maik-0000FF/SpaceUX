@@ -18,6 +18,7 @@ import {
   type PluginImportResult,
   type PluginInvalidatedPayload,
   type PluginsState,
+  type PluginUninstallDescriptorRequest,
   type PluginUninstallResult,
   type PluginUsageReport,
   type ProfileActionResult,
@@ -98,6 +99,16 @@ const bridge: EditorBridge = {
       pluginId,
       kind,
     ) as Promise<PluginUsageReport>,
+  getPluginUninstallHook: (pluginId: string) =>
+    ipcRenderer.invoke(
+      IpcChannel.EDITOR_GET_PLUGIN_UNINSTALL_HOOK,
+      pluginId,
+    ) as Promise<PluginUninstallDescriptorRequest>,
+  performPluginUninstallHook: (pluginId: string) =>
+    ipcRenderer.invoke(
+      IpcChannel.EDITOR_PERFORM_PLUGIN_UNINSTALL_HOOK,
+      pluginId,
+    ) as Promise<ProfileActionResult>,
   getPluginCatalog: (pluginId: string, loadAll: boolean) =>
     ipcRenderer.invoke(
       IpcChannel.EDITOR_GET_PLUGIN_CATALOG,

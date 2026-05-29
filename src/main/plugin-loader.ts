@@ -16,6 +16,7 @@ import {
   type ActionContext,
   type ActionDescriptor,
   type ActionHandler,
+  type PluginHostCapabilities,
   type PluginKind,
   type PluginCatalogProvider,
   type PluginContextProvider,
@@ -23,6 +24,7 @@ import {
   type PluginMenuProvider,
   type PluginModule,
   type PluginTriggerReserver,
+  type PluginUninstallProvider,
 } from '../shared/plugin-types.js';
 import { dedupPreserveOrder } from '../shared/util.js';
 
@@ -75,6 +77,11 @@ export type LoadedPlugin = {
    *  plugin's app (FreeCAD) doesn't also act on the pie-trigger button.
    *  Undefined for plugins that don't share the puck. */
   reserveTrigger?: PluginTriggerReserver;
+  /** Optional teardown hook exported by index.js (#267) — the Plugin Manager
+   *  calls it before uninstalling so the plugin can declare and tear down
+   *  any host-side artefacts it left outside SpaceUX's managed tree (e.g.
+   *  FreeCAD's bridge addon). Undefined for plugins with nothing to clean up. */
+  provideUninstall?: PluginUninstallProvider;
 };
 
 export type LoadResult = {
@@ -240,8 +247,19 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   const provideCatalog = typeof mod.provideCatalog === 'function' ? mod.provideCatalog : undefined;
   const provideContext = typeof mod.provideContext === 'function' ? mod.provideContext : undefined;
   const reserveTrigger = typeof mod.reserveTrigger === 'function' ? mod.reserveTrigger : undefined;
+  const provideUninstall =
+    typeof mod.provideUninstall === 'function' ? mod.provideUninstall : undefined;
 
-  return { manifest, dir, handlers, provideMenu, provideCatalog, provideContext, reserveTrigger };
+  return {
+    manifest,
+    dir,
+    handlers,
+    provideMenu,
+    provideCatalog,
+    provideContext,
+    reserveTrigger,
+    provideUninstall,
+  };
 }
 
 /**
@@ -521,8 +539,15 @@ export async function loadPluginManifests(
  *  message with the plugin id; `injectChord` is a thin pass-through
  *  to the daemon so plugins never hold a `DaemonClient` reference
  *  themselves and the dispatch path is the same for built-ins and
- *  third-party plugins. */
-export function makeActionContext(pluginId: string, daemon: DaemonClient): ActionContext {
+ *  third-party plugins. `host` exposes the typed
+ *  {@link PluginHostCapabilities} surface so plugins that integrate with
+ *  host-side state (FreeCAD bridge today, #267) can go through it instead
+ *  of importing main-internal modules. */
+export function makeActionContext(
+  pluginId: string,
+  daemon: DaemonClient,
+  host: PluginHostCapabilities,
+): ActionContext {
   return {
     pluginId,
     log: (message: string) => {
@@ -531,6 +556,7 @@ export function makeActionContext(pluginId: string, daemon: DaemonClient): Actio
     },
     injectChord: (modifiers, key) => daemon.injectChord(modifiers, key),
     injectAvailable: () => daemon.isInjectAvailable(),
+    host,
   };
 }
 

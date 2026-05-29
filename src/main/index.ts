@@ -18,6 +18,7 @@ import {
   type MenuOpenPayload,
   type PieAppearance,
   type PieBadges,
+  type FreecadBridgeStatus,
   type PluginInfo,
   type PluginInvalidatedPayload,
   type PluginsState,
@@ -81,6 +82,7 @@ import {
   isWorkbenchMenuId,
   makeWorkbenchMenuId,
   type PluginCatalog,
+  type PluginHostCapabilities,
   type PluginManifest,
 } from '../shared/plugin-types.js';
 import {
@@ -152,6 +154,50 @@ let pluginErrors: { dir: string; reason: string }[] = [];
 // tree on every pull. Mirrors `loadedPlugins` for the function kind.
 let loadedShapeManifests: Map<string, InstalledPlugin> = new Map();
 let shapeLoadErrors: { dir: string; reason: string }[] = [];
+
+/** Current FreeCAD bridge addon status. Single point so the editor IPC
+ *  handler, the bridge installer flow, and a plugin's host-capabilities
+ *  surface (#267) all see one shape. */
+function freecadBridgeStatus(): FreecadBridgeStatus {
+  const r = resolveFreecadModDir();
+  return r.ok
+    ? {
+        resolved: true,
+        modDir: r.modDir,
+        label: r.label,
+        installed: bridgeInstalledAt(r.modDir),
+      }
+    : { resolved: false, reason: r.reason, sandbox: r.sandbox };
+}
+
+/** Remove the FreeCAD bridge addon from the resolved Mod dir. Returns a
+ *  reason when the Mod dir couldn't be resolved (no FreeCAD found,
+ *  sandbox); a missing addon dir resolves to `ok:true`. */
+async function freecadBridgeUninstall(): Promise<ProfileActionResult> {
+  const r = resolveFreecadModDir();
+  if (!r.ok) return { ok: false, reason: r.reason };
+  return uninstallBridge(r.modDir);
+}
+
+/** Host-side capabilities every plugin's {@link ActionContext} receives. A
+ *  single shared object so a plugin lifecycle hook (today: `provideUninstall`
+ *  for FreeCAD, #267) goes through the same surface as the editor IPCs. */
+const pluginHost: PluginHostCapabilities = {
+  freecadBridge: {
+    getStatus: freecadBridgeStatus,
+    uninstall: freecadBridgeUninstall,
+  },
+};
+
+/** Cached perform-closures from plugin `provideUninstall(ctx)` hooks (#267).
+ *  Populated by the EDITOR_GET_PLUGIN_UNINSTALL_HOOK handler; consumed by
+ *  EDITOR_PERFORM_PLUGIN_UNINSTALL_HOOK. The renderer asks for the
+ *  descriptor, shows the user-facing confirm, and then asks main to run the
+ *  cached closure on confirmation. Cleared on every plugin-uninstall
+ *  invocation (whether the renderer ran the perform or the user cancelled
+ *  the second confirm) so a cancelled prompt doesn't retain the closure
+ *  across the plugin's own lifecycle. */
+const pendingUninstallPerforms = new Map<string, () => Promise<ProfileActionResult>>();
 // The *active* menu config — either the global menu.json (fallback) or
 // the connected device's profile (#113). Conflict-detection + write-back
 // state for the editor: `mtime` is the on-disk mtime the active config
@@ -769,6 +815,11 @@ async function getCursor(): Promise<{ x: number; y: number }> {
 /** A plugin provider that hangs (e.g. an unresponsive FreeCAD socket) must not
  *  freeze the pie open — cap how long we wait for the dynamic menu. */
 const DYNAMIC_MENU_TIMEOUT_MS = 2000;
+/** Timeout for a plugin's uninstall-hook `perform` (#267). Generous compared
+ *  to the descriptor query because the perform may do real filesystem work
+ *  (removing an addon directory, e.g. FreeCAD's bridge); still bounded so a
+ *  hung third-party closure can't block the editor's busy state forever. */
+const UNINSTALL_PERFORM_TIMEOUT_MS = 15000;
 
 /** Resolve `promise`, or reject with `message` after `ms`. The original
  *  promise is left to settle on its own (no cancellation primitive in the
@@ -817,7 +868,7 @@ async function callReserveTrigger(
 ): Promise<boolean> {
   if (!plugin.reserveTrigger) return false;
   try {
-    const ctx = makeActionContext(plugin.manifest.id, daemon);
+    const ctx = makeActionContext(plugin.manifest.id, daemon, pluginHost);
     await withTimeout(
       Promise.resolve(plugin.reserveTrigger(ctx, { button, reserve })),
       DYNAMIC_MENU_TIMEOUT_MS,
@@ -936,7 +987,7 @@ async function refreshDynamicPluginMenu(): Promise<void> {
   // pie falls through to the dynamic menu. The config is validated on load.
   if (plugin.provideContext) {
     try {
-      const ctx = makeActionContext(plugin.manifest.id, daemon);
+      const ctx = makeActionContext(plugin.manifest.id, daemon, pluginHost);
       const info = await withTimeout(
         Promise.resolve(plugin.provideContext(ctx)),
         DYNAMIC_MENU_TIMEOUT_MS,
@@ -964,7 +1015,7 @@ async function refreshDynamicPluginMenu(): Promise<void> {
 
   let root: MenuNode;
   try {
-    const ctx = makeActionContext(plugin.manifest.id, daemon);
+    const ctx = makeActionContext(plugin.manifest.id, daemon, pluginHost);
     root = await withTimeout(
       Promise.resolve(plugin.provideMenu(ctx)),
       DYNAMIC_MENU_TIMEOUT_MS,
@@ -1177,7 +1228,7 @@ function wireActionDispatch(): void {
           `plugin "${entry.plugin.manifest.id}" has no handler for "${entry.descriptor.name}"`,
         );
       }
-      await handler(config, makeActionContext(entry.plugin.manifest.id, daemon));
+      await handler(config, makeActionContext(entry.plugin.manifest.id, daemon, pluginHost));
     },
   );
 
@@ -1450,6 +1501,12 @@ app.whenReady().then(async () => {
       return { ok: true, installed, state };
     },
     uninstallPlugin: async (kind, id) => {
+      // Always clear a leftover uninstall-hook perform-closure (#267): if
+      // the user cancelled the secondary "Plugin cleanup" confirm,
+      // performPluginUninstallHook never ran and the cached entry would
+      // outlive the plugin itself. The renderer reaches this IPC on every
+      // Remove path, so clearing here is the single chokepoint.
+      pendingUninstallPerforms.delete(id);
       const result = await uninstallPlugin(kind, id);
       await reloadFunctionPlugins();
       const state = await buildPluginsState();
@@ -1460,6 +1517,53 @@ app.whenReady().then(async () => {
       broadcastPluginInvalidated({ pluginId: id, kind });
       // Always return the refreshed state; surface a real delete error (#221).
       return result.ok ? { ok: true, state } : { ok: false, reason: result.reason, state };
+    },
+    getPluginUninstallHook: async (pluginId) => {
+      // The plugin must be loaded (function kind, in our cache) for its
+      // `provideUninstall` to be callable. A theme / nav-style / shape plugin
+      // has nothing executable, so no hook either.
+      const plugin = loadedPlugins.find((p) => p.manifest.id === pluginId);
+      if (!plugin || !plugin.provideUninstall) {
+        pendingUninstallPerforms.delete(pluginId);
+        return { available: false };
+      }
+      try {
+        const ctx = makeActionContext(plugin.manifest.id, daemon, pluginHost);
+        const descriptor = await withTimeout(
+          Promise.resolve(plugin.provideUninstall(ctx)),
+          DYNAMIC_MENU_TIMEOUT_MS,
+          `provideUninstall timed out after ${DYNAMIC_MENU_TIMEOUT_MS}ms`,
+        );
+        if (descriptor === null) {
+          pendingUninstallPerforms.delete(pluginId);
+          return { available: false };
+        }
+        // Cache the closure under the plugin id; the renderer asks main to
+        // invoke it after the user clicks Yes on the secondary confirm.
+        pendingUninstallPerforms.set(pluginId, descriptor.perform);
+        return { available: true, message: descriptor.message };
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn(`[plugin ${pluginId}] provideUninstall failed: ${describeError(err)}`);
+        pendingUninstallPerforms.delete(pluginId);
+        return { available: false };
+      }
+    },
+    performPluginUninstallHook: async (pluginId) => {
+      const perform = pendingUninstallPerforms.get(pluginId);
+      pendingUninstallPerforms.delete(pluginId);
+      if (!perform) {
+        return { ok: false, reason: 'no uninstall hook is pending for this plugin' };
+      }
+      try {
+        return await withTimeout(
+          perform(),
+          UNINSTALL_PERFORM_TIMEOUT_MS,
+          `plugin uninstall hook timed out after ${UNINSTALL_PERFORM_TIMEOUT_MS}ms`,
+        );
+      } catch (err) {
+        return { ok: false, reason: describeError(err) };
+      }
     },
     scanPluginUsages: async (pluginId, kind) => {
       // Gather every saved menu source: the global fallback, every device
@@ -1565,7 +1669,7 @@ app.whenReady().then(async () => {
         return { ok: false, reason: 'this plugin provides no command catalog' };
       }
       try {
-        const ctx = makeActionContext(plugin.manifest.id, daemon);
+        const ctx = makeActionContext(plugin.manifest.id, daemon, pluginHost);
         // loadAll can cycle every workbench (slow) — generous cap; the editor
         // shows a spinner while it runs.
         const catalog = await withTimeout(
@@ -1586,7 +1690,7 @@ app.whenReady().then(async () => {
       }
       let catalog: PluginCatalog;
       try {
-        const ctx = makeActionContext(plugin.manifest.id, daemon);
+        const ctx = makeActionContext(plugin.manifest.id, daemon, pluginHost);
         catalog = await withTimeout(
           Promise.resolve(plugin.provideCatalog(ctx, { loadAll: false })),
           5000,
@@ -1645,17 +1749,7 @@ app.whenReady().then(async () => {
       }
       return { ok: true };
     },
-    getFreecadBridge: () => {
-      const r = resolveFreecadModDir();
-      return r.ok
-        ? {
-            resolved: true,
-            modDir: r.modDir,
-            label: r.label,
-            installed: bridgeInstalledAt(r.modDir),
-          }
-        : { resolved: false, reason: r.reason, sandbox: r.sandbox };
-    },
+    getFreecadBridge: freecadBridgeStatus,
     installFreecadBridge: async (pluginId) => {
       const plugin = loadedPlugins.find((p) => p.manifest.id === pluginId);
       if (!plugin) return { ok: false, reason: 'plugin not loaded' };
@@ -1664,11 +1758,7 @@ app.whenReady().then(async () => {
       // The addon ships in the plugin's freecad/ subdir.
       return installBridge(path.join(plugin.dir, 'freecad'), r.modDir);
     },
-    uninstallFreecadBridge: async () => {
-      const r = resolveFreecadModDir();
-      if (!r.ok) return { ok: false, reason: r.reason };
-      return uninstallBridge(r.modDir);
-    },
+    uninstallFreecadBridge: freecadBridgeUninstall,
   });
   wireAppIpc({
     getAppearance: () => pieAppearance,
