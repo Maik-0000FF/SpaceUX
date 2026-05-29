@@ -25,7 +25,7 @@ const KIND_HEADING: Record<PluginCategory, string> = {
 };
 
 /**
- * Plugin manager (#NNN): import a downloaded plugin *folder* (it's copied into
+ * Plugin manager (#167): import a downloaded plugin *folder* (it's copied into
  * SpaceUX's managed `extensions/<kind>/` tree), list what's installed, and
  * remove plugins. Users don't point the loader at arbitrary paths; import is
  * the one way in, so the on-disk layout stays canonical.
