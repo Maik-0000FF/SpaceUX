@@ -5,20 +5,12 @@ import { useEffect, useMemo } from 'react';
 
 import { resolveNavigation } from '@/shared/menu';
 import { NAVIGATION_PRESETS, matchNavigationPreset } from '@/shared/navigation-presets';
+import { formatPluginKey } from '@/shared/plugin-key';
 
 import { useMenuSettings } from '../state/menu-settings';
 import { usePluginsState } from '../state/plugins';
 
 import styles from './NavigationStyle.module.scss';
-
-/** Namespace a plugin's preset id so it can't collide with a built-in id or
- *  with another plugin's same-named preset (#195). The reverse-DNS plugin id
- *  plus the in-plugin preset id, joined by `/`, mirrors the action-key
- *  convention (`<pluginId>/<actionName>`). Pure formatter so the picker and
- *  the matcher agree. */
-function pluginPresetKey(pluginId: string, presetId: string): string {
-  return `${pluginId}/${presetId}`;
-}
 
 /**
  * Navigation-style quick-pick (#160), shown in the preview design bar next
@@ -57,7 +49,7 @@ export function NavigationStyle() {
       pluginPlugins.flatMap((p) =>
         p.kind === 'nav-style' && p.navStylePresets
           ? p.navStylePresets.map((preset) => ({
-              key: pluginPresetKey(p.id, preset.id),
+              key: formatPluginKey(p.id, preset.id),
               pluginName: p.name,
               label: preset.label,
               description: preset.description,

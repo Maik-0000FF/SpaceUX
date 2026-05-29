@@ -7,6 +7,7 @@ import { OUTER_RING_OUTER_RATIO, ringRadii } from '@/core/pie-geometry';
 import { currentBranches, type DrillState } from '@/core/menu-nav';
 import { resolveShapeModel, type ActionRef, type MenuConfig, type MenuNode } from '@/shared/menu';
 import { type PieBadges } from '@/shared/ipc';
+import { parsePluginKey } from '@/shared/plugin-key';
 import { type ShapeRingRadii } from '@/shared/shape-plugin-api';
 
 import { PieMenu } from './PieMenu';
@@ -110,12 +111,12 @@ export function App() {
   const effectiveShape = menuConfig
     ? resolveShapeModel(menuConfig.shapeModel, pieAppearance.shapeModel)
     : null;
+  // A malformed saved key (no slash or empty halves) resolves to null, same
+  // as a missing shapeModel — downstream code already gates every shape-path
+  // step on `shapePluginId !== null`, so a malformed value just keeps the
+  // wedge default active, matching ShapePie's fallback behavior.
   const shapePluginId =
-    effectiveShape !== null
-      ? effectiveShape.includes('/')
-        ? effectiveShape.split('/', 1)[0]!
-        : effectiveShape
-      : null;
+    effectiveShape !== null ? (parsePluginKey(effectiveShape)?.pluginId ?? null) : null;
   const ensureShapeLoaded = useShapeModules((s) => s.ensureLoaded);
   const shapeModuleEntry = useShapeModules((s) =>
     shapePluginId !== null ? s.modules[shapePluginId] : undefined,
