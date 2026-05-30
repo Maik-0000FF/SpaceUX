@@ -3,6 +3,7 @@
 
 import { useAppState } from '../state/app-state';
 
+import { Tooltip } from './Tooltip';
 import styles from './LiveToggle.module.scss';
 
 /**
@@ -15,18 +16,19 @@ export function LiveToggle() {
   const setLive = useAppState((s) => s.setLivePreview);
 
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={live}
-      className={`${styles.toggle} ${live ? styles.on : ''}`}
-      title="Drive the preview highlight with the live SpaceMouse puck"
-      onClick={() => setLive(!live)}
-    >
-      <span className={styles.track}>
-        <span className={styles.knob} />
-      </span>
-      <span className={styles.text}>Live Preview</span>
-    </button>
+    <Tooltip content="Drive the preview highlight with the live SpaceMouse puck">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={live}
+        className={`${styles.toggle} ${live ? styles.on : ''}`}
+        onClick={() => setLive(!live)}
+      >
+        <span className={styles.track}>
+          <span className={styles.knob} />
+        </span>
+        <span className={styles.text}>Live Preview</span>
+      </button>
+    </Tooltip>
   );
 }

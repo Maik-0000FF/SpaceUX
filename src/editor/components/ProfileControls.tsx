@@ -104,44 +104,45 @@ export function ProfileControls() {
       <Tooltip content={PROFILE_TOOLTIP}>
         <span className={styles.label}>Profile</span>
       </Tooltip>
-      <select
-        className={styles.select}
-        value={override ?? AUTO}
-        onChange={(e) => setOverride(e.target.value)}
-        title="Which profile drives the live config (Auto = follow the connected device)"
-      >
-        <option value={AUTO}>Auto</option>
-        {/* The catalog plugin (FreeCAD) owns its pie + Dynamic/Curated mode in
+      <Tooltip content="Which profile drives the live config (Auto = follow the connected device)">
+        <select
+          className={styles.select}
+          value={override ?? AUTO}
+          onChange={(e) => setOverride(e.target.value)}
+        >
+          <option value={AUTO}>Auto</option>
+          {/* The catalog plugin (FreeCAD) owns its pie + Dynamic/Curated mode in
             its dedicated panel, not here (#193). Point users who still expect
             it in this dropdown at that panel with a disabled hint, shown
             whenever the plugin is loaded so it's found even before such a
             source is active, and doubling as the displayed value while one is
             (#209). The name comes from the plugin, so core stays
             plugin-agnostic. */}
-        {catalogPlugin && (
-          <option
-            value={freecadActive && override !== null ? override : CATALOG_HINT}
-            disabled
-            title={`The ${catalogPluginName} pie (Dynamic or Curated) is chosen in the ${catalogPluginName} panel at the top of the left column, not in this dropdown.`}
-          >
-            {catalogPluginName} pie (set in the panel at top-left)
-          </option>
-        )}
-        {ids.map((id) => (
-          <option key={id} value={id}>
-            {id}
-          </option>
-        ))}
-        {otherPluginMenus.length > 0 && (
-          <optgroup label="Plugin menus">
-            {otherPluginMenus.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </select>
+          {catalogPlugin && (
+            <option
+              value={freecadActive && override !== null ? override : CATALOG_HINT}
+              disabled
+              title={`The ${catalogPluginName} pie (Dynamic or Curated) is chosen in the ${catalogPluginName} panel at the top of the left column, not in this dropdown.`}
+            >
+              {catalogPluginName} pie (set in the panel at top-left)
+            </option>
+          )}
+          {ids.map((id) => (
+            <option key={id} value={id}>
+              {id}
+            </option>
+          ))}
+          {otherPluginMenus.length > 0 && (
+            <optgroup label="Plugin menus">
+              {otherPluginMenus.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </Tooltip>
       <button
         type="button"
         className={styles.button}

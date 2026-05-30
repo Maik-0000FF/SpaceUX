@@ -11,6 +11,7 @@ import {
   useState,
   type ReactElement,
   type ReactNode,
+  type Ref,
 } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -21,9 +22,6 @@ const OPEN_DELAY_MS = 150;
 const GAP = 8;
 /** Keep the bubble this far from the viewport edge. */
 const EDGE = 8;
-/** Triggers that signal their own interactivity — they keep their own cursor;
- *  a non-interactive trigger (a label) gets a help cursor to cue the tooltip. */
-const INTERACTIVE_TAGS = new Set(['button', 'a', 'input', 'select', 'textarea']);
 
 /**
  * App-wide hover/focus tooltip (#279). Shows a themed, possibly multi-line
@@ -66,14 +64,6 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
     setOpen(false);
     setCoords(null);
   };
-  // Stable so cloning doesn't hand the child a fresh ref callback every render
-  // (which would detach/reattach the node). Only sets our measuring ref — the
-  // trigger is expected to be a ref-less DOM element; an existing child ref is
-  // not forwarded.
-  const setTriggerRef = useCallback((el: HTMLElement | null) => {
-    triggerRef.current = el;
-  }, []);
-
   // Position once on open: measure the trigger + bubble, pick the side with
   // more room, clamp into the viewport on both axes. Runs before paint so the
   // bubble (rendered hidden until coords exist) never flashes at 0,0.
@@ -115,23 +105,33 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
   // Drop a pending open timer if the trigger unmounts mid-hover.
   useEffect(() => () => clearTimer(), []);
 
+  // Forward the child's own ref (React 19 exposes it as a prop) alongside our
+  // measuring ref, so a trigger that needs a ref (e.g. the tree's focusable
+  // rows) keeps it instead of having it clobbered. The current child ref lives
+  // in a box so the callback identity stays stable across renders (a fresh
+  // callback each render would detach/reattach the node — the churn #284 fixed).
+  const childRef = (children.props as { ref?: Ref<HTMLElement> }).ref;
+  const childRefBox = useRef<Ref<HTMLElement> | undefined>(childRef);
+  childRefBox.current = childRef;
+  const setTriggerRef = useCallback((el: HTMLElement | null) => {
+    triggerRef.current = el;
+    const r = childRefBox.current;
+    if (typeof r === 'function') r(el);
+    else if (r != null) (r as { current: HTMLElement | null }).current = el;
+  }, []);
+
   if (content === null || content === undefined || content === '') return children;
 
   // Compose with the child's own props rather than clobbering them: chain any
-  // handlers it already declares, merge (not replace) its aria-describedby, and
-  // add a help-cursor class only when the trigger isn't self-evidently
-  // interactive (a button keeps its pointer).
+  // handlers it already declares and merge (not replace) its aria-describedby.
+  // The trigger keeps its own cursor — no help cursor cue.
   const childProps = children.props as {
-    className?: string;
     onMouseEnter?: (e: unknown) => void;
     onMouseLeave?: (e: unknown) => void;
     onFocus?: (e: unknown) => void;
     onBlur?: (e: unknown) => void;
     'aria-describedby'?: string;
   };
-  const interactive = typeof children.type === 'string' && INTERACTIVE_TAGS.has(children.type);
-  const className =
-    [childProps.className, interactive ? null : styles.cue].filter(Boolean).join(' ') || undefined;
   const describedBy =
     [childProps['aria-describedby'], open ? id : null].filter(Boolean).join(' ') || undefined;
   // cloneElement's public overload only types `key`; `ref` and the cloned
@@ -139,7 +139,6 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
   // attach them.
   const trigger = cloneElement(children as ReactElement<Record<string, unknown>>, {
     ref: setTriggerRef,
-    className,
     onMouseEnter: (e: unknown) => {
       childProps.onMouseEnter?.(e);
       show();

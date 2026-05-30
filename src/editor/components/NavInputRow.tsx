@@ -15,6 +15,7 @@ import {
 
 import { inputFromValue, inputThreshold, inputValue } from '../state/nav-input';
 
+import { Tooltip } from './Tooltip';
 import styles from './Properties.module.scss';
 
 const DIRECTION_SYMBOL: Record<ActivationDirection, string> = {
@@ -157,37 +158,35 @@ export function NavInputRow({
         )}
       </select>
       {threshold !== null && (
-        <input
-          className={styles.navThreshold}
-          type="number"
-          min={1}
-          value={draft}
-          title="Threshold"
-          onChange={(e) => {
-            setDraft(e.target.value);
-            const v = Number(e.target.value);
-            if (
-              e.target.value !== '' &&
-              Number.isFinite(v) &&
-              v > 0 &&
-              (input.kind === 'axis' || input.kind === 'magnitude')
-            )
-              onChange({ ...input, threshold: v });
-          }}
-          onBlur={() => {
-            // Revert an empty/invalid field to the committed value on blur.
-            if (!(Number(draft) > 0)) setDraft(threshold !== null ? String(threshold) : '');
-          }}
-        />
+        <Tooltip content="Threshold">
+          <input
+            className={styles.navThreshold}
+            type="number"
+            min={1}
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              const v = Number(e.target.value);
+              if (
+                e.target.value !== '' &&
+                Number.isFinite(v) &&
+                v > 0 &&
+                (input.kind === 'axis' || input.kind === 'magnitude')
+              )
+                onChange({ ...input, threshold: v });
+            }}
+            onBlur={() => {
+              // Revert an empty/invalid field to the committed value on blur.
+              if (!(Number(draft) > 0)) setDraft(threshold !== null ? String(threshold) : '');
+            }}
+          />
+        </Tooltip>
       )}
-      <button
-        type="button"
-        className={styles.navRemove}
-        title="Remove this input"
-        onClick={onRemove}
-      >
-        ✕
-      </button>
+      <Tooltip content="Remove this input">
+        <button type="button" className={styles.navRemove} onClick={onRemove}>
+          ✕
+        </button>
+      </Tooltip>
     </div>
   );
 }

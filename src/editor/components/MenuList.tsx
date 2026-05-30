@@ -20,6 +20,7 @@ import { dropGapForRow, dropOwnerSibling, moveTarget } from '../state/reorder';
 import { nextNodeId, nodeKey, uniqueItemLabel } from '../state/node-keys';
 import { lastVisibleNodeKey, nextSelectionAfterDelete, ringBranches } from '../state/selectors';
 
+import { Tooltip } from './Tooltip';
 import styles from './MenuList.module.scss';
 
 /** Two index paths point at the same ring/node. */
@@ -372,6 +373,9 @@ export function MenuList() {
             />
           ) : (
             <>
+              {/* No hover tooltip on the row itself: it fires on every row as
+                  you move through the tree and reads as noise. Icon-only rows
+                  still get a name via aria-label. */}
               <button
                 type="button"
                 ref={setRowRef(key)}
@@ -383,12 +387,9 @@ export function MenuList() {
                 aria-posinset={i + 1}
                 className={`${styles.item} ${selected ? styles.itemSelected : ''}`}
                 aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Alt+ArrowUp Alt+ArrowDown"
-                // Give icon-only rows (empty label) a name for both hover and
-                // assistive tech, so the tree isn't a list of blank treeitems.
-                title={node.label.trim() === '' ? 'Unnamed item' : node.label}
                 aria-label={node.label.trim() === '' ? 'Unnamed item' : undefined}
                 onClick={() => (isBranch ? openNode(path) : selectPath(path))}
-                // Double-click the label to rename inline — single click still
+                // Double-click the label to rename inline; single click still
                 // opens/selects; the ✎ button does the same. (Not while
                 // read-only: the menu is plugin-provided and not editable.)
                 onDoubleClick={() => {
@@ -413,46 +414,51 @@ export function MenuList() {
                 {node.label}
               </button>
               <span className={styles.actions}>
-                <button
-                  type="button"
-                  className={styles.actionBtn}
-                  title="Add child"
-                  aria-label={`Add child to ${node.label}`}
-                  disabled={readOnly}
-                  onClick={() => addItem(path, isBranch, key)}
-                >
-                  ＋
-                </button>
-                <button
-                  type="button"
-                  className={styles.actionBtn}
-                  title="Rename"
-                  aria-label={`Rename ${node.label}`}
-                  disabled={readOnly}
-                  onClick={() => {
-                    renameCancelled.current = false;
-                    setRenaming(key);
-                    setRenameValue(node.label);
-                  }}
-                >
-                  ✎
-                </button>
-                <button
-                  type="button"
-                  className={styles.actionBtn}
-                  title={
+                <Tooltip content="Add child">
+                  <button
+                    type="button"
+                    className={styles.actionBtn}
+                    aria-label={`Add child to ${node.label}`}
+                    disabled={readOnly}
+                    onClick={() => addItem(path, isBranch, key)}
+                  >
+                    ＋
+                  </button>
+                </Tooltip>
+                <Tooltip content="Rename">
+                  <button
+                    type="button"
+                    className={styles.actionBtn}
+                    aria-label={`Rename ${node.label}`}
+                    disabled={readOnly}
+                    onClick={() => {
+                      renameCancelled.current = false;
+                      setRenaming(key);
+                      setRenameValue(node.label);
+                    }}
+                  >
+                    ✎
+                  </button>
+                </Tooltip>
+                <Tooltip
+                  content={
                     ringPath.length === 0 && ringLen <= 1
                       ? 'Delete (leaves just the centre)'
                       : ringLen <= 1
                         ? 'Delete (turns the parent back into a normal item)'
                         : 'Delete'
                   }
-                  aria-label={`Delete ${node.label}`}
-                  disabled={readOnly}
-                  onClick={() => void removeItem(ringPath, i)}
                 >
-                  🗑
-                </button>
+                  <button
+                    type="button"
+                    className={styles.actionBtn}
+                    aria-label={`Delete ${node.label}`}
+                    disabled={readOnly}
+                    onClick={() => void removeItem(ringPath, i)}
+                  >
+                    🗑
+                  </button>
+                </Tooltip>
               </span>
             </>
           )}
@@ -499,6 +505,7 @@ export function MenuList() {
             <span className={styles.rootCaret} aria-hidden="true">
               ▾
             </span>
+            {/* Like the other rows: no hover tooltip on the centre row. */}
             <button
               type="button"
               ref={setRowRef(ROOT_KEY)}
@@ -508,7 +515,7 @@ export function MenuList() {
               aria-selected={centerSelected}
               className={`${styles.item} ${centerSelected ? styles.itemSelected : ''}`}
               aria-keyshortcuts="ArrowUp ArrowDown ArrowRight"
-              title="Center (root) — the pie's centre"
+              aria-label="Center (root)"
               onClick={selectCenter}
               onKeyDown={(e) => {
                 if (treeNav(e, ROOT_KEY)) e.preventDefault();
@@ -517,16 +524,17 @@ export function MenuList() {
               {rootLabel}
             </button>
             <span className={`${styles.actions} ${styles.actionsAlways}`}>
-              <button
-                type="button"
-                className={styles.actionBtn}
-                title="Add top-level node"
-                aria-label="Add top-level node"
-                disabled={readOnly}
-                onClick={addTopLevel}
-              >
-                ＋
-              </button>
+              <Tooltip content="Add top-level node">
+                <button
+                  type="button"
+                  className={styles.actionBtn}
+                  aria-label="Add top-level node"
+                  disabled={readOnly}
+                  onClick={addTopLevel}
+                >
+                  ＋
+                </button>
+              </Tooltip>
             </span>
           </li>
           {rows}

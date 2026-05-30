@@ -9,6 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react';
 
+import { Tooltip } from './Tooltip';
 import styles from './WorkbenchSelect.module.scss';
 
 /** One selectable workbench: stable key, display label, whether it's already
@@ -122,34 +123,35 @@ export function WorkbenchSelect({
 
   return (
     <div className={styles.root} ref={rootRef}>
-      <button
-        type="button"
-        className={styles.trigger}
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? listId : undefined}
-        aria-activedescendant={open && activeIndex >= 0 ? optionId(activeIndex) : undefined}
-        onClick={() => (open ? setOpen(false) : openList())}
-        onKeyDown={onKeyDown}
-        title="Pick a workbench to edit its curated pie (● = already curated)"
-      >
-        {current ? (
-          <>
-            {current.icon ? (
-              <img className={styles.icon} src={current.icon} alt="" />
-            ) : (
-              <span className={styles.iconPlaceholder} aria-hidden="true" />
-            )}
-            <span className={styles.label}>{current.label}</span>
-          </>
-        ) : (
-          <span className={styles.placeholder}>Select a workbench…</span>
-        )}
-        <span className={styles.chevron} aria-hidden="true">
-          ▾
-        </span>
-      </button>
+      <Tooltip content="Pick a workbench to edit its curated pie (● = already curated)">
+        <button
+          type="button"
+          className={styles.trigger}
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          aria-activedescendant={open && activeIndex >= 0 ? optionId(activeIndex) : undefined}
+          onClick={() => (open ? setOpen(false) : openList())}
+          onKeyDown={onKeyDown}
+        >
+          {current ? (
+            <>
+              {current.icon ? (
+                <img className={styles.icon} src={current.icon} alt="" />
+              ) : (
+                <span className={styles.iconPlaceholder} aria-hidden="true" />
+              )}
+              <span className={styles.label}>{current.label}</span>
+            </>
+          ) : (
+            <span className={styles.placeholder}>Select a workbench…</span>
+          )}
+          <span className={styles.chevron} aria-hidden="true">
+            ▾
+          </span>
+        </button>
+      </Tooltip>
       {open && (
         <ul
           ref={listRef}
@@ -181,9 +183,11 @@ export function WorkbenchSelect({
               )}
               <span className={styles.label}>{w.label}</span>
               {w.curated && (
-                <span className={styles.curatedDot} aria-hidden="true" title="Already curated">
-                  ●
-                </span>
+                <Tooltip content="Already curated">
+                  <span className={styles.curatedDot} aria-hidden="true">
+                    ●
+                  </span>
+                </Tooltip>
               )}
             </li>
           ))}

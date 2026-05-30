@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { FreecadBridgeStatus } from '@/shared/ipc';
 
+import { Tooltip } from './Tooltip';
 import styles from './FreecadBridgeInstaller.module.scss';
 
 /**
@@ -69,15 +70,16 @@ export function FreecadBridgeInstaller({ pluginId }: { pluginId: string }) {
             {status.installed ? `installed (${status.label})` : `not installed (${status.label})`}
           </span>
           <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.btn}
-              disabled={busy}
-              onClick={() => void install()}
-              title={`Copy the bridge addon into FreeCAD's ${status.label} Mod directory`}
-            >
-              {status.installed ? 'Reinstall' : 'Install'}
-            </button>
+            <Tooltip content={`Copy the bridge addon into FreeCAD's ${status.label} Mod directory`}>
+              <button
+                type="button"
+                className={styles.btn}
+                disabled={busy}
+                onClick={() => void install()}
+              >
+                {status.installed ? 'Reinstall' : 'Install'}
+              </button>
+            </Tooltip>
             {status.installed && (
               <button
                 type="button"

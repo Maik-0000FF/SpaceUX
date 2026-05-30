@@ -75,41 +75,42 @@ export function PieShapeSelect() {
       <Tooltip content={PICKER_TOOLTIPS.shape}>
         <span className={styles.label}>Shape</span>
       </Tooltip>
-      <select
-        className={styles.select}
-        value={value}
-        title={title}
-        onChange={(e) => {
-          const next = e.target.value;
-          setShapeModel(next === WEDGE_VALUE ? null : next);
-        }}
-      >
-        <option value={WEDGE_VALUE}>Wedge (default)</option>
-        {pluginShapes.length > 0 && (
-          <optgroup label="From plugins">
-            {pluginShapes.map((s) => (
-              <option key={s.key} value={s.key} title={s.description}>
-                {/* Suppress the plugin-name suffix when it duplicates the
+      <Tooltip content={title}>
+        <select
+          className={styles.select}
+          value={value}
+          onChange={(e) => {
+            const next = e.target.value;
+            setShapeModel(next === WEDGE_VALUE ? null : next);
+          }}
+        >
+          <option value={WEDGE_VALUE}>Wedge (default)</option>
+          {pluginShapes.length > 0 && (
+            <optgroup label="From plugins">
+              {pluginShapes.map((s) => (
+                <option key={s.key} value={s.key} title={s.description}>
+                  {/* Suppress the plugin-name suffix when it duplicates the
                     shape label (the single-shape-per-plugin common case
                     where plugin.name === shape.label). */}
-                {s.pluginName && s.pluginName !== s.label
-                  ? `${s.label} · ${s.pluginName}`
-                  : s.label}
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {/* If the saved appearance references a plugin that isn't
+                  {s.pluginName && s.pluginName !== s.label
+                    ? `${s.label} · ${s.pluginName}`
+                    : s.label}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {/* If the saved appearance references a plugin that isn't
             installed (or its shape was renamed), show it as an
             "unknown" option so the picker doesn't silently switch the
             user back to wedge. Choosing wedge or another shape resolves
             the orphan. */}
-        {isUnknown && (
-          <option value={value} disabled>
-            (unknown: {value})
-          </option>
-        )}
-      </select>
+          {isUnknown && (
+            <option value={value} disabled>
+              (unknown: {value})
+            </option>
+          )}
+        </select>
+      </Tooltip>
     </label>
   );
 }
