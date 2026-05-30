@@ -46,8 +46,10 @@ export function ProfileControls() {
   const catalogPlugin = useCatalog((s) => s.plugin);
   const catalogPluginId = catalogPlugin?.id ?? null;
   // The catalog plugin's own name (FreeCAD today), so the dropdown hint and the
-  // panel it points at stay plugin-driven rather than hardcoding "FreeCAD".
-  const catalogPluginName = catalogPlugin?.name ?? 'Plugin';
+  // panel it points at stay plugin-driven rather than hardcoding "FreeCAD". `||`
+  // (not `??`) so a plugin with an empty name still falls back, not a label with
+  // a leading space.
+  const catalogPluginName = catalogPlugin?.name || 'Plugin';
   const dynamicId = catalogPluginId === null ? null : `${PLUGIN_MENU_ID_PREFIX}${catalogPluginId}`;
   const freecadActive =
     override !== null &&
