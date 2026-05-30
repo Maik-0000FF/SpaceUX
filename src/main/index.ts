@@ -118,14 +118,22 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 // packaged installs by default; setting SPACEUX_OVERLAY_MODE=1
 // forces the same look in an unpackaged dev run so the production
 // overlay surface can be tested without electron-builder packaging.
-const OVERLAY_MODE = app.isPackaged || Boolean(process.env.SPACEUX_OVERLAY_MODE);
+//
+// The value is parsed, not coerced with Boolean(): an env var is always a
+// string and every non-empty string is truthy, so Boolean() would treat
+// SPACEUX_OVERLAY_MODE=0 / =false / =off as "on", the opposite of what those
+// values intuitively mean. Treat the falsy-looking words (and empty) as off,
+// anything else as on.
+const overlayModeEnv = (process.env.SPACEUX_OVERLAY_MODE ?? '').trim().toLowerCase();
+const overlayRequested = !['', '0', 'false', 'off', 'no'].includes(overlayModeEnv);
+const OVERLAY_MODE = app.isPackaged || overlayRequested;
 
 // SPACEUX_OVERLAY_MODE=debug is the overlay surface (same window style and
 // cursor positioning as =1) but with the dev chrome kept on: the daemon-status
 // banner and the axis/debug panel stay visible so the puck orientation can be
 // watched while the floating pie is operated. The chrome only shows while the
 // pie is open, since the overlay window is hidden between triggers.
-const OVERLAY_DEBUG = process.env.SPACEUX_OVERLAY_MODE === 'debug';
+const OVERLAY_DEBUG = overlayModeEnv === 'debug';
 
 // Caps the dev-mode framed window so it fits on a typical laptop
 // display without forcing the developer to alt-drag it smaller.
