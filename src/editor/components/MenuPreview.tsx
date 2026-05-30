@@ -13,6 +13,8 @@ import {
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
+  SUBMENU_MARKER_DOT_RATIO,
+  SUBMENU_MARKER_GAP_RATIO,
   truncatePieLabel,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
@@ -42,7 +44,12 @@ const TAU = Math.PI * 2;
 // repartition the footprint, so the overall preview size never changes. The
 // per-ring radii are resolved per render from the appearance (see below).
 const FOOTPRINT = 240 * OUTER_RING_OUTER_RATIO;
-const VIEW = FOOTPRINT; // viewBox half-extent (reserves the outer ring)
+// Submenu-marker orbit + dot (#216). The viewBox reserves room for the dots
+// just outside the outer ring (matches the live PieMenu's svgExtent), so VIEW
+// is a touch larger than the footprint; the badges stay pinned to the footprint
+// corner, not this enlarged extent.
+const MARKER_DOT = FOOTPRINT * SUBMENU_MARKER_DOT_RATIO;
+const VIEW = FOOTPRINT * (1 + SUBMENU_MARKER_GAP_RATIO) + MARKER_DOT; // viewBox half-extent
 
 /**
  * Centre stage: the menu drawn exactly as the live pie shows it. The
@@ -465,6 +472,25 @@ export function MenuPreview() {
           );
         })()}
 
+        {/* Submenu markers (#216): a dot just outside the wedges for each
+          active-ring sector that opens a submenu, mirroring the live overlay.
+          Only on the wedge layout (a shape plugin owns its own affordances and
+          positions nodes off the sector angle). Decorative. */}
+        {effectiveShape === null &&
+          currentRing.map((node, i) => {
+            if (node.branches === undefined || node.branches.length === 0) return null;
+            const c = sectorCenterAngle(i, count) + activeRotation;
+            return (
+              <circle
+                key={`submenu-marker-${nodeKey(node)}`}
+                className="pie-submenu-marker"
+                cx={Math.sin(c) * rings.markerOrbit}
+                cy={-Math.cos(c) * rings.markerOrbit}
+                r={MARKER_DOT}
+              />
+            );
+          })}
+
         {/* Preview ring: the hovered branch's children, dimmed and
           non-interactive, in the outer band — overlay parity so the author
           sees what's inside before drilling. Suppressed when a shape
@@ -568,10 +594,10 @@ export function MenuPreview() {
           <image
             className={styles.pluginBadge}
             href={pluginBadge}
-            x={-VIEW * 0.95}
-            y={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
-            width={VIEW * PLUGIN_BADGE_RATIO}
-            height={VIEW * PLUGIN_BADGE_RATIO}
+            x={-FOOTPRINT * 0.95}
+            y={FOOTPRINT * 0.95 - FOOTPRINT * PLUGIN_BADGE_RATIO}
+            width={FOOTPRINT * PLUGIN_BADGE_RATIO}
+            height={FOOTPRINT * PLUGIN_BADGE_RATIO}
             preserveAspectRatio="xMidYMid meet"
             aria-hidden="true"
           />
@@ -581,10 +607,10 @@ export function MenuPreview() {
           <image
             className={styles.pluginBadge}
             href={workbenchBadge}
-            x={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
-            y={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
-            width={VIEW * PLUGIN_BADGE_RATIO}
-            height={VIEW * PLUGIN_BADGE_RATIO}
+            x={FOOTPRINT * 0.95 - FOOTPRINT * PLUGIN_BADGE_RATIO}
+            y={FOOTPRINT * 0.95 - FOOTPRINT * PLUGIN_BADGE_RATIO}
+            width={FOOTPRINT * PLUGIN_BADGE_RATIO}
+            height={FOOTPRINT * PLUGIN_BADGE_RATIO}
             preserveAspectRatio="xMidYMid meet"
             aria-hidden="true"
           />

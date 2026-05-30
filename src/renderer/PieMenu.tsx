@@ -15,6 +15,7 @@ import {
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
+  SUBMENU_MARKER_DOT_RATIO,
   truncatePieLabel,
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
@@ -200,7 +201,14 @@ export function PieMenu({
   // a branch sector.
   const outerRingOuterRadius = rings.outerOuter;
   const outerRingInnerRadius = rings.outerInner;
-  const viewportSize = outerRingOuterRadius * 2;
+  // Submenu-marker orbit + dot, and the SVG extent that reserves room for them
+  // just outside the outer ring (#216). The viewport spans the marker extent
+  // (not the outer ring) so the dots never clip; reserved unconditionally so
+  // the size is deterministic whether or not any sector has a submenu.
+  const markerOrbit = rings.markerOrbit;
+  const markerDotRadius = footprint * SUBMENU_MARKER_DOT_RATIO;
+  const svgExtent = markerOrbit + markerDotRadius;
+  const viewportSize = svgExtent * 2;
 
   // Shape-plugin dispatch (#107 PR4). The caller (App.tsx via
   // `useDrillNavigation`) owns layout computation for both ring slots;
@@ -222,7 +230,7 @@ export function PieMenu({
   // and the clamp margin scale by this factor.
   const sizeFactor = scale / (window.devicePixelRatio || 1);
   const displaySize = viewportSize * sizeFactor;
-  const clampRadius = outerRingOuterRadius * sizeFactor;
+  const clampRadius = svgExtent * sizeFactor;
 
   // Absolute positioning so the pie sits at the supplied window-
   // coords. Translating by -50% centres the SVG on the anchor point
@@ -327,10 +335,18 @@ export function PieMenu({
   // rotation.
   const innerRingRotation = isDrilled ? navigationRingRotation(config, navigation.slice(0, -1)) : 0;
 
+  // Submenu markers (#216) track the *active* ring (inner at top level, outer
+  // when drilled) and its rotation. Only drawn when that ring renders as
+  // wedges: a shape plugin positions its nodes off `sectorCenterAngle`, so a
+  // marker at the sector angle wouldn't line up with the node it marks (shape
+  // plugins own their own affordances).
+  const activeRingRotation = isDrilled ? outerRingRotation : 0;
+  const activeRingIsWedge = isDrilled ? outerShapeLayout === null : innerShapeLayout === null;
+
   return (
     <div className="pie-menu" style={style}>
       <svg
-        viewBox={`-${outerRingOuterRadius} -${outerRingOuterRadius} ${viewportSize} ${viewportSize}`}
+        viewBox={`-${svgExtent} -${svgExtent} ${viewportSize} ${viewportSize}`}
         width={displaySize}
         height={displaySize}
       >
@@ -449,6 +465,27 @@ export function PieMenu({
                 ))}
               </>
             )}
+          </g>
+        )}
+        {/* Submenu markers (#216): a small dot on an orbit just outside the
+          wedges for each active-ring sector that opens a submenu, so "drills
+          deeper" vs "commits an action" is visible without navigating in.
+          Decorative; only on the wedge layout (see activeRingIsWedge). */}
+        {activeRingIsWedge && (
+          <g className="pie-submenu-markers" aria-hidden="true">
+            {activeRing.map((node, i) => {
+              if (node.branches === undefined || node.branches.length === 0) return null;
+              const angle = sectorCenterAngle(i, activeRing.length) + activeRingRotation;
+              return (
+                <circle
+                  key={`submenu-marker-${i}`}
+                  className="pie-submenu-marker"
+                  cx={Math.sin(angle) * markerOrbit}
+                  cy={-Math.cos(angle) * markerOrbit}
+                  r={markerDotRadius}
+                />
+              );
+            })}
           </g>
         )}
         {/* Active-plugin badge (#186): the app icon in the bottom-left corner

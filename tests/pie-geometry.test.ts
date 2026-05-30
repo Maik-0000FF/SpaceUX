@@ -21,6 +21,7 @@ import {
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
+  SUBMENU_MARKER_GAP_RATIO,
   truncatePieLabel,
   twistCycleStep,
   type GestureFrame,
@@ -492,6 +493,18 @@ describe('ringRadii', () => {
     expect(r.innerOuter).toBeCloseTo(INNER); // inner pie = old base radius
     expect(r.cancel).toBeCloseTo(INNER * 0.18); // old CANCEL_RADIUS_RATIO
     expect(r.outerInner).toBeCloseTo(INNER * 1.04); // old OUTER_RING_INNER_RATIO
+  });
+
+  it('puts the submenu-marker orbit just beyond the outer edge (#216)', () => {
+    for (const ring of [0, 0.5, 1]) {
+      for (const center of [0, 0.5, 1]) {
+        const r = ringRadii(FOOTPRINT, ring, center);
+        // Beyond the footprint by the gap fraction, and balance-independent
+        // (the gap is a fraction of the fixed footprint, not a band).
+        expect(r.markerOrbit).toBeGreaterThan(r.outerOuter);
+        expect(r.markerOrbit).toBeCloseTo(FOOTPRINT + FOOTPRINT * SUBMENU_MARKER_GAP_RATIO);
+      }
+    }
   });
 
   it('keeps the footprint fixed regardless of the balances', () => {

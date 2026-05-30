@@ -82,6 +82,17 @@ export const OUTER_RING_INNER_RATIO = 1.04;
 /** Outer edge of the outer ring — the overall pie footprint. */
 export const OUTER_RING_OUTER_RATIO = 1.5;
 
+// ── Submenu markers (issue #216) ────────────────────────────────────
+// A ring of small dots on an orbit just beyond the outer ring marks which
+// active-ring sectors open a submenu (drill deeper) vs. run an action. Both
+// are fractions of the footprint so they scale with the pie. GAP is the
+// orbit's distance past the outer edge; DOT is the dot radius. The SVG
+// viewport reserves GAP + DOT of margin so the dots never clip, reserved
+// unconditionally (like the outer-ring space) so the size stays deterministic
+// whether or not the active ring actually has any submenu sectors.
+export const SUBMENU_MARKER_GAP_RATIO = 0.05;
+export const SUBMENU_MARKER_DOT_RATIO = 0.028;
+
 // ── Ring balance (issue #182) ───────────────────────────────────────
 // Two appearance sliders repartition the fixed footprint among the three
 // radial bands (centre hole / inner pie = first child / outer ring) without
@@ -120,6 +131,9 @@ export type RingRadii = {
   innerLabel: number;
   /** Outer-ring label radius: the middle of the outer band. */
   outerLabel: number;
+  /** Submenu-marker orbit radius (#216): just beyond the outer edge. The dot
+   *  radius is a separate footprint fraction the renderer applies. */
+  markerOrbit: number;
 };
 
 /**
@@ -158,6 +172,7 @@ export function ringRadii(
     outerOuter,
     innerLabel: (cancel + innerOuter) / 2,
     outerLabel: (outerInner + outerOuter) / 2,
+    markerOrbit: outerOuter + footprint * SUBMENU_MARKER_GAP_RATIO,
   };
 }
 

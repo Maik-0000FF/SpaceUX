@@ -127,6 +127,16 @@
   background: rgb(from var(--pie-cancel-bg-active) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
 }
 
+/* Submenu marker (#216): a small dot on an orbit just outside the wedges,
+ * one per active-ring sector that opens a submenu (vs. commits an action).
+ * Drawn in the SVG, so it's filled (not a background like the depth dots).
+ * Uses the rim/border colour so it reads as a structural affordance across
+ * every theme, scaled by the pie opacity. Shared by the live overlay and the
+ * editor preview. */
+.pie-submenu-marker {
+  fill: rgb(from var(--pie-border) r g b / var(--pie-opacity, 0.6));
+}
+
 :root .pie-depth-dot.is-cancel.is-active {
   background: rgb(from var(--pie-cancel-bg-active) r g b / var(--pie-opacity, 0.6));
 }
