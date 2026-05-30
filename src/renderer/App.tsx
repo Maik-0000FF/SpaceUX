@@ -23,6 +23,12 @@ import { useShapeModules } from './state/shape-modules';
  *  load from the synchronous preload flag. */
 const IS_OVERLAY = window.spaceux.isOverlay;
 
+/** Show the dev chrome (daemon-status banner + debug panel): always in the
+ *  framed dev window, and also on the overlay surface when it's the debug
+ *  variant (SPACEUX_OVERLAY_MODE=debug) so the puck orientation can be watched
+ *  while the floating pie is operated. The clean overlay (=1) shows neither. */
+const SHOW_DEV_CHROME = !IS_OVERLAY || window.spaceux.overlayDebug;
+
 /** Fire a node's action through main, swallowing nothing — dispatch
  *  failures surface on the renderer console so a user with devtools
  *  open can see why an action did nothing. A no-op when the action is
@@ -294,7 +300,7 @@ export function App() {
           showDepthDots={pieAppearance.showDepthDots}
         />
       )}
-      {!IS_OVERLAY && (
+      {SHOW_DEV_CHROME && (
         <>
           <DaemonStatusIndicator status={daemonStatus} />
           <DebugPanel
@@ -311,9 +317,10 @@ export function App() {
 }
 
 /**
- * Always-visible debug card in the top-right corner. Rendered only in
- * the dev window (its caller gates it on `!IS_OVERLAY`, #296) so the
- * shipping overlay shows nothing but the pie. Lets a developer watch axes flow,
+ * Always-visible debug card in the top-right corner. Rendered in the dev
+ * window and the debug overlay variant (its caller gates it on
+ * `SHOW_DEV_CHROME`, #296) so the clean shipping overlay shows nothing but the
+ * pie. Lets a developer watch axes flow,
  * confirm the daemon is connected, and see the menu open/close
  * lifecycle without having to read DevTools logs.
  */

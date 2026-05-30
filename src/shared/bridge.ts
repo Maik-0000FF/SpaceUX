@@ -59,6 +59,11 @@ export type SpaceUxBridge = {
    *  dev-only chrome (the daemon-status banner, the debug panel) before
    *  first paint. */
   readonly isOverlay: boolean;
+  /** True only for the debug overlay variant (SPACEUX_OVERLAY_MODE=debug): the
+   *  overlay surface with the dev chrome kept on, so the daemon status and puck
+   *  axes stay visible while the floating pie is operated. Lets the renderer
+   *  re-show that chrome even though `isOverlay` is also true. */
+  readonly overlayDebug: boolean;
   onAxes(handler: (values: AxesValues) => void): () => void;
   onButton(handler: (payload: ButtonEventPayload) => void): () => void;
   onDaemonStatus(handler: (payload: DaemonStatusPayload) => void): () => void;
