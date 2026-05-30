@@ -21,9 +21,8 @@ import {
   segmentIconFitPx,
   segmentLabelFontPx,
   submenuMarkerAngles,
-  SUBMENU_MARKER_DOT_RATIO,
-  SUBMENU_MARKER_GAP_RATIO,
-  SUBMENU_MARKER_STEP_FACTOR,
+  submenuMarkerExtent,
+  submenuMarkerOrbit,
   truncatePieLabel,
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
@@ -213,9 +212,7 @@ export function PieMenu({
   // past the outer ring (the drilled case; the markers lie on one orbit, so the
   // reserve is a flat GAP + 2·DOT, not depth-dependent). The orbit itself hugs
   // the *active* band's edge (the inner pie at top level) and is computed below.
-  const markerDotRadius = footprint * SUBMENU_MARKER_DOT_RATIO;
-  const markerGap = footprint * SUBMENU_MARKER_GAP_RATIO;
-  const svgExtent = outerRingOuterRadius + markerGap + 2 * markerDotRadius;
+  const svgExtent = submenuMarkerExtent(footprint, outerRingOuterRadius);
   const viewportSize = svgExtent * 2;
 
   // Shape-plugin dispatch (#107 PR4). The caller (App.tsx via
@@ -351,15 +348,17 @@ export function PieMenu({
   // line up; shape plugins own their own affordances.
   const activeRingIsWedge = isDrilled ? outerShapeLayout === null : innerShapeLayout === null;
   const activeRingRotation = isDrilled ? outerRingRotation : 0;
-  // The orbit hugs whichever band is the outermost one currently on screen: the
-  // inner pie when only it shows, but the outer ring once it's visible (drilled,
-  // or hovering a branch fades its children in as the preview ring), so the dots
-  // move outside the outer band when it opens. A fixed arc-length spacing keeps
-  // each branch's depth arc tight.
+  // Orbit + arc spacing for the markers. Outside the outer ring once it's
+  // visible (drilled, or hovering a branch fades its children in as the preview
+  // ring), near the inner pie otherwise, so the dots move out when the band
+  // opens. Shared with the editor preview via `submenuMarkerOrbit`.
   const outerBandVisible = isDrilled || (previewSectors !== undefined && previewSectors.length > 0);
-  const markerOrbit =
-    (outerBandVisible ? outerRingOuterRadius : innerPieOuter) + markerGap + markerDotRadius;
-  const markerStepAngle = (markerDotRadius * SUBMENU_MARKER_STEP_FACTOR) / markerOrbit;
+  const marker = submenuMarkerOrbit({
+    footprint,
+    innerOuter: innerPieOuter,
+    outerOuter: outerRingOuterRadius,
+    outerBandVisible,
+  });
 
   return (
     <div className="pie-menu" style={style}>
@@ -501,14 +500,14 @@ export function PieMenu({
                 activeRing.length,
                 depth,
                 activeRingRotation,
-                markerStepAngle,
+                marker.stepAngle,
               ).map((angle, k) => (
                 <circle
                   key={`submenu-marker-${i}-${k}`}
                   className={`pie-submenu-marker${on ? ' is-active' : ''}`}
-                  cx={Math.sin(angle) * markerOrbit}
-                  cy={-Math.cos(angle) * markerOrbit}
-                  r={markerDotRadius}
+                  cx={Math.sin(angle) * marker.orbit}
+                  cy={-Math.cos(angle) * marker.orbit}
+                  r={marker.dotRadius}
                 />
               ));
             })}

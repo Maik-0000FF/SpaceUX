@@ -22,6 +22,11 @@ import {
   segmentIconFitPx,
   segmentLabelFontPx,
   submenuMarkerAngles,
+  submenuMarkerExtent,
+  submenuMarkerOrbit,
+  SUBMENU_MARKER_DOT_RATIO,
+  SUBMENU_MARKER_GAP_RATIO,
+  SUBMENU_MARKER_STEP_FACTOR,
   truncatePieLabel,
   twistCycleStep,
   type GestureFrame,
@@ -561,5 +566,42 @@ describe('submenuMarkerAngles', () => {
 
   it('applies the ring rotation to every dot', () => {
     expect(submenuMarkerAngles(0, 4, 1, 0.5, STEP)).toEqual([sectorCenterAngle(0, 4) + 0.5]);
+  });
+});
+
+// submenuMarkerExtent / submenuMarkerOrbit are the shared geometry the live
+// overlay and the editor preview both derive their markers from (#216), so the
+// two can't drift. Pure.
+describe('submenuMarkerExtent', () => {
+  it('reserves the outer ring plus the gap and a full dot diameter', () => {
+    const footprint = 360;
+    const outerOuter = 360;
+    expect(submenuMarkerExtent(footprint, outerOuter)).toBeCloseTo(
+      outerOuter + footprint * SUBMENU_MARKER_GAP_RATIO + 2 * footprint * SUBMENU_MARKER_DOT_RATIO,
+    );
+  });
+});
+
+describe('submenuMarkerOrbit', () => {
+  const footprint = 360;
+  const innerOuter = 240;
+  const outerOuter = 360;
+  const gap = footprint * SUBMENU_MARKER_GAP_RATIO;
+  const dot = footprint * SUBMENU_MARKER_DOT_RATIO;
+
+  it('orbits just outside the inner pie when the outer band is hidden', () => {
+    const m = submenuMarkerOrbit({ footprint, innerOuter, outerOuter, outerBandVisible: false });
+    expect(m.orbit).toBeCloseTo(innerOuter + gap + dot);
+    expect(m.dotRadius).toBeCloseTo(dot);
+  });
+
+  it('orbits just outside the outer ring once the outer band is visible', () => {
+    const m = submenuMarkerOrbit({ footprint, innerOuter, outerOuter, outerBandVisible: true });
+    expect(m.orbit).toBeCloseTo(outerOuter + gap + dot);
+  });
+
+  it('derives the arc step from the dot size and orbit (fixed arc length)', () => {
+    const m = submenuMarkerOrbit({ footprint, innerOuter, outerOuter, outerBandVisible: true });
+    expect(m.stepAngle).toBeCloseTo((dot * SUBMENU_MARKER_STEP_FACTOR) / m.orbit);
   });
 });

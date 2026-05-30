@@ -337,6 +337,42 @@ export function submenuMarkerAngles(
   return Array.from({ length: count }, (_, k) => center + (k - (count - 1) / 2) * stepAngle);
 }
 
+/**
+ * SVG half-extent the viewport must reserve for the submenu markers (#216): the
+ * outer ring plus the orbit gap and a full dot diameter. Band-independent (the
+ * markers ride one orbit, so depth doesn't matter), reserved unconditionally so
+ * the size stays deterministic. Shared by the live overlay and the editor
+ * preview so the two can't drift.
+ */
+export function submenuMarkerExtent(footprint: number, outerOuter: number): number {
+  return (
+    outerOuter + footprint * SUBMENU_MARKER_GAP_RATIO + 2 * footprint * SUBMENU_MARKER_DOT_RATIO
+  );
+}
+
+/**
+ * Orbit radius, per-dot angular spacing and dot radius for the submenu markers
+ * (#216). The orbit hugs the outermost band currently on screen: the inner pie
+ * when only it shows, the outer ring once it's visible (`outerBandVisible`), so
+ * the dots move outside the outer band when it opens. The arc spacing is a fixed
+ * arc length (dot size × the spacing factor, converted to an angle at the
+ * orbit), so a branch's arc stays tight whatever the sector width. Shared by the
+ * live overlay and the editor preview.
+ */
+export function submenuMarkerOrbit(params: {
+  footprint: number;
+  innerOuter: number;
+  outerOuter: number;
+  outerBandVisible: boolean;
+}): { orbit: number; stepAngle: number; dotRadius: number } {
+  const { footprint, innerOuter, outerOuter, outerBandVisible } = params;
+  const dotRadius = footprint * SUBMENU_MARKER_DOT_RATIO;
+  const gap = footprint * SUBMENU_MARKER_GAP_RATIO;
+  const orbit = (outerBandVisible ? outerOuter : innerOuter) + gap + dotRadius;
+  const stepAngle = (dotRadius * SUBMENU_MARKER_STEP_FACTOR) / orbit;
+  return { orbit, stepAngle, dotRadius };
+}
+
 /** Compute the magnitude of the axes vector. Lets the renderer scale
  *  the visual indicator radially (e.g. arrow extends further with
  *  stronger deflection). */
