@@ -755,6 +755,11 @@ async function createWindow(): Promise<void> {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Tell the renderer it's the shipping overlay (not the dev window) so it
+      // can hide chrome that only makes sense in dev (the daemon-status banner
+      // and the debug panel). Passed as a launch arg (read in the preload)
+      // rather than over IPC so the flag is known before first paint, no flash.
+      additionalArguments: OVERLAY_MODE ? ['--spaceux-overlay'] : [],
     },
   });
 

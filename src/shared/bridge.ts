@@ -53,6 +53,12 @@ export type AxesValues = [number, number, number, number, number, number];
 export type ButtonEventPayload = { bnum: number; pressed: boolean };
 
 export type SpaceUxBridge = {
+  /** True in the shipping overlay window (packaged install or
+   *  SPACEUX_OVERLAY_MODE=1), false in the framed dev window. Synchronous
+   *  (read from a launch arg in the preload) so the renderer can hide
+   *  dev-only chrome (the daemon-status banner, the debug panel) before
+   *  first paint. */
+  readonly isOverlay: boolean;
   onAxes(handler: (values: AxesValues) => void): () => void;
   onButton(handler: (payload: ButtonEventPayload) => void): () => void;
   onDaemonStatus(handler: (payload: DaemonStatusPayload) => void): () => void;

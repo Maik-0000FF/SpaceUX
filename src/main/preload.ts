@@ -30,6 +30,9 @@ function subscribe<T>(channel: string, handler: (value: T) => void): () => void 
 }
 
 const bridge: SpaceUxBridge = {
+  // Set from the BrowserWindow's additionalArguments in main, so it's known
+  // synchronously at preload time (before the renderer paints), no IPC race.
+  isOverlay: process.argv.includes('--spaceux-overlay'),
   onAxes: (handler) => subscribe<AxesValues>(IpcChannel.AXES, handler),
   onButton: (handler) => subscribe<ButtonEventPayload>(IpcChannel.BUTTON, handler),
   onDaemonStatus: (handler) => subscribe<DaemonStatusPayload>(IpcChannel.DAEMON_STATUS, handler),

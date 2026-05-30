@@ -16,6 +16,13 @@ import { usePieAppearance } from './hooks/usePieAppearance';
 import { useSpaceMouse } from './hooks/useSpaceMouse';
 import { useShapeModules } from './state/shape-modules';
 
+/** The shipping overlay window (#296). The pie is the only thing meant to be
+ *  visible there (the desktop shows through everywhere else), so dev-only
+ *  chrome (the daemon-status banner and the debug panel) is suppressed. False
+ *  in the framed dev window, where that chrome is useful. Read once at module
+ *  load from the synchronous preload flag. */
+const IS_OVERLAY = window.spaceux.isOverlay;
+
 /** Fire a node's action through main, swallowing nothing — dispatch
  *  failures surface on the renderer console so a user with devtools
  *  open can see why an action did nothing. A no-op when the action is
@@ -287,22 +294,26 @@ export function App() {
           showDepthDots={pieAppearance.showDepthDots}
         />
       )}
-      <DaemonStatusIndicator status={daemonStatus} />
-      <DebugPanel
-        daemonStatus={daemonStatus}
-        axes={axes}
-        menuOpen={menuAnchor !== null}
-        menuConfig={menuConfig}
-        drillState={drillState}
-      />
+      {!IS_OVERLAY && (
+        <>
+          <DaemonStatusIndicator status={daemonStatus} />
+          <DebugPanel
+            daemonStatus={daemonStatus}
+            axes={axes}
+            menuOpen={menuAnchor !== null}
+            menuConfig={menuConfig}
+            drillState={drillState}
+          />
+        </>
+      )}
     </div>
   );
 }
 
 /**
- * Always-visible debug card in the top-right corner. Renders only
- * outside packaged builds (`spaceux` runs from the dev npm start)
- * so end-users never see it. Lets a developer watch axes flow,
+ * Always-visible debug card in the top-right corner. Rendered only in
+ * the dev window (its caller gates it on `!IS_OVERLAY`, #296) so the
+ * shipping overlay shows nothing but the pie. Lets a developer watch axes flow,
  * confirm the daemon is connected, and see the menu open/close
  * lifecycle without having to read DevTools logs.
  */
