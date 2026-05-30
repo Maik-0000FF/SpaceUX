@@ -1,7 +1,16 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  cloneElement,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { createPortal } from 'react-dom';
 
 import styles from './Tooltip.module.scss';
@@ -13,19 +22,26 @@ const GAP = 8;
 const EDGE = 8;
 
 /**
- * App-wide hover/focus tooltip (#279). Wraps a trigger and shows a themed,
- * possibly multi-line bubble on hover or keyboard focus. The bubble is
- * portalled to <body> (like Modal) so a scrolling panel can't clip it, and
- * positioned against the trigger's rect — picking the side with more room and
- * clamping into the viewport.
+ * App-wide hover/focus tooltip (#279). Shows a themed, possibly multi-line
+ * bubble on hover or keyboard focus of its trigger. The bubble is portalled to
+ * <body> (like Modal) so a scrolling panel can't clip it, and positioned
+ * against the trigger's rect — picking the side with more room and clamping
+ * into the viewport on both axes.
  *
- * Use this for the controls native `title=` can't style or can't reach with
- * rich content. Native `title` is still the right tool for <option> elements
- * (a portal can't decorate them inside a <select>).
+ * The single child element IS the trigger: we clone it to attach our handlers,
+ * the measuring ref, and `aria-describedby`, rather than wrapping it. That
+ * keeps the child's own layout (so a grid-placed label stays a grid item) and
+ * puts the description on the real, focusable control so assistive tech
+ * announces it. A non-focusable trigger (a plain label) is therefore reachable
+ * by hover only — by design; rich keyboard help would mean adding tab stops.
+ *
+ * Use this for controls native `title=` can't style or reach with rich
+ * content. Native `title` is still the right tool for <option> elements (a
+ * portal can't decorate them inside a <select>).
  */
-export function Tooltip({ content, children }: { content: ReactNode; children: ReactNode }) {
+export function Tooltip({ content, children }: { content: ReactNode; children: ReactElement }) {
   const id = useId();
-  const wrapperRef = useRef<HTMLSpanElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const timer = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
@@ -48,11 +64,11 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
   };
 
   // Position once on open: measure the trigger + bubble, pick the side with
-  // more room, clamp horizontally into the viewport. Runs before paint so the
+  // more room, clamp into the viewport on both axes. Runs before paint so the
   // bubble (rendered hidden until coords exist) never flashes at 0,0.
   useLayoutEffect(() => {
     if (!open) return;
-    const trigger = wrapperRef.current;
+    const trigger = triggerRef.current;
     const bubble = bubbleRef.current;
     if (trigger === null || bubble === null) return;
     const t = trigger.getBoundingClientRect();
@@ -60,9 +76,10 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
     const above = t.top;
     const below = window.innerHeight - t.bottom;
     const placeAbove = above >= b.height + GAP || above >= below;
-    const top = placeAbove ? t.top - GAP - b.height : t.bottom + GAP;
+    const rawTop = placeAbove ? t.top - GAP - b.height : t.bottom + GAP;
     const centred = t.left + t.width / 2 - b.width / 2;
     const left = Math.max(EDGE, Math.min(centred, window.innerWidth - b.width - EDGE));
+    const top = Math.max(EDGE, Math.min(rawTop, window.innerHeight - b.height - EDGE));
     setCoords({ left, top });
   }, [open]);
 
@@ -87,20 +104,46 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
   // Drop a pending open timer if the trigger unmounts mid-hover.
   useEffect(() => () => clearTimer(), []);
 
-  if (content === null || content === undefined || content === '') return <>{children}</>;
+  if (content === null || content === undefined || content === '') return children;
+
+  // Compose our open/close handlers with any the child already declares, and
+  // set the ref + aria-describedby on the real control.
+  const childProps = children.props as {
+    onMouseEnter?: (e: unknown) => void;
+    onMouseLeave?: (e: unknown) => void;
+    onFocus?: (e: unknown) => void;
+    onBlur?: (e: unknown) => void;
+    'aria-describedby'?: string;
+  };
+  // cloneElement's public overload only types `key`; `ref` and the cloned
+  // event props are threaded at runtime, so widen the element's props type to
+  // attach them.
+  const trigger = cloneElement(children as ReactElement<Record<string, unknown>>, {
+    ref: (el: HTMLElement | null) => {
+      triggerRef.current = el;
+    },
+    onMouseEnter: (e: unknown) => {
+      childProps.onMouseEnter?.(e);
+      show();
+    },
+    onMouseLeave: (e: unknown) => {
+      childProps.onMouseLeave?.(e);
+      hide();
+    },
+    onFocus: (e: unknown) => {
+      childProps.onFocus?.(e);
+      show();
+    },
+    onBlur: (e: unknown) => {
+      childProps.onBlur?.(e);
+      hide();
+    },
+    'aria-describedby': open ? id : childProps['aria-describedby'],
+  });
 
   return (
-    <span
-      ref={wrapperRef}
-      className={styles.wrapper}
-      onMouseEnter={show}
-      onMouseLeave={hide}
-      // focusin bubbles up from an inner focusable trigger.
-      onFocus={show}
-      onBlur={hide}
-      aria-describedby={open ? id : undefined}
-    >
-      {children}
+    <>
+      {trigger}
       {open &&
         createPortal(
           <div
@@ -118,6 +161,6 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
           </div>,
           document.body,
         )}
-    </span>
+    </>
   );
 }
