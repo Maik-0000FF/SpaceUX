@@ -102,6 +102,7 @@ import {
   resolveFreecadModDir,
   uninstallBridge,
 } from './freecad-bridge.js';
+import { parseOverlayMode } from './overlay-mode.js';
 import { resourcePath } from './resources.js';
 import { createTray } from './tray.js';
 
@@ -118,14 +119,16 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 // packaged installs by default; setting SPACEUX_OVERLAY_MODE=1
 // forces the same look in an unpackaged dev run so the production
 // overlay surface can be tested without electron-builder packaging.
-const OVERLAY_MODE = app.isPackaged || Boolean(process.env.SPACEUX_OVERLAY_MODE);
-
-// SPACEUX_OVERLAY_MODE=debug is the overlay surface (same window style and
-// cursor positioning as =1) but with the dev chrome kept on: the daemon-status
-// banner and the axis/debug panel stay visible so the puck orientation can be
-// watched while the floating pie is operated. The chrome only shows while the
-// pie is open, since the overlay window is hidden between triggers.
-const OVERLAY_DEBUG = process.env.SPACEUX_OVERLAY_MODE === 'debug';
+// SPACEUX_OVERLAY_MODE=debug is the same overlay surface but keeps the dev
+// chrome on (daemon-status banner + axis/debug panel) so the puck orientation
+// can be watched while the floating pie is operated; that chrome only shows
+// while the pie is open, since the overlay window is hidden between triggers.
+//
+// The env value is parsed (see parseOverlayMode) rather than Boolean-coerced,
+// so =0 / =false / =off read as off instead of as truthy non-empty strings.
+const overlay = parseOverlayMode(process.env.SPACEUX_OVERLAY_MODE);
+const OVERLAY_MODE = app.isPackaged || overlay.requested;
+const OVERLAY_DEBUG = overlay.debug;
 
 // Caps the dev-mode framed window so it fits on a typical laptop
 // display without forcing the developer to alt-drag it smaller.
