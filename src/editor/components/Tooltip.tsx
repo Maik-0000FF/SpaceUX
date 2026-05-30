@@ -3,6 +3,7 @@
 
 import {
   cloneElement,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -107,6 +108,21 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
   // Drop a pending open timer if the trigger unmounts mid-hover.
   useEffect(() => () => clearTimer(), []);
 
+  // Forward the child's own ref (React 19 exposes it as a prop) alongside our
+  // measuring ref, so a trigger that needs a ref (e.g. the tree's focusable
+  // rows) keeps it instead of having it clobbered. The current child ref lives
+  // in a box so the callback identity stays stable across renders (a fresh
+  // callback each render would detach/reattach the node — the churn #284 fixed).
+  const childRef = (children.props as { ref?: Ref<HTMLElement> }).ref;
+  const childRefBox = useRef<Ref<HTMLElement> | undefined>(childRef);
+  childRefBox.current = childRef;
+  const setTriggerRef = useCallback((el: HTMLElement | null) => {
+    triggerRef.current = el;
+    const r = childRefBox.current;
+    if (typeof r === 'function') r(el);
+    else if (r != null) (r as { current: HTMLElement | null }).current = el;
+  }, []);
+
   if (content === null || content === undefined || content === '') return children;
 
   // Compose with the child's own props rather than clobbering them: chain any
@@ -115,21 +131,11 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
   // interactive (a button keeps its pointer).
   const childProps = children.props as {
     className?: string;
-    ref?: Ref<HTMLElement>;
     onMouseEnter?: (e: unknown) => void;
     onMouseLeave?: (e: unknown) => void;
     onFocus?: (e: unknown) => void;
     onBlur?: (e: unknown) => void;
     'aria-describedby'?: string;
-  };
-  // Forward the child's own ref (React 19 exposes it as a prop) alongside our
-  // measuring ref, so a trigger that needs a ref (e.g. the tree's focusable
-  // rows) keeps it instead of having it clobbered.
-  const childRef = childProps.ref;
-  const setTriggerRef = (el: HTMLElement | null): void => {
-    triggerRef.current = el;
-    if (typeof childRef === 'function') childRef(el);
-    else if (childRef != null) (childRef as { current: HTMLElement | null }).current = el;
   };
   const interactive = typeof children.type === 'string' && INTERACTIVE_TAGS.has(children.type);
   const className =
