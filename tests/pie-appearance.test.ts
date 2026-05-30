@@ -174,6 +174,15 @@ describe('sanitizePieAppearancePatch', () => {
     expect(sanitizePieAppearancePatch({ shapeModel: false })).toEqual({});
     expect(sanitizePieAppearancePatch({ shapeModel: { id: 'x' } })).toEqual({});
   });
+
+  it('passes the marker-toggle booleans through, drops non-booleans (#290)', () => {
+    expect(sanitizePieAppearancePatch({ showSubmenuMarkers: false })).toEqual({
+      showSubmenuMarkers: false,
+    });
+    expect(sanitizePieAppearancePatch({ showDepthDots: true })).toEqual({ showDepthDots: true });
+    // Non-boolean (incl. truthy/falsy values) is dropped, not coerced.
+    expect(sanitizePieAppearancePatch({ showSubmenuMarkers: 1, showDepthDots: 'yes' })).toEqual({});
+  });
 });
 
 describe('clampShapeModel', () => {

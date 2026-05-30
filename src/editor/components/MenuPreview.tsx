@@ -488,7 +488,7 @@ export function MenuPreview() {
           active-ring submenu sector, a small arc of dots on one orbit near the
           active band = how many levels it nests. Every branch shows its depth,
           the active sector's arc highlighted. Only on the wedge layout. */}
-        {effectiveShape === null && (
+        {effectiveShape === null && appearance.showSubmenuMarkers && (
           <g className="pie-submenu-markers" aria-hidden="true">
             {currentRing.map((node, i) => {
               const depth = subtreeDepth(node);
@@ -634,21 +634,23 @@ export function MenuPreview() {
           />
         )}
       </svg>
-      <div
-        className="pie-depth-dots"
-        style={{ ['--depth-dot-size']: `${displaySize * 0.02}px` } as CSSProperties}
-        aria-hidden="true"
-      >
-        {Array.from({ length: dotCount }, (_, i) => {
-          const cancel = i === 0 && isCancelNode(config.root);
-          return (
-            <span
-              key={i}
-              className={`pie-depth-dot${i === activeDot ? ' is-active' : ''}${cancel ? ' is-cancel' : ''}`}
-            />
-          );
-        })}
-      </div>
+      {appearance.showDepthDots && (
+        <div
+          className="pie-depth-dots"
+          style={{ ['--depth-dot-size']: `${displaySize * 0.02}px` } as CSSProperties}
+          aria-hidden="true"
+        >
+          {Array.from({ length: dotCount }, (_, i) => {
+            const cancel = i === 0 && isCancelNode(config.root);
+            return (
+              <span
+                key={i}
+                className={`pie-depth-dot${i === activeDot ? ' is-active' : ''}${cancel ? ' is-cancel' : ''}`}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

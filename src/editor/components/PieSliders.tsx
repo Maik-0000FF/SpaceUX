@@ -20,10 +20,46 @@ import {
 } from '@/shared/pie-appearance';
 
 import { usePieAppearance } from '../hooks/usePieAppearance';
-import { SLIDER_TOOLTIPS } from '../tooltips';
+import { MARKER_TOGGLE_TOOLTIPS, SLIDER_TOOLTIPS } from '../tooltips';
 
 import { Tooltip } from './Tooltip';
 import styles from './PieSliders.module.scss';
+
+/** A small switch (track + sliding knob) for a pie-marker visibility toggle
+ *  (#290), with a hover tooltip. Mirrors the LiveToggle switch styling. */
+function MarkerToggle({
+  on,
+  onToggle,
+  label,
+  ariaLabel,
+  hint,
+}: {
+  on: boolean;
+  onToggle: (next: boolean) => void;
+  /** Short text shown on the switch. */
+  label: string;
+  /** Full, grammatical label for assistive tech (the visible `label` is terse). */
+  ariaLabel: string;
+  hint: string;
+}) {
+  return (
+    <Tooltip content={hint}>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={ariaLabel}
+        className={`${styles.toggle} ${on ? styles.toggleOn : ''}`}
+        onClick={() => onToggle(!on)}
+      >
+        <span className={styles.track}>
+          <span className={styles.knob} />
+        </span>
+        <span className={styles.toggleLabel}>{label}</span>
+      </button>
+    </Tooltip>
+  );
+}
 
 /**
  * Pie value sliders (size · opacity · label · icon), docked top-right of the
@@ -45,10 +81,31 @@ export function PieSliders() {
     setScale,
     setRingBalance,
     setCenterBalance,
+    setShowSubmenuMarkers,
+    setShowDepthDots,
   } = usePieAppearance();
 
   return (
     <div className={styles.panel}>
+      {/* Marker visibility toggles (#290), side by side at the top of the
+          slider panel. The submenu depth markers (#216) and the depth-dots
+          indicator can each be hidden for a cleaner pie. */}
+      <div className={styles.toggles}>
+        <MarkerToggle
+          on={pie.showSubmenuMarkers}
+          onToggle={setShowSubmenuMarkers}
+          label="Submenus"
+          ariaLabel="Show submenu depth markers"
+          hint={MARKER_TOGGLE_TOOLTIPS.submenu}
+        />
+        <MarkerToggle
+          on={pie.showDepthDots}
+          onToggle={setShowDepthDots}
+          label="Depth"
+          ariaLabel="Show the depth dots"
+          hint={MARKER_TOGGLE_TOOLTIPS.depth}
+        />
+      </div>
       <label className={styles.control}>
         <Tooltip content={SLIDER_TOOLTIPS.size}>
           <span className={styles.label}>Size</span>

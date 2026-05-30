@@ -14,6 +14,13 @@ import type { ActionConfigSchema } from '@/shared/plugin-types';
  * holds the plain strings and the pure builders feeding them.
  */
 
+/** Marker visibility toggles in the slider panel (#290). */
+export const MARKER_TOGGLE_TOOLTIPS = {
+  submenu:
+    'Show the submenu depth markers: per-branch dots marking how many levels each submenu nests.',
+  depth: 'Show the depth dots: the row of dots marking how deep you are in the menu.',
+} as const;
+
 /** Pie appearance sliders, keyed by the control they annotate. */
 export const SLIDER_TOOLTIPS = {
   size: 'Overall size of the pie on screen (100% = the app default).',

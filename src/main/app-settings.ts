@@ -44,6 +44,8 @@ export type AppSettings = {
   pieFontUi?: string;
   pieFontMono?: string;
   pieShapeModel?: string | null;
+  pieShowSubmenuMarkers?: boolean;
+  pieShowDepthDots?: boolean;
 };
 
 const FILENAME = 'app-settings.json';
@@ -103,6 +105,12 @@ export async function loadAppSettings(): Promise<AppSettings> {
   if (obj.pieShapeModel === null || typeof obj.pieShapeModel === 'string') {
     out.pieShapeModel = clampShapeModel(obj.pieShapeModel);
   }
+  if (typeof obj.pieShowSubmenuMarkers === 'boolean') {
+    out.pieShowSubmenuMarkers = obj.pieShowSubmenuMarkers;
+  }
+  if (typeof obj.pieShowDepthDots === 'boolean') {
+    out.pieShowDepthDots = obj.pieShowDepthDots;
+  }
   return out;
 }
 
@@ -120,6 +128,8 @@ export async function loadPieAppearance(): Promise<PieAppearance> {
     fontUi: s.pieFontUi ?? DEFAULT_PIE_APPEARANCE.fontUi,
     fontMono: s.pieFontMono ?? DEFAULT_PIE_APPEARANCE.fontMono,
     shapeModel: s.pieShapeModel ?? DEFAULT_PIE_APPEARANCE.shapeModel,
+    showSubmenuMarkers: s.pieShowSubmenuMarkers ?? DEFAULT_PIE_APPEARANCE.showSubmenuMarkers,
+    showDepthDots: s.pieShowDepthDots ?? DEFAULT_PIE_APPEARANCE.showDepthDots,
   };
 }
 

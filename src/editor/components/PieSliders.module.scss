@@ -25,6 +25,75 @@
   background: var(--editor-panel-bg);
 }
 
+// Marker visibility toggles (#290): a row of switches at the top of the panel,
+// side by side. The switch styling mirrors LiveToggle (track + sliding knob).
+.toggles {
+  display: flex;
+  gap: 16px;
+}
+
+.toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 6px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--editor-fg-dim);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--editor-fg);
+  }
+}
+
+.toggleLabel {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.track {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--editor-input-bg);
+  border: 1px solid var(--editor-border);
+  transition: background 120ms ease;
+}
+
+.knob {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--editor-fg-dim);
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
+}
+
+.toggleOn {
+  color: var(--editor-fg);
+
+  .track {
+    background: var(--editor-accent);
+    border-color: var(--editor-accent);
+  }
+
+  .knob {
+    transform: translateX(14px);
+    background: var(--editor-fg);
+  }
+}
+
 .control {
   display: grid;
   // Each row is its own grid, so the label column must be a *fixed* width

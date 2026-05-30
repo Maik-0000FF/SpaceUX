@@ -81,6 +81,8 @@ describe('app-settings', () => {
         fontUi: '',
         fontMono: '',
         shapeModel: null,
+        showSubmenuMarkers: true,
+        showDepthDots: true,
       });
     });
 
@@ -105,6 +107,8 @@ describe('app-settings', () => {
         fontUi: 'Cantarell, sans-serif',
         fontMono: 'monospace',
         shapeModel: null,
+        showSubmenuMarkers: true,
+        showDepthDots: true,
       });
     });
 
@@ -121,6 +125,8 @@ describe('app-settings', () => {
         fontUi: '',
         fontMono: '',
         shapeModel: null,
+        showSubmenuMarkers: true,
+        showDepthDots: true,
       });
     });
 
