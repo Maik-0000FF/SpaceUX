@@ -31,6 +31,9 @@
   --pie-border: rgb(255, 255, 255);
   --pie-border-active: rgb(255, 255, 255);
   --pie-label: rgb(240, 240, 240);
+  /* Colour for the marker dots (submenu depth markers + depth dots, #292).
+     Dark uses the rim colour so the dots read on the dark pie/background. */
+  --pie-marker: var(--pie-border);
 
   /* Cancel sectors mirror the blue wedge states, one hue over: an idle
      (dim) red and an active (bright) red, both scaled by --pie-opacity so
@@ -54,6 +57,9 @@
   --pie-border: rgb(40, 44, 54);
   --pie-border-active: rgb(255, 255, 255);
   --pie-label: rgb(20, 22, 28);
+  /* Light: the background colour reads better for the dots than the dark rim
+     (#292). */
+  --pie-marker: var(--pie-bg);
   --pie-cancel-bg: rgb(248, 226, 226);
   --pie-cancel-bg-active: rgb(200, 70, 70);
   --pie-cancel-bg-hover: rgb(216, 96, 96);
@@ -70,6 +76,8 @@
   --pie-border: rgb(124, 211, 255);
   --pie-border-active: rgb(124, 211, 255);
   --pie-label: rgb(226, 240, 255);
+  /* SpaceUX: the cyan rim colour (unchanged look, #292). */
+  --pie-marker: var(--pie-border);
   --pie-cancel-bg: rgb(40, 18, 22);
   --pie-cancel-bg-active: rgb(200, 70, 70);
   --pie-cancel-bg-hover: rgb(216, 96, 96);
@@ -101,23 +109,13 @@
   width: var(--depth-dot-size, 7px);
   height: var(--depth-dot-size, 7px);
   border-radius: 50%;
-  /* Idle level: theme background colour (light theme → white-ish, dark →
-     dark), at half the slider opacity. */
-  background: rgb(from var(--pie-bg) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
+  /* Per-theme marker colour (#292), at half the slider opacity when idle. */
+  background: rgb(from var(--pie-marker) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
 }
 
 .pie-depth-dot.is-active {
   /* Current level: full slider opacity. */
-  background: rgb(from var(--pie-bg) r g b / var(--pie-opacity, 0.6));
-}
-
-/* SpaceUX: use the theme's highlight (border) colour for the dots. */
-:root[data-pie-theme='spaceux'] .pie-depth-dot {
-  background: rgb(from var(--pie-border) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
-}
-
-:root[data-pie-theme='spaceux'] .pie-depth-dot.is-active {
-  background: rgb(from var(--pie-border) r g b / var(--pie-opacity, 0.6));
+  background: rgb(from var(--pie-marker) r g b / var(--pie-opacity, 0.6));
 }
 
 /* Centre dot when the centre is a cancel target → red, overriding the theme
@@ -129,16 +127,15 @@
 
 /* Submenu depth trail (#216): a radial row of small dots just outside the
  * wedges showing how many levels the engaged branch nests. Drawn in the SVG, so
- * it's filled (not a background like the depth dots). Same idle/active colour
- * principle as the depth dots: the rim colour at half opacity idle, full for the
- * current level, so it reads across every theme. Shared by the live overlay and
- * the editor preview. */
+ * it's filled (not a background like the depth dots). Shares the per-theme
+ * marker colour and the idle/active brightness with the depth dots (#292), so
+ * the two dot families match on every theme. */
 .pie-submenu-marker {
-  fill: rgb(from var(--pie-border) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
+  fill: rgb(from var(--pie-marker) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
 }
 
 .pie-submenu-marker.is-active {
-  fill: rgb(from var(--pie-border) r g b / var(--pie-opacity, 0.6));
+  fill: rgb(from var(--pie-marker) r g b / var(--pie-opacity, 0.6));
 }
 
 :root .pie-depth-dot.is-cancel.is-active {
