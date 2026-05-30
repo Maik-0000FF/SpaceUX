@@ -1480,6 +1480,7 @@ app.whenReady().then(async () => {
         id,
         label: descriptor.label,
         description: descriptor.description,
+        config: descriptor.config,
       })),
     getPlugins: () => buildPluginsState(),
     importPlugin: async (srcDir) => {

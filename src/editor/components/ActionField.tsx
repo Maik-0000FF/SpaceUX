@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { EditorAction } from '@/shared/ipc';
 import type { ActionRef } from '@/shared/menu';
 
+import { ACTION_FIELD_HINT } from '../tooltips';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
 
@@ -47,10 +48,14 @@ export function ActionField({
   const [customMode, setCustomMode] = useState(false);
   const showCustom = customMode || (current !== '' && !isKnown);
   const selectValue = showCustom ? CUSTOM : isKnown ? current : '';
+  // Surface the picked action's description on the label so the "what does this
+  // do" hint is reachable without opening the dropdown (the per-option titles
+  // only show while the list is open). Falls back to a generic line (#279).
+  const pickedDescription = actions.find((a) => a.id === current)?.description;
 
   return (
     <>
-      <Row label="Action">
+      <Row label="Action" hint={pickedDescription ?? ACTION_FIELD_HINT}>
         <select
           className={styles.select}
           value={selectValue}

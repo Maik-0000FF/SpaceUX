@@ -20,7 +20,9 @@ import {
 } from '@/shared/pie-appearance';
 
 import { usePieAppearance } from '../hooks/usePieAppearance';
+import { SLIDER_TOOLTIPS } from '../tooltips';
 
+import { Tooltip } from './Tooltip';
 import styles from './PieSliders.module.scss';
 
 /**
@@ -48,7 +50,9 @@ export function PieSliders() {
   return (
     <div className={styles.panel}>
       <label className={styles.control}>
-        <span className={styles.label}>Size</span>
+        <Tooltip content={SLIDER_TOOLTIPS.size}>
+          <span className={styles.label}>Size</span>
+        </Tooltip>
         <input
           className={styles.slider}
           type="range"
@@ -61,7 +65,9 @@ export function PieSliders() {
         <span className={styles.value}>{Math.round(pie.scale * 100)}%</span>
       </label>
       <label className={styles.control}>
-        <span className={styles.label}>Opacity</span>
+        <Tooltip content={SLIDER_TOOLTIPS.opacity}>
+          <span className={styles.label}>Opacity</span>
+        </Tooltip>
         <input
           className={styles.slider}
           type="range"
@@ -74,7 +80,9 @@ export function PieSliders() {
         <span className={styles.value}>{Math.round(pie.opacity * 100)}%</span>
       </label>
       <label className={styles.control}>
-        <span className={styles.label}>Label</span>
+        <Tooltip content={SLIDER_TOOLTIPS.label}>
+          <span className={styles.label}>Label</span>
+        </Tooltip>
         <input
           className={styles.slider}
           type="range"
@@ -83,12 +91,13 @@ export function PieSliders() {
           step={PIE_LABEL_SCALE_STEP}
           value={pie.labelScale}
           onChange={(e) => setLabelScale(Number(e.target.value))}
-          title="Label size as a fraction of the per-segment fit (100% = fill the segment)"
         />
         <span className={styles.value}>{Math.round(pie.labelScale * 100)}%</span>
       </label>
       <label className={styles.control}>
-        <span className={styles.label}>Icon</span>
+        <Tooltip content={SLIDER_TOOLTIPS.icon}>
+          <span className={styles.label}>Icon</span>
+        </Tooltip>
         <input
           className={styles.slider}
           type="range"
@@ -97,12 +106,13 @@ export function PieSliders() {
           step={PIE_ICON_SCALE_STEP}
           value={pie.iconScale}
           onChange={(e) => setIconScale(Number(e.target.value))}
-          title="Icon size as a fraction of the per-segment fit (100% = fills the segment)"
         />
         <span className={styles.value}>{Math.round(pie.iconScale * 100)}%</span>
       </label>
       <label className={styles.control}>
-        <span className={styles.label}>Ring</span>
+        <Tooltip content={SLIDER_TOOLTIPS.ring}>
+          <span className={styles.label}>Ring</span>
+        </Tooltip>
         <input
           className={styles.slider}
           type="range"
@@ -111,12 +121,13 @@ export function PieSliders() {
           step={PIE_BALANCE_STEP}
           value={pie.ringBalance}
           onChange={(e) => setRingBalance(Number(e.target.value))}
-          title="Split between the inner pie and the outer ring (50% = default); keeps the overall size"
         />
         <span className={styles.value}>{Math.round(pie.ringBalance * 100)}%</span>
       </label>
       <label className={styles.control}>
-        <span className={styles.label}>Center</span>
+        <Tooltip content={SLIDER_TOOLTIPS.center}>
+          <span className={styles.label}>Center</span>
+        </Tooltip>
         <input
           className={styles.slider}
           type="range"
@@ -125,7 +136,6 @@ export function PieSliders() {
           step={PIE_BALANCE_STEP}
           value={pie.centerBalance}
           onChange={(e) => setCenterBalance(Number(e.target.value))}
-          title="Size of the centre hole relative to the inner pie (50% = default)"
         />
         <span className={styles.value}>{Math.round(pie.centerBalance * 100)}%</span>
       </label>

@@ -16,6 +16,8 @@ import { ProfileControls } from './components/ProfileControls';
 import { Properties } from './components/Properties';
 import { SettingsPage } from './components/SettingsPage';
 import { ToastStack } from './components/ToastStack';
+import { Tooltip } from './components/Tooltip';
+import { BANNER_TOOLTIPS } from './tooltips';
 import { useDeviceInfo } from './hooks/useDeviceInfo';
 import { useExternalSync } from './hooks/useExternalSync';
 import { useReadOnlySource } from './hooks/useReadOnlySource';
@@ -148,30 +150,28 @@ export function App() {
                 ? `The active profile changed to ${device.profileId ?? 'Default'} — it differs from your unsaved edits.`
                 : 'The active configuration was changed outside the editor while you had unsaved edits.'}
           </span>
-          <button
-            type="button"
-            className={styles.bannerButton}
-            onClick={reload}
-            title={
+          <Tooltip
+            content={
               conflictCause === 'external'
-                ? 'Discard your edits and load the changed config'
-                : 'Discard your edits and load the now-active config'
+                ? BANNER_TOOLTIPS.reloadExternal
+                : BANNER_TOOLTIPS.reloadActive
             }
           >
-            Reload
-          </button>
-          <button
-            type="button"
-            className={styles.bannerButton}
-            onClick={overwrite}
-            title={
+            <button type="button" className={styles.bannerButton} onClick={reload}>
+              Reload
+            </button>
+          </Tooltip>
+          <Tooltip
+            content={
               conflictCause === 'external'
-                ? 'Write your unsaved edits over the changed config'
-                : 'Write your unsaved edits onto the now-active config'
+                ? BANNER_TOOLTIPS.overwriteExternal
+                : BANNER_TOOLTIPS.overwriteActive
             }
           >
-            Overwrite
-          </button>
+            <button type="button" className={styles.bannerButton} onClick={overwrite}>
+              Overwrite
+            </button>
+          </Tooltip>
         </div>
       ) : saveError !== null ? (
         <div className={styles.bannerError} role="alert">
@@ -197,13 +197,15 @@ export function App() {
             This pie is provided by a plugin and is read-only — its content follows the live app.
             Switch the active source to edit your own pie.
           </span>
-          <button
-            type="button"
-            className={styles.bannerButton}
-            onClick={() => void window.editor.setProfileOverride(null)}
-          >
-            Switch to Auto
-          </button>
+          <Tooltip content={BANNER_TOOLTIPS.switchToAuto}>
+            <button
+              type="button"
+              className={styles.bannerButton}
+              onClick={() => void window.editor.setProfileOverride(null)}
+            >
+              Switch to Auto
+            </button>
+          </Tooltip>
         </div>
       )}
 

@@ -154,6 +154,20 @@
   gap: 4px;
 }
 
+// JSON example inside the Config field's hover tooltip (#279). Monospace, a
+// faint inset block, preformatted so the example's shape reads clearly.
+.tooltipCode {
+  display: block;
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--editor-input-bg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre;
+  overflow-x: auto;
+}
+
 .fieldError {
   font-size: 12px;
   color: rgba(255, 120, 120, 0.95);

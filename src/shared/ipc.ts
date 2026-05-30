@@ -11,6 +11,7 @@
 
 import type { MenuConfig } from './menu';
 import type {
+  ActionConfigSchema,
   NavStylePresetDescriptor,
   PluginCatalog,
   ShapePluginDescriptor,
@@ -260,6 +261,11 @@ export type EditorAction = {
   id: string;
   label: string;
   description?: string;
+  /** Per-instance config schema from the action's manifest (the same
+   *  `config[key].{label,placeholder}` the host already declares). Threaded
+   *  to the editor so the Config field's tooltip can show the action's
+   *  shape + a concrete JSON example instead of inventing copy (#279). */
+  config?: ActionConfigSchema;
 };
 
 /** A plugin category — the subdirectory of the managed `extensions/` tree a
