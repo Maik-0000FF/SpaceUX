@@ -574,8 +574,9 @@ describe('submenuMarkerAngles', () => {
 // two can't drift. Pure.
 describe('submenuMarkerExtent', () => {
   it('reserves the outer ring plus the gap and a full dot diameter', () => {
-    const footprint = 360;
-    const outerOuter = 360;
+    // Distinct footprint vs outerOuter so a swapped-argument regression shows.
+    const footprint = 300;
+    const outerOuter = 400;
     expect(submenuMarkerExtent(footprint, outerOuter)).toBeCloseTo(
       outerOuter + footprint * SUBMENU_MARKER_GAP_RATIO + 2 * footprint * SUBMENU_MARKER_DOT_RATIO,
     );
