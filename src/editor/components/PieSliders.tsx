@@ -31,11 +31,15 @@ function MarkerToggle({
   on,
   onToggle,
   label,
+  ariaLabel,
   hint,
 }: {
   on: boolean;
   onToggle: (next: boolean) => void;
+  /** Short text shown on the switch. */
   label: string;
+  /** Full, grammatical label for assistive tech (the visible `label` is terse). */
+  ariaLabel: string;
   hint: string;
 }) {
   return (
@@ -44,7 +48,7 @@ function MarkerToggle({
         type="button"
         role="switch"
         aria-checked={on}
-        aria-label={`Show ${label} markers`}
+        aria-label={ariaLabel}
         className={`${styles.toggle} ${on ? styles.toggleOn : ''}`}
         onClick={() => onToggle(!on)}
       >
@@ -91,12 +95,14 @@ export function PieSliders() {
           on={pie.showSubmenuMarkers}
           onToggle={setShowSubmenuMarkers}
           label="Submenus"
+          ariaLabel="Show submenu depth markers"
           hint={MARKER_TOGGLE_TOOLTIPS.submenu}
         />
         <MarkerToggle
           on={pie.showDepthDots}
           onToggle={setShowDepthDots}
           label="Depth"
+          ariaLabel="Show the depth dots"
           hint={MARKER_TOGGLE_TOOLTIPS.depth}
         />
       </div>
