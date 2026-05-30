@@ -83,15 +83,19 @@ export const OUTER_RING_INNER_RATIO = 1.04;
 export const OUTER_RING_OUTER_RATIO = 1.5;
 
 // ── Submenu markers (issue #216) ────────────────────────────────────
-// A ring of small dots on an orbit just beyond the outer ring marks which
-// active-ring sectors open a submenu (drill deeper) vs. run an action. Both
-// are fractions of the footprint so they scale with the pie. GAP is the
-// orbit's distance past the outer edge; DOT is the dot radius. The SVG
-// viewport reserves GAP + DOT of margin so the dots never clip, reserved
-// unconditionally (like the outer-ring space) so the size stays deterministic
-// whether or not the active ring actually has any submenu sectors.
-export const SUBMENU_MARKER_GAP_RATIO = 0.05;
-export const SUBMENU_MARKER_DOT_RATIO = 0.028;
+// Each submenu sector in the active ring shows a small arc of dots on one
+// orbit just outside the active band (the inner pie at the top level, where no
+// outer ring is drawn), one dot per level the branch nests. They lie on a
+// single radius (an arc, not a radial spoke). GAP is the orbit's distance past
+// the active band's edge and DOT the dot radius, both fractions of the
+// footprint so they scale with the pie; DOT is kept below the depth dots
+// (~0.02). STEP_FACTOR is the centre-to-centre arc spacing between adjacent
+// dots as a multiple of the dot radius (kept tight). The SVG viewport reserves
+// GAP + 2·DOT past the outer ring (the drilled case) so the dots never clip and
+// the size stays deterministic.
+export const SUBMENU_MARKER_GAP_RATIO = 0.02;
+export const SUBMENU_MARKER_DOT_RATIO = 0.013;
+export const SUBMENU_MARKER_STEP_FACTOR = 2.6;
 
 // ── Ring balance (issue #182) ───────────────────────────────────────
 // Two appearance sliders repartition the fixed footprint among the three
@@ -131,9 +135,6 @@ export type RingRadii = {
   innerLabel: number;
   /** Outer-ring label radius: the middle of the outer band. */
   outerLabel: number;
-  /** Submenu-marker orbit radius (#216): just beyond the outer edge. The dot
-   *  radius is a separate footprint fraction the renderer applies. */
-  markerOrbit: number;
 };
 
 /**
@@ -172,7 +173,6 @@ export function ringRadii(
     outerOuter,
     innerLabel: (cancel + innerOuter) / 2,
     outerLabel: (outerInner + outerOuter) / 2,
-    markerOrbit: outerOuter + footprint * SUBMENU_MARKER_GAP_RATIO,
   };
 }
 
@@ -314,6 +314,27 @@ export function axesToSector(
 export function sectorCenterAngle(sectorIndex: number, sectorCount: number): number {
   const sectors = Math.max(2, Math.floor(sectorCount));
   return ((sectorIndex % sectors) * TAU) / sectors;
+}
+
+/**
+ * Angles (radians, same 12-o'clock convention as `sectorCenterAngle`) for a
+ * submenu sector's depth-marker dots (#216): `count` dots laid out as an arc on
+ * one orbit, centred on the sector, spaced `stepAngle` apart. One dot sits dead
+ * centre; none yields an empty array (a leaf gets no marker). The caller derives
+ * `stepAngle` from the dot size and orbit radius so the arc spacing is a fixed
+ * arc length. Shared by the live overlay and the editor preview so they can't
+ * drift.
+ */
+export function submenuMarkerAngles(
+  sectorIndex: number,
+  sectorCount: number,
+  count: number,
+  rotation: number,
+  stepAngle: number,
+): number[] {
+  if (count <= 0) return [];
+  const center = sectorCenterAngle(sectorIndex, sectorCount) + rotation;
+  return Array.from({ length: count }, (_, k) => center + (k - (count - 1) / 2) * stepAngle);
 }
 
 /** Compute the magnitude of the axes vector. Lets the renderer scale

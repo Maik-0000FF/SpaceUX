@@ -152,13 +152,26 @@ export function currentBranches(config: MenuConfig, navigation: readonly number[
  * Pure: no React, no DOM.
  */
 export function menuTreeDepth(config: MenuConfig): number {
-  const depthOf = (nodes: readonly MenuNode[] | undefined): number => {
-    if (!nodes || nodes.length === 0) return 0;
-    let deepest = 0;
-    for (const node of nodes) deepest = Math.max(deepest, depthOf(node.branches));
-    return 1 + deepest;
-  };
-  return depthOf(config.root.branches);
+  return ringDepth(config.root.branches);
+}
+
+/** Depth (nested ring levels) of a list of sibling nodes: 0 when empty, else
+ *  1 + the deepest child subtree. Shared by `menuTreeDepth` and
+ *  `subtreeDepth`. */
+function ringDepth(nodes: readonly MenuNode[] | undefined): number {
+  if (!nodes || nodes.length === 0) return 0;
+  let deepest = 0;
+  for (const node of nodes) deepest = Math.max(deepest, ringDepth(node.branches));
+  return 1 + deepest;
+}
+
+/**
+ * How many nested ring levels sit below `node`: 0 for a leaf, 1 for a submenu
+ * of leaves, 2 when it nests a further submenu, and so on. Drives the submenu
+ * depth markers (#216): a branch's trail is this many dots long.
+ */
+export function subtreeDepth(node: MenuNode): number {
+  return ringDepth(node.branches);
 }
 
 /**

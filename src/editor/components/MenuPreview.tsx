@@ -5,7 +5,7 @@ import { useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import { PLUGIN_MENU_ID_PREFIX, parseWorkbenchMenuId } from '@/shared/plugin-types';
-import { menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
+import { menuTreeDepth, navigationRingRotation, subtreeDepth } from '@/core/menu-nav';
 import {
   OUTER_RING_OUTER_RATIO,
   PLUGIN_BADGE_RATIO,
@@ -13,8 +13,10 @@ import {
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
+  submenuMarkerAngles,
   SUBMENU_MARKER_DOT_RATIO,
   SUBMENU_MARKER_GAP_RATIO,
+  SUBMENU_MARKER_STEP_FACTOR,
   truncatePieLabel,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
@@ -44,12 +46,11 @@ const TAU = Math.PI * 2;
 // repartition the footprint, so the overall preview size never changes. The
 // per-ring radii are resolved per render from the appearance (see below).
 const FOOTPRINT = 240 * OUTER_RING_OUTER_RATIO;
-// Submenu-marker orbit + dot (#216). The viewBox reserves room for the dots
-// just outside the outer ring (matches the live PieMenu's svgExtent), so VIEW
-// is a touch larger than the footprint; the badges stay pinned to the footprint
-// corner, not this enlarged extent.
+// Submenu depth-marker dot (#216), mirroring the live PieMenu. The viewBox
+// half-extent VIEW reserves a flat margin past the outer ring (the markers lie
+// on one orbit, so it's not depth-dependent); the badges stay pinned to the
+// footprint corner, not this enlarged extent. VIEW is computed in-component.
 const MARKER_DOT = FOOTPRINT * SUBMENU_MARKER_DOT_RATIO;
-const VIEW = FOOTPRINT * (1 + SUBMENU_MARKER_GAP_RATIO) + MARKER_DOT; // viewBox half-extent
 
 /**
  * Centre stage: the menu drawn exactly as the live pie shows it. The
@@ -182,6 +183,12 @@ export function MenuPreview() {
   const atCentreDot = livePreview ? viewPath.length === 0 && liveSticky === null : centerSelected;
   const activeDot = Math.min(atCentreDot ? 0 : viewPath.length + 1, dotCount - 1);
 
+  // Submenu depth markers (#216): a flat viewBox margin past the outer ring (the
+  // markers lie on one orbit). The orbit itself hugs the active band's edge and
+  // is computed below.
+  const markerGap = FOOTPRINT * SUBMENU_MARKER_GAP_RATIO;
+  const VIEW = OUTER_OUTER_RADIUS + markerGap + 2 * MARKER_DOT;
+
   // Same size formula as the live pie so the preview matches its on-screen
   // size and tracks the slider live. The `/ devicePixelRatio` is a
   // compositor-specific correction for this KDE Wayland setup's fractional
@@ -242,6 +249,15 @@ export function MenuPreview() {
       : undefined;
   const previewRotation =
     previewSectors && activeSector !== null ? sectorCenterAngle(activeSector, count) : 0;
+
+  // Submenu depth-marker orbit (#216): hugs the outermost band currently on
+  // screen, the inner pie when only it shows, the outer ring once it's visible
+  // (drilled, or a branch's children faded in as the preview ring), so the dots
+  // move outside the outer band when it opens. Fixed arc-length dot spacing.
+  const outerBandVisible = isDrilled || (previewSectors !== undefined && previewSectors.length > 0);
+  const markerOrbit =
+    (outerBandVisible ? OUTER_OUTER_RADIUS : INNER_PIE_OUTER) + markerGap + MARKER_DOT;
+  const markerStepAngle = (MARKER_DOT * SUBMENU_MARKER_STEP_FACTOR) / markerOrbit;
   const previewIconSize = previewSectors
     ? segmentIconFitPx(
         OUTER_LABEL_RADIUS,
@@ -472,22 +488,25 @@ export function MenuPreview() {
           );
         })()}
 
-        {/* Submenu markers (#216): a dot just outside the wedges for each
-          active-ring sector that opens a submenu, mirroring the live overlay.
-          Only on the wedge layout (a shape plugin owns its own affordances and
-          positions nodes off the sector angle). Decorative. */}
+        {/* Submenu depth markers (#216), mirroring the live overlay: per
+          active-ring submenu sector, a small arc of dots on one orbit near the
+          active band = how many levels it nests. Every branch shows its depth,
+          the active sector's arc highlighted. Only on the wedge layout. */}
         {effectiveShape === null &&
           currentRing.map((node, i) => {
-            if (node.branches === undefined || node.branches.length === 0) return null;
-            const c = sectorCenterAngle(i, count) + activeRotation;
-            return (
-              <circle
-                key={`submenu-marker-${nodeKey(node)}`}
-                className="pie-submenu-marker"
-                cx={Math.sin(c) * rings.markerOrbit}
-                cy={-Math.cos(c) * rings.markerOrbit}
-                r={MARKER_DOT}
-              />
+            const depth = subtreeDepth(node);
+            if (depth === 0) return null;
+            const on = activeSector === i;
+            return submenuMarkerAngles(i, count, depth, activeRotation, markerStepAngle).map(
+              (c, k) => (
+                <circle
+                  key={`submenu-marker-${nodeKey(node)}-${k}`}
+                  className={`pie-submenu-marker${on ? ' is-active' : ''}`}
+                  cx={Math.sin(c) * markerOrbit}
+                  cy={-Math.cos(c) * markerOrbit}
+                  r={MARKER_DOT}
+                />
+              ),
             );
           })}
 

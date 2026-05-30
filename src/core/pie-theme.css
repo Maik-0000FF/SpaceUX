@@ -127,13 +127,17 @@
   background: rgb(from var(--pie-cancel-bg-active) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
 }
 
-/* Submenu marker (#216): a small dot on an orbit just outside the wedges,
- * one per active-ring sector that opens a submenu (vs. commits an action).
- * Drawn in the SVG, so it's filled (not a background like the depth dots).
- * Uses the rim/border colour so it reads as a structural affordance across
- * every theme, scaled by the pie opacity. Shared by the live overlay and the
- * editor preview. */
+/* Submenu depth trail (#216): a radial row of small dots just outside the
+ * wedges showing how many levels the engaged branch nests. Drawn in the SVG, so
+ * it's filled (not a background like the depth dots). Same idle/active colour
+ * principle as the depth dots: the rim colour at half opacity idle, full for the
+ * current level, so it reads across every theme. Shared by the live overlay and
+ * the editor preview. */
 .pie-submenu-marker {
+  fill: rgb(from var(--pie-border) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
+}
+
+.pie-submenu-marker.is-active {
   fill: rgb(from var(--pie-border) r g b / var(--pie-opacity, 0.6));
 }
 

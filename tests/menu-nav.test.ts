@@ -12,9 +12,15 @@ import {
   navigationRingRotation,
   previewBranches,
   resolveTwistFrame,
+  subtreeDepth,
   type DrillState,
 } from '../src/core/menu-nav';
-import { MENU_CONFIG_VERSION, builtinAction, type MenuConfig } from '../src/shared/menu';
+import {
+  MENU_CONFIG_VERSION,
+  builtinAction,
+  type MenuConfig,
+  type MenuNode,
+} from '../src/shared/menu';
 
 /** Two-level test config: a branch ("FreeCAD") with two leaves and a
  *  separate top-level leaf. Mirrors the kind of menu users will
@@ -177,6 +183,30 @@ describe('menuTreeDepth', () => {
       },
     };
     expect(menuTreeDepth(cfg)).toBe(3); // top → Deep → D1 → D1a rings
+  });
+});
+
+// subtreeDepth backs the submenu depth markers (#216): how many ring levels a
+// single branch nests. Pure, so tested here.
+describe('subtreeDepth', () => {
+  it('is 0 for a leaf (no branches, or empty branches)', () => {
+    expect(subtreeDepth({ label: 'leaf' })).toBe(0);
+    expect(subtreeDepth({ label: 'empty', branches: [] })).toBe(0);
+  });
+
+  it('is 1 for a submenu of leaves', () => {
+    expect(subtreeDepth({ label: 'A', branches: [{ label: 'a1' }, { label: 'a2' }] })).toBe(1);
+  });
+
+  it('counts the deepest nested path below the node', () => {
+    const node: MenuNode = {
+      label: 'B',
+      branches: [
+        { label: 'b1' },
+        { label: 'b2', branches: [{ label: 'b2a', branches: [{ label: 'b2a1' }] }] },
+      ],
+    };
+    expect(subtreeDepth(node)).toBe(3); // b2 → b2a → b2a1 rings
   });
 });
 

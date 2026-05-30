@@ -21,7 +21,7 @@ import {
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
-  SUBMENU_MARKER_GAP_RATIO,
+  submenuMarkerAngles,
   truncatePieLabel,
   twistCycleStep,
   type GestureFrame,
@@ -495,18 +495,6 @@ describe('ringRadii', () => {
     expect(r.outerInner).toBeCloseTo(INNER * 1.04); // old OUTER_RING_INNER_RATIO
   });
 
-  it('puts the submenu-marker orbit just beyond the outer edge (#216)', () => {
-    for (const ring of [0, 0.5, 1]) {
-      for (const center of [0, 0.5, 1]) {
-        const r = ringRadii(FOOTPRINT, ring, center);
-        // Beyond the footprint by the gap fraction, and balance-independent
-        // (the gap is a fraction of the fixed footprint, not a band).
-        expect(r.markerOrbit).toBeGreaterThan(r.outerOuter);
-        expect(r.markerOrbit).toBeCloseTo(FOOTPRINT + FOOTPRINT * SUBMENU_MARKER_GAP_RATIO);
-      }
-    }
-  });
-
   it('keeps the footprint fixed regardless of the balances', () => {
     for (const ring of [0, 0.25, 0.5, 0.75, 1]) {
       for (const center of [0, 0.5, 1]) {
@@ -539,5 +527,39 @@ describe('ringRadii', () => {
     const r = ringRadii(FOOTPRINT, 0.5, 1); // largest centre hole
     expect(r.innerLabel).toBeGreaterThan(r.cancel);
     expect(r.innerLabel).toBeLessThan(r.innerOuter);
+  });
+});
+
+// submenuMarkerAngles lays a submenu sector's depth-marker dots out as an arc
+// on one orbit, centred on the sector, a fixed stepAngle apart (#216). Pure.
+describe('submenuMarkerAngles', () => {
+  const STEP = 0.1;
+
+  it('returns no dots for a leaf (0 levels)', () => {
+    expect(submenuMarkerAngles(0, 4, 0, 0, STEP)).toEqual([]);
+  });
+
+  it('centres a single dot on the sector', () => {
+    expect(submenuMarkerAngles(1, 4, 1, 0, STEP)).toEqual([sectorCenterAngle(1, 4)]);
+  });
+
+  it('spaces dots by stepAngle, symmetric about the sector centre', () => {
+    const angles = submenuMarkerAngles(0, 4, 3, 0, STEP);
+    const center = sectorCenterAngle(0, 4);
+    expect(angles[1]).toBeCloseTo(center); // odd count → middle dead-centre
+    expect(angles[0]! + angles[2]!).toBeCloseTo(2 * center); // symmetric
+    expect(angles[1]! - angles[0]!).toBeCloseTo(STEP);
+    expect(angles[2]! - angles[1]!).toBeCloseTo(STEP);
+  });
+
+  it('straddles the centre for an even count (no dot dead-centre)', () => {
+    const angles = submenuMarkerAngles(0, 4, 2, 0, STEP);
+    const center = sectorCenterAngle(0, 4);
+    expect(angles[0]).toBeCloseTo(center - STEP / 2);
+    expect(angles[1]).toBeCloseTo(center + STEP / 2);
+  });
+
+  it('applies the ring rotation to every dot', () => {
+    expect(submenuMarkerAngles(0, 4, 1, 0.5, STEP)).toEqual([sectorCenterAngle(0, 4) + 0.5]);
   });
 });
