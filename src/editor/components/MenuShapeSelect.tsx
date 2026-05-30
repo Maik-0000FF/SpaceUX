@@ -11,6 +11,7 @@ import { usePluginsState } from '../state/plugins';
 
 import styles from './Properties.module.scss';
 import { Row } from './Row';
+import { Tooltip } from './Tooltip';
 
 /** Sentinel values for the three-state per-menu override (#107).
  *  `''` (wedge) matches `PieShapeSelect`'s convention; `__inherit__`
@@ -94,36 +95,37 @@ export function MenuShapeSelect() {
 
   return (
     <Row label="Shape model">
-      <select
-        className={styles.select}
-        value={value}
-        title={title}
-        onChange={(e) => {
-          const next = e.target.value;
-          if (next === INHERIT_VALUE) setShapeModel(undefined);
-          else if (next === WEDGE_VALUE) setShapeModel(null);
-          else setShapeModel(next);
-        }}
-      >
-        <option value={INHERIT_VALUE}>Inherit (app default: {inheritedLabel})</option>
-        <option value={WEDGE_VALUE}>Wedge</option>
-        {pluginShapes.length > 0 && (
-          <optgroup label="From plugins">
-            {pluginShapes.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.pluginName && s.pluginName !== s.label
-                  ? `${s.label} · ${s.pluginName}`
-                  : s.label}
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {isUnknown && (
-          <option value={value} disabled>
-            (unknown: {value})
-          </option>
-        )}
-      </select>
+      <Tooltip content={title}>
+        <select
+          className={styles.select}
+          value={value}
+          onChange={(e) => {
+            const next = e.target.value;
+            if (next === INHERIT_VALUE) setShapeModel(undefined);
+            else if (next === WEDGE_VALUE) setShapeModel(null);
+            else setShapeModel(next);
+          }}
+        >
+          <option value={INHERIT_VALUE}>Inherit (app default: {inheritedLabel})</option>
+          <option value={WEDGE_VALUE}>Wedge</option>
+          {pluginShapes.length > 0 && (
+            <optgroup label="From plugins">
+              {pluginShapes.map((s) => (
+                <option key={s.key} value={s.key}>
+                  {s.pluginName && s.pluginName !== s.label
+                    ? `${s.label} · ${s.pluginName}`
+                    : s.label}
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {isUnknown && (
+            <option value={value} disabled>
+              (unknown: {value})
+            </option>
+          )}
+        </select>
+      </Tooltip>
       <span className={styles.sectionNote}>
         Override the app shape model for this menu only. Inherit follows the design bar.
       </span>

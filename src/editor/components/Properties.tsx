@@ -22,6 +22,7 @@ import { AFTER_ACTION_TOOLTIP } from '../tooltips';
 
 import { ActionField } from './ActionField';
 import { RootSettings } from './RootSettings';
+import { Tooltip } from './Tooltip';
 import { ConfigEditor } from './ConfigEditor';
 import { GestureInputList } from './GestureInputList';
 import { MenuSettings } from './MenuSettings';
@@ -304,19 +305,22 @@ export function Properties() {
               </Row>
               {iconError !== null && <p className={styles.warning}>{iconError}</p>}
               <Row label="Type">
-                <select
-                  className={styles.select}
-                  value={node.branches !== undefined ? 'submenu' : 'action'}
-                  title={
+                <Tooltip
+                  content={
                     node.branches !== undefined
                       ? 'Switching to Action discards this submenu and its items'
-                      : undefined
+                      : ''
                   }
-                  onChange={(e) => void handleTypeChange(e.target.value === 'submenu')}
                 >
-                  <option value="action">Action</option>
-                  <option value="submenu">Submenu</option>
-                </select>
+                  <select
+                    className={styles.select}
+                    value={node.branches !== undefined ? 'submenu' : 'action'}
+                    onChange={(e) => void handleTypeChange(e.target.value === 'submenu')}
+                  >
+                    <option value="action">Action</option>
+                    <option value="submenu">Submenu</option>
+                  </select>
+                </Tooltip>
               </Row>
               {node.branches !== undefined && (
                 <>
@@ -481,22 +485,23 @@ export function Properties() {
             <section className={styles.flowSection}>
               {targets.length > 0 && (
                 <Row label="Move to">
-                  <select
-                    className={styles.select}
-                    value=""
-                    title="Move this item into another submenu (or the top level)"
-                    onChange={(e) => {
-                      if (e.target.value === '') return;
-                      handleMove(targets[Number(e.target.value)]!.path);
-                    }}
-                  >
-                    <option value="">Move to submenu…</option>
-                    {targets.map((t, i) => (
-                      <option key={t.path.join('.')} value={i}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
+                  <Tooltip content="Move this item into another submenu (or the top level)">
+                    <select
+                      className={styles.select}
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value === '') return;
+                        handleMove(targets[Number(e.target.value)]!.path);
+                      }}
+                    >
+                      <option value="">Move to submenu…</option>
+                      {targets.map((t, i) => (
+                        <option key={t.path.join('.')} value={i}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </Tooltip>
                 </Row>
               )}
               <button

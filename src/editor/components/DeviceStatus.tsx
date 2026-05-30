@@ -3,6 +3,7 @@
 
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 
+import { Tooltip } from './Tooltip';
 import styles from './DeviceStatus.module.scss';
 
 /** Zero-padded 4-digit lowercase hex for a USB id (matches the daemon's
@@ -29,9 +30,9 @@ export function DeviceStatus() {
   return (
     <div className={styles.status}>
       <span className={styles.label}>Device</span>
-      <span className={styles.value} title={connected ? vidPid : undefined}>
-        {deviceLabel}
-      </span>
+      <Tooltip content={connected ? vidPid : ''}>
+        <span className={styles.value}>{deviceLabel}</span>
+      </Tooltip>
       {profileLabel !== null && (
         <>
           <span className={styles.sep} aria-hidden="true">

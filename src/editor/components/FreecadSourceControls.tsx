@@ -18,6 +18,7 @@ import { confirm } from '../state/confirm';
 import { notify } from '../state/toasts';
 
 import { FreecadBridgeInstaller } from './FreecadBridgeInstaller';
+import { Tooltip } from './Tooltip';
 import { WorkbenchSelect } from './WorkbenchSelect';
 import styles from './FreecadSourceControls.module.scss';
 
@@ -166,26 +167,28 @@ export function FreecadSourceControls() {
     <section className={styles.controls} aria-label={`${plugin.name} pie source`}>
       <span className={styles.title}>{plugin.name} pie</span>
       <div className={styles.switch} role="group" aria-label="FreeCAD pie mode">
-        <button
-          type="button"
-          className={
-            isDynamic && !showCurated ? `${styles.segment} ${styles.segmentOn}` : styles.segment
-          }
-          aria-pressed={isDynamic && !showCurated}
-          onClick={chooseDynamic}
-          title="Live pie that follows FreeCAD's active workbench (read-only)"
-        >
-          Dynamic
-        </button>
-        <button
-          type="button"
-          className={showCurated ? `${styles.segment} ${styles.segmentOn}` : styles.segment}
-          aria-pressed={showCurated}
-          onClick={() => setIntentCurated(true)}
-          title="Your own editable pie per workbench"
-        >
-          Curated
-        </button>
+        <Tooltip content="Live pie that follows FreeCAD's active workbench (read-only)">
+          <button
+            type="button"
+            className={
+              isDynamic && !showCurated ? `${styles.segment} ${styles.segmentOn}` : styles.segment
+            }
+            aria-pressed={isDynamic && !showCurated}
+            onClick={chooseDynamic}
+          >
+            Dynamic
+          </button>
+        </Tooltip>
+        <Tooltip content="Your own editable pie per workbench">
+          <button
+            type="button"
+            className={showCurated ? `${styles.segment} ${styles.segmentOn}` : styles.segment}
+            aria-pressed={showCurated}
+            onClick={() => setIntentCurated(true)}
+          >
+            Curated
+          </button>
+        </Tooltip>
       </div>
       {showCurated && (
         <div className={styles.curatedRow}>
@@ -195,37 +198,40 @@ export function FreecadSourceControls() {
             disabled={busy}
             onSelect={(key) => void selectWorkbench(key)}
           />
-          <button
-            type="button"
-            className={styles.loadAll}
-            onClick={() => void loadAll()}
-            disabled={status === 'loading' || busy}
-            title="Activate every workbench in FreeCAD so all are listed (briefly cycles the GUI)"
-          >
-            Load all
-          </button>
+          <Tooltip content="Activate every workbench in FreeCAD so all are listed (briefly cycles the GUI)">
+            <button
+              type="button"
+              className={styles.loadAll}
+              onClick={() => void loadAll()}
+              disabled={status === 'loading' || busy}
+            >
+              Load all
+            </button>
+          </Tooltip>
         </div>
       )}
       {activeWorkbench !== null && (
         <div className={styles.curatedActions}>
-          <button
-            type="button"
-            className={styles.actionBtn}
-            disabled={busy}
-            onClick={() => void reseed()}
-            title="Rebuild this curated pie from the live workbench (discards your edits)"
-          >
-            Re-seed
-          </button>
-          <button
-            type="button"
-            className={styles.actionBtn}
-            disabled={busy}
-            onClick={() => void removeCurated()}
-            title="Delete this curated pie"
-          >
-            Delete
-          </button>
+          <Tooltip content="Rebuild this curated pie from the live workbench (discards your edits)">
+            <button
+              type="button"
+              className={styles.actionBtn}
+              disabled={busy}
+              onClick={() => void reseed()}
+            >
+              Re-seed
+            </button>
+          </Tooltip>
+          <Tooltip content="Delete this curated pie">
+            <button
+              type="button"
+              className={styles.actionBtn}
+              disabled={busy}
+              onClick={() => void removeCurated()}
+            >
+              Delete
+            </button>
+          </Tooltip>
         </div>
       )}
       {busy && <p className={styles.note}>Working…</p>}

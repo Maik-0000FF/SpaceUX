@@ -12,6 +12,7 @@ import { useCatalog } from '../state/catalog';
 import { flattenCatalogCommands } from '../state/catalog-filter';
 import { useMenuSettings } from '../state/menu-settings';
 
+import { Tooltip } from './Tooltip';
 import styles from './CommandPalette.module.scss';
 
 /**
@@ -85,27 +86,27 @@ export function CommandPalette() {
     <section className={styles.palette} aria-label={`${plugin.name} commands`}>
       <header className={styles.header}>
         <span className={styles.title}>{plugin.name} commands</span>
-        <label
-          className={styles.enabledToggle}
-          title="Show only commands currently usable in FreeCAD (refreshes from the live state)"
-        >
-          <input
-            type="checkbox"
-            checked={enabledOnly}
+        <Tooltip content="Show only commands currently usable in FreeCAD (refreshes from the live state)">
+          <label className={styles.enabledToggle}>
+            <input
+              type="checkbox"
+              checked={enabledOnly}
+              disabled={status === 'loading'}
+              onChange={(e) => toggleEnabledOnly(e.target.checked)}
+            />
+            Usable now
+          </label>
+        </Tooltip>
+        <Tooltip content="Activate every workbench in FreeCAD to list all commands (briefly cycles the GUI)">
+          <button
+            type="button"
+            className={styles.loadAll}
+            onClick={() => void loadAll()}
             disabled={status === 'loading'}
-            onChange={(e) => toggleEnabledOnly(e.target.checked)}
-          />
-          Usable now
-        </label>
-        <button
-          type="button"
-          className={styles.loadAll}
-          onClick={() => void loadAll()}
-          disabled={status === 'loading'}
-          title="Activate every workbench in FreeCAD to list all commands (briefly cycles the GUI)"
-        >
-          Load all
-        </button>
+          >
+            Load all
+          </button>
+        </Tooltip>
       </header>
       <input
         className={styles.search}
@@ -134,25 +135,28 @@ export function CommandPalette() {
           <div key={g.key} className={styles.group}>
             <div className={styles.groupName}>{g.name}</div>
             {g.commands.map((c) => (
-              <button
+              <Tooltip
                 key={c.command}
-                type="button"
-                className={styles.command}
-                disabled={!hasConfig || readOnly}
-                title={
+                content={
                   readOnly
                     ? 'The active pie is read-only (plugin-provided)'
                     : `Add "${c.label}" to the current ring`
                 }
-                onClick={() => add(c.command, c.label, c.icon)}
               >
-                {c.icon ? (
-                  <img className={styles.icon} src={c.icon} alt="" />
-                ) : (
-                  <span className={styles.icon} aria-hidden="true" />
-                )}
-                <span className={styles.label}>{c.label}</span>
-              </button>
+                <button
+                  type="button"
+                  className={styles.command}
+                  disabled={!hasConfig || readOnly}
+                  onClick={() => add(c.command, c.label, c.icon)}
+                >
+                  {c.icon ? (
+                    <img className={styles.icon} src={c.icon} alt="" />
+                  ) : (
+                    <span className={styles.icon} aria-hidden="true" />
+                  )}
+                  <span className={styles.label}>{c.label}</span>
+                </button>
+              </Tooltip>
             ))}
           </div>
         ))}

@@ -79,47 +79,48 @@ export function NavigationStyle() {
       <Tooltip content={PICKER_TOOLTIPS.navStyle}>
         <span className={styles.label}>Navigation style</span>
       </Tooltip>
-      <select
-        className={styles.select}
-        value={styleId ?? 'custom'}
-        disabled={!hasConfig}
-        title={currentDescription}
-        onChange={(e) => {
-          const builtIn = NAVIGATION_PRESETS.find((p) => p.id === e.target.value);
-          if (builtIn) {
-            setNavigation(structuredClone(builtIn.navigation));
-            return;
-          }
-          const fromPlugin = pluginPresets.find((p) => p.key === e.target.value);
-          if (fromPlugin) setNavigation(structuredClone(fromPlugin.navigation));
-          // Selecting "Custom" is a no-op; it only reflects edited bindings.
-        }}
-      >
-        {/* "Custom" only appears while the bindings match no preset, so it's
+      <Tooltip content={currentDescription}>
+        <select
+          className={styles.select}
+          value={styleId ?? 'custom'}
+          disabled={!hasConfig}
+          onChange={(e) => {
+            const builtIn = NAVIGATION_PRESETS.find((p) => p.id === e.target.value);
+            if (builtIn) {
+              setNavigation(structuredClone(builtIn.navigation));
+              return;
+            }
+            const fromPlugin = pluginPresets.find((p) => p.key === e.target.value);
+            if (fromPlugin) setNavigation(structuredClone(fromPlugin.navigation));
+            // Selecting "Custom" is a no-op; it only reflects edited bindings.
+          }}
+        >
+          {/* "Custom" only appears while the bindings match no preset, so it's
             shown as the current selection rather than offered as a choice. */}
-        {styleId === null && <option value="custom">Custom</option>}
-        {NAVIGATION_PRESETS.map((p) => (
-          <option key={p.id} value={p.id} title={p.description}>
-            {p.label}
-          </option>
-        ))}
-        {pluginPresets.length > 0 && (
-          <optgroup label="From plugins">
-            {pluginPresets.map((p) => (
-              <option key={p.key} value={p.key} title={p.description}>
-                {/* Append the source plugin's name when it adds information
+          {styleId === null && <option value="custom">Custom</option>}
+          {NAVIGATION_PRESETS.map((p) => (
+            <option key={p.id} value={p.id} title={p.description}>
+              {p.label}
+            </option>
+          ))}
+          {pluginPresets.length > 0 && (
+            <optgroup label="From plugins">
+              {pluginPresets.map((p) => (
+                <option key={p.key} value={p.key} title={p.description}>
+                  {/* Append the source plugin's name when it adds information
                     (two plugins can ship a preset called "twist"). Suppress
                     when the plugin and the preset share a label, which is
                     the common single-preset-per-plugin case where the suffix
                     would just duplicate the line. */}
-                {p.pluginName && p.pluginName !== p.label
-                  ? `${p.label} · ${p.pluginName}`
-                  : p.label}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </select>
+                  {p.pluginName && p.pluginName !== p.label
+                    ? `${p.label} · ${p.pluginName}`
+                    : p.label}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+      </Tooltip>
     </label>
   );
 }
