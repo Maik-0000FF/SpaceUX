@@ -11,7 +11,6 @@ import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { cancelLabelFor } from '../state/cancel-label';
-import { AFTER_ACTION_TOOLTIP } from '../tooltips';
 import { gestureShadows } from '../state/gesture-collision';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
@@ -19,6 +18,7 @@ import { moveTargets, pathOfNodeId } from '../state/move-targets';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 import { ringBranches, nodeAtPath, selectedPath } from '../state/selectors';
 import { nextNodeId, nodeKey, uniqueItemLabel } from '../state/node-keys';
+import { AFTER_ACTION_TOOLTIP } from '../tooltips';
 
 import { ActionField } from './ActionField';
 import { RootSettings } from './RootSettings';
