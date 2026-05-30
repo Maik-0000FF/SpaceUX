@@ -23,11 +23,15 @@ import { useShapeModules } from './state/shape-modules';
  *  load from the synchronous preload flag. */
 const IS_OVERLAY = window.spaceux.isOverlay;
 
+/** The debug overlay variant (SPACEUX_OVERLAY_MODE=debug): the overlay surface
+ *  with the dev chrome kept on. Read once at module load alongside IS_OVERLAY. */
+const IS_OVERLAY_DEBUG = window.spaceux.overlayDebug;
+
 /** Show the dev chrome (daemon-status banner + debug panel): always in the
  *  framed dev window, and also on the overlay surface when it's the debug
  *  variant (SPACEUX_OVERLAY_MODE=debug) so the puck orientation can be watched
  *  while the floating pie is operated. The clean overlay (=1) shows neither. */
-const SHOW_DEV_CHROME = !IS_OVERLAY || window.spaceux.overlayDebug;
+const SHOW_DEV_CHROME = !IS_OVERLAY || IS_OVERLAY_DEBUG;
 
 /** Fire a node's action through main, swallowing nothing — dispatch
  *  failures surface on the renderer console so a user with devtools
