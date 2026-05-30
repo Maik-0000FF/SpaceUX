@@ -3,6 +3,7 @@
 
 import {
   cloneElement,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -20,6 +21,9 @@ const OPEN_DELAY_MS = 150;
 const GAP = 8;
 /** Keep the bubble this far from the viewport edge. */
 const EDGE = 8;
+/** Triggers that signal their own interactivity — they keep their own cursor;
+ *  a non-interactive trigger (a label) gets a help cursor to cue the tooltip. */
+const INTERACTIVE_TAGS = new Set(['button', 'a', 'input', 'select', 'textarea']);
 
 /**
  * App-wide hover/focus tooltip (#279). Shows a themed, possibly multi-line
@@ -62,6 +66,13 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
     setOpen(false);
     setCoords(null);
   };
+  // Stable so cloning doesn't hand the child a fresh ref callback every render
+  // (which would detach/reattach the node). Only sets our measuring ref — the
+  // trigger is expected to be a ref-less DOM element; an existing child ref is
+  // not forwarded.
+  const setTriggerRef = useCallback((el: HTMLElement | null) => {
+    triggerRef.current = el;
+  }, []);
 
   // Position once on open: measure the trigger + bubble, pick the side with
   // more room, clamp into the viewport on both axes. Runs before paint so the
@@ -106,22 +117,29 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
 
   if (content === null || content === undefined || content === '') return children;
 
-  // Compose our open/close handlers with any the child already declares, and
-  // set the ref + aria-describedby on the real control.
+  // Compose with the child's own props rather than clobbering them: chain any
+  // handlers it already declares, merge (not replace) its aria-describedby, and
+  // add a help-cursor class only when the trigger isn't self-evidently
+  // interactive (a button keeps its pointer).
   const childProps = children.props as {
+    className?: string;
     onMouseEnter?: (e: unknown) => void;
     onMouseLeave?: (e: unknown) => void;
     onFocus?: (e: unknown) => void;
     onBlur?: (e: unknown) => void;
     'aria-describedby'?: string;
   };
+  const interactive = typeof children.type === 'string' && INTERACTIVE_TAGS.has(children.type);
+  const className =
+    [childProps.className, interactive ? null : styles.cue].filter(Boolean).join(' ') || undefined;
+  const describedBy =
+    [childProps['aria-describedby'], open ? id : null].filter(Boolean).join(' ') || undefined;
   // cloneElement's public overload only types `key`; `ref` and the cloned
   // event props are threaded at runtime, so widen the element's props type to
   // attach them.
   const trigger = cloneElement(children as ReactElement<Record<string, unknown>>, {
-    ref: (el: HTMLElement | null) => {
-      triggerRef.current = el;
-    },
+    ref: setTriggerRef,
+    className,
     onMouseEnter: (e: unknown) => {
       childProps.onMouseEnter?.(e);
       show();
@@ -138,7 +156,7 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
       childProps.onBlur?.(e);
       hide();
     },
-    'aria-describedby': open ? id : childProps['aria-describedby'],
+    'aria-describedby': describedBy,
   });
 
   return (
