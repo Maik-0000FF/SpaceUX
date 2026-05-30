@@ -16,9 +16,9 @@ import { confirmDeleteNode } from '../confirm-delete-node';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
-import { moveTarget } from '../state/reorder';
+import { dropGapForRow, dropOwnerSibling, moveTarget } from '../state/reorder';
 import { nextNodeId, nodeKey, uniqueItemLabel } from '../state/node-keys';
-import { nextSelectionAfterDelete, ringBranches } from '../state/selectors';
+import { lastVisibleNodeKey, nextSelectionAfterDelete, ringBranches } from '../state/selectors';
 
 import styles from './MenuList.module.scss';
 
@@ -269,6 +269,20 @@ export function MenuList() {
     }
   };
 
+  // Active drag ring, for the drop-line anchors. `dropAfterKey` is the row that
+  // carries the after-the-last-sibling line: the last visible row of the ring's
+  // final sibling's block, so the line lands below an expanded subtree rather
+  // than between the branch row and its first child.
+  const dragRing = drag && config ? ringBranches(config, drag.ring) : null;
+  const dragRingLen = dragRing?.length ?? 0;
+  const dropAfterKey =
+    dragRing && dragRingLen > 0 ? lastVisibleNodeKey(dragRing[dragRingLen - 1]!, expanded) : null;
+  const showAfterLine =
+    drag !== null &&
+    dragRingLen > 0 &&
+    dropIndex === dragRingLen &&
+    moveTarget(drag.index, dragRingLen) !== null;
+
   const rows: ReactNode[] = [];
   const walk = (nodes: readonly MenuNode[], ringPath: number[], depth: number): void => {
     const ringLen = nodes.length;
@@ -296,13 +310,18 @@ export function MenuList() {
           draggable={!isRenaming && !readOnly}
           onDragStart={() => setDrag({ ring: ringPath, index: i })}
           onDragOver={(e) => {
-            if (!inDragRing) return; // siblings only
-            e.preventDefault();
+            if (drag === null) return;
             const r = e.currentTarget.getBoundingClientRect();
-            setDropIndex(e.clientY > r.top + r.height / 2 ? i + 1 : i);
+            const below = e.clientY > r.top + r.height / 2;
+            // Subtree rows map to "after their sibling" too, so the whole block
+            // gives feedback (no dead zone); null = outside the drag ring.
+            const gap = dropGapForRow(path, drag.ring, below);
+            if (gap === null) return;
+            e.preventDefault();
+            setDropIndex(gap);
           }}
           onDrop={(e) => {
-            if (!inDragRing) return;
+            if (drag === null || dropOwnerSibling(path, drag.ring) === null) return;
             e.preventDefault();
             handleDrop();
           }}
@@ -313,7 +332,7 @@ export function MenuList() {
             selected ? styles.rowSelected : '',
             dragging ? styles.dragging : '',
             showDrop && dropIndex === i ? styles.dropBefore : '',
-            showDrop && dropIndex === ringLen && i === ringLen - 1 ? styles.dropAfter : '',
+            key === dropAfterKey && showAfterLine ? styles.dropAfter : '',
           ]
             .filter(Boolean)
             .join(' ')}
