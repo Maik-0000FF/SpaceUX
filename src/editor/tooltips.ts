@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Maik-0000FF
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+import type { PluginCategory } from '@/shared/ipc';
 import type { ActionConfigSchema } from '@/shared/plugin-types';
 
 /**
@@ -39,6 +40,42 @@ export const BANNER_TOOLTIPS = {
  *  description of its own (the picked action's own description wins). */
 export const ACTION_FIELD_HINT =
   'What this item does when committed. Hover an option in the list to see what it does.';
+
+/** Design-bar pickers — control-level help on the label; each option's own
+ *  description is surfaced as a native `title` on the option. */
+export const PICKER_TOOLTIPS = {
+  theme: 'Colour theme for the pie (the live overlay and this preview).',
+  shape: 'How the pie is drawn — the built-in wedges or a shape model from a plugin.',
+  navStyle:
+    'A preset bundle of navigation gestures applied in one go; refine the individual bindings under Navigation.',
+} as const;
+
+/** Per-option help for the built-in pie themes (the plugin-backed pickers carry
+ *  their own manifest descriptions instead). */
+export const THEME_OPTION_TOOLTIPS = {
+  dark: 'Dark palette for dark desktops.',
+  light: 'Light palette for light desktops.',
+  spaceux: "The app's own accented palette.",
+} as const;
+
+/** One-line meaning of each plugin kind, shown on the Plugin Manager badge. */
+export const KIND_TOOLTIPS: Record<PluginCategory, string> = {
+  function: 'Contributes actions and menus a pie item can run.',
+  theme: 'Styles the pie — colours and appearance.',
+  'nav-style': 'Ships navigation-gesture presets for the style picker.',
+  shape: 'Contributes a pie shape model (how the slices are drawn).',
+};
+
+/** Profile / source switcher in the toolbar. */
+export const PROFILE_TOOLTIP =
+  'Which config drives the live pie. Auto follows the connected device (or menu.json); pick a profile or plugin menu to force it.';
+
+/** Menu-level trigger button. */
+export const TRIGGER_BUTTON_TOOLTIP = 'Which SpaceMouse button opens this pie.';
+
+/** Leaf "After action" (keep-open) toggle. */
+export const AFTER_ACTION_TOOLTIP =
+  'Keep the menu open after this action fires — e.g. to nudge volume repeatedly with the same gesture.';
 
 /** Intro line for the action Config field, shown above the JSON example. */
 export const CONFIG_FIELD_INTRO = 'Per-action settings as a JSON object.';

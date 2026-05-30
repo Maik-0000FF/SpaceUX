@@ -9,7 +9,9 @@ import { PLUGIN_KINDS } from '@/shared/plugin-types';
 import { confirm } from '../state/confirm';
 import { usePluginsState } from '../state/plugins';
 import { notify } from '../state/toasts';
+import { KIND_TOOLTIPS } from '../tooltips';
 
+import { Tooltip } from './Tooltip';
 import styles from './PluginManager.module.scss';
 
 /** User-facing section heading for each plugin kind (#220). The on-disk
@@ -168,7 +170,9 @@ export function PluginManager() {
                   <li key={`${p.kind}/${p.id}`} className={styles.item}>
                     <div className={styles.itemHead}>
                       <span className={styles.itemName}>{p.name}</span>
-                      <span className={styles.kindBadge}>{p.kind}</span>
+                      <Tooltip content={KIND_TOOLTIPS[p.kind]}>
+                        <span className={styles.kindBadge}>{p.kind}</span>
+                      </Tooltip>
                     </div>
                     <div className={styles.itemMeta}>
                       <span>

@@ -4,7 +4,9 @@
 import type { PieThemeChoice } from '@/shared/ipc';
 
 import { usePieAppearance } from '../hooks/usePieAppearance';
+import { PICKER_TOOLTIPS, THEME_OPTION_TOOLTIPS } from '../tooltips';
 
+import { Tooltip } from './Tooltip';
 import styles from './PieThemeSelect.module.scss';
 
 /**
@@ -17,15 +19,23 @@ export function PieThemeSelect() {
 
   return (
     <label className={styles.control}>
-      <span className={styles.label}>Theme</span>
+      <Tooltip content={PICKER_TOOLTIPS.theme}>
+        <span className={styles.label}>Theme</span>
+      </Tooltip>
       <select
         className={styles.select}
         value={pie.theme}
         onChange={(e) => setTheme(e.target.value as PieThemeChoice)}
       >
-        <option value="dark">Dark</option>
-        <option value="light">Light</option>
-        <option value="spaceux">SpaceUX</option>
+        <option value="dark" title={THEME_OPTION_TOOLTIPS.dark}>
+          Dark
+        </option>
+        <option value="light" title={THEME_OPTION_TOOLTIPS.light}>
+          Light
+        </option>
+        <option value="spaceux" title={THEME_OPTION_TOOLTIPS.spaceux}>
+          SpaceUX
+        </option>
       </select>
     </label>
   );

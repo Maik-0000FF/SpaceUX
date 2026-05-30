@@ -3,9 +3,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { ActionConfigSchema } from '@/shared/plugin-types';
+import { PLUGIN_KINDS, type ActionConfigSchema } from '@/shared/plugin-types';
 
-import { actionConfigExample } from '../src/editor/tooltips';
+import { KIND_TOOLTIPS, actionConfigExample } from '../src/editor/tooltips';
 
 // actionConfigExample turns an action's manifest config schema into a concrete
 // JSON example for the Config field's tooltip (#279). Pure, so tested here.
@@ -65,5 +65,15 @@ describe('actionConfigExample', () => {
       b: { kind: 'string', label: 'B', placeholder: 'y' },
     };
     expect(actionConfigExample(schema)).toBe(JSON.stringify({ a: 'x', b: 'y' }, null, 2));
+  });
+});
+
+// The plugin-kind badge tooltip (#279) must explain every kind the manager can
+// list, so a future kind can't ship a blank badge.
+describe('KIND_TOOLTIPS', () => {
+  it('has a non-empty entry for every plugin kind', () => {
+    for (const kind of PLUGIN_KINDS) {
+      expect(KIND_TOOLTIPS[kind]).toBeTruthy();
+    }
   });
 });

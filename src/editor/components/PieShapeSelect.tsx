@@ -6,7 +6,9 @@ import { useEffect, useMemo } from 'react';
 import { formatPluginKey } from '@/shared/plugin-key';
 import { usePieAppearance } from '../hooks/usePieAppearance';
 import { usePluginsState } from '../state/plugins';
+import { PICKER_TOOLTIPS } from '../tooltips';
 
+import { Tooltip } from './Tooltip';
 import styles from './PieShapeSelect.module.scss';
 
 /** The dropdown value for "Wedge (built-in default)". Kept distinct from
@@ -70,7 +72,9 @@ export function PieShapeSelect() {
 
   return (
     <label className={styles.control}>
-      <span className={styles.label}>Shape</span>
+      <Tooltip content={PICKER_TOOLTIPS.shape}>
+        <span className={styles.label}>Shape</span>
+      </Tooltip>
       <select
         className={styles.select}
         value={value}
@@ -84,7 +88,7 @@ export function PieShapeSelect() {
         {pluginShapes.length > 0 && (
           <optgroup label="From plugins">
             {pluginShapes.map((s) => (
-              <option key={s.key} value={s.key}>
+              <option key={s.key} value={s.key} title={s.description}>
                 {/* Suppress the plugin-name suffix when it duplicates the
                     shape label (the single-shape-per-plugin common case
                     where plugin.name === shape.label). */}
