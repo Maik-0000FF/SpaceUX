@@ -1,0 +1,29 @@
+// SPDX-FileCopyrightText: Maik-0000FF
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// Merged onto a non-interactive trigger (a label) so the help cursor cues that
+// hovering reveals a tooltip; interactive triggers (buttons) keep their own.
+.cue {
+  cursor: help;
+}
+
+// The trigger is the cloned child itself (no wrapper element), so only the
+// portalled bubble is styled here.
+.bubble {
+  position: fixed;
+  // Above Modal (1000) so a tooltip on a control inside a dialog still shows.
+  z-index: 1100;
+  max-width: 280px;
+  padding: 8px 10px;
+  border: 1px solid var(--editor-border);
+  border-radius: 6px;
+  background: var(--editor-panel-bg);
+  color: var(--editor-fg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  // The bubble is decorative help; never let it intercept the pointer (it sits
+  // under the cursor when placed below the trigger).
+  pointer-events: none;
+}

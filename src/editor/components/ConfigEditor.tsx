@@ -3,6 +3,10 @@
 
 import { useState } from 'react';
 
+import type { ActionConfigSchema } from '@/shared/plugin-types';
+
+import { CONFIG_FIELD_INTRO, CONFIG_FIELD_NONE, actionConfigExample } from '../tooltips';
+import { Tooltip } from './Tooltip';
 import styles from './Properties.module.scss';
 
 /**
@@ -16,12 +20,18 @@ import styles from './Properties.module.scss';
  * center field's action. Remount it (via `key`) on a selection change
  * or external adoption so the field reloads cleanly rather than
  * mid-typing.
+ *
+ * `schema` (the picked action's manifest config shape) drives the label's
+ * hover tooltip: it shows a concrete JSON example so the user sees the shape
+ * the field expects without emptying it first (#279).
  */
 export function ConfigEditor({
   value,
+  schema,
   onChange,
 }: {
   value: Record<string, unknown> | undefined;
+  schema?: ActionConfigSchema;
   onChange: (config: Record<string, unknown> | undefined) => void;
 }) {
   const [text, setText] = useState(value !== undefined ? JSON.stringify(value, null, 2) : '');
@@ -49,9 +59,22 @@ export function ConfigEditor({
     onChange(parsed as Record<string, unknown>);
   };
 
+  const example = actionConfigExample(schema);
+  const hint =
+    example === null ? (
+      CONFIG_FIELD_NONE
+    ) : (
+      <>
+        {CONFIG_FIELD_INTRO}
+        <pre className={styles.tooltipCode}>{example}</pre>
+      </>
+    );
+
   return (
     <div className={styles.configBlock}>
-      <span className={styles.label}>Config</span>
+      <Tooltip content={hint}>
+        <span className={styles.label}>Config</span>
+      </Tooltip>
       <textarea
         className={styles.textarea}
         value={text}

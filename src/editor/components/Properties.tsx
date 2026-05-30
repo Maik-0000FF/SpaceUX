@@ -377,6 +377,7 @@ export function Properties() {
                       <ConfigEditor
                         key={`${path.join('.')}-${remoteRev}`}
                         value={node.action.config}
+                        schema={availableActions.find((a) => a.id === node.action?.id)?.config}
                         onChange={(cfg) =>
                           updateNodeAt(path, (s) => {
                             if (!s.action) return;
