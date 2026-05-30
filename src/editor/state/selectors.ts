@@ -4,6 +4,8 @@
 import { currentBranches } from '@/core/menu-nav';
 import type { MenuConfig, MenuNode } from '@/shared/menu';
 
+import { nodeKey } from './node-keys';
+
 /**
  * Resolve the node an index path points at, or null when the path is
  * empty or *any* segment is stale — including a stale parent (a path
@@ -71,4 +73,21 @@ export function selectedPath(
  */
 export function ringBranches(config: MenuConfig, viewPath: readonly number[]): MenuNode[] {
   return currentBranches(config, viewPath);
+}
+
+/**
+ * `nodeKey` of the last row `node` contributes to the flattened tree given the
+ * current `expanded` set: the node itself when collapsed or a leaf, otherwise
+ * the last visible descendant of its last expanded branch.
+ *
+ * The drop-line for the gap after a ring's final sibling must land below that
+ * sibling's whole block, not between its row and its first child — so it
+ * anchors to this key rather than the sibling row.
+ */
+export function lastVisibleNodeKey(node: MenuNode, expanded: ReadonlySet<string>): string {
+  let cur = node;
+  while (cur.branches?.length && expanded.has(nodeKey(cur))) {
+    cur = cur.branches[cur.branches.length - 1]!;
+  }
+  return nodeKey(cur);
 }
