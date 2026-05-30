@@ -87,6 +87,8 @@ export const DEFAULT_PIE_APPEARANCE: PieAppearance = {
   fontUi: '',
   fontMono: '',
   shapeModel: null,
+  showSubmenuMarkers: true,
+  showDepthDots: true,
 };
 
 /** Length cap for a stored shape-model identifier. The renderer accepts
@@ -184,6 +186,12 @@ export function sanitizePieAppearancePatch(patch: unknown): Partial<PieAppearanc
   // plugins at the IPC boundary.
   if (p.shapeModel === null || typeof p.shapeModel === 'string') {
     clean.shapeModel = clampShapeModel(p.shapeModel);
+  }
+  if (typeof p.showSubmenuMarkers === 'boolean') {
+    clean.showSubmenuMarkers = p.showSubmenuMarkers;
+  }
+  if (typeof p.showDepthDots === 'boolean') {
+    clean.showDepthDots = p.showDepthDots;
   }
   return clean;
 }

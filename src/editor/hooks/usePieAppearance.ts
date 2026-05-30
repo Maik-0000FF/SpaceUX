@@ -35,6 +35,8 @@ export function usePieAppearance(): {
   setFontUi: (fontUi: string) => void;
   setFontMono: (fontMono: string) => void;
   setShapeModel: (shapeModel: string | null) => void;
+  setShowSubmenuMarkers: (show: boolean) => void;
+  setShowDepthDots: (show: boolean) => void;
 } {
   const [appearance, setAppearance] = useState<PieAppearance>(DEFAULT_PIE_APPEARANCE);
 
@@ -109,6 +111,16 @@ export function usePieAppearance(): {
     window.editor.setPieAppearance({ shapeModel });
   }, []);
 
+  const setShowSubmenuMarkers = useCallback((showSubmenuMarkers: boolean) => {
+    setAppearance((a) => ({ ...a, showSubmenuMarkers }));
+    window.editor.setPieAppearance({ showSubmenuMarkers });
+  }, []);
+
+  const setShowDepthDots = useCallback((showDepthDots: boolean) => {
+    setAppearance((a) => ({ ...a, showDepthDots }));
+    window.editor.setPieAppearance({ showDepthDots });
+  }, []);
+
   return {
     appearance,
     setTheme,
@@ -121,5 +133,7 @@ export function usePieAppearance(): {
     setFontUi,
     setFontMono,
     setShapeModel,
+    setShowSubmenuMarkers,
+    setShowDepthDots,
   };
 }

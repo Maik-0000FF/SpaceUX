@@ -283,6 +283,8 @@ export function App() {
           outerShapeLayout={outerShapeLayout}
           badge={pieBadges.plugin}
           workbenchBadge={pieBadges.workbench}
+          showSubmenuMarkers={pieAppearance.showSubmenuMarkers}
+          showDepthDots={pieAppearance.showDepthDots}
         />
       )}
       <DaemonStatusIndicator status={daemonStatus} />

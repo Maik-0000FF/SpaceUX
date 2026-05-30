@@ -100,6 +100,11 @@ export type PieMenuProps = {
   /** Active-workbench badge (#229): the active FreeCAD workbench's icon (data
    *  URI), shown decoratively in the bottom-right corner, or null. */
   workbenchBadge?: string | null;
+  /** Show the submenu depth markers (#216 / toggled by #290). Default true so
+   *  callers that omit it (screenshots, tests) keep the markers. */
+  showSubmenuMarkers?: boolean;
+  /** Show the depth-dots indicator (toggled by #290). Default true. */
+  showDepthDots?: boolean;
 };
 
 /**
@@ -129,6 +134,8 @@ export function PieMenu({
   workbenchBadge = null,
   innerShapeLayout = null,
   outerShapeLayout = null,
+  showSubmenuMarkers = true,
+  showDepthDots = true,
 }: PieMenuProps) {
   // Resolve ring roles from the navigation stack. At top level the
   // *inner* pie is the active selection target; once drilled in the
@@ -489,7 +496,7 @@ export function PieMenu({
           nests. Every branch in the ring shows its depth (not just the hovered
           one); the active sector's arc is highlighted. Only on the wedge
           layout. Decorative. */}
-        {activeRingIsWedge && (
+        {activeRingIsWedge && showSubmenuMarkers && (
           <g className="pie-submenu-markers" aria-hidden="true">
             {activeRing.map((node, i) => {
               const depth = subtreeDepth(node);
@@ -544,23 +551,25 @@ export function PieMenu({
           />
         )}
       </svg>
-      <div
-        className="pie-depth-dots"
-        // Dot size scales with the rendered pie so spacing stays proportional.
-        style={{ ['--depth-dot-size']: `${displaySize * 0.02}px` } as CSSProperties}
-        aria-hidden="true"
-      >
-        {Array.from({ length: dotCount }, (_, i) => {
-          // Dot 0 is the centre — red when the centre is a cancel target.
-          const cancel = i === 0 && rootCancel;
-          return (
-            <span
-              key={i}
-              className={`pie-depth-dot${i === activeDot ? ' is-active' : ''}${cancel ? ' is-cancel' : ''}`}
-            />
-          );
-        })}
-      </div>
+      {showDepthDots && (
+        <div
+          className="pie-depth-dots"
+          // Dot size scales with the rendered pie so spacing stays proportional.
+          style={{ ['--depth-dot-size']: `${displaySize * 0.02}px` } as CSSProperties}
+          aria-hidden="true"
+        >
+          {Array.from({ length: dotCount }, (_, i) => {
+            // Dot 0 is the centre, red when the centre is a cancel target.
+            const cancel = i === 0 && rootCancel;
+            return (
+              <span
+                key={i}
+                className={`pie-depth-dot${i === activeDot ? ' is-active' : ''}${cancel ? ' is-cancel' : ''}`}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

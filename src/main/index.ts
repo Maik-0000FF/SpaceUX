@@ -682,6 +682,8 @@ async function persistActiveAppearance(): Promise<void> {
     pieFontUi: globalAppearance.fontUi,
     pieFontMono: globalAppearance.fontMono,
     pieShapeModel: globalAppearance.shapeModel,
+    pieShowSubmenuMarkers: globalAppearance.showSubmenuMarkers,
+    pieShowDepthDots: globalAppearance.showDepthDots,
   });
 }
 
@@ -1818,6 +1820,8 @@ app.on('before-quit', () => {
         pieFontUi: globalAppearance.fontUi,
         pieFontMono: globalAppearance.fontMono,
         pieShapeModel: globalAppearance.shapeModel,
+        pieShowSubmenuMarkers: globalAppearance.showSubmenuMarkers,
+        pieShowDepthDots: globalAppearance.showDepthDots,
       });
     }
   }

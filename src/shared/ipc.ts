@@ -480,6 +480,13 @@ export type PieAppearance = {
    *  later. App-level default; a per-menu `MenuConfig.shapeModel`
    *  override takes precedence when set (see `resolveShapeModel`). */
   shapeModel: string | null;
+  /** Show the submenu depth markers (#216): the per-branch arcs of dots
+   *  marking how deep each submenu nests. Default true; the editor's toggle
+   *  (#290) lets the user hide them for a cleaner pie. */
+  showSubmenuMarkers: boolean;
+  /** Show the depth-dots indicator: the row of dots marking the current
+   *  navigation depth. Default true; toggled off via the editor (#290). */
+  showDepthDots: boolean;
 };
 
 /** Config plus the on-disk mtime it was read at. The editor snapshots
