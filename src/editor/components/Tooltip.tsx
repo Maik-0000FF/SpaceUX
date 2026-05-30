@@ -22,9 +22,6 @@ const OPEN_DELAY_MS = 150;
 const GAP = 8;
 /** Keep the bubble this far from the viewport edge. */
 const EDGE = 8;
-/** Triggers that signal their own interactivity — they keep their own cursor;
- *  a non-interactive trigger (a label) gets a help cursor to cue the tooltip. */
-const INTERACTIVE_TAGS = new Set(['button', 'a', 'input', 'select', 'textarea', 'label']);
 
 /**
  * App-wide hover/focus tooltip (#279). Shows a themed, possibly multi-line
@@ -126,20 +123,15 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
   if (content === null || content === undefined || content === '') return children;
 
   // Compose with the child's own props rather than clobbering them: chain any
-  // handlers it already declares, merge (not replace) its aria-describedby, and
-  // add a help-cursor class only when the trigger isn't self-evidently
-  // interactive (a button keeps its pointer).
+  // handlers it already declares and merge (not replace) its aria-describedby.
+  // The trigger keeps its own cursor — no help cursor cue.
   const childProps = children.props as {
-    className?: string;
     onMouseEnter?: (e: unknown) => void;
     onMouseLeave?: (e: unknown) => void;
     onFocus?: (e: unknown) => void;
     onBlur?: (e: unknown) => void;
     'aria-describedby'?: string;
   };
-  const interactive = typeof children.type === 'string' && INTERACTIVE_TAGS.has(children.type);
-  const className =
-    [childProps.className, interactive ? null : styles.cue].filter(Boolean).join(' ') || undefined;
   const describedBy =
     [childProps['aria-describedby'], open ? id : null].filter(Boolean).join(' ') || undefined;
   // cloneElement's public overload only types `key`; `ref` and the cloned
@@ -147,7 +139,6 @@ export function Tooltip({ content, children }: { content: ReactNode; children: R
   // attach them.
   const trigger = cloneElement(children as ReactElement<Record<string, unknown>>, {
     ref: setTriggerRef,
-    className,
     onMouseEnter: (e: unknown) => {
       childProps.onMouseEnter?.(e);
       show();
