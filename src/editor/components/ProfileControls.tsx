@@ -14,6 +14,10 @@ import { Tooltip } from './Tooltip';
 import styles from './ProfileControls.module.scss';
 
 const AUTO = ''; // the <select> value standing for "Auto" (no override)
+// Value for the disabled "set it in the plugin panel" hint option (#209). A
+// sentinel that can't collide with AUTO, a device profile id, or a plugin menu
+// id, so it's never the selected value; it only ever renders as a pointer.
+const CATALOG_HINT = '__catalog_source_hint__';
 
 /**
  * Toolbar control for per-device profiles (#113): pick which profile drives
@@ -37,9 +41,13 @@ export function ProfileControls() {
   // FreecadSourceControls switch (#193), so drop its `plugin:` entry here to
   // avoid two competing source controls. While a FreeCAD source (its dynamic
   // menu or a curated `wb:` pie) is active, the override won't match any listed
-  // option — show a single "FreeCAD pie" entry so the dropdown stays coherent
-  // and the user switches FreeCAD modes in that panel, Auto/profiles here.
-  const catalogPluginId = useCatalog((s) => s.plugin?.id) ?? null;
+  // option, so the disabled hint below doubles as the shown value and points at
+  // that panel; the user switches FreeCAD modes there, Auto/profiles here.
+  const catalogPlugin = useCatalog((s) => s.plugin);
+  const catalogPluginId = catalogPlugin?.id ?? null;
+  // The catalog plugin's own name (FreeCAD today), so the dropdown hint and the
+  // panel it points at stay plugin-driven rather than hardcoding "FreeCAD".
+  const catalogPluginName = catalogPlugin?.name ?? 'Plugin';
   const dynamicId = catalogPluginId === null ? null : `${PLUGIN_MENU_ID_PREFIX}${catalogPluginId}`;
   const freecadActive =
     override !== null &&
@@ -101,10 +109,22 @@ export function ProfileControls() {
         title="Which profile drives the live config (Auto = follow the connected device)"
       >
         <option value={AUTO}>Auto</option>
-        {/* A FreeCAD source is active (owned by the FreeCAD panel) — a single
-            entry keeps the dropdown's value coherent; pick Auto/a profile to
-            leave it. */}
-        {freecadActive && override !== null && <option value={override}>FreeCAD pie</option>}
+        {/* The catalog plugin (FreeCAD) owns its pie + Dynamic/Curated mode in
+            its dedicated panel, not here (#193). Point users who still expect
+            it in this dropdown at that panel with a disabled hint, shown
+            whenever the plugin is loaded so it's found even before such a
+            source is active, and doubling as the displayed value while one is
+            (#209). The name comes from the plugin, so core stays
+            plugin-agnostic. */}
+        {catalogPlugin && (
+          <option
+            value={freecadActive && override !== null ? override : CATALOG_HINT}
+            disabled
+            title={`The ${catalogPluginName} pie (Dynamic or Curated) is chosen in the ${catalogPluginName} panel at the top of the left column, not in this dropdown.`}
+          >
+            {catalogPluginName} pie (set in the panel at top-left)
+          </option>
+        )}
         {ids.map((id) => (
           <option key={id} value={id}>
             {id}
