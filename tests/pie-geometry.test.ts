@@ -21,6 +21,12 @@ import {
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
+  submenuMarkerAngles,
+  submenuMarkerExtent,
+  submenuMarkerOrbit,
+  SUBMENU_MARKER_DOT_RATIO,
+  SUBMENU_MARKER_GAP_RATIO,
+  SUBMENU_MARKER_STEP_FACTOR,
   truncatePieLabel,
   twistCycleStep,
   type GestureFrame,
@@ -526,5 +532,77 @@ describe('ringRadii', () => {
     const r = ringRadii(FOOTPRINT, 0.5, 1); // largest centre hole
     expect(r.innerLabel).toBeGreaterThan(r.cancel);
     expect(r.innerLabel).toBeLessThan(r.innerOuter);
+  });
+});
+
+// submenuMarkerAngles lays a submenu sector's depth-marker dots out as an arc
+// on one orbit, centred on the sector, a fixed stepAngle apart (#216). Pure.
+describe('submenuMarkerAngles', () => {
+  const STEP = 0.1;
+
+  it('returns no dots for a leaf (0 levels)', () => {
+    expect(submenuMarkerAngles(0, 4, 0, 0, STEP)).toEqual([]);
+  });
+
+  it('centres a single dot on the sector', () => {
+    expect(submenuMarkerAngles(1, 4, 1, 0, STEP)).toEqual([sectorCenterAngle(1, 4)]);
+  });
+
+  it('spaces dots by stepAngle, symmetric about the sector centre', () => {
+    const angles = submenuMarkerAngles(0, 4, 3, 0, STEP);
+    const center = sectorCenterAngle(0, 4);
+    expect(angles[1]).toBeCloseTo(center); // odd count → middle dead-centre
+    expect(angles[0]! + angles[2]!).toBeCloseTo(2 * center); // symmetric
+    expect(angles[1]! - angles[0]!).toBeCloseTo(STEP);
+    expect(angles[2]! - angles[1]!).toBeCloseTo(STEP);
+  });
+
+  it('straddles the centre for an even count (no dot dead-centre)', () => {
+    const angles = submenuMarkerAngles(0, 4, 2, 0, STEP);
+    const center = sectorCenterAngle(0, 4);
+    expect(angles[0]).toBeCloseTo(center - STEP / 2);
+    expect(angles[1]).toBeCloseTo(center + STEP / 2);
+  });
+
+  it('applies the ring rotation to every dot', () => {
+    expect(submenuMarkerAngles(0, 4, 1, 0.5, STEP)).toEqual([sectorCenterAngle(0, 4) + 0.5]);
+  });
+});
+
+// submenuMarkerExtent / submenuMarkerOrbit are the shared geometry the live
+// overlay and the editor preview both derive their markers from (#216), so the
+// two can't drift. Pure.
+describe('submenuMarkerExtent', () => {
+  it('reserves the outer ring plus the gap and a full dot diameter', () => {
+    // Distinct footprint vs outerOuter so a swapped-argument regression shows.
+    const footprint = 300;
+    const outerOuter = 400;
+    expect(submenuMarkerExtent(footprint, outerOuter)).toBeCloseTo(
+      outerOuter + footprint * SUBMENU_MARKER_GAP_RATIO + 2 * footprint * SUBMENU_MARKER_DOT_RATIO,
+    );
+  });
+});
+
+describe('submenuMarkerOrbit', () => {
+  const footprint = 360;
+  const innerOuter = 240;
+  const outerOuter = 360;
+  const gap = footprint * SUBMENU_MARKER_GAP_RATIO;
+  const dot = footprint * SUBMENU_MARKER_DOT_RATIO;
+
+  it('orbits just outside the inner pie when the outer band is hidden', () => {
+    const m = submenuMarkerOrbit({ footprint, innerOuter, outerOuter, outerBandVisible: false });
+    expect(m.orbit).toBeCloseTo(innerOuter + gap + dot);
+    expect(m.dotRadius).toBeCloseTo(dot);
+  });
+
+  it('orbits just outside the outer ring once the outer band is visible', () => {
+    const m = submenuMarkerOrbit({ footprint, innerOuter, outerOuter, outerBandVisible: true });
+    expect(m.orbit).toBeCloseTo(outerOuter + gap + dot);
+  });
+
+  it('derives the arc step from the dot size and orbit (fixed arc length)', () => {
+    const m = submenuMarkerOrbit({ footprint, innerOuter, outerOuter, outerBandVisible: true });
+    expect(m.stepAngle).toBeCloseTo((dot * SUBMENU_MARKER_STEP_FACTOR) / m.orbit);
   });
 });

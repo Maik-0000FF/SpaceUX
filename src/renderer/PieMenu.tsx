@@ -4,7 +4,12 @@
 import { useMemo, type CSSProperties } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
-import { currentBranches, menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
+import {
+  currentBranches,
+  menuTreeDepth,
+  navigationRingRotation,
+  subtreeDepth,
+} from '@/core/menu-nav';
 import {
   DEFAULT_PIE_GEOMETRY,
   OUTER_RING_OUTER_RATIO,
@@ -15,6 +20,9 @@ import {
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
+  submenuMarkerAngles,
+  submenuMarkerExtent,
+  submenuMarkerOrbit,
   truncatePieLabel,
   type PieGeometryConfig,
 } from '@/core/pie-geometry';
@@ -200,7 +208,12 @@ export function PieMenu({
   // a branch sector.
   const outerRingOuterRadius = rings.outerOuter;
   const outerRingInnerRadius = rings.outerInner;
-  const viewportSize = outerRingOuterRadius * 2;
+  // Submenu depth markers (#216): dot size + the SVG extent reserving room just
+  // past the outer ring (the drilled case; the markers lie on one orbit, so the
+  // reserve is a flat GAP + 2·DOT, not depth-dependent). The orbit itself hugs
+  // the *active* band's edge (the inner pie at top level) and is computed below.
+  const svgExtent = submenuMarkerExtent(footprint, outerRingOuterRadius);
+  const viewportSize = svgExtent * 2;
 
   // Shape-plugin dispatch (#107 PR4). The caller (App.tsx via
   // `useDrillNavigation`) owns layout computation for both ring slots;
@@ -222,7 +235,7 @@ export function PieMenu({
   // and the clamp margin scale by this factor.
   const sizeFactor = scale / (window.devicePixelRatio || 1);
   const displaySize = viewportSize * sizeFactor;
-  const clampRadius = outerRingOuterRadius * sizeFactor;
+  const clampRadius = svgExtent * sizeFactor;
 
   // Absolute positioning so the pie sits at the supplied window-
   // coords. Translating by -50% centres the SVG on the anchor point
@@ -327,10 +340,30 @@ export function PieMenu({
   // rotation.
   const innerRingRotation = isDrilled ? navigationRingRotation(config, navigation.slice(0, -1)) : 0;
 
+  // Submenu depth trails (#216): every submenu sector in the active ring shows
+  // a radial row of dots in its own direction, one per level it nests, so you
+  // can see how deep each branch goes (not just the hovered one). The active
+  // sector's trail is highlighted. Only on the wedge layout: a shape plugin
+  // positions its nodes off `sectorCenterAngle`, so a sector-angle row wouldn't
+  // line up; shape plugins own their own affordances.
+  const activeRingIsWedge = isDrilled ? outerShapeLayout === null : innerShapeLayout === null;
+  const activeRingRotation = isDrilled ? outerRingRotation : 0;
+  // Orbit + arc spacing for the markers. Outside the outer ring once it's
+  // visible (drilled, or hovering a branch fades its children in as the preview
+  // ring), near the inner pie otherwise, so the dots move out when the band
+  // opens. Shared with the editor preview via `submenuMarkerOrbit`.
+  const outerBandVisible = isDrilled || (previewSectors !== undefined && previewSectors.length > 0);
+  const marker = submenuMarkerOrbit({
+    footprint,
+    innerOuter: innerPieOuter,
+    outerOuter: outerRingOuterRadius,
+    outerBandVisible,
+  });
+
   return (
     <div className="pie-menu" style={style}>
       <svg
-        viewBox={`-${outerRingOuterRadius} -${outerRingOuterRadius} ${viewportSize} ${viewportSize}`}
+        viewBox={`-${svgExtent} -${svgExtent} ${viewportSize} ${viewportSize}`}
         width={displaySize}
         height={displaySize}
       >
@@ -449,6 +482,35 @@ export function PieMenu({
                 ))}
               </>
             )}
+          </g>
+        )}
+        {/* Submenu depth markers (#216): per active-ring submenu sector, a small
+          arc of dots on one orbit near the active band = how many levels it
+          nests. Every branch in the ring shows its depth (not just the hovered
+          one); the active sector's arc is highlighted. Only on the wedge
+          layout. Decorative. */}
+        {activeRingIsWedge && (
+          <g className="pie-submenu-markers" aria-hidden="true">
+            {activeRing.map((node, i) => {
+              const depth = subtreeDepth(node);
+              if (depth === 0) return null;
+              const on = activeSector === i;
+              return submenuMarkerAngles(
+                i,
+                activeRing.length,
+                depth,
+                activeRingRotation,
+                marker.stepAngle,
+              ).map((angle, k) => (
+                <circle
+                  key={`submenu-marker-${i}-${k}`}
+                  className={`pie-submenu-marker${on ? ' is-active' : ''}`}
+                  cx={Math.sin(angle) * marker.orbit}
+                  cy={-Math.cos(angle) * marker.orbit}
+                  r={marker.dotRadius}
+                />
+              ));
+            })}
           </g>
         )}
         {/* Active-plugin badge (#186): the app icon in the bottom-left corner

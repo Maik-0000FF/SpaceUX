@@ -82,6 +82,21 @@ export const OUTER_RING_INNER_RATIO = 1.04;
 /** Outer edge of the outer ring — the overall pie footprint. */
 export const OUTER_RING_OUTER_RATIO = 1.5;
 
+// ── Submenu markers (issue #216) ────────────────────────────────────
+// Each submenu sector in the active ring shows a small arc of dots on one
+// orbit just outside the active band (the inner pie at the top level, where no
+// outer ring is drawn), one dot per level the branch nests. They lie on a
+// single radius (an arc, not a radial spoke). GAP is the orbit's distance past
+// the active band's edge and DOT the dot radius, both fractions of the
+// footprint so they scale with the pie; DOT is kept below the depth dots
+// (~0.02). STEP_FACTOR is the centre-to-centre arc spacing between adjacent
+// dots as a multiple of the dot radius (kept tight). The SVG viewport reserves
+// GAP + 2·DOT past the outer ring (the drilled case) so the dots never clip and
+// the size stays deterministic.
+export const SUBMENU_MARKER_GAP_RATIO = 0.02;
+export const SUBMENU_MARKER_DOT_RATIO = 0.013;
+export const SUBMENU_MARKER_STEP_FACTOR = 2.6;
+
 // ── Ring balance (issue #182) ───────────────────────────────────────
 // Two appearance sliders repartition the fixed footprint among the three
 // radial bands (centre hole / inner pie = first child / outer ring) without
@@ -299,6 +314,63 @@ export function axesToSector(
 export function sectorCenterAngle(sectorIndex: number, sectorCount: number): number {
   const sectors = Math.max(2, Math.floor(sectorCount));
   return ((sectorIndex % sectors) * TAU) / sectors;
+}
+
+/**
+ * Angles (radians, same 12-o'clock convention as `sectorCenterAngle`) for a
+ * submenu sector's depth-marker dots (#216): `count` dots laid out as an arc on
+ * one orbit, centred on the sector, spaced `stepAngle` apart. One dot sits dead
+ * centre; none yields an empty array (a leaf gets no marker). The caller derives
+ * `stepAngle` from the dot size and orbit radius so the arc spacing is a fixed
+ * arc length. Shared by the live overlay and the editor preview so they can't
+ * drift.
+ */
+export function submenuMarkerAngles(
+  sectorIndex: number,
+  sectorCount: number,
+  count: number,
+  rotation: number,
+  stepAngle: number,
+): number[] {
+  if (count <= 0) return [];
+  const center = sectorCenterAngle(sectorIndex, sectorCount) + rotation;
+  return Array.from({ length: count }, (_, k) => center + (k - (count - 1) / 2) * stepAngle);
+}
+
+/**
+ * SVG half-extent the viewport must reserve for the submenu markers (#216): the
+ * outer ring plus the orbit gap and a full dot diameter. Band-independent (the
+ * markers ride one orbit, so depth doesn't matter), reserved unconditionally so
+ * the size stays deterministic. Shared by the live overlay and the editor
+ * preview so the two can't drift.
+ */
+export function submenuMarkerExtent(footprint: number, outerOuter: number): number {
+  return (
+    outerOuter + footprint * SUBMENU_MARKER_GAP_RATIO + 2 * footprint * SUBMENU_MARKER_DOT_RATIO
+  );
+}
+
+/**
+ * Orbit radius, per-dot angular spacing and dot radius for the submenu markers
+ * (#216). The orbit hugs the outermost band currently on screen: the inner pie
+ * when only it shows, the outer ring once it's visible (`outerBandVisible`), so
+ * the dots move outside the outer band when it opens. The arc spacing is a fixed
+ * arc length (dot size × the spacing factor, converted to an angle at the
+ * orbit), so a branch's arc stays tight whatever the sector width. Shared by the
+ * live overlay and the editor preview.
+ */
+export function submenuMarkerOrbit(params: {
+  footprint: number;
+  innerOuter: number;
+  outerOuter: number;
+  outerBandVisible: boolean;
+}): { orbit: number; stepAngle: number; dotRadius: number } {
+  const { footprint, innerOuter, outerOuter, outerBandVisible } = params;
+  const dotRadius = footprint * SUBMENU_MARKER_DOT_RATIO;
+  const gap = footprint * SUBMENU_MARKER_GAP_RATIO;
+  const orbit = (outerBandVisible ? outerOuter : innerOuter) + gap + dotRadius;
+  const stepAngle = (dotRadius * SUBMENU_MARKER_STEP_FACTOR) / orbit;
+  return { orbit, stepAngle, dotRadius };
 }
 
 /** Compute the magnitude of the axes vector. Lets the renderer scale

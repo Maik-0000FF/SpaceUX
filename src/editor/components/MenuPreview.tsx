@@ -5,7 +5,7 @@ import { useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { isRenderableIcon } from '@/core/icon';
 import { PLUGIN_MENU_ID_PREFIX, parseWorkbenchMenuId } from '@/shared/plugin-types';
-import { menuTreeDepth, navigationRingRotation } from '@/core/menu-nav';
+import { menuTreeDepth, navigationRingRotation, subtreeDepth } from '@/core/menu-nav';
 import {
   OUTER_RING_OUTER_RATIO,
   PLUGIN_BADGE_RATIO,
@@ -13,6 +13,9 @@ import {
   sectorCenterAngle,
   segmentIconFitPx,
   segmentLabelFontPx,
+  submenuMarkerAngles,
+  submenuMarkerExtent,
+  submenuMarkerOrbit,
   truncatePieLabel,
 } from '@/core/pie-geometry';
 import { describeWedgePath } from '@/core/pie-path';
@@ -42,7 +45,6 @@ const TAU = Math.PI * 2;
 // repartition the footprint, so the overall preview size never changes. The
 // per-ring radii are resolved per render from the appearance (see below).
 const FOOTPRINT = 240 * OUTER_RING_OUTER_RATIO;
-const VIEW = FOOTPRINT; // viewBox half-extent (reserves the outer ring)
 
 /**
  * Centre stage: the menu drawn exactly as the live pie shows it. The
@@ -175,6 +177,11 @@ export function MenuPreview() {
   const atCentreDot = livePreview ? viewPath.length === 0 && liveSticky === null : centerSelected;
   const activeDot = Math.min(atCentreDot ? 0 : viewPath.length + 1, dotCount - 1);
 
+  // Submenu depth markers (#216): the viewBox reserves a flat margin past the
+  // outer ring (the markers lie on one orbit); the orbit itself is computed
+  // below. Shared with the live overlay via `submenuMarkerExtent`.
+  const VIEW = submenuMarkerExtent(FOOTPRINT, OUTER_OUTER_RADIUS);
+
   // Same size formula as the live pie so the preview matches its on-screen
   // size and tracks the slider live. The `/ devicePixelRatio` is a
   // compositor-specific correction for this KDE Wayland setup's fractional
@@ -235,6 +242,18 @@ export function MenuPreview() {
       : undefined;
   const previewRotation =
     previewSectors && activeSector !== null ? sectorCenterAngle(activeSector, count) : 0;
+
+  // Submenu depth-marker orbit (#216): outside the outer ring once it's visible
+  // (drilled, or a branch's children faded in as the preview ring), near the
+  // inner pie otherwise, so the dots move out when the band opens. Shared with
+  // the live overlay via `submenuMarkerOrbit`.
+  const outerBandVisible = isDrilled || (previewSectors !== undefined && previewSectors.length > 0);
+  const marker = submenuMarkerOrbit({
+    footprint: FOOTPRINT,
+    innerOuter: INNER_PIE_OUTER,
+    outerOuter: OUTER_OUTER_RADIUS,
+    outerBandVisible,
+  });
   const previewIconSize = previewSectors
     ? segmentIconFitPx(
         OUTER_LABEL_RADIUS,
@@ -465,6 +484,31 @@ export function MenuPreview() {
           );
         })()}
 
+        {/* Submenu depth markers (#216), mirroring the live overlay: per
+          active-ring submenu sector, a small arc of dots on one orbit near the
+          active band = how many levels it nests. Every branch shows its depth,
+          the active sector's arc highlighted. Only on the wedge layout. */}
+        {effectiveShape === null && (
+          <g className="pie-submenu-markers" aria-hidden="true">
+            {currentRing.map((node, i) => {
+              const depth = subtreeDepth(node);
+              if (depth === 0) return null;
+              const on = activeSector === i;
+              return submenuMarkerAngles(i, count, depth, activeRotation, marker.stepAngle).map(
+                (c, k) => (
+                  <circle
+                    key={`submenu-marker-${nodeKey(node)}-${k}`}
+                    className={`pie-submenu-marker${on ? ' is-active' : ''}`}
+                    cx={Math.sin(c) * marker.orbit}
+                    cy={-Math.cos(c) * marker.orbit}
+                    r={marker.dotRadius}
+                  />
+                ),
+              );
+            })}
+          </g>
+        )}
+
         {/* Preview ring: the hovered branch's children, dimmed and
           non-interactive, in the outer band — overlay parity so the author
           sees what's inside before drilling. Suppressed when a shape
@@ -568,10 +612,10 @@ export function MenuPreview() {
           <image
             className={styles.pluginBadge}
             href={pluginBadge}
-            x={-VIEW * 0.95}
-            y={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
-            width={VIEW * PLUGIN_BADGE_RATIO}
-            height={VIEW * PLUGIN_BADGE_RATIO}
+            x={-FOOTPRINT * 0.95}
+            y={FOOTPRINT * 0.95 - FOOTPRINT * PLUGIN_BADGE_RATIO}
+            width={FOOTPRINT * PLUGIN_BADGE_RATIO}
+            height={FOOTPRINT * PLUGIN_BADGE_RATIO}
             preserveAspectRatio="xMidYMid meet"
             aria-hidden="true"
           />
@@ -581,10 +625,10 @@ export function MenuPreview() {
           <image
             className={styles.pluginBadge}
             href={workbenchBadge}
-            x={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
-            y={VIEW * 0.95 - VIEW * PLUGIN_BADGE_RATIO}
-            width={VIEW * PLUGIN_BADGE_RATIO}
-            height={VIEW * PLUGIN_BADGE_RATIO}
+            x={FOOTPRINT * 0.95 - FOOTPRINT * PLUGIN_BADGE_RATIO}
+            y={FOOTPRINT * 0.95 - FOOTPRINT * PLUGIN_BADGE_RATIO}
+            width={FOOTPRINT * PLUGIN_BADGE_RATIO}
+            height={FOOTPRINT * PLUGIN_BADGE_RATIO}
             preserveAspectRatio="xMidYMid meet"
             aria-hidden="true"
           />
