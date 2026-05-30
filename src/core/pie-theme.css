@@ -119,8 +119,8 @@
 }
 
 /* Centre dot when the centre is a cancel target → red, overriding the theme
- * colour. The `:root` prefix matches the spaceux rule's specificity, and
- * being defined last it wins across every theme. */
+ * colour. The `:root` prefix lifts the specificity to (0,3,0) so it beats the
+ * idle/active dot rules (0,1,0 / 0,2,0) across every theme. */
 :root .pie-depth-dot.is-cancel {
   background: rgb(from var(--pie-cancel-bg-active) r g b / calc(var(--pie-opacity, 0.6) * 0.5));
 }
