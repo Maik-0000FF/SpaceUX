@@ -9,7 +9,9 @@ import { formatPluginKey } from '@/shared/plugin-key';
 
 import { useMenuSettings } from '../state/menu-settings';
 import { usePluginsState } from '../state/plugins';
+import { PICKER_TOOLTIPS } from '../tooltips';
 
+import { Tooltip } from './Tooltip';
 import styles from './NavigationStyle.module.scss';
 
 /**
@@ -74,7 +76,9 @@ export function NavigationStyle() {
 
   return (
     <label className={styles.control}>
-      <span className={styles.label}>Navigation style</span>
+      <Tooltip content={PICKER_TOOLTIPS.navStyle}>
+        <span className={styles.label}>Navigation style</span>
+      </Tooltip>
       <select
         className={styles.select}
         value={styleId ?? 'custom'}
@@ -95,14 +99,14 @@ export function NavigationStyle() {
             shown as the current selection rather than offered as a choice. */}
         {styleId === null && <option value="custom">Custom</option>}
         {NAVIGATION_PRESETS.map((p) => (
-          <option key={p.id} value={p.id}>
+          <option key={p.id} value={p.id} title={p.description}>
             {p.label}
           </option>
         ))}
         {pluginPresets.length > 0 && (
           <optgroup label="From plugins">
             {pluginPresets.map((p) => (
-              <option key={p.key} value={p.key}>
+              <option key={p.key} value={p.key} title={p.description}>
                 {/* Append the source plugin's name when it adds information
                     (two plugins can ship a preset called "twist"). Suppress
                     when the plugin and the preset share a label, which is

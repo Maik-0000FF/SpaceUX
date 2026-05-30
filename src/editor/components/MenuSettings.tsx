@@ -18,6 +18,8 @@ import {
 import { useMenuSettings } from '../state/menu-settings';
 import { FALLBACK_BUTTON_COUNT } from '../state/nav-input';
 
+import { TRIGGER_BUTTON_TOOLTIP } from '../tooltips';
+
 import { MenuShapeSelect } from './MenuShapeSelect';
 import { Row } from './Row';
 import styles from './Properties.module.scss';
@@ -81,7 +83,7 @@ export function MenuSettings() {
 
   return (
     <>
-      <Row label="Trigger button">
+      <Row label="Trigger button" hint={TRIGGER_BUTTON_TOOLTIP}>
         <select
           className={styles.select}
           value={effectiveTrigger}

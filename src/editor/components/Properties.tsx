@@ -11,6 +11,7 @@ import { useAvailableActions } from '../hooks/useAvailableActions';
 import { useDeviceInfo } from '../hooks/useDeviceInfo';
 import { useReadOnlySource } from '../hooks/useReadOnlySource';
 import { cancelLabelFor } from '../state/cancel-label';
+import { AFTER_ACTION_TOOLTIP } from '../tooltips';
 import { gestureShadows } from '../state/gesture-collision';
 import { useAppState } from '../state/app-state';
 import { useMenuSettings } from '../state/menu-settings';
@@ -389,11 +390,10 @@ export function Properties() {
                       {/* keepOpen only makes sense for a leaf that actually
                         fires something — a label-only leaf commits to nothing,
                         so keeping the menu open there would strand the user. */}
-                      <Row label="After action">
+                      <Row label="After action" hint={AFTER_ACTION_TOOLTIP}>
                         <select
                           className={styles.select}
                           value={node.keepOpen ? 'keep' : 'close'}
-                          title="Keep the menu open after this action fires — e.g. to nudge volume repeatedly with the same gesture"
                           onChange={(e) =>
                             updateNodeAt(path, (s) => {
                               if (e.target.value === 'keep') s.keepOpen = true;

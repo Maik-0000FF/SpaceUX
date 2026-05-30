@@ -8,7 +8,9 @@ import { useProfiles } from '../hooks/useProfiles';
 import { useCatalog } from '../state/catalog';
 import { confirm } from '../state/confirm';
 import { notify } from '../state/toasts';
+import { PROFILE_TOOLTIP } from '../tooltips';
 
+import { Tooltip } from './Tooltip';
 import styles from './ProfileControls.module.scss';
 
 const AUTO = ''; // the <select> value standing for "Auto" (no override)
@@ -89,7 +91,9 @@ export function ProfileControls() {
 
   return (
     <div className={styles.controls}>
-      <span className={styles.label}>Profile</span>
+      <Tooltip content={PROFILE_TOOLTIP}>
+        <span className={styles.label}>Profile</span>
+      </Tooltip>
       <select
         className={styles.select}
         value={override ?? AUTO}
