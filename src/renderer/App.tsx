@@ -16,6 +16,23 @@ import { usePieAppearance } from './hooks/usePieAppearance';
 import { useSpaceMouse } from './hooks/useSpaceMouse';
 import { useShapeModules } from './state/shape-modules';
 
+/** The shipping overlay window (#296). The pie is the only thing meant to be
+ *  visible there (the desktop shows through everywhere else), so dev-only
+ *  chrome (the daemon-status banner and the debug panel) is suppressed. False
+ *  in the framed dev window, where that chrome is useful. Read once at module
+ *  load from the synchronous preload flag. */
+const IS_OVERLAY = window.spaceux.isOverlay;
+
+/** The debug overlay variant (SPACEUX_OVERLAY_MODE=debug): the overlay surface
+ *  with the dev chrome kept on. Read once at module load alongside IS_OVERLAY. */
+const IS_OVERLAY_DEBUG = window.spaceux.overlayDebug;
+
+/** Show the dev chrome (daemon-status banner + debug panel): always in the
+ *  framed dev window, and also on the overlay surface when it's the debug
+ *  variant (SPACEUX_OVERLAY_MODE=debug) so the puck orientation can be watched
+ *  while the floating pie is operated. The clean overlay (=1) shows neither. */
+const SHOW_DEV_CHROME = !IS_OVERLAY || IS_OVERLAY_DEBUG;
+
 /** Fire a node's action through main, swallowing nothing — dispatch
  *  failures surface on the renderer console so a user with devtools
  *  open can see why an action did nothing. A no-op when the action is
@@ -287,22 +304,27 @@ export function App() {
           showDepthDots={pieAppearance.showDepthDots}
         />
       )}
-      <DaemonStatusIndicator status={daemonStatus} />
-      <DebugPanel
-        daemonStatus={daemonStatus}
-        axes={axes}
-        menuOpen={menuAnchor !== null}
-        menuConfig={menuConfig}
-        drillState={drillState}
-      />
+      {SHOW_DEV_CHROME && (
+        <>
+          <DaemonStatusIndicator status={daemonStatus} />
+          <DebugPanel
+            daemonStatus={daemonStatus}
+            axes={axes}
+            menuOpen={menuAnchor !== null}
+            menuConfig={menuConfig}
+            drillState={drillState}
+          />
+        </>
+      )}
     </div>
   );
 }
 
 /**
- * Always-visible debug card in the top-right corner. Renders only
- * outside packaged builds (`spaceux` runs from the dev npm start)
- * so end-users never see it. Lets a developer watch axes flow,
+ * Always-visible debug card in the top-right corner. Rendered in the dev
+ * window and the debug overlay variant (its caller gates it on
+ * `SHOW_DEV_CHROME`, #296) so the clean shipping overlay shows nothing but the
+ * pie. Lets a developer watch axes flow,
  * confirm the daemon is connected, and see the menu open/close
  * lifecycle without having to read DevTools logs.
  */

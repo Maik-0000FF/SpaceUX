@@ -120,6 +120,13 @@ const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 // overlay surface can be tested without electron-builder packaging.
 const OVERLAY_MODE = app.isPackaged || Boolean(process.env.SPACEUX_OVERLAY_MODE);
 
+// SPACEUX_OVERLAY_MODE=debug is the overlay surface (same window style and
+// cursor positioning as =1) but with the dev chrome kept on: the daemon-status
+// banner and the axis/debug panel stay visible so the puck orientation can be
+// watched while the floating pie is operated. The chrome only shows while the
+// pie is open, since the overlay window is hidden between triggers.
+const OVERLAY_DEBUG = process.env.SPACEUX_OVERLAY_MODE === 'debug';
+
 // Caps the dev-mode framed window so it fits on a typical laptop
 // display without forcing the developer to alt-drag it smaller.
 // Overlay mode ignores these — the window covers the full display
@@ -755,6 +762,16 @@ async function createWindow(): Promise<void> {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Tell the renderer it's the shipping overlay (not the dev window) so it
+      // can hide chrome that only makes sense in dev (the daemon-status banner
+      // and the debug panel). The debug variant (SPACEUX_OVERLAY_MODE=debug)
+      // keeps that chrome on the overlay surface. Passed as launch args (read
+      // in the preload) rather than over IPC so the flags are known before
+      // first paint, no flash.
+      additionalArguments: [
+        ...(OVERLAY_MODE ? ['--spaceux-overlay'] : []),
+        ...(OVERLAY_DEBUG ? ['--spaceux-overlay-debug'] : []),
+      ],
     },
   });
 
