@@ -18,10 +18,6 @@ your desktop, without reaching for the keyboard.
 > It is meant to be tried and shaped by feedback, so please
 > [report what you hit](#reporting-issues).
 
-The current screencast shows the FreeCAD plugin (a work in progress):
-
-<video src="https://github.com/user-attachments/assets/9940790f-f1c7-4471-9a02-329c09f6a30f" controls width="100%"></video>
-
 ## Contents
 
 - [The idea](#the-idea)
