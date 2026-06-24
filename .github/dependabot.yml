@@ -4,26 +4,33 @@
 # Keeps the SHA-pinned GitHub Actions and the npm dependencies current: without
 # this, pinning freezes them on stale (possibly vulnerable) versions. The
 # lockfile is gitignored, so npm updates run against package.json in the root.
+# Batched to a single grouped PR per ecosystem on a monthly cadence to keep the
+# update flow low-volume.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1
     commit-message:
       prefix: ci
     groups:
-      # One PR per week for routine action bumps instead of many.
+      # One grouped PR per month for routine action bumps instead of many.
       actions:
         patterns: ['*']
 
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 1
     commit-message:
       prefix: deps
+    groups:
+      # One grouped PR per month for routine npm bumps instead of one per package.
+      npm:
+        patterns: ['*']
     ignore:
       # Major upgrades that need a coordinated, tested migration rather than an
       # auto-bump. Drop the entry when you tackle the upgrade deliberately.
