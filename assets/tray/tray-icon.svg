@@ -1,0 +1,27 @@
+<!--
+SPDX-FileCopyrightText: Maik-0000FF
+SPDX-License-Identifier: CC-BY-4.0
+-->
+<!--
+  Tray icon, default state (#199): the pie icon, a dark tile with the gradient
+  planet ring + orbit. Mirrors logo_1024x1024.svg. Scalable so the SNI host
+  renders it at the exact panel resolution (resolved flat via IconThemePath;
+  see src/core-host/sni-tray.ts).
+
+  No clipPath: the rounded corners come from the rect's rx, and the gradient
+  uses userSpaceOnUse, so Qt's QSvgRenderer (the host's renderer, which ignores
+  clipPath) draws it correctly.
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="spaceGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1024" y2="1024">
+      <stop offset="0%" stop-color="#7C4DFF"/>
+      <stop offset="50%" stop-color="#00D4FF"/>
+      <stop offset="100%" stop-color="#00FFA3"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="120" fill="#070B16"/>
+  <circle cx="512" cy="512" r="240" stroke="url(#spaceGradient)" stroke-width="36" fill="none"/>
+  <ellipse cx="512" cy="512" rx="390" ry="145" transform="rotate(-18 512 512)"
+           stroke="url(#spaceGradient)" stroke-width="26" fill="none"/>
+</svg>

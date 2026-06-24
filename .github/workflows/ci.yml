@@ -1,0 +1,588 @@
+# SPDX-FileCopyrightText: Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  # No branch filter: every PR runs the full suite, including sub-PRs onto
+  # long-lived integration branches (e.g. feat/qt-editor), so a new integration
+  # branch needs no workflow change. (For pull_request GitHub uses the workflow
+  # from the PR's base branch, so this file must carry the trigger on each base
+  # that should be checked.)
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Weekly canary (Mon 08:00 UTC): catches drift in the distro Qt6 /
+    # LayerShellQt packages the overlay builds against, even when nobody pushed.
+    - cron: '0 8 * * 1'
+
+# Least privilege: the default token is read-only. Jobs that need more (the
+# gitleaks SARIF upload to code scanning) elevate locally.
+permissions:
+  contents: read
+
+# Cancel in-flight runs when a new push lands on the same branch: the old run is
+# already obsolete by the time we look at it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Third-party actions are pinned to a commit SHA (with a version comment) so a
+# moved tag can't change what runs on the runner; Dependabot (.github/
+# dependabot.yml) bumps the SHAs. The runner is pinned to ubuntu-24.04 rather
+# than -latest so a silent image migration can't break the apt package names.
+
+jobs:
+  # ─── TypeScript + Vitest ────────────────────────────────────────────
+  # The TS half of the project. Typecheck both compilation roots (tests via
+  # tsconfig.json, the core via tsconfig.node.json) so a type error in
+  # either surfaces on the same job.
+  typescript:
+    name: typescript
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+          # Lockfile is gitignored intentionally (see project decision), so the
+          # built-in npm cache (keyed off the lockfile hash) can't be used and
+          # the install resolves fresh each run.
+      - run: npm install --no-audit --no-fund
+      - name: Typecheck
+        run: |
+          npx tsc -b
+          npx tsc -p tsconfig.node.json --noEmit
+      - name: Vitest
+        run: npm test
+
+  # ─── ESLint ─────────────────────────────────────────────────────────
+  # Type-aware lint pass for the TypeScript source (#91): catches bug classes
+  # tsc and Prettier don't (floating promises, switch exhaustiveness, dead
+  # conditions). Runs separately from typescript so a lint failure and a type
+  # failure are distinguishable at a glance.
+  lint:
+    name: eslint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+          # Lockfile is gitignored intentionally, so the install resolves fresh.
+      - run: npm install --no-audit --no-fund
+      - run: npm run lint
+
+  # ─── Daemon C build ─────────────────────────────────────────────────
+  # Builds via CMake against the distro toolchain: proves the daemon compiles
+  # cleanly under both gcc and clang. -Werror is added via CMAKE_C_FLAGS so a new
+  # warning fails the build; the local dev configure does not enable it so a
+  # fresh compiler version stays comfortable.
+  daemon:
+    name: daemon (gcc + clang)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [gcc, clang]
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ${{ matrix.cc }} cmake
+      - name: Configure
+        # SPACEUX_BUILD_TESTS=ON adds the C unit-test target alongside the
+        # daemon so the same matrix leg builds and runs it under both gcc and
+        # clang; it is off by default so a plain build stays unaffected.
+        run: cmake -S . -B build/daemon -DCMAKE_C_COMPILER=${{ matrix.cc }} -DCMAKE_C_FLAGS=-Werror -DSPACEUX_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build/daemon
+      - name: Test
+        run: ctest --test-dir build/daemon --output-on-failure
+
+  # ─── Formatting ─────────────────────────────────────────────────────
+  # Two formatters, one per language family. Both run in --check mode so CI fails
+  # on drift but never rewrites the tree; contributors fix locally with
+  # `npm run format` / `clang-format -i`.
+  format-js:
+    name: prettier (check)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run format:check
+
+  format-c:
+    name: clang-format (check)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install clang-format
+        # Pin to the same major developers run (Ubuntu's apt ships clang-format
+        # 18, which reflows comments differently and caused local-passes-but-CI-
+        # fails drift). The pip package puts `clang-format` on PATH.
+        run: pipx install "clang-format==22.1.5"
+      - name: Check formatting
+        # --dry-run + --Werror promotes "would reformat" into a non-zero exit. One
+        # sweep over every C/C++ file: clang-format picks the nearest
+        # .clang-format per directory (src/daemon kernel-C, src/overlay Qt/LLVM).
+        run: git ls-files '*.c' '*.cpp' '*.h' | xargs clang-format --dry-run --Werror
+
+  # ─── Qt UI build (overlay + editor + shared renderer) ───────────────
+  # The Qt UI is opt-in (SPACEUX_BUILD_UI, off by default), so a compile
+  # regression would otherwise go unnoticed. Build it with -Werror.
+  # Runs in the Ubuntu 26.04 container so the build sees a supported Qt
+  # (the 24.04 runner's Qt 6.4 is below the platform baseline), which also
+  # makes qmllint a real gate for the overlay + shared modules here (#312);
+  # the editor module's qmllint gate lives in the a11y lane.
+  overlay:
+    name: qt ui (build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: ubuntu:26.04
+    steps:
+      - name: Install Qt6 + LayerShellQt
+        # universe carries the Qt declarative/QML packages, as on a real
+        # Plasma desktop (same bootstrap as the install lane).
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates software-properties-common git
+          add-apt-repository -y universe
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential cmake \
+            qt6-base-dev qt6-declarative-dev libqt6svg6-dev \
+            liblayershellqtinterface-dev qml6-module-qtquick
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Configure
+        run: cmake -S . -B build/ui -DSPACEUX_BUILD_UI=ON -DCMAKE_CXX_FLAGS=-Werror
+      - name: Build
+        run: cmake --build build/ui
+      - name: qmllint (overlay + shared)
+        run: |
+          cmake --build build/ui --target spaceux-overlay_qmllint
+          cmake --build build/ui --target spaceux-shared_qmllint
+
+  # ─── Editor AT-SPI smoke (automation surface) ──────────────────────
+  # The Qt editor's accessibility tree IS the automation/test surface (#67,
+  # #457 Phase E).
+  # Boots the headless core + the editor on a private session bus under Xvfb
+  # (the AT-SPI bridge needs a real QPA) and asserts the role inventory plus
+  # one interaction driven through accessibility actions. Runs in the Ubuntu
+  # 26.04 container: the editor QML needs a newer Qt than the 24.04 runner's
+  # 6.4 (see the platform baseline), which also makes qmllint a real gate
+  # here; the overlay + shared modules lint in the qt ui job.
+  editor-a11y:
+    name: editor a11y (AT-SPI)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    container:
+      image: ubuntu:26.04
+    steps:
+      - name: Install Qt6 + Node + the AT-SPI stack
+        # universe carries the Qt declarative/QML packages, as on a real
+        # Plasma desktop (same bootstrap as the install lane).
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates software-properties-common
+          add-apt-repository -y universe
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            build-essential cmake git \
+            qt6-base-dev qt6-declarative-dev libqt6svg6-dev qml6-module-qtquick \
+            liblayershellqtinterface-dev qt6-svg-plugins \
+            nodejs npm \
+            dbus at-spi2-core python3 python3-pyatspi xvfb
+      - name: SVG image-format plugin present (the tree row icons are SVG)
+        # qt6-svg-plugins ships imageformats/libqsvg.so; without it the lane
+        # tests an editor whose row icons never decode. The grep keeps that
+        # regression loud instead of a warning buried in the editor's log.
+        run: ls /usr/lib/*/qt6/plugins/imageformats/ | grep qsvg
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Build the headless core
+        # --ignore-scripts: this lane needs only the TypeScript output and the
+        # pure-JS runtime deps, so dependency postinstalls stay off.
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          npx tsc -p tsconfig.node.json
+      - name: Build the Qt editor
+        run: |
+          cmake -S . -B build/editor-ci -DSPACEUX_BUILD_UI=ON -DCMAKE_CXX_FLAGS=-Werror
+          cmake --build build/editor-ci
+      - name: qmllint
+        run: cmake --build build/editor-ci --target spaceux-editor_qmllint
+      - name: Run the AT-SPI smoke
+        run: xvfb-run -a dbus-run-session -- bash scripts/atspi-smoke.sh build/editor-ci/spaceux-editor
+
+  # ─── clang-tidy (C + C++) ───────────────────────────────────────────
+  # Static analysis for the C daemon and the C++ overlay + editor. Needs a
+  # compile_commands.json (export below) and a completed build so the generated
+  # MOC/qrc translation units exist before tidy parses them. Checks +
+  # suppressions live in the repo-root .clang-tidy.
+  clang-tidy:
+    name: clang-tidy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: ubuntu:26.04
+    steps:
+      - name: Install toolchain + Qt6
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates software-properties-common git
+          add-apt-repository -y universe
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            clang clang-tidy cmake build-essential \
+            qt6-base-dev qt6-declarative-dev libqt6svg6-dev liblayershellqtinterface-dev qml6-module-qtquick
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Configure with compile_commands export
+        run: cmake -S . -B build/tidy -DSPACEUX_BUILD_UI=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Build (generate MOC/qrc)
+        run: cmake --build build/tidy
+      - name: Run clang-tidy
+        # clang-tidy resolves each file's flags from the compile DB (-p);
+        # WarningsAsErrors in .clang-tidy makes any finding fail the job.
+        # safe.directory: inside the container the workspace is owned by a
+        # different uid than the job's git, so ls-files would return nothing
+        # ("dubious ownership") and tidy would fail with no input files.
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          clang-tidy -p build/tidy $(git ls-files 'src/daemon/*.c' 'src/overlay/*.cpp' 'src/editor-qt/*.cpp' 'src/qt-shared/*.cpp')
+
+  # ─── REUSE compliance ──────────────────────────────────────────────
+  # Verifies every file has an SPDX header (or a sidecar .license) so the
+  # per-file licensing claim in REUSE.toml stays honest.
+  reuse:
+    name: reuse lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: fsfe/reuse-action@676e2d560c9a403aa252096d99fcab3e1132b0f5 # v6.0.0
+
+  # ─── Secret scanning ───────────────────────────────────────────────
+  # gitleaks scans the full history for accidental secrets. Run the CLI directly
+  # (the upstream action still ships a deprecated Node and adds a supply-chain
+  # dependency); same ruleset, same result. Findings are uploaded to code
+  # scanning so they land in the Security tab and on PRs.
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write # upload the SARIF to code scanning
+    # Pin gitleaks so a surprise upstream change can't break or relax CI.
+    env:
+      GITLEAKS_VERSION: 8.30.1
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Full history so gitleaks scans every commit, not just the tip tree.
+          fetch-depth: 0
+      - name: Install gitleaks
+        # Retry the release download: GitHub's release CDN occasionally returns
+        # a transient 5xx, which would otherwise fail the whole check on a flake
+        # rather than a real finding. --retry-all-errors covers the 5xx the bare
+        # --retry misses. Download to a file first so a retry replays cleanly
+        # (a pipe into tar can't be re-run mid-stream).
+        run: |
+          curl -sSLf --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 30 \
+            -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          sudo tar -xz -C /usr/local/bin -f gitleaks.tar.gz gitleaks
+          rm -f gitleaks.tar.gz
+          gitleaks version
+      - name: Scan
+        # --redact masks any finding in the report (safe to read on a public log).
+        # No custom config: CI uses the upstream default ruleset, explicitly NOT
+        # the stricter local-only variant some contributors may run.
+        run: |
+          gitleaks git . \
+            --redact \
+            --no-banner \
+            --verbose \
+            --report-format sarif \
+            --report-path gitleaks.sarif
+      - name: Upload SARIF to code scanning
+        # always() so a finding (non-zero scan) still surfaces in the Security
+        # tab. Skipped automatically on fork PRs, which have no write token.
+        if: always() && github.event.pull_request.head.repo.fork != true
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+      - name: Upload SARIF artifact
+        # Fallback copy (and the only path on fork PRs): downloadable from the run.
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gitleaks-results.sarif
+          path: gitleaks.sarif
+
+  # ─── Shell script lint ──────────────────────────────────────────────
+  # The from-source installer/uninstaller are the first thing a new user runs.
+  # bash -n catches syntax errors; shellcheck catches quoting / word-splitting /
+  # unset-variable bugs that only bite on a specific input. -S warning filters
+  # info/style notes so only real issues fail the job (the scripts already pass
+  # at this level). File list comes from git ls-files so a new tracked *.sh is
+  # picked up automatically.
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends shellcheck
+      - name: Syntax check (bash -n)
+        run: |
+          for f in $(git ls-files '*.sh'); do
+            echo "bash -n $f"
+            bash -n "$f"
+          done
+      - name: Shellcheck (warnings and above)
+        run: shellcheck -S warning $(git ls-files '*.sh')
+
+  # ─── No tracked binary artefacts ────────────────────────────────────
+  # The C daemon/overlay/editor build into build/ and the core into
+  # dist/ (both gitignored). A stray `git add -f` or a new, un-ignored
+  # output path would otherwise slip a compiled artefact into the tree. Refuse
+  # ELF executables, shared libraries and object files; images (icon.png) report
+  # as image/* and are kept.
+  no-binaries:
+    name: no binaries
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Reject tracked compiled artefacts
+        run: |
+          mapfile -t bad < <(
+            git ls-files -z | xargs -0 file --mime-type 2>/dev/null \
+              | grep -E ': application/x-(executable|pie-executable|sharedlib|object)$' \
+              || true
+          )
+          if (( ${#bad[@]} > 0 )); then
+            echo 'Tracked binary files (compiled artefacts do not belong in git):'
+            printf '  %s\n' "${bad[@]}"
+            exit 1
+          fi
+          echo 'No binary artefacts tracked.'
+
+  # ─── From-source install + uninstall ────────────────────────────────
+  # Runs scripts/install.sh and scripts/uninstall.sh exactly as a real user
+  # would, inside clean distro containers. Arch is the family both early bug
+  # reports came from (EndeavourOS and CachyOS, #421); Ubuntu 26.04 is the
+  # other supported baseline (the installer's apt package names target 26.04+,
+  # so this lane is the first real test of that path). Older Ubuntu and non-KDE
+  # distros are out of scope by design (see the platform baseline).
+  #
+  # Each lane runs as a non-root tester with passwordless sudo so install.sh's
+  # `sudo pacman`/`sudo apt` dependency step behaves as on a user's machine.
+  # --skip-perms (no udev rule / `input` group: those need a real system and a
+  # re-login) and --no-spacenavd (the AUR build can't run unattended) keep the
+  # run non-interactive while exercising the deps + build (daemon, Qt UI,
+  # core) + launcher path. fail-fast: false so one lane's failure
+  # doesn't hide the other's result.
+  install-uninstall:
+    name: install + uninstall (${{ matrix.distro }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: Arch
+            image: archlinux:base-devel
+            # base-devel ships neither git (needed by actions/checkout) nor sudo;
+            # dbus backs the headless core boot smoke (dbus-run-session). -Syu
+            # syncs the package DB so install.sh's later `pacman -S --needed`
+            # (no -y) resolves cleanly.
+            bootstrap: pacman -Syu --noconfirm --needed sudo git dbus
+          - distro: Ubuntu 26.04
+            image: ubuntu:26.04
+            # Enable universe: the KDE/Qt build and runtime packages live
+            # there, as on a real Plasma desktop. software-properties-common
+            # provides add-apt-repository; dbus backs the core boot smoke.
+            bootstrap: apt-get update && apt-get install -y --no-install-recommends sudo git ca-certificates dbus software-properties-common && add-apt-repository -y universe
+    container:
+      image: ${{ matrix.image }}
+      options: --user root
+    steps:
+      - name: Bootstrap (sudo + git + xvfb)
+        run: ${{ matrix.bootstrap }}
+
+      - name: Create tester user with passwordless sudo
+        # env_keep DEBIAN_FRONTEND so install.sh's `sudo apt` calls inherit the
+        # noninteractive flag and tzdata never blocks on a timezone prompt
+        # (a harmless no-op on Arch).
+        run: |
+          useradd -m -s /bin/bash tester
+          echo "root   ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+          echo "tester ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+          echo 'Defaults env_keep += "DEBIAN_FRONTEND"' >> /etc/sudoers
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Hand checkout to tester
+        run: chown -R tester:tester "$GITHUB_WORKSPACE"
+
+      - name: Dependency drift check (essential packages resolve)
+        # The installer's essential package names must resolve on each supported
+        # distro; this catches a renamed or dropped package early and per distro
+        # (Arch + Ubuntu, both matrix legs) instead of failing cryptically
+        # mid-build. The package lists live only in install.sh (--check-deps
+        # reuses them), so there is nothing to duplicate here.
+        run: sudo -u tester bash -c "export DEBIAN_FRONTEND=noninteractive && cd '$GITHUB_WORKSPACE' && ./scripts/install.sh --check-deps"
+
+      - name: Install (happy path)
+        # Full real run: install deps, build daemon + overlay + editor, npm
+        # install, build the core, install the launcher + desktop entry. `yes`
+        # answers the package manager's confirmation prompt (pacman's `[Y/n]`
+        # has no --noconfirm and there is no TTY in CI; apt already runs with
+        # -y), the same stand-in for a user typing "y" that the device-perms
+        # and spacenavd prompts are skipped with via the flags below.
+        run: sudo -u tester bash -c "export DEBIAN_FRONTEND=noninteractive && cd '$GITHUB_WORKSPACE' && yes | ./scripts/install.sh --skip-perms --no-spacenavd"
+
+      - name: Verify the build artefacts are in place
+        # A green install is worthless if a binary the launcher (or the tray's
+        # Open Editor) points at is missing. Assert the daemon, overlay and
+        # editor binaries, the compiled core entrypoint, and the launcher +
+        # desktop entry all exist.
+        run: |
+          fail=0
+          for f in "$GITHUB_WORKSPACE/dist/core-host/main.js" \
+                   "$GITHUB_WORKSPACE/build/spaceux-daemon" \
+                   "$GITHUB_WORKSPACE/build/spaceux-overlay" \
+                   "$GITHUB_WORKSPACE/build/spaceux-editor" \
+                   "/home/tester/.local/bin/spaceux" \
+                   "/home/tester/.local/share/applications/spaceux.desktop"; do
+            if [ -e "$f" ]; then
+              echo "ok: $f"
+            else
+              echo "FAIL: missing after install: $f"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Verify runtime libraries resolve (ldd)
+        # A green build can still exec-fail on the user's machine if a shared
+        # library the daemon or overlay links is absent at runtime. "not found"
+        # in ldd output is that signal.
+        run: |
+          fail=0
+          for bin in "$GITHUB_WORKSPACE/build/spaceux-daemon" \
+                     "$GITHUB_WORKSPACE/build/spaceux-overlay" \
+                     "$GITHUB_WORKSPACE/build/spaceux-editor"; do
+            echo "=== ldd $bin ==="
+            ldd "$bin" || true
+            if ldd "$bin" | grep -q "not found"; then
+              echo "FAIL: unresolved libraries in $bin"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Headless boot smoke (core on a private session bus)
+        # Boots the real core under dbus-run-session. The daemon socket, the
+        # SpaceMouse, an SNI tray host and the Wayland compositor are all
+        # absent in a container, so the core runs degraded (reconnect loop,
+        # trayless) but it must come up, claim the bus name and stay alive
+        # until the timeout. Hard-fail on the module-resolution crash class
+        # (a missing runtime dep or a broken compiled tree).
+        run: |
+          set +e
+          sudo -u tester bash -c "
+            cd '$GITHUB_WORKSPACE' &&
+            timeout --preserve-status --signal=TERM 10 \
+              dbus-run-session -- node dist/core-host/main.js \
+              > /tmp/boot.log 2>&1
+          "
+          ec=$?
+          set -e
+          echo "core exit code: $ec"
+          echo '----- boot.log -----'; cat /tmp/boot.log; echo '--------------------'
+          if grep -qiE "Cannot find module|MODULE_NOT_FOUND|ERR_MODULE_NOT_FOUND" /tmp/boot.log; then
+            echo "FAIL: the core could not resolve a module (broken install)"
+            exit 1
+          fi
+          case $ec in
+            124|143) echo "ok: core booted and stayed up (exit $ec)" ;;
+            *)
+              echo "FAIL: core exited early (exit $ec)"
+              exit 1
+              ;;
+          esac
+
+      - name: Second-launch smoke (single instance)
+        # A second core launch must defer to the running one (#415, #457 D6): it
+        # exits 0 and leaves the first as the sole owner of org.spaceux.Core,
+        # rather than spinning up a duplicate. Reuses the built dist on a private
+        # session bus, like the boot smoke above.
+        run: |
+          sudo -u tester bash -c "
+            cd '$GITHUB_WORKSPACE' &&
+            dbus-run-session -- bash scripts/second-launch-smoke.sh node dist/core-host/main.js
+          "
+
+      - name: Uninstall
+        run: sudo -u tester bash -c "cd '$GITHUB_WORKSPACE' && ./scripts/uninstall.sh --yes"
+
+      - name: Verify the launcher + desktop entry are gone
+        # Drift between install.sh's targets and uninstall.sh's removal list would
+        # leave files on the user's system; assert the user-visible bits are gone.
+        run: |
+          remaining=0
+          for f in "/home/tester/.local/bin/spaceux" \
+                   "/home/tester/.local/share/applications/spaceux.desktop"; do
+            if [ -e "$f" ]; then
+              echo "FAIL: still present after uninstall: $f"
+              remaining=1
+            else
+              echo "ok: removed $f"
+            fi
+          done
+          exit $remaining

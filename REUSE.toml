@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# REUSE specification metadata. Every source file in this repository
+# carries its own SPDX header; this file backfills coverage for asset
+# directories and generated artefacts where per-file headers are
+# impractical. See https://reuse.software/ for the full spec.
+
+version = 1
+
+# JSON files cannot carry inline SPDX comments (JSON has no comment
+# syntax), so REUSE.toml backfills their copyright + license here (the
+# Nix flake.lock is generated JSON in the same boat). Anything globbed
+# below must still trace back to GPL-3.0-or-later (the project licence)
+# so per-file licence claims stay honest.
+[[annotations]]
+path = [
+  "package.json",
+  "tsconfig.json",
+  "tsconfig.node.json",
+  ".prettierrc.json",
+  "flake.lock",
+  "nix/package-lock.json",
+  "extensions/**/manifest.json",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Maik-0000FF"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+# The app icon is a binary raster that cannot carry an inline SPDX header. It is
+# rendered from the split tray icon (assets/tray/tray-icon-split.svg), so it
+# inherits the same CC-BY-4.0 branding licence as its source. The tray icons
+# themselves ship as SVG (assets/tray/) and carry their own inline headers.
+[[annotations]]
+path = ["assets/icon.png"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Maik-0000FF"
+SPDX-License-Identifier = "CC-BY-4.0"
+
+# The shared pie renderer (SpaceUX.Shared) bundles the upstream Inter font
+# (rsms/inter) as the pie labels' default face in the overlay + editor. A binary
+# TTF cannot carry an inline SPDX header; it keeps its own upstream SIL Open Font
+# License, not the project licence.
+[[annotations]]
+path = ["src/qt-shared/fonts/Inter-SemiBold.ttf"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2016 The Inter Project Authors (https://github.com/rsms/inter)"
+SPDX-License-Identifier = "OFL-1.1"
+
+# The first-run showcase centre is the upstream Twemoji waving-hand graphic
+# (U+1F44B), bundled verbatim so the pie centre is a crisp vector in the native
+# overlay rather than a system emoji-font glyph. Kept under its own upstream
+# CC-BY-4.0 licence, not the project licence, with attribution in
+# THIRD_PARTY_LICENSES.md.
+[[annotations]]
+path = ["assets/emoji/1f44b.svg"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "Twitter, Inc and other contributors (https://github.com/jdecked/twemoji)"
+SPDX-License-Identifier = "CC-BY-4.0"

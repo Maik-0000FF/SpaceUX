@@ -1,0 +1,42 @@
+<!--
+SPDX-FileCopyrightText: Maik-0000FF
+SPDX-License-Identifier: CC-BY-4.0
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="spaceGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7C4DFF"/>
+      <stop offset="50%" stop-color="#00D4FF"/>
+      <stop offset="100%" stop-color="#00FFA3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" rx="120" fill="#070B16"/>
+
+  <!-- Planet -->
+  <circle cx="280" cy="420" r="110"
+          stroke="url(#spaceGradient)"
+          stroke-width="22"
+          fill="none"/>
+
+  <!-- Orbit -->
+  <ellipse cx="280" cy="420"
+           rx="180" ry="65"
+           transform="rotate(-18 280 420)"
+           stroke="url(#spaceGradient)"
+           stroke-width="16"
+           fill="none"/>
+
+  <!-- Brand -->
+  <text x="512"
+        y="700"
+        text-anchor="middle"
+        font-family="Segoe UI, Inter, Arial, sans-serif"
+        font-size="140"
+        font-weight="700"
+        fill="url(#spaceGradient)"
+        letter-spacing="2">
+    SpaceUI/UX
+  </text>
+</svg>

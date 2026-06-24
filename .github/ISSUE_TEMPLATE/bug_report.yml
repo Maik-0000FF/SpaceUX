@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying the pre-alpha. A few details make a bug much faster to fix.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The shortest sequence that triggers it.
+      placeholder: |
+        1. Open the pie with the trigger button
+        2. Aim at ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution + desktop
+      description: e.g. Arch + KDE Plasma 6 (Wayland)
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: SpaceMouse model
+      description: e.g. SpaceMouse Wireless, SpacePilot Pro
+  - type: textarea
+    id: device-info
+    attributes:
+      label: Device info (optional, helps for detection / button / axis issues)
+      description: |
+        Paste the output of this command (no root needed). If nothing shows up, paste the full `cat /proc/bus/input/devices`.
+
+        ```
+        echo "=== lsusb ==="
+        lsusb | grep -iE '3dconnexion|logitech|256f:|046d:'
+        echo
+        echo "=== /proc/bus/input/devices ==="
+        awk -v RS='' '/3Dconnexion/{print; print "----"}' /proc/bus/input/devices
+        ```
+      render: shell
+  - type: input
+    id: version
+    attributes:
+      label: SpaceUX version / commit
+      description: The git commit you built from (git rev-parse --short HEAD).
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant output from the terminal where you ran SpaceUX (daemon + app).
+      render: shell

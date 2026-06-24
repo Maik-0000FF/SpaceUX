@@ -1,0 +1,34 @@
+<!--
+SPDX-FileCopyrightText: Maik-0000FF
+SPDX-License-Identifier: CC-BY-4.0
+-->
+<svg width="640" height="180" viewBox="0 0 640 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Planet -->
+  <circle cx="90" cy="90" r="38" stroke="#000000" stroke-width="8" fill="none"/>
+
+  <!-- Orbit -->
+  <ellipse cx="90" cy="90" rx="62" ry="22"
+           stroke="#000000"
+           stroke-width="5"
+           transform="rotate(-18 90 90)"
+           fill="none"/>
+
+  <!-- Brand Name -->
+  <text x="180" y="105"
+        font-family="Segoe UI, Inter, Arial, sans-serif"
+        font-size="56"
+        font-weight="700"
+        fill="#000000"
+        letter-spacing="1">
+    SpaceUI/UX
+  </text>
+
+  <!-- Subtitle -->
+  <text x="183" y="135"
+        font-family="Segoe UI, Inter, Arial, sans-serif"
+        font-size="18"
+        fill="#000000"
+        letter-spacing="4">
+    FUTURE INTERFACES
+  </text>
+</svg>

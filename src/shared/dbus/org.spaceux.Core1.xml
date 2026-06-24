@@ -1,0 +1,316 @@
+<!-- SPDX-FileCopyrightText: Maik-0000FF -->
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+  Editor <-> headless-core D-Bus interface (#457). The wire form of the contract
+  in src/shared/core-contract.ts.
+
+  Methods are a UNIFORM JSON RPC so the server dispatcher is generic (one code
+  path over CORE_METHODS): every method takes one "args" string (the logical
+  arguments JSON-encoded as an array; empty array for no-arg methods) and returns
+  one "result" string (the result JSON-encoded; "null" for void methods). See
+  core-contract.ts for the decoded argument + result types.
+
+  Signals are push (core -> editor); their payload is a JSON string, except
+  ActionsChanged which carries none. Service org.spaceux.Core, object
+  /org/spaceux/Core.
+-->
+<node>
+  <interface name="org.spaceux.Core1">
+
+    <!-- menu config & pie scene -->
+    <method name="GetMenuConfig">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetMenuConfig">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="BuildScene">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="ApplyActionPick">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetNodeKind">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="AddNode">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="AddItem">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="DeleteNode">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="MoveNode">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="MoveNodeBetween">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetMoveTargets">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectNavInput">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="EditNavInput">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectDesktopSettings">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="EditDesktopSettings">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetMenuLimits">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetActionTarget">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetActionConfig">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectActionPath">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetTheme">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetTheme">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetEditorWindow">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetEditorWindow">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!-- appearance & settings -->
+    <method name="GetPieAppearance">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetPieAppearance">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetAppearanceRanges">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetFontPresets">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetInputSettings">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetInputSettings">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetDesktopSettings">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetDesktopSettings">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!-- device & profiles -->
+    <method name="GetDeviceInfo">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetProfiles">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetProfileOverride">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SaveProfile">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="DeleteProfile">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!-- live preview -->
+    <method name="SetLive">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetLiveView">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!-- icons & action paths -->
+    <method name="EncodeIcon">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="ResolveActionIcon">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="CheckActionPath">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!-- actions -->
+    <method name="GetAvailableActions">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!-- plugins -->
+    <method name="GetPlugins">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectPluginManager">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectPluginConsent">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectPluginRemoval">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectShapeSelects">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectSourceState">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectPalette">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectDeviceBar">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InspectPlugin">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="ImportPlugin">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="UninstallPlugin">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="ScanPluginUsages">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetPluginUninstallHook">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="PerformPluginUninstallHook">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetPluginCatalog">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetShapeSource">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="GetPluginBridge">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="InstallPluginBridge">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="UninstallPluginBridge">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!-- context (curated pies) -->
+    <method name="GetContextMenus">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SeedContext">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="DeleteContext">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!-- autostart -->
+    <method name="GetAutostart">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+    <method name="SetAutostart">
+      <arg name="args" type="s" direction="in"/>
+      <arg name="result" type="s" direction="out"/>
+    </method>
+
+    <!-- push signals (core -> editor) -->
+    <signal name="MenuConfigChanged"><arg name="change" type="s"/></signal>
+    <signal name="PieAppearanceChanged"><arg name="appearance" type="s"/></signal>
+    <signal name="DesktopSettingsChanged"><arg name="settings" type="s"/></signal>
+    <signal name="DeviceInfo"><arg name="device" type="s"/></signal>
+    <signal name="ProfilesChanged"><arg name="profiles" type="s"/></signal>
+    <signal name="ContextMenusChanged"><arg name="state" type="s"/></signal>
+    <signal name="ActionsChanged"/>
+    <signal name="PluginInvalidated"><arg name="payload" type="s"/></signal>
+    <signal name="Axes"><arg name="values" type="s"/></signal>
+    <signal name="Button"><arg name="event" type="s"/></signal>
+    <signal name="LiveNav"><arg name="state" type="s"/></signal>
+
+  </interface>
+</node>

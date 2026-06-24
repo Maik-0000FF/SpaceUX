@@ -1,0 +1,45 @@
+<!--
+SPDX-FileCopyrightText: Maik-0000FF
+SPDX-License-Identifier: CC-BY-4.0
+-->
+<!--
+  Tray icon, "both usable" state (#498): desktop mode enabled but the pie is
+  still reachable (always-on, or toggle-with-button while off). The pie icon and
+  the active desktop icon composed and split diagonally from bottom-left to
+  top-right, the lower-left half the pie icon (dark tile + gradient ring), the
+  upper-right half the active icon (gradient tile + dark ring), exact inverses so
+  it reads as one diagonally divided tile.
+
+  This is also the application icon: assets/icon.png is rendered from this file
+  (window/taskbar/app-menu). Scalable; resolved flat via IconThemePath (see
+  src/core-host/sni-tray.ts).
+
+  No clipPath: Qt's QSvgRenderer (the SNI host's icon renderer) ignores clipPath,
+  so the split is built from plain shapes instead. The diagonal is the y=x line;
+  it enters the rounded tile at (35,35) and exits at (989,989). Background: a full
+  gradient tile, then the dark lower-left half as a path that traces the diagonal
+  plus the rounded left/bottom corners. Rings: the full gradient ring + orbit,
+  then their upper-right halves overpainted dark as arcs that start and end where
+  the diagonal crosses each (circle at 342/682, orbit at 399/625).
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="spaceGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="1024" y2="1024">
+      <stop offset="0%" stop-color="#7C4DFF"/>
+      <stop offset="50%" stop-color="#00D4FF"/>
+      <stop offset="100%" stop-color="#00FFA3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background: full gradient tile, then the dark lower-left half. -->
+  <rect width="1024" height="1024" rx="120" fill="url(#spaceGradient)"/>
+  <path d="M 35 35 A 120 120 0 0 0 0 120 L 0 904 A 120 120 0 0 0 120 1024 L 904 1024 A 120 120 0 0 0 989 989 Z"
+        fill="#070B16"/>
+
+  <!-- Rings: full gradient, then the upper-right halves overpainted dark. -->
+  <circle cx="512" cy="512" r="240" stroke="url(#spaceGradient)" stroke-width="36" fill="none"/>
+  <ellipse cx="512" cy="512" rx="390" ry="145" transform="rotate(-18 512 512)"
+           stroke="url(#spaceGradient)" stroke-width="26" fill="none"/>
+  <path d="M 342 342 A 240 240 0 0 1 682 682" stroke="#070B16" stroke-width="36" fill="none"/>
+  <path d="M 399 399 A 390 145 -18 0 1 625 625" stroke="#070B16" stroke-width="26" fill="none"/>
+</svg>

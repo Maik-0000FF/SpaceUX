@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Keep the "open a blank issue" escape hatch alongside the templates.
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/Maik-0000FF/SpaceUX/tree/main/docs
+    about: Install, usage and uninstall guides before filing.

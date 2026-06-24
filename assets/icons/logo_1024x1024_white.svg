@@ -1,0 +1,23 @@
+<!--
+SPDX-FileCopyrightText: Maik-0000FF
+SPDX-License-Identifier: CC-BY-4.0
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Centered Group -->
+  <g transform="translate(512 512)">
+
+    <!-- Planet -->
+    <circle cx="0" cy="0" r="240"
+            stroke="#FFFFFF"
+            stroke-width="36"
+            fill="none"/>
+
+    <!-- Orbit -->
+    <ellipse cx="0" cy="0"
+             rx="390" ry="145"
+             transform="rotate(-18)"
+             stroke="#FFFFFF"
+             stroke-width="26"
+             fill="none"/>
+  </g>
+</svg>

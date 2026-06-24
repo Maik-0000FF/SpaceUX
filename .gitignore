@@ -1,0 +1,136 @@
+# SPDX-FileCopyrightText: Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Node
+node_modules/
+dist/
+out/
+*.tsbuildinfo
+
+# Lock file deliberately untracked — see project README for the
+# trade-off (looser version pinning, in exchange for keeping
+# transitive-dependency metadata out of the repo).
+package-lock.json
+# Exception: the Nix package (nix/package.nix) builds from a pinned lock, kept
+# under nix/ so the repo root stays lockfile-free while the package stays
+# reproducible.
+!nix/package-lock.json
+
+# CMake build tree (daemon binary lands here)
+build/
+
+# Nix: the direnv-cached dev shell (.direnv/) and the `nix build` result
+# symlink. flake.nix and flake.lock ARE tracked; these are local artefacts.
+.direnv/
+result
+result-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local notes and personal dev helpers (hidden variant preferred)
+private/
+.private/
+
+# Test output
+coverage/
+.nyc_output/
+
+# C compilation artefacts that could land outside build/ if someone
+# builds by hand. CMake puts everything under build/ but defending in
+# depth is cheap and the patterns are unambiguous.
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+
+# Code coverage / profiling output
+*.gcno
+*.gcda
+*.gcov
+*.profraw
+*.profdata
+gmon.out
+
+# Core dumps. The plain `core` pattern is unanchored and matches any
+# file or directory named "core" anywhere in the tree — including
+# our own src/core/ source directory where the pure-logic helpers
+# live. The negation rules below re-include that path so `git add`
+# of a new file under src/core/ doesn't fail with "ignored by
+# .gitignore" and force a `-f` workaround.
+core
+core.*
+vgcore.*
+!src/core/
+!src/core/**
+
+# Distributable packages produced by packagers. The release/ directory
+# is a conventional packager output; the per-format extensions catch
+# loose artefacts dropped elsewhere.
+release/
+*.AppImage
+*.deb
+*.rpm
+*.dmg
+*.pkg
+*.msi
+*.snap
+*.flatpak
+
+# IDE caches & generated metadata. compile_commands.json is the
+# clangd index — useful locally, never useful in the repo (it bakes
+# in absolute paths). CLion writes cmake-build-* trees alongside
+# anything it touches.
+.cache/
+.eslintcache
+compile_commands.json
+cmake-build-*/
+
+# Environment files. .env-style files commonly hold secrets; ship a
+# .env.example template instead when one is needed and re-open it
+# through the negation rule below.
+.env
+.env.*
+!.env.example
+
+# Certificates / keys / credential bundles. Never commit these —
+# even in a public OSS repo, accidental leakage is what gitleaks is
+# meant to backstop and these patterns are the front line.
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+secrets.json
+credentials.json
+
+# Backup / merge-conflict / scratch leftovers
+*.bak
+*.tmp
+*.temp
+*.orig
+*.rej
+
+# npm / Node logs that npm CLI sometimes drops at the repo root
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python bytecode (scripts/atspi-smoke.py)
+__pycache__/

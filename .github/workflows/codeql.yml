@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  # No branch filter: scan every PR, including sub-PRs onto integration branches
+  # (e.g. feat/qt-editor), so a new integration branch needs no workflow change.
+  pull_request:
+  schedule:
+    # Weekly, offset from CI so the two don't contend for runners.
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write # upload the CodeQL results to code scanning
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # JS/TS needs no build configuration.
+          - language: javascript-typescript
+          # C/C++ scanned build-free (GA Oct 2025): CodeQL extracts from the
+          # source without driving the CMake/Qt build.
+          - language: c-cpp
+            build-mode: none
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+      - name: Analyze
+        uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        with:
+          category: /language:${{ matrix.language }}

@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: Maik-0000FF
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Curated, low-noise static analysis for both the C daemon (src/daemon)
+# and the C++/QML overlay (src/overlay). bugprone-* and clang-analyzer-*
+# catch real defect patterns (null derefs, leaks, uninitialised reads);
+# performance-* catches needless copies. A few noisy/false-positive-prone
+# checks are disabled. Findings are errors so CI fails on regressions.
+#
+# HeaderFilterRegex limits diagnostics to our own headers; system and Qt
+# headers (and generated MOC/qrc) are not our problem to fix.
+---
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-reserved-identifier,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+  performance-*,
+  -performance-no-int-to-ptr,
+  -performance-enum-size
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(src/daemon|src/overlay|tests)/.*\.h$'
+FormatStyle: none

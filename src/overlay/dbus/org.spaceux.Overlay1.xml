@@ -1,0 +1,63 @@
+<!--
+  SPDX-FileCopyrightText: Maik-0000FF
+  SPDX-License-Identifier: GPL-3.0-or-later
+
+  org.spaceux.Overlay1 — control interface for the native overlay daemon
+  (#296). Driven by the SpaceUX core process. Methods position,
+  populate, and toggle the layer-shell pie surface; signals report raw
+  pointer events back so the SpaceUX side can hit-test them with the real
+  shape-plugin code.
+
+  Object path:  /org/spaceux/Overlay
+  Service name: org.spaceux.Overlay
+-->
+<node>
+  <interface name="org.spaceux.Overlay1">
+    <!-- Map / unmap the surface. -->
+    <method name="Show"/>
+    <method name="Hide"/>
+    <!-- Tear down the daemon. -->
+    <method name="Quit"/>
+
+    <!-- Place the pie centre at the given global cursor pixel. -->
+    <method name="SetCursorPosition">
+      <arg name="x" type="i" direction="in"/>
+      <arg name="y" type="i" direction="in"/>
+    </method>
+
+    <!-- The whole pie as one SVG, JSON-encoded. Sent on open / drill / ring /
+         hover change, not per frame. Since #344 the pie is a single SVG string
+         (the hover is baked into it), not a sector list. Shape:
+         { svg: string, extent: number, displaySize: number }, where extent is
+         the frosted-blur / input-region radius and displaySize the square the
+         SVG viewBox maps to (both surface logical px). See Overlay.qml for the
+         authoritative schema. -->
+    <method name="SetScene">
+      <arg name="json" type="s" direction="in"/>
+    </method>
+
+    <!-- Appearance data (colors, sizes, blur, fonts), JSON-encoded. -->
+    <method name="SetTheme">
+      <arg name="json" type="s" direction="in"/>
+    </method>
+
+    <!-- Resize the square surface (pie-size slider). Driven from the pie
+         scale; the daemon resizes the view + re-applies the input region and
+         blur. The scene footprint is scaled to match on the SpaceUX side. -->
+    <method name="SetSurfaceSize">
+      <arg name="px" type="i" direction="in"/>
+    </method>
+
+    <!-- Pointer events inside the input region (pie circle), in
+         surface-local coordinates. The SpaceUX side hit-tests these. -->
+    <signal name="PointerMoved">
+      <arg name="x" type="i"/>
+      <arg name="y" type="i"/>
+    </signal>
+    <signal name="PointerPressed">
+      <arg name="x" type="i"/>
+      <arg name="y" type="i"/>
+    </signal>
+    <signal name="Closed"/>
+  </interface>
+</node>
