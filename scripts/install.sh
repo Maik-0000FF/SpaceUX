@@ -94,22 +94,24 @@ fi
 # A missing optional is warned, not fatal.
 #
 # Package names are verified against the live distros (Arch: pacman; Ubuntu 26.04:
-# apt; Fedora 41+: dnf) and re-verified per distro by the CI dependency-drift
+# apt; Fedora: dnf) and re-verified per distro by the CI dependency-drift
 # check (install.sh --check-deps runs in each install-lane container), so a name
 # that drifts on a future release is caught before it reaches a user.
 #
 # Fedora note: the Qt6 dev modules carry a `qt6-qt` prefix (qt6-qtbase-devel, not
 # qt6-base), the QtQuick QML runtime and the SVG image-format plugin ship inside
 # those runtime packages the -devel ones pull in (no separate qml6-module-* /
-# qt6-svg-plugins split like Debian), and the toolchain is spelled out explicitly
-# (gcc-c++ + make + pkgconf) rather than via a base-devel meta-package.
+# qt6-svg-plugins split like Debian), the toolchain is spelled out explicitly
+# (gcc-c++ + make + pkgconf) rather than via a base-devel meta-package, and npm
+# ships as the real subpackage nodejs-npm (the bare `npm` is only a Provides,
+# which `dnf info` in essential_missing cannot resolve).
 ARCH_ESSENTIAL=(base-devel cmake nodejs npm qt6-base qt6-declarative qt6-svg layer-shell-qt)
 ARCH_OPTIONAL=(libkscreen kwindowsystem clang wireplumber brightnessctl)
 DEBIAN_ESSENTIAL=(build-essential cmake nodejs npm qt6-base-dev qt6-declarative-dev
     qt6-svg-dev liblayershellqtinterface-dev qml6-module-qtquick
     qml6-module-qtquick-window qt6-svg-plugins)
 DEBIAN_OPTIONAL=(libkf6windowsystem-dev libkscreen-bin clang wireplumber brightnessctl)
-FEDORA_ESSENTIAL=(gcc-c++ make cmake nodejs npm pkgconf-pkg-config
+FEDORA_ESSENTIAL=(gcc-c++ make cmake nodejs nodejs-npm pkgconf-pkg-config
     qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel layer-shell-qt-devel)
 FEDORA_OPTIONAL=(kf6-kwindowsystem-devel libkscreen clang wireplumber brightnessctl)
 
