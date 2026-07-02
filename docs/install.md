@@ -18,10 +18,11 @@ the launcher runs from it.
   cursor position comes from a KWin D-Bus script. **GNOME's Mutter supports
   neither**, so the pie does not appear there. On Ubuntu/Debian use a KDE Plasma
   session (e.g. Kubuntu), not the default GNOME.
-- A supported distribution: the **Arch family** (pacman) or **Ubuntu 26.04+**
-  (apt). The package names are verified on both distros, and a CI check
-  re-verifies them per distro so a renamed or dropped package is caught before
-  release. Older Ubuntu LTS with Qt 6.4 is not supported.
+- A supported distribution: the **Arch family** (pacman), **Ubuntu 26.04+**
+  (apt) or **Fedora 41+** (dnf, including Fedora derivatives such as Nobara). The
+  package names are verified per distro, and a CI check re-verifies them so a
+  renamed or dropped package is caught before release. Older Ubuntu LTS with Qt
+  6.4 is not supported.
 - A 3Dconnexion SpaceMouse.
 
 Tested with a **3Dconnexion SpaceNavigator** (`046d:c626`) on **EndeavourOS**

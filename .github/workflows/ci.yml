@@ -415,11 +415,12 @@ jobs:
   # would, inside clean distro containers. Arch is the family both early bug
   # reports came from (EndeavourOS and CachyOS, #421); Ubuntu 26.04 is the
   # other supported baseline (the installer's apt package names target 26.04+,
-  # so this lane is the first real test of that path). Older Ubuntu and non-KDE
-  # distros are out of scope by design (see the platform baseline).
+  # so this lane is the first real test of that path); Fedora 41 is the dnf
+  # baseline and covers Fedora derivatives such as Nobara (#4). Older Ubuntu and
+  # non-KDE distros are out of scope by design (see the platform baseline).
   #
   # Each lane runs as a non-root tester with passwordless sudo so install.sh's
-  # `sudo pacman`/`sudo apt` dependency step behaves as on a user's machine.
+  # `sudo pacman`/`sudo apt`/`sudo dnf` dependency step behaves as on a user's machine.
   # --skip-perms (no udev rule / `input` group: those need a real system and a
   # re-login) and --no-spacenavd (the AUR build can't run unattended) keep the
   # run non-interactive while exercising the deps + build (daemon, Qt UI,
@@ -446,6 +447,14 @@ jobs:
             # there, as on a real Plasma desktop. software-properties-common
             # provides add-apt-repository; dbus backs the core boot smoke.
             bootstrap: apt-get update && apt-get install -y --no-install-recommends sudo git ca-certificates dbus software-properties-common && add-apt-repository -y universe
+          - distro: Fedora 41
+            image: fedora:41
+            # The minimal Fedora image ships neither git (needed by
+            # actions/checkout) nor sudo; dbus-daemon provides dbus-run-session
+            # for the headless core boot smoke. dnf refreshes its metadata on
+            # first use, so install.sh's later `dnf install` resolves without an
+            # explicit sync step (unlike pacman -Syu / apt-get update).
+            bootstrap: dnf install -y sudo git ca-certificates dbus-daemon
     container:
       image: ${{ matrix.image }}
       options: --user root
@@ -472,7 +481,7 @@ jobs:
       - name: Dependency drift check (essential packages resolve)
         # The installer's essential package names must resolve on each supported
         # distro; this catches a renamed or dropped package early and per distro
-        # (Arch + Ubuntu, both matrix legs) instead of failing cryptically
+        # (Arch + Ubuntu + Fedora, all matrix legs) instead of failing cryptically
         # mid-build. The package lists live only in install.sh (--check-deps
         # reuses them), so there is nothing to duplicate here.
         run: sudo -u tester bash -c "export DEBIAN_FRONTEND=noninteractive && cd '$GITHUB_WORKSPACE' && ./scripts/install.sh --check-deps"
