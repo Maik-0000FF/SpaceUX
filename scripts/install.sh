@@ -101,17 +101,19 @@ fi
 # Fedora note: the Qt6 dev modules carry a `qt6-qt` prefix (qt6-qtbase-devel, not
 # qt6-base), the QtQuick QML runtime and the SVG image-format plugin ship inside
 # those runtime packages the -devel ones pull in (no separate qml6-module-* /
-# qt6-svg-plugins split like Debian), the toolchain is spelled out explicitly
-# (gcc-c++ + make + pkgconf) rather than via a base-devel meta-package, and npm
-# ships as the real subpackage nodejs-npm (the bare `npm` is only a Provides,
-# which `dnf info` in essential_missing cannot resolve).
+# qt6-svg-plugins split like Debian), and the toolchain is spelled out explicitly
+# (gcc-c++ + make + pkgconf) rather than via a base-devel meta-package. nodejs and
+# npm are virtual Provides of the versioned stream (nodejs22 / nodejs22-npm), not
+# packages named literally `nodejs` / `npm`, so the Fedora resolver below matches
+# by capability (`dnf provides`, what `dnf install` accepts) rather than by name
+# (`dnf info`), which keeps the list on the stable names across stream bumps.
 ARCH_ESSENTIAL=(base-devel cmake nodejs npm qt6-base qt6-declarative qt6-svg layer-shell-qt)
 ARCH_OPTIONAL=(libkscreen kwindowsystem clang wireplumber brightnessctl)
 DEBIAN_ESSENTIAL=(build-essential cmake nodejs npm qt6-base-dev qt6-declarative-dev
     qt6-svg-dev liblayershellqtinterface-dev qml6-module-qtquick
     qml6-module-qtquick-window qt6-svg-plugins)
 DEBIAN_OPTIONAL=(libkf6windowsystem-dev libkscreen-bin clang wireplumber brightnessctl)
-FEDORA_ESSENTIAL=(gcc-c++ make cmake nodejs nodejs-npm pkgconf-pkg-config
+FEDORA_ESSENTIAL=(gcc-c++ make cmake nodejs npm pkgconf-pkg-config
     qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel layer-shell-qt-devel)
 FEDORA_OPTIONAL=(kf6-kwindowsystem-devel libkscreen clang wireplumber brightnessctl)
 
@@ -133,8 +135,11 @@ essential_missing() {
             done
             ;;
         fedora)
+            # Match by capability, not package name: nodejs / npm resolve only via
+            # Provides (see the FEDORA_ESSENTIAL note). `dnf provides` covers both
+            # real names and Provides, mirroring what `dnf install` will accept.
             for pkg in "${FEDORA_ESSENTIAL[@]}"; do
-                dnf -q info "$pkg" >/dev/null 2>&1 || printf '%s\n' "$pkg"
+                [[ -n "$(dnf -q provides "$pkg" 2>/dev/null)" ]] || printf '%s\n' "$pkg"
             done
             ;;
     esac
@@ -185,7 +190,7 @@ install_optional() {
             ;;
         fedora)
             for pkg in "${FEDORA_OPTIONAL[@]}"; do
-                if dnf -q info "$pkg" >/dev/null 2>&1; then available+=("$pkg"); else missing+=("$pkg"); fi
+                if [[ -n "$(dnf -q provides "$pkg" 2>/dev/null)" ]]; then available+=("$pkg"); else missing+=("$pkg"); fi
             done
             [[ ${#available[@]} -gt 0 ]] && sudo dnf install -y "${available[@]}" || true
             ;;
