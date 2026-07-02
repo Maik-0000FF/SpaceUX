@@ -72,6 +72,7 @@ if [[ -r /etc/os-release ]]; then
     case " ${ID:-} ${ID_LIKE:-} " in
         *" arch "*) DISTRO=arch ;;
         *" debian "* | *" ubuntu "*) DISTRO=debian ;;
+        *" fedora "*) DISTRO=fedora ;;
     esac
 fi
 
@@ -93,15 +94,24 @@ fi
 # A missing optional is warned, not fatal.
 #
 # Package names are verified against the live distros (Arch: pacman; Ubuntu 26.04:
-# apt) and re-verified per distro by the CI dependency-drift check (install.sh
-# --check-deps runs in each install-lane container), so a name that drifts on a
-# future release is caught before it reaches a user.
+# apt; Fedora 41+: dnf) and re-verified per distro by the CI dependency-drift
+# check (install.sh --check-deps runs in each install-lane container), so a name
+# that drifts on a future release is caught before it reaches a user.
+#
+# Fedora note: the Qt6 dev modules carry a `qt6-qt` prefix (qt6-qtbase-devel, not
+# qt6-base), the QtQuick QML runtime and the SVG image-format plugin ship inside
+# those runtime packages the -devel ones pull in (no separate qml6-module-* /
+# qt6-svg-plugins split like Debian), and the toolchain is spelled out explicitly
+# (gcc-c++ + make + pkgconf) rather than via a base-devel meta-package.
 ARCH_ESSENTIAL=(base-devel cmake nodejs npm qt6-base qt6-declarative qt6-svg layer-shell-qt)
 ARCH_OPTIONAL=(libkscreen kwindowsystem clang wireplumber brightnessctl)
 DEBIAN_ESSENTIAL=(build-essential cmake nodejs npm qt6-base-dev qt6-declarative-dev
     qt6-svg-dev liblayershellqtinterface-dev qml6-module-qtquick
     qml6-module-qtquick-window qt6-svg-plugins)
 DEBIAN_OPTIONAL=(libkf6windowsystem-dev libkscreen-bin clang wireplumber brightnessctl)
+FEDORA_ESSENTIAL=(gcc-c++ make cmake nodejs npm pkgconf-pkg-config
+    qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel layer-shell-qt-devel)
+FEDORA_OPTIONAL=(kf6-kwindowsystem-devel libkscreen clang wireplumber brightnessctl)
 
 # Names of the essential packages whose installation candidate is missing on this
 # system. Empty output = all resolve. Used by both the install and the --check-deps
@@ -120,6 +130,11 @@ essential_missing() {
                 [[ -n "$cand" && "$cand" != "(none)" ]] || printf '%s\n' "$pkg"
             done
             ;;
+        fedora)
+            for pkg in "${FEDORA_ESSENTIAL[@]}"; do
+                dnf -q info "$pkg" >/dev/null 2>&1 || printf '%s\n' "$pkg"
+            done
+            ;;
     esac
 }
 
@@ -127,7 +142,7 @@ essential_missing() {
 # --check-deps) or abort the install otherwise. The drift safety net.
 check_deps() {
     case "$DISTRO" in
-        arch | debian) ;;
+        arch | debian | fedora) ;;
         *)
             warn "Unsupported distro: install the deps from docs/install.md, then re-run with --skip-deps."
             return 1
@@ -166,6 +181,12 @@ install_optional() {
             done
             [[ ${#available[@]} -gt 0 ]] && sudo apt-get install -y --no-install-recommends "${available[@]}" || true
             ;;
+        fedora)
+            for pkg in "${FEDORA_OPTIONAL[@]}"; do
+                if dnf -q info "$pkg" >/dev/null 2>&1; then available+=("$pkg"); else missing+=("$pkg"); fi
+            done
+            [[ ${#available[@]} -gt 0 ]] && sudo dnf install -y "${available[@]}" || true
+            ;;
     esac
     [[ ${#missing[@]} -gt 0 ]] && warn "Optional packages not found (the app still works without them): ${missing[*]}"
     return 0
@@ -183,6 +204,10 @@ install_deps() {
         debian)
             say "Installing required packages (apt, sudo)"
             sudo apt-get install -y --no-install-recommends "${DEBIAN_ESSENTIAL[@]}"
+            ;;
+        fedora)
+            say "Installing required packages (dnf, sudo)"
+            sudo dnf install -y "${FEDORA_ESSENTIAL[@]}"
             ;;
     esac
     say "Installing optional packages"
@@ -311,6 +336,12 @@ setup_spacenavd() {
             ;;
         debian)
             sudo apt-get install -y spacenavd libspnav0 || warn "Could not install spacenavd / libspnav0."
+            ;;
+        fedora)
+            # spacenavd may live in RPM Fusion rather than the base repos; tolerate
+            # a miss with a hint instead of aborting the optional step.
+            sudo dnf install -y spacenavd libspnav ||
+                warn "Could not install spacenavd / libspnav (they may need RPM Fusion enabled)."
             ;;
         *)
             warn "Install spacenavd + libspnav by hand on this distro."
