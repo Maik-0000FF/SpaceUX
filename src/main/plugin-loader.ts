@@ -224,8 +224,7 @@ async function loadOne(dir: string): Promise<LoadedPlugin | { reason: string }> 
   let mod: PluginModule;
   try {
     const imported = (await import(pathToFileURL(indexPath).href)) as
-      | PluginModule
-      | { default: PluginModule };
+      PluginModule | { default: PluginModule };
     mod = 'actions' in imported ? imported : imported.default;
   } catch (err) {
     return { reason: `cannot import index.js: ${describeError(err)}` };
@@ -487,8 +486,7 @@ export function validateManifest(value: unknown): string | null {
  * pointless or absent.
  */
 export type ReadManifestResult =
-  | { ok: true; manifest: PluginManifest }
-  | { ok: false; reason: string };
+  { ok: true; manifest: PluginManifest } | { ok: false; reason: string };
 
 export async function readPluginManifest(dir: string): Promise<ReadManifestResult> {
   let raw: string;

@@ -960,8 +960,7 @@ function validateCycleBinding(raw: unknown, where: string): GestureValidation<Cy
 }
 
 export type NavigationValidation =
-  | { ok: true; value: MenuNavigation }
-  | { ok: false; reason: string };
+  { ok: true; value: MenuNavigation } | { ok: false; reason: string };
 
 /** Validate the optional `navigation` block. Each gesture is optional;
  *  an omitted one defaults to *unbound* (empty inputs) — distinct from
@@ -1576,8 +1575,7 @@ type MenuConfigMigration = (raw: Record<string, unknown>) => Record<string, unkn
 const MENU_CONFIG_MIGRATIONS: Record<number, MenuConfigMigration> = {};
 
 export type MenuMigrationResult =
-  | { ok: true; raw: Record<string, unknown> }
-  | { ok: false; reason: string };
+  { ok: true; raw: Record<string, unknown> } | { ok: false; reason: string };
 
 /**
  * Upgrade a raw parsed config from `fromVersion` to the current
