@@ -14,10 +14,9 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "baseUrl": ".",
     "paths": {
-      "@/shared/*": ["src/shared/*"],
-      "@/core/*": ["src/core/*"]
+      "@/shared/*": ["./src/shared/*"],
+      "@/core/*": ["./src/core/*"]
     }
   },
   "include": ["src/shared", "src/core", "tests"]
