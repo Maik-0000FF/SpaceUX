@@ -178,8 +178,7 @@ export type PluginPickResult =
  *  updates either way); `ok:false` surfaces a real delete error to the UI
  *  instead of swallowing it (#221). */
 export type PluginUninstallResult =
-  | { ok: true; state: PluginsState }
-  | { ok: false; reason: string; state: PluginsState };
+  { ok: true; state: PluginsState } | { ok: false; reason: string; state: PluginsState };
 
 /** Payload of the PluginInvalidated push signal. The editor's per-plugin
  *  caches (shape-modules today, #269) use `kind` to filter (they only care
@@ -194,8 +193,7 @@ export type PluginInvalidatedPayload = {
  *  to display in the second Remove confirm. `null` when the plugin has no
  *  teardown hook or the host couldn't run it. */
 export type PluginUninstallDescriptorRequest =
-  | { available: true; message: string }
-  | { available: false };
+  { available: true; message: string } | { available: false };
 
 /** Where a plugin is referenced in saved state (#265): the named menus that
  *  point at it (in their `shapeModel` for shape plugins, or their action
@@ -212,8 +210,7 @@ export type PluginUsageReport = {
  *  no `provideCatalog`, or an unreachable bridge) carries a reason the palette
  *  shows instead of commands. */
 export type PluginCatalogResult =
-  | { ok: true; catalog: PluginCatalog }
-  | { ok: false; reason: string };
+  { ok: true; catalog: PluginCatalog } | { ok: false; reason: string };
 
 /** The per-device profiles the editor knows about (#113): the ids of the
  *  saved profile files, and the manual override (a profile id force-loaded
@@ -248,8 +245,7 @@ export type ContextSeedResult = { ok: true; id: string } | { ok: false; reason: 
  *  plugin-authored `label` for the target (e.g. FreeCAD's `v1-2`) and whether
  *  the bridge is already installed. */
 export type PluginBridgeStatus =
-  | { resolved: false; reason: string }
-  | { resolved: true; label: string; installed: boolean };
+  { resolved: false; reason: string } | { resolved: true; label: string; installed: boolean };
 
 /** Outcome of a plugin bridge install/uninstall (#288). On success an optional
  *  plugin-authored `note` (e.g. "restart FreeCAD to load the bridge"); on
@@ -280,9 +276,7 @@ export type ActionPathCheck = {
  *  when something went wrong. Success carries the inline image data URI to
  *  store on the node. */
 export type PickIconResult =
-  | { ok: true; dataUri: string }
-  | { ok: false; reason: string }
-  | { ok: 'cancelled' };
+  { ok: true; dataUri: string } | { ok: false; reason: string } | { ok: 'cancelled' };
 
 /** Editor colour theme. `system` follows the OS light/dark preference;
  *  `spaceux` is the branded palette. Persisted in editor-settings.json. */
@@ -461,10 +455,7 @@ export type DesktopAxisFunctionKind = DesktopAxisFunction['kind'];
  *  actions; the `action` variant fires any built-in or plugin action (key combo,
  *  exec, open file, ...) through the same {@link ActionRef} the pie leaves use. */
 export type DesktopButtonFunction =
-  | 'none'
-  | 'overview'
-  | 'showDesktop'
-  | { kind: 'action'; ref: ActionRef };
+  'none' | 'overview' | 'showDesktop' | { kind: 'action'; ref: ActionRef };
 
 /** Function bound to each of the six axes (tx/ty/tz/rx/ry/rz). */
 export type DesktopAxisMap = Record<MenuAxisName, DesktopAxisFunction>;

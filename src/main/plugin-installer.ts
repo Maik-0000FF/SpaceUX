@@ -20,8 +20,7 @@ import { pluginInstallDir, readPluginManifest, userExtensionsRoot } from './plug
  */
 
 export type ImportOutcome =
-  | { ok: true; manifest: PluginManifest; dir: string }
-  | { ok: false; reason: string };
+  { ok: true; manifest: PluginManifest; dir: string } | { ok: false; reason: string };
 
 /**
  * Import the plugin folder at `srcDir`: validate its manifest, then copy the
