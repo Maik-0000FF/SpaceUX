@@ -16,9 +16,10 @@ import type { HostEnvironment } from '../src/shared/plugin-types';
 type Encoded = { ok: true; dataUri: string } | { ok: false; reason: string };
 const { resolveIconFileMock, encodeIconFileMock } = vi.hoisted(() => ({
   resolveIconFileMock: vi.fn((name: string): string | null => `/fake/${name}.png`),
-  encodeIconFileMock: vi.fn(
-    (file: string): Encoded => ({ ok: true, dataUri: `data:image/png;base64,${file}` }),
-  ),
+  encodeIconFileMock: vi.fn((file: string): Encoded => ({
+    ok: true,
+    dataUri: `data:image/png;base64,${file}`,
+  })),
 }));
 
 vi.mock('../src/main/icon-theme', () => ({
