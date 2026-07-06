@@ -7,8 +7,8 @@
 # permissions the daemon needs, and installs a `spaceux` launcher plus a
 # desktop entry. The clone stays in place; the launcher runs from here.
 #
-# Supports the Arch family (pacman) and Debian/Ubuntu (apt). Other distros can
-# install the listed build dependencies by hand and re-run with --skip-deps.
+# Supports the Arch family (pacman), Debian/Ubuntu (apt) and Fedora (dnf). Other
+# distros can install the listed build dependencies by hand and re-run with --skip-deps.
 #
 # Usage:
 #   scripts/install.sh                  # deps + build + device perms + launcher
