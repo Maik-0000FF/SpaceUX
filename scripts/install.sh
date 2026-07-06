@@ -28,6 +28,7 @@ WITH_SPACENAVD=ask
 SKIP_DEPS=0
 SKIP_PERMS=0
 CHECK_DEPS_ONLY=0
+PRINT_DISTRO=0
 for arg in "$@"; do
     case "$arg" in
         --with-spacenavd) WITH_SPACENAVD=yes ;;
@@ -35,6 +36,10 @@ for arg in "$@"; do
         --skip-deps) SKIP_DEPS=1 ;;
         --skip-perms) SKIP_PERMS=1 ;;
         --check-deps) CHECK_DEPS_ONLY=1 ;;
+        # Internal/testing: print the detected distro family and exit. Lets the
+        # test suite pin the os-release -> package-manager mapping without a
+        # container. Reads $OS_RELEASE_FILE (default /etc/os-release).
+        --print-distro) PRINT_DISTRO=1 ;;
         -h | --help)
             sed -n '4,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
             exit 0
@@ -65,15 +70,31 @@ ask_yes_default() {
 }
 
 # ── Distro detection ────────────────────────────────────────────────────────
-DISTRO=unknown
-if [[ -r /etc/os-release ]]; then
-    # shellcheck disable=SC1091
-    . /etc/os-release
+# Map os-release onto the package-manager family we support. Matching ID and
+# ID_LIKE means derivatives resolve to their parent (Nobara/Bazzite -> fedora,
+# CachyOS -> arch, Linux Mint -> debian). Prints arch | debian | fedora |
+# unknown. Reads $OS_RELEASE_FILE (default /etc/os-release) so the mapping is
+# testable against fixtures without a live distro.
+detect_distro() {
+    local os_release="${OS_RELEASE_FILE:-/etc/os-release}"
+    local ID='' ID_LIKE=''
+    if [[ -r "$os_release" ]]; then
+        # shellcheck disable=SC1090
+        . "$os_release"
+    fi
     case " ${ID:-} ${ID_LIKE:-} " in
-        *" arch "*) DISTRO=arch ;;
-        *" debian "* | *" ubuntu "*) DISTRO=debian ;;
-        *" fedora "*) DISTRO=fedora ;;
+        *" arch "*) printf 'arch' ;;
+        *" debian "* | *" ubuntu "*) printf 'debian' ;;
+        *" fedora "*) printf 'fedora' ;;
+        *) printf 'unknown' ;;
     esac
+}
+
+DISTRO="$(detect_distro)"
+
+if [[ "$PRINT_DISTRO" == 1 ]]; then
+    printf '%s\n' "$DISTRO"
+    exit 0
 fi
 
 # Build + runtime dependencies, split into ESSENTIAL and OPTIONAL.
