@@ -280,13 +280,26 @@ build() {
 # the uinput module must load). Adding the user to `input` needs a re-login.
 UDEV_RULE=/etc/udev/rules.d/99-spaceux-uinput.rules
 UDEV_RULE_HIDRAW=/etc/udev/rules.d/99-spaceux-hidraw.rules
+UDEV_RULE_INPUT=/etc/udev/rules.d/99-spaceux-input.rules
 MODULES_CONF=/etc/modules-load.d/spaceux-uinput.conf
 
 # The 3Dconnexion devices that enumerate under Logitech's vendor id (046d): the
 # classic pucks predate 3Dconnexion's own 256f id. Matching these exact product
-# ids (not all of 046d) keeps the rule from touching unrelated Logitech mice,
+# ids (not all of 046d) keeps the rules from touching unrelated Logitech mice,
 # keyboards or webcams. Modern devices use 256f, matched whole.
-HIDRAW_046D_PIDS='c603|c605|c606|c621|c623|c625|c626|c627|c628|c629|c62b|c62e|c640'
+#
+# The PID list is single-sourced in data/spacemouse-046d-pids (the C daemon's
+# LED backend reads the same file); build the udev alternation 'c603|c605|...'
+# from it rather than hard-coding a second copy here.
+read_046d_pids() {
+    local f="$ROOT/data/spacemouse-046d-pids" pids
+    pids="$(awk '!/^[[:space:]]*#/ && NF { printf "%s%s", sep, $1; sep="|" }' "$f")"
+    [[ -n $pids ]] || {
+        warn "no SpaceMouse PIDs parsed from $f"
+        return 1
+    }
+    printf '%s' "$pids"
+}
 
 setup_perms() {
     # id -un rather than $USER: robust under set -u if the env var is unset.
@@ -295,8 +308,9 @@ setup_perms() {
     say "Setting up device permissions (sudo)"
     echo "  - udev rule for /dev/uinput access ($UDEV_RULE)"
     echo "  - udev rule for the SpaceMouse hidraw node, LED control ($UDEV_RULE_HIDRAW)"
+    echo "  - udev rule for the SpaceMouse evdev node, immediate read access ($UDEV_RULE_INPUT)"
     echo "  - load the uinput module on boot ($MODULES_CONF)"
-    echo "  - add '$user' to the 'input' group (read the SpaceMouse)"
+    echo "  - add '$user' to the 'input' group (key injection; read-access fallback)"
     # Express run applies these without a second prompt: device access is what
     # makes the app work, so the recommended path must set it up. The custom path
     # still asks; --skip-perms (handled by the caller) is the opt-out either way.
@@ -304,19 +318,32 @@ setup_perms() {
         warn "Skipped. See docs/install.md to set them up by hand."
         return 0
     fi
+    local pids
+    pids="$(read_046d_pids)"
     printf 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"\n' |
         sudo tee "$UDEV_RULE" >/dev/null
     # hidraw access for LED control (#460): 3Dconnexion's own vendor (256f) plus
     # the known 046d product ids; the daemon writes the LED report to this node.
     {
         printf 'KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0660", GROUP="input"\n'
-        printf 'KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="%s", MODE="0660", GROUP="input"\n' "$HIDRAW_046D_PIDS"
+        printf 'KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="%s", MODE="0660", GROUP="input"\n' "$pids"
     } | sudo tee "$UDEV_RULE_HIDRAW" >/dev/null
+    # evdev read access (#11): tag the SpaceMouse event node with uaccess so the
+    # logged-in user can read the puck immediately, without waiting for the
+    # 'input' group re-login. Same VID/PID match as the hidraw rule, so it never
+    # touches unrelated Logitech devices: 256f matched whole, 046d by PID.
+    {
+        printf 'SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="256f", TAG+="uaccess"\n'
+        printf 'SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="%s", TAG+="uaccess"\n' "$pids"
+    } | sudo tee "$UDEV_RULE_INPUT" >/dev/null
     printf 'uinput\n' | sudo tee "$MODULES_CONF" >/dev/null
     sudo modprobe uinput || warn "modprobe uinput failed; the daemon's key injection may be unavailable until a reboot."
     sudo udevadm control --reload-rules && sudo udevadm trigger
     sudo usermod -aG input "$user"
-    warn "Log out and back in (or reboot) so the 'input' group membership takes effect."
+    # Reading the puck works immediately via the uaccess rule above; the 'input'
+    # group is only needed for key injection (/dev/uinput) and as the read
+    # fallback on non-logind systems, and that part takes effect after re-login.
+    warn "Log out and back in (or reboot) so key injection (the 'input' group) works."
 }
 
 # ── spacenavd (optional, for FreeCAD/Blender) ───────────────────────────────

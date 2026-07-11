@@ -42,6 +42,7 @@ DESKTOP_FILE="$HOME/.local/share/applications/spaceux.desktop"
 AUTOSTART_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/spaceux.desktop"
 UDEV_RULE=/etc/udev/rules.d/99-spaceux-uinput.rules
 UDEV_RULE_HIDRAW=/etc/udev/rules.d/99-spaceux-hidraw.rules
+UDEV_RULE_INPUT=/etc/udev/rules.d/99-spaceux-input.rules
 MODULES_CONF=/etc/modules-load.d/spaceux-uinput.conf
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/spaceux"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/spaceux"
@@ -54,6 +55,7 @@ echo "  $DESKTOP_FILE"
 echo "  $AUTOSTART_FILE (if you enabled launch-on-login)"
 echo "  $UDEV_RULE        (sudo)"
 echo "  $UDEV_RULE_HIDRAW       (sudo)"
+echo "  $UDEV_RULE_INPUT        (sudo)"
 echo "  $MODULES_CONF (sudo)"
 if [[ $WITH_DATA -eq 1 ]]; then
     echo "  $CONFIG_DIR"
@@ -102,9 +104,9 @@ stop_running
 say "Removing launcher + desktop entry"
 rm -f -- "$LAUNCHER" "$DESKTOP_FILE" "$AUTOSTART_FILE"
 
-if [[ -f "$UDEV_RULE" || -f "$UDEV_RULE_HIDRAW" || -f "$MODULES_CONF" ]]; then
+if [[ -f "$UDEV_RULE" || -f "$UDEV_RULE_HIDRAW" || -f "$UDEV_RULE_INPUT" || -f "$MODULES_CONF" ]]; then
     say "Removing system files (sudo)"
-    sudo rm -f -- "$UDEV_RULE" "$UDEV_RULE_HIDRAW" "$MODULES_CONF"
+    sudo rm -f -- "$UDEV_RULE" "$UDEV_RULE_HIDRAW" "$UDEV_RULE_INPUT" "$MODULES_CONF"
     sudo udevadm control --reload-rules 2>/dev/null || true
 fi
 
