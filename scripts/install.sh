@@ -280,7 +280,13 @@ build() {
 # the uinput module must load). Adding the user to `input` needs a re-login.
 UDEV_RULE=/etc/udev/rules.d/99-spaceux-uinput.rules
 UDEV_RULE_HIDRAW=/etc/udev/rules.d/99-spaceux-hidraw.rules
-UDEV_RULE_INPUT=/etc/udev/rules.d/99-spaceux-input.rules
+# The evdev read rule uses uaccess, which systemd applies in its
+# 73-seat-late.rules. A rules.d file only takes effect if it sorts BEFORE that,
+# so this one is 70- (systemd's own uaccess rules live at 70- too), NOT 99- like
+# the uinput/hidraw rules. Those use MODE/GROUP and are order-independent; this
+# one is not. Do not renumber it to match the others — the odd prefix encodes
+# the ordering requirement.
+UDEV_RULE_INPUT=/etc/udev/rules.d/70-spaceux-input.rules
 MODULES_CONF=/etc/modules-load.d/spaceux-uinput.conf
 
 # The 3Dconnexion devices that enumerate under Logitech's vendor id (046d): the

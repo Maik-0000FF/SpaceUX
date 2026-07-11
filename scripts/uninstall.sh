@@ -42,7 +42,9 @@ DESKTOP_FILE="$HOME/.local/share/applications/spaceux.desktop"
 AUTOSTART_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/spaceux.desktop"
 UDEV_RULE=/etc/udev/rules.d/99-spaceux-uinput.rules
 UDEV_RULE_HIDRAW=/etc/udev/rules.d/99-spaceux-hidraw.rules
-UDEV_RULE_INPUT=/etc/udev/rules.d/99-spaceux-input.rules
+# 70- (not 99-): the evdev uaccess rule must sort before systemd's
+# 73-seat-late.rules to take effect. Matches the name install.sh writes.
+UDEV_RULE_INPUT=/etc/udev/rules.d/70-spaceux-input.rules
 MODULES_CONF=/etc/modules-load.d/spaceux-uinput.conf
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/spaceux"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/spaceux"
