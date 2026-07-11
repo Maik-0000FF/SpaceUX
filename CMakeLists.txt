@@ -86,6 +86,30 @@ endif()
 add_executable(spaceux-daemon ${DAEMON_SOURCES})
 target_include_directories(spaceux-daemon PRIVATE src/daemon)
 
+# The Linux LED backend matches SpaceMice by their 046d HID PIDs. That PID list
+# is single-sourced in data/spacemouse-046d-pids and shared with the installer's
+# udev rules; generate the C header from it here so the two can never drift.
+# add_custom_command regenerates whenever the data file or the generator changes
+# (DEPENDS), and add_dependencies forces it before the daemon compiles; the
+# compiler's own header scanning then rebuilds led_linux.c when it changes. The
+# header lands under the build tree (not committed). Scoped to Linux — only
+# led_linux.c #includes it.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(SPACEUX_PID_DATA ${CMAKE_SOURCE_DIR}/data/spacemouse-046d-pids)
+    set(SPACEUX_PID_GEN ${CMAKE_SOURCE_DIR}/scripts/gen-pids-header.sh)
+    set(SPACEUX_PID_HEADER ${CMAKE_BINARY_DIR}/generated/spacemouse_046d_pids.h)
+    add_custom_command(
+        OUTPUT ${SPACEUX_PID_HEADER}
+        COMMAND bash ${SPACEUX_PID_GEN} ${SPACEUX_PID_DATA} ${SPACEUX_PID_HEADER}
+        DEPENDS ${SPACEUX_PID_DATA} ${SPACEUX_PID_GEN}
+        COMMENT "Generating SpaceMouse 046d PID header from data/spacemouse-046d-pids"
+        VERBATIM
+    )
+    add_custom_target(spaceux-pids-header DEPENDS ${SPACEUX_PID_HEADER})
+    add_dependencies(spaceux-daemon spaceux-pids-header)
+    target_include_directories(spaceux-daemon PRIVATE ${CMAKE_BINARY_DIR}/generated)
+endif()
+
 # Install into the repo's build tree only — Phase 4 of the roadmap
 # adds a proper system-level install target (XDG paths + systemd unit).
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})

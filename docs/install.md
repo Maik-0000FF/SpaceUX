@@ -58,13 +58,14 @@ to open the pie.
 2. **Build**: the daemon, overlay and editor via CMake, then `npm install` and
    the core build.
 3. **Device permissions** (via sudo): udev rules so the daemon can use
-   `/dev/uinput` for key injection and open the SpaceMouse `hidraw` node for LED
-   control, a modules-load entry for the `uinput` module, and adding you to the
-   `input` group so the daemon can read the device. The recommended install
-   applies these without a further prompt; the step-by-step run asks first, and
+   `/dev/uinput` for key injection, open the SpaceMouse `hidraw` node for LED
+   control, and read the SpaceMouse `evdev` node immediately (a `uaccess` tag, so
+   detection works without a re-login), a modules-load entry for the `uinput`
+   module, and adding you to the `input` group. The recommended install applies
+   these without a further prompt; the step-by-step run asks first, and
    `--skip-perms` opts out (set them up later via
-   [Manual permission setup](#manual-permission-setup)). **A re-login is required**
-   for the group to apply.
+   [Manual permission setup](#manual-permission-setup)). **A re-login is required
+   only for key injection** (the `input` group); reading the device works right away.
 4. **Launcher**: `~/.local/bin/spaceux` (starts the daemon + core and opens the
    editor; the login autostart entry starts it silently) and a desktop entry.
 
@@ -103,15 +104,27 @@ If you skip the automatic step, set up device access by hand:
 # Let the daemon use /dev/uinput for key injection:
 echo 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"' |
   sudo tee /etc/udev/rules.d/99-spaceux-uinput.rules
-# Let the daemon open the SpaceMouse hidraw node for LED control:
+# Let the daemon open the SpaceMouse hidraw node for LED control. The two 046d
+# PID alternations below mirror data/spacemouse-046d-pids (the single source the
+# daemon and installer read); if you add a device there, update both literals
+# here too — docs are copy-paste and cannot read the file:
 {
   echo 'KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0660", GROUP="input"'
   echo 'KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="c603|c605|c606|c621|c623|c625|c626|c627|c628|c629|c62b|c62e|c640", MODE="0660", GROUP="input"'
 } | sudo tee /etc/udev/rules.d/99-spaceux-hidraw.rules
+# Let the logged-in user read the SpaceMouse evdev node immediately (uaccess),
+# so no re-login is needed for the daemon to detect the device. The file is 70-
+# (not 99-) so it sorts before systemd's 73-seat-late.rules, which applies the
+# uaccess ACL; a later-sorting file would be tagged too late to take effect:
+{
+  echo 'SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="256f", TAG+="uaccess"'
+  echo 'SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="c603|c605|c606|c621|c623|c625|c626|c627|c628|c629|c62b|c62e|c640", TAG+="uaccess"'
+} | sudo tee /etc/udev/rules.d/70-spaceux-input.rules
 echo uinput | sudo tee /etc/modules-load.d/spaceux-uinput.conf
 sudo modprobe uinput
 sudo udevadm control --reload-rules && sudo udevadm trigger
-# Let the daemon read the SpaceMouse (re-login afterwards):
+# Add to the 'input' group for key injection (/dev/uinput); re-login afterwards.
+# Reading the puck already works via the uaccess rule above.
 sudo usermod -aG input "$USER"
 ```
 

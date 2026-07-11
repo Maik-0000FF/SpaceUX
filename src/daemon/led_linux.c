@@ -37,25 +37,16 @@
  *
  * Vendor-only match would catch unrelated devices: 0x046D is the
  * generic Logitech VID, shared with every mouse and keyboard the
- * company ships. We pin the full VID:PID for each
- * Logitech-relabelled SpaceMouse model (the public list maintained
- * by spacenavd and the udev rules in the reference project).
- * 3Dconnexion's own VID (0x256F) is exclusive to SpaceMouse-family
- * pucks, so the trailing colon match accepts any product under it
- * without enumerating every PID. */
+ * company ships. We pin the full VID:PID for each Logitech-relabelled
+ * SpaceMouse model. That 046D PID list is NOT hard-coded here: it is the
+ * single source in data/spacemouse-046d-pids, shared with the installer's
+ * udev rules; CMake generates spacemouse_046d_pids.h from it at build time.
+ * 3Dconnexion's own VID (0x256F) is exclusive to SpaceMouse-family pucks, so
+ * the trailing colon match accepts any product under it without enumerating
+ * every PID — it stays here, not in the shared list. */
 static const char *DEVICE_PATTERNS[] = {
-	"0000046D:0000C603", /* SpaceTraveler */
-	"0000046D:0000C605", /* CadMan */
-	"0000046D:0000C606", /* SpaceMouse Classic */
-	"0000046D:0000C621", /* SpaceBall 5000 */
-	"0000046D:0000C623", /* SpaceTraveler / SpaceNavigator NB */
-	"0000046D:0000C625", /* SpacePilot */
-	"0000046D:0000C626", /* SpaceNavigator */
-	"0000046D:0000C627", /* SpaceExplorer */
-	"0000046D:0000C628", /* SpaceNavigator NB */
-	"0000046D:0000C629", /* SpacePilot Pro */
-	"0000046D:0000C62B", /* SpaceMouse Pro */
-	"0000256F:",	     /* Any 3Dconnexion product on the dedicated VID */
+#include "spacemouse_046d_pids.h"
+	"0000256F:", /* Any 3Dconnexion product on the dedicated VID */
 	NULL,
 };
 
