@@ -102,6 +102,13 @@ static int g_n_grab;
  * transitions. hid_poll emits one bit of their difference per call. */
 static uint32_t g_hid_btn_current;
 static uint32_t g_hid_btn_emitted;
+/* Last axis snapshot emitted on the hidraw path. Unlike EV_ABS (which the
+ * kernel only forwards on real change), raw hidraw reports arrive on the
+ * device's own cadence, which may repeat an unchanged deflection every
+ * frame. We suppress a snapshot identical to the last one so an at-rest
+ * puck that keeps streaming doesn't flood clients with the same neutral
+ * frame, matching the evdev path's change-gated broadcasts. */
+static int g_hid_last_axes[SPACEUX_AXIS_COUNT];
 
 /* Button count of the currently-open device, discovered from its
  * EV_KEY capability bits (0 when no device is open). Lets the editor
@@ -338,6 +345,15 @@ int input_open(void)
 				snprintf(axis_name, sizeof(axis_name), "%s", ent->d_name);
 				have_group = device_group_key(fd, group, sizeof(group));
 				capture_identity(fd);
+				/* Button count comes from the evdev node's EV_KEY bits in both
+				 * modes. On the relative path the buttons are then *read* over
+				 * hidraw (hid_next_button), so two things must line up with
+				 * this count and hold on real hardware: the puck exposes its
+				 * buttons as BTN_0../BTN_TRIGGER_HAPPY (not as mouse buttons,
+				 * else the count is 0 while hidraw still delivers presses), and
+				 * a hidraw button-mask bit index equals the bnum this count
+				 * implies. Both match the spacenavd convention; confirm on the
+				 * target device. */
 				g_button_count = discover_button_count(fd);
 				if (abs_ok)
 					g_read_fds[g_n_read++] = fd;
@@ -450,6 +466,7 @@ void input_close(void)
 	g_axis_relative = 0;
 	g_hid_btn_current = 0;
 	g_hid_btn_emitted = 0;
+	memset(g_hid_last_axes, 0, sizeof(g_hid_last_axes));
 	g_button_count = 0;
 	g_vendor = 0;
 	g_product = 0;
@@ -533,8 +550,12 @@ static int hid_next_button(struct puck_event *out)
 	uint32_t bit = 1u << b;
 	/* March the emitted mask one bit toward the current one. */
 	g_hid_btn_emitted = (g_hid_btn_emitted & ~bit) | (g_hid_btn_current & bit);
+	/* Defensive, not currently reachable: the mask is 32-bit so b <= 31, and
+	 * SPACEUX_MAX_BUTTONS is 32, so no bit exceeds the cap today. The guard
+	 * keeps a button past the cap from being surfaced should that cap ever be
+	 * lowered below the mask width. */
 	if (b >= SPACEUX_MAX_BUTTONS)
-		return hid_next_button(out); /* skip buttons past the cap */
+		return hid_next_button(out);
 	out->kind = PE_BUTTON;
 	out->bnum = b;
 	out->pressed = (int)((g_hid_btn_current >> b) & 1u);
@@ -556,6 +577,12 @@ static int hid_poll(int fd, struct puck_event *out)
 		enum hid_report_kind kind =
 			hid_report_decode(buf, (int)n, g_axis_state, &g_hid_btn_current);
 		if (kind == HID_REPORT_AXES) {
+			/* Suppress a snapshot identical to the last one emitted: raw
+			 * reports can repeat an unchanged deflection every frame, and
+			 * clients only need the changes (matching the evdev path). */
+			if (memcmp(g_axis_state, g_hid_last_axes, sizeof(g_axis_state)) == 0)
+				continue;
+			memcpy(g_hid_last_axes, g_axis_state, sizeof(g_hid_last_axes));
 			out->kind = PE_AXES;
 			memcpy(out->values, g_axis_state, sizeof(g_axis_state));
 			return 1;
