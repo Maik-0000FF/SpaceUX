@@ -22,6 +22,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# Same PID parser scripts/install.sh uses, so the reference this check compares
+# against is byte-identical to what the installer writes.
+# shellcheck source=scripts/lib/spacemouse-pids.sh
+. "$ROOT/scripts/lib/spacemouse-pids.sh"
+
 PID_SOURCE=data/spacemouse-046d-pids
 DOCS=docs/install.md
 NIX=nix/module.nix
@@ -35,10 +40,9 @@ err() {
 }
 ok() { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 
-# The canonical 046d PID alternation, built from the single source exactly the
-# way scripts/install.sh does (comments and blank lines dropped, pipe-joined):
-# c603|c605|...|c640.
-canonical="$(awk '!/^[[:space:]]*#/ && NF { printf "%s%s", sep, $1; sep="|" }' "$PID_SOURCE")"
+# The canonical 046d PID alternation (c603|c605|...|c640), from the shared parser
+# so the reference matches the installer's output exactly.
+canonical="$(spacemouse_046d_pid_alternation "$PID_SOURCE")"
 if [[ -z "$canonical" ]]; then
     err "no PIDs parsed from $PID_SOURCE"
     exit 1
@@ -75,8 +79,10 @@ fi
 # must appear in uninstall.sh so nothing is orphaned. The reverse is fine:
 # uninstall may list extra legacy names.
 rules_fail=0
-mapfile -t install_rules < <(grep -oE '[0-9]{2}-spaceux-[a-z]+\.rules' "$INSTALL" | sort -u)
-uninstall_rules="$(grep -oE '[0-9]{2}-spaceux-[a-z]+\.rules' "$UNINSTALL" | sort -u)"
+mapfile -t install_rules < <(grep -oE '[0-9]{2}-spaceux-[a-z-]+\.rules' "$INSTALL" | sort -u)
+# || true: an empty match returns 1 and, under pipefail + set -e, would abort the
+# assignment before the loop can report the specific missing rule.
+uninstall_rules="$(grep -oE '[0-9]{2}-spaceux-[a-z-]+\.rules' "$UNINSTALL" | sort -u || true)"
 if [[ ${#install_rules[@]} -eq 0 ]]; then
     err "$INSTALL: no NN-spaceux-*.rules filename found"
     rules_fail=1
