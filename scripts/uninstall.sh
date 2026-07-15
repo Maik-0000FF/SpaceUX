@@ -41,9 +41,12 @@ LAUNCHER="$HOME/.local/bin/spaceux"
 DESKTOP_FILE="$HOME/.local/share/applications/spaceux.desktop"
 AUTOSTART_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/autostart/spaceux.desktop"
 UDEV_RULE=/etc/udev/rules.d/99-spaceux-uinput.rules
-UDEV_RULE_HIDRAW=/etc/udev/rules.d/99-spaceux-hidraw.rules
-# 70- (not 99-): the evdev uaccess rule must sort before systemd's
-# 73-seat-late.rules to take effect. Matches the name install.sh writes.
+# 70- (not 99-): the hidraw and evdev uaccess rules must sort before systemd's
+# 73-seat-late.rules to take effect. Matches the names install.sh writes.
+UDEV_RULE_HIDRAW=/etc/udev/rules.d/70-spaceux-hidraw.rules
+# The 99- hidraw name older installs shipped; removed too so an upgrade-then-
+# uninstall leaves nothing behind.
+UDEV_RULE_HIDRAW_OLD=/etc/udev/rules.d/99-spaceux-hidraw.rules
 UDEV_RULE_INPUT=/etc/udev/rules.d/70-spaceux-input.rules
 MODULES_CONF=/etc/modules-load.d/spaceux-uinput.conf
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/spaceux"
@@ -106,9 +109,9 @@ stop_running
 say "Removing launcher + desktop entry"
 rm -f -- "$LAUNCHER" "$DESKTOP_FILE" "$AUTOSTART_FILE"
 
-if [[ -f "$UDEV_RULE" || -f "$UDEV_RULE_HIDRAW" || -f "$UDEV_RULE_INPUT" || -f "$MODULES_CONF" ]]; then
+if [[ -f "$UDEV_RULE" || -f "$UDEV_RULE_HIDRAW" || -f "$UDEV_RULE_HIDRAW_OLD" || -f "$UDEV_RULE_INPUT" || -f "$MODULES_CONF" ]]; then
     say "Removing system files (sudo)"
-    sudo rm -f -- "$UDEV_RULE" "$UDEV_RULE_HIDRAW" "$UDEV_RULE_INPUT" "$MODULES_CONF"
+    sudo rm -f -- "$UDEV_RULE" "$UDEV_RULE_HIDRAW" "$UDEV_RULE_HIDRAW_OLD" "$UDEV_RULE_INPUT" "$MODULES_CONF"
     sudo udevadm control --reload-rules 2>/dev/null || true
 fi
 

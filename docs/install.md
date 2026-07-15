@@ -104,14 +104,18 @@ If you skip the automatic step, set up device access by hand:
 # Let the daemon use /dev/uinput for key injection:
 echo 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"' |
   sudo tee /etc/udev/rules.d/99-spaceux-uinput.rules
-# Let the daemon open the SpaceMouse hidraw node for LED control. The two 046d
-# PID alternations below mirror data/spacemouse-046d-pids (the single source the
+# Let the daemon open the SpaceMouse hidraw node for the LED and, for a puck the
+# kernel maps to relative axes, to read its motion there. uaccess gives the
+# logged-in user immediate read+write (no 'input' group re-login); GROUP="input"
+# stays as a fallback. The file is 70- (not 99-) so the uaccess tag sorts before
+# systemd's 73-seat-late.rules, which applies the ACL. The two 046d PID
+# alternations below mirror data/spacemouse-046d-pids (the single source the
 # daemon and installer read); if you add a device there, update both literals
-# here too — docs are copy-paste and cannot read the file:
+# here too, docs are copy-paste and cannot read the file:
 {
-  echo 'KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0660", GROUP="input"'
-  echo 'KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="c603|c605|c606|c621|c623|c625|c626|c627|c628|c629|c62b|c62e|c640", MODE="0660", GROUP="input"'
-} | sudo tee /etc/udev/rules.d/99-spaceux-hidraw.rules
+  echo 'KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0660", GROUP="input", TAG+="uaccess"'
+  echo 'KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="c603|c605|c606|c621|c623|c625|c626|c627|c628|c629|c62b|c62e|c640", MODE="0660", GROUP="input", TAG+="uaccess"'
+} | sudo tee /etc/udev/rules.d/70-spaceux-hidraw.rules
 # Let the logged-in user read the SpaceMouse evdev node immediately (uaccess),
 # so no re-login is needed for the daemon to detect the device. The file is 70-
 # (not 99-) so it sorts before systemd's 73-seat-late.rules, which applies the
