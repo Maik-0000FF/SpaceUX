@@ -279,13 +279,16 @@ build() {
 # key combos via /dev/uinput (a udev rule grants the `input` group access, and
 # the uinput module must load). Adding the user to `input` needs a re-login.
 UDEV_RULE=/etc/udev/rules.d/99-spaceux-uinput.rules
-UDEV_RULE_HIDRAW=/etc/udev/rules.d/99-spaceux-hidraw.rules
-# The evdev read rule uses uaccess, which systemd applies in its
-# 73-seat-late.rules. A rules.d file only takes effect if it sorts BEFORE that,
-# so this one is 70- (systemd's own uaccess rules live at 70- too), NOT 99- like
-# the uinput/hidraw rules. Those use MODE/GROUP and are order-independent; this
-# one is not. Do not renumber it to match the others — the odd prefix encodes
+# The hidraw and evdev rules both tag the node with uaccess, which systemd
+# applies in its 73-seat-late.rules. A rules.d file only takes effect if it
+# sorts BEFORE that, so both are 70- (systemd's own uaccess rules live at 70-
+# too), NOT 99-. The uinput rule uses only MODE/GROUP and is order-independent,
+# so it stays 99-. Do not renumber the 70- rules to match it, the prefix encodes
 # the ordering requirement.
+UDEV_RULE_HIDRAW=/etc/udev/rules.d/70-spaceux-hidraw.rules
+# Older installs shipped the hidraw rule at 99- with only MODE/GROUP; remove that
+# stale file on upgrade so it cannot linger beside the new 70- one.
+UDEV_RULE_HIDRAW_OLD=/etc/udev/rules.d/99-spaceux-hidraw.rules
 UDEV_RULE_INPUT=/etc/udev/rules.d/70-spaceux-input.rules
 MODULES_CONF=/etc/modules-load.d/spaceux-uinput.conf
 
@@ -313,7 +316,7 @@ setup_perms() {
     user="$(id -un)"
     say "Setting up device permissions (sudo)"
     echo "  - udev rule for /dev/uinput access ($UDEV_RULE)"
-    echo "  - udev rule for the SpaceMouse hidraw node, LED control ($UDEV_RULE_HIDRAW)"
+    echo "  - udev rule for the SpaceMouse hidraw node, LED + relative-axis read ($UDEV_RULE_HIDRAW)"
     echo "  - udev rule for the SpaceMouse evdev node, immediate read access ($UDEV_RULE_INPUT)"
     echo "  - load the uinput module on boot ($MODULES_CONF)"
     echo "  - add '$user' to the 'input' group (key injection; read-access fallback)"
@@ -328,11 +331,17 @@ setup_perms() {
     pids="$(read_046d_pids)"
     printf 'KERNEL=="uinput", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"\n' |
         sudo tee "$UDEV_RULE" >/dev/null
-    # hidraw access for LED control (#460): 3Dconnexion's own vendor (256f) plus
-    # the known 046d product ids; the daemon writes the LED report to this node.
+    # hidraw access (#460): 3Dconnexion's own vendor (256f) plus the known 046d
+    # product ids. The daemon writes the LED report here and, for a puck the
+    # kernel maps to relative axes, also reads its motion here. Keeps the
+    # input-group access (fallback) and adds uaccess so the logged-in user can
+    # read+write immediately, without the 'input' group re-login, the same
+    # immediacy the evdev rule below gives. Drop any stale 99- rule from older
+    # installs first so it cannot linger beside this one.
+    sudo rm -f -- "$UDEV_RULE_HIDRAW_OLD"
     {
-        printf 'KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0660", GROUP="input"\n'
-        printf 'KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="%s", MODE="0660", GROUP="input"\n' "$pids"
+        printf 'KERNEL=="hidraw*", ATTRS{idVendor}=="256f", MODE="0660", GROUP="input", TAG+="uaccess"\n'
+        printf 'KERNEL=="hidraw*", ATTRS{idVendor}=="046d", ATTRS{idProduct}=="%s", MODE="0660", GROUP="input", TAG+="uaccess"\n' "$pids"
     } | sudo tee "$UDEV_RULE_HIDRAW" >/dev/null
     # evdev read access (#11): tag the SpaceMouse event node with uaccess so the
     # logged-in user can read the puck immediately, without waiting for the
