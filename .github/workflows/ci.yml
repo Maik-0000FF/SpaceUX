@@ -381,6 +381,24 @@ jobs:
       - name: Shellcheck (warnings and above)
         run: shellcheck -S warning $(git ls-files '*.sh')
 
+  # ─── udev rule consistency ──────────────────────────────────────────
+  # The 046d SpaceMouse PID list lives once in data/spacemouse-046d-pids, but
+  # docs/install.md and nix/module.nix carry hand-copied literals of it, and the
+  # rule filenames are shared between install.sh and uninstall.sh. This lane
+  # fails when a copy drifts from the source or a rule install.sh writes is not
+  # removed by uninstall.sh, so the drift is caught here, not by a user.
+  rule-consistency:
+    name: udev rule consistency
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Check udev-rule PID list and filenames are in sync
+        run: ./scripts/check-rule-consistency.sh
+
   # ─── No tracked binary artefacts ────────────────────────────────────
   # The C daemon/overlay/editor build into build/ and the core into
   # dist/ (both gitignored). A stray `git add -f` or a new, un-ignored
