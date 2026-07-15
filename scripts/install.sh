@@ -24,6 +24,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# The 046d PID parser is shared with scripts/check-rule-consistency.sh so the two
+# never drift; see that script's CI lane.
+# shellcheck source=scripts/lib/spacemouse-pids.sh
+. "$ROOT/scripts/lib/spacemouse-pids.sh"
+
 WITH_SPACENAVD=ask
 SKIP_DEPS=0
 SKIP_PERMS=0
@@ -302,7 +307,7 @@ MODULES_CONF=/etc/modules-load.d/spaceux-uinput.conf
 # from it rather than hard-coding a second copy here.
 read_046d_pids() {
     local f="$ROOT/data/spacemouse-046d-pids" pids
-    pids="$(awk '!/^[[:space:]]*#/ && NF { printf "%s%s", sep, $1; sep="|" }' "$f")"
+    pids="$(spacemouse_046d_pid_alternation "$f")"
     [[ -n $pids ]] || {
         warn "no SpaceMouse PIDs parsed from $f"
         return 1
