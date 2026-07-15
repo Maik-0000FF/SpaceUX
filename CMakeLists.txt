@@ -58,6 +58,7 @@ endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     list(APPEND DAEMON_SOURCES
         src/daemon/input_linux.c
+        src/daemon/hid_report.c
         src/daemon/inject_linux.c
         src/daemon/led_linux.c
         src/daemon/platform_linux.c
@@ -164,4 +165,14 @@ if(SPACEUX_BUILD_TESTS)
     )
     target_include_directories(spaceux-daemon-tests PRIVATE src/daemon tests/daemon)
     add_test(NAME daemon-parser COMMAND spaceux-daemon-tests)
+
+    # The hidraw report decoder (src/daemon/hid_report.c) is self-contained
+    # too: it pulls in no backend or kernel headers, just libc and config.h,
+    # so it links into its own test binary without the Linux input backend.
+    add_executable(spaceux-hid-report-tests
+        tests/daemon/hid_report_test.c
+        src/daemon/hid_report.c
+    )
+    target_include_directories(spaceux-hid-report-tests PRIVATE src/daemon tests/daemon)
+    add_test(NAME hid-report-decode COMMAND spaceux-hid-report-tests)
 endif()
