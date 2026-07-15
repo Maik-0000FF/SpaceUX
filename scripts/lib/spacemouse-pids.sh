@@ -13,5 +13,5 @@
 # file given as $1: comment and blank lines dropped, first field per line,
 # pipe-joined. Empty output means nothing parsed.
 spacemouse_046d_pid_alternation() {
-	awk '!/^[[:space:]]*#/ && NF { printf "%s%s", sep, $1; sep="|" }' "$1"
+    awk '!/^[[:space:]]*#/ && NF { printf "%s%s", sep, $1; sep="|" }' "$1"
 }
