@@ -14,10 +14,21 @@
 # that failure into CI.
 #
 # The verdict comes from npm itself rather than a hand-rolled JSON comparison,
-# so it stays exactly as strict as the build it protects.
+# so it stays exactly as strict as the build it protects. Two consequences of
+# borrowing npm's verdict are worth knowing:
 #
-# No arguments; exits 0 when manifest and lock agree, non-zero otherwise. Runs
-# in CI and by hand from anywhere in the checkout.
+#   * The check is one-directional. A changed or added dependency fails, but a
+#     dependency deleted from package.json does not: `npm ci` prunes the orphan
+#     from the tree instead of refusing it. The stale entry keeps feeding
+#     npmDepsHash until the lock is regenerated for another reason.
+#   * Resolving a newly added range needs the registry, so the run is not
+#     offline. Under the egress-audit policy the lanes use today that is fine;
+#     a block policy would have to allow the registry, or the run fails as an
+#     npm error rather than as drift (see the EUSAGE gate below).
+#
+# No arguments. Exits 0 when manifest and lock agree, 1 on drift, 2 when npm
+# failed for an unrelated reason. Runs in CI and by hand from anywhere in the
+# checkout.
 
 set -euo pipefail
 
@@ -35,7 +46,7 @@ ok() { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 for f in "$MANIFEST" "$LOCK"; do
     if [[ ! -f "$f" ]]; then
         err "$f not found"
-        exit 1
+        exit 2
     fi
 done
 
@@ -49,16 +60,39 @@ cp "$LOCK" "$staged/package-lock.json"
 
 # --dry-run so nothing is written; --ignore-scripts because the verdict needs
 # only npm's manifest-vs-lock validation, not installed packages.
-if ! output="$(cd "$staged" && npm ci --dry-run --ignore-scripts --no-audit --no-fund 2>&1)"; then
-    err "$LOCK is out of sync with $MANIFEST"
-    # npm appends its full `npm ci` usage block after the diagnosis; drop it so
-    # the mismatch line stays the visible part of a failing lane.
-    printf '%s\n' "$output" | sed '/^npm error Clean install a project/,$d' >&2
-    printf '\n    Refresh it with:\n' >&2
-    printf '      npm install --package-lock-only && cp package-lock.json %s\n' "$LOCK" >&2
-    printf '    then update npmDepsHash in flake.nix:\n' >&2
-    printf '      prefetch-npm-deps %s\n' "$LOCK" >&2
-    exit 1
+status=0
+output="$(cd "$staged" && npm ci --dry-run --ignore-scripts --no-audit --no-fund 2>&1)" || status=$?
+
+if [[ $status -eq 0 ]]; then
+    ok "$LOCK is in sync with $MANIFEST"
+    exit 0
 fi
 
-ok "$LOCK is in sync with $MANIFEST"
+# npm reports a manifest-vs-lock mismatch as EUSAGE and nothing else does. An
+# unreachable registry, a missing npm or a version that has been unpublished all
+# fail too, but say nothing about drift; reporting those as drift would send
+# someone off to regenerate a lockfile that is already correct. Matched loosely
+# because npm prefixes its diagnostics with `npm error` since 10 and `npm ERR!`
+# before that.
+if ! grep -q 'code EUSAGE' <<<"$output"; then
+    err "npm ci failed for a reason unrelated to $LOCK"
+    printf '%s\n' "$output" >&2
+    exit 2
+fi
+
+err "$LOCK is out of sync with $MANIFEST"
+# npm appends its full `npm ci` usage block after the diagnosis; drop it so the
+# mismatch line stays the visible part of a failing lane.
+printf '%s\n' "$output" | sed '/^npm error Clean install a project/,$d' >&2
+# Seed the root lock from the tracked one first. Without that seed the refresh
+# starts from whatever untracked lock the working copy happens to hold (or from
+# nothing at all in a fresh clone) and npm re-resolves the whole tree, which
+# turns a one-line bump into a wholesale lockfile rewrite and pulls untested
+# versions into the Nix build.
+printf '\n    Refresh it with:\n' >&2
+printf '      cp %s package-lock.json\n' "$LOCK" >&2
+printf '      npm install --package-lock-only\n' >&2
+printf '      cp package-lock.json %s\n' "$LOCK" >&2
+printf '    then update npmDepsHash in flake.nix:\n' >&2
+printf '      prefetch-npm-deps %s\n' "$LOCK" >&2
+exit 1
