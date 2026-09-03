@@ -408,7 +408,13 @@ jobs:
   npm-lock-sync:
     name: nix lockfile sync
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    # A drift verdict always needs registry metadata (the runner's npm cache is
+    # cold, there being no tracked root lockfile for setup-node to restore), so
+    # the lane is only as fast as the registry answers. 5 would let a slow, not
+    # yet refused registry burn through npm's retries and kill the job on the
+    # generic Actions timeout instead of its own exit-2 diagnosis; the other npm
+    # lanes stand at 10 to 15 for the same reason.
+    timeout-minutes: 10
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:

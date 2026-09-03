@@ -28,6 +28,10 @@ cd "$ROOT"
 # never drift; see that script's CI lane.
 # shellcheck source=scripts/lib/spacemouse-pids.sh
 . "$ROOT/scripts/lib/spacemouse-pids.sh"
+# say/warn come from the shared logger, so the installer, the uninstaller and
+# the check scripts all print alike and the styling lives in one place.
+# shellcheck source=scripts/lib/log.sh
+. "$ROOT/scripts/lib/log.sh"
 
 WITH_SPACENAVD=ask
 SKIP_DEPS=0
@@ -56,8 +60,6 @@ for arg in "$@"; do
     esac
 done
 
-say() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
-warn() { printf '\033[1;33m! %s\033[0m\n' "$*" >&2; }
 ask_yes() {
     # ask_yes "question" -> 0 on yes. Defaults to no on a bare Enter.
     local reply

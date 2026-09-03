@@ -26,6 +26,10 @@ cd "$ROOT"
 # against is byte-identical to what the installer writes.
 # shellcheck source=scripts/lib/spacemouse-pids.sh
 . "$ROOT/scripts/lib/spacemouse-pids.sh"
+# err/ok come from the shared logger, so this lane's output matches the other
+# scripts' and the styling lives in one place.
+# shellcheck source=scripts/lib/log.sh
+. "$ROOT/scripts/lib/log.sh"
 
 PID_SOURCE=data/spacemouse-046d-pids
 DOCS=docs/install.md
@@ -33,18 +37,19 @@ NIX=nix/module.nix
 INSTALL=scripts/install.sh
 UNINSTALL=scripts/uninstall.sh
 
+# Every mismatch is reported before the script gives its verdict, so each one
+# is recorded for the exit status here instead of ending the run at the first.
 fail=0
-err() {
-    printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2
+report_fail() {
+    err "$*"
     fail=1
 }
-ok() { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 
 # The canonical 046d PID alternation (c603|c605|...|c640), from the shared parser
 # so the reference matches the installer's output exactly.
 canonical="$(spacemouse_046d_pid_alternation "$PID_SOURCE")"
 if [[ -z "$canonical" ]]; then
-    err "no PIDs parsed from $PID_SOURCE"
+    report_fail "no PIDs parsed from $PID_SOURCE"
     exit 1
 fi
 
@@ -53,11 +58,11 @@ fi
 # is a hand-copy of the source.
 mapfile -t docs_lits < <(grep -oE 'idProduct}=="[^"]+"' "$DOCS" | sed -E 's/^idProduct}=="//; s/"$//')
 if [[ ${#docs_lits[@]} -eq 0 ]]; then
-    err "$DOCS: no idProduct==\"...\" rule found (expected the 046d SpaceMouse rules)"
+    report_fail "$DOCS: no idProduct==\"...\" rule found (expected the 046d SpaceMouse rules)"
 fi
 for lit in "${docs_lits[@]}"; do
     if [[ "$lit" != "$canonical" ]]; then
-        err "$DOCS: idProduct list drifted from $PID_SOURCE"
+        report_fail "$DOCS: idProduct list drifted from $PID_SOURCE"
         printf '    docs:   %s\n    source: %s\n' "$lit" "$canonical" >&2
     fi
 done
@@ -65,9 +70,9 @@ done
 # ── 2. nix/module.nix: the logitechSpacemousePids literal must equal canonical ─
 nix_lit="$(grep -oE 'logitechSpacemousePids = "[^"]+"' "$NIX" | sed -E 's/^logitechSpacemousePids = "//; s/"$//' || true)"
 if [[ -z "$nix_lit" ]]; then
-    err "$NIX: logitechSpacemousePids not found"
+    report_fail "$NIX: logitechSpacemousePids not found"
 elif [[ "$nix_lit" != "$canonical" ]]; then
-    err "$NIX: logitechSpacemousePids drifted from $PID_SOURCE"
+    report_fail "$NIX: logitechSpacemousePids drifted from $PID_SOURCE"
     printf '    nix:    %s\n    source: %s\n' "$nix_lit" "$canonical" >&2
 fi
 
@@ -84,12 +89,12 @@ mapfile -t install_rules < <(grep -oE '[0-9]{2}-spaceux-[a-z-]+\.rules' "$INSTAL
 # assignment before the loop can report the specific missing rule.
 uninstall_rules="$(grep -oE '[0-9]{2}-spaceux-[a-z-]+\.rules' "$UNINSTALL" | sort -u || true)"
 if [[ ${#install_rules[@]} -eq 0 ]]; then
-    err "$INSTALL: no NN-spaceux-*.rules filename found"
+    report_fail "$INSTALL: no NN-spaceux-*.rules filename found"
     rules_fail=1
 fi
 for r in "${install_rules[@]}"; do
     if ! grep -qxF "$r" <<<"$uninstall_rules"; then
-        err "$UNINSTALL does not remove $r (written by $INSTALL)"
+        report_fail "$UNINSTALL does not remove $r (written by $INSTALL)"
         rules_fail=1
     fi
 done

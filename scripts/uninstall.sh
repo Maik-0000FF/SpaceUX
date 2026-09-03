@@ -17,6 +17,14 @@
 
 set -euo pipefail
 
+# say/warn come from the shared logger, so the installer, the uninstaller and
+# the check scripts all print alike and the styling lives in one place. Only the
+# path into the checkout is taken from here; unlike the installer this script
+# never cd's into it, because everything it removes lives outside.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/lib/log.sh
+. "$ROOT/scripts/lib/log.sh"
+
 WITH_DATA=0
 ASSUME_YES=0
 for arg in "$@"; do
@@ -33,9 +41,6 @@ for arg in "$@"; do
             ;;
     esac
 done
-
-say() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
-warn() { printf '\033[1;33m! %s\033[0m\n' "$*" >&2; }
 
 LAUNCHER="$HOME/.local/bin/spaceux"
 DESKTOP_FILE="$HOME/.local/share/applications/spaceux.desktop"

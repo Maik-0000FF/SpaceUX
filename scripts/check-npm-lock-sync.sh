@@ -41,13 +41,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# err/ok come from the shared logger, so this lane's output matches the other
+# scripts' and the styling lives in one place.
+# shellcheck source=scripts/lib/log.sh
+. "$ROOT/scripts/lib/log.sh"
+
 MANIFEST=package.json
 LOCK=nix/package-lock.json
-
-err() {
-    printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2
-}
-ok() { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 
 for f in "$MANIFEST" "$LOCK"; do
     if [[ ! -f "$f" ]]; then
