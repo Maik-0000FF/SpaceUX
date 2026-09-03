@@ -426,6 +426,68 @@ jobs:
       - name: Check package.json and nix/package-lock.json are in sync
         run: ./scripts/check-npm-lock-sync.sh
 
+  # ─── Nix npm deps hash ──────────────────────────────────────────────
+  # The Nix build fetches nix/package-lock.json's whole dependency tree as one
+  # fixed-output derivation, pinned by an npmDepsHash written by hand in
+  # flake.nix. The lockfile-sync lane above says nothing about that hash and no
+  # npm lane touches it, so a regenerated lockfile committed without a refreshed
+  # hash stays green here and fails first at `nix build`, on someone else's
+  # machine. This lane builds that one derivation, which is the whole of what
+  # the hash covers, and not the package behind it.
+  nix-deps-hash:
+    name: nix deps hash
+    runs-on: ubuntu-24.04
+    # Cold on every run: the runner brings neither a nix store nor an npm cache,
+    # so the lane pays for evaluating nixpkgs and fetching the dependency tree
+    # once, every time.
+    timeout-minutes: 15
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          # The flake's nixpkgs input is a github: URL, fetched through the
+          # GitHub API, which allows 60 requests an hour to an anonymous caller
+          # and counts them against the runner's shared egress address. The
+          # workflow token lifts that to the authenticated rate.
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check flake.nix pins the hash nix/package-lock.json produces
+        run: ./scripts/check-npm-deps-hash.sh
+
+  # ─── Nix package build ──────────────────────────────────────────────
+  # The lane above covers the npm half of the package. This one builds it end to
+  # end, which is what notices a break in the derivation itself: the CMake and
+  # Qt halves, the launcher, and drift in the pinned nixpkgs.
+  #
+  # Cheap enough to run on every change, at a bit over two minutes measured:
+  # almost the whole Qt closure arrives from cache.nixos.org as substitutes, and
+  # only this project's own derivations are built. The timeout is set far above
+  # that because the cheapness is the binary cache's doing, not the build's: a
+  # flake.lock moved to a revision the cache has not caught up with would build
+  # its share of that closure from source instead, and the lane should fail on
+  # the clock rather than hold a runner for an hour.
+  nix-build:
+    name: nix package build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        with:
+          # Authenticated GitHub API rate for the flake's nixpkgs input, for the
+          # reason spelled out in the deps-hash lane above.
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+      # No --extra-experimental-features here, unlike the check script, which
+      # carries them because it also runs on machines whose nix.conf leaves
+      # nix-command and flakes off. The installer step above enables both.
+      - name: Build the package
+        run: nix build --no-link --print-build-logs .#default
+
   # ─── No tracked binary artefacts ────────────────────────────────────
   # The C daemon/overlay/editor build into build/ and the core into
   # dist/ (both gitignored). A stray `git add -f` or a new, un-ignored

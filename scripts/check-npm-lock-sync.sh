@@ -50,11 +50,14 @@ cd "$ROOT"
 # scripts' and the styling lives in one place.
 # shellcheck source=scripts/lib/log.sh
 . "$ROOT/scripts/lib/log.sh"
+# The tracked files this guards are named in one place, shared with the other
+# npm check, so a rename cannot leave one of them behind.
+# shellcheck source=scripts/lib/nix-pins.sh
+. "$ROOT/scripts/lib/nix-pins.sh"
 
 MANIFEST=package.json
-LOCK=nix/package-lock.json
 
-for f in "$MANIFEST" "$LOCK"; do
+for f in "$MANIFEST" "$NIX_LOCK"; do
     if [[ ! -f "$f" ]]; then
         err "$f not found"
         exit 2
@@ -67,7 +70,7 @@ done
 staged="$(mktemp -d)"
 trap 'rm -rf "$staged"' EXIT
 cp "$MANIFEST" "$staged/package.json"
-cp "$LOCK" "$staged/package-lock.json"
+cp "$NIX_LOCK" "$staged/package-lock.json"
 # nix/package.nix stages the whole tree, so npm reads a repo-level .npmrc there.
 # There is none today, but adding one (legacy-peer-deps, a registry override)
 # would change how npm resolves and this run would stop matching the build it
@@ -96,7 +99,7 @@ status=0
 output="$(cd "$staged" && npm ci --dry-run --ignore-scripts --loglevel=error --no-color 2>&1)" || status=$?
 
 if [[ $status -eq 0 ]]; then
-    ok "$LOCK is in sync with $MANIFEST"
+    ok "$NIX_LOCK is in sync with $MANIFEST"
     exit 0
 fi
 
@@ -114,12 +117,12 @@ fi
 # diagnostics with `npm error` since 10 and `npm ERR!` before that.
 DRIFT_MESSAGE='can only install packages when your package.json and package-lock.json'
 if ! grep -q 'code EUSAGE' <<<"$output" || ! grep -qF "$DRIFT_MESSAGE" <<<"$output"; then
-    err "npm ci failed before it could compare $MANIFEST and $LOCK"
+    err "npm ci failed before it could compare $MANIFEST and $NIX_LOCK"
     printf '%s\n' "$output" >&2
     exit 2
 fi
 
-err "$LOCK is out of sync with $MANIFEST"
+err "$NIX_LOCK is out of sync with $MANIFEST"
 # npm appends its full `npm ci` usage block after the diagnosis; drop it so the
 # mismatch line stays the visible part of a failing lane. Anchored on the usage
 # header's text alone, matching the EUSAGE grep above, so the trim survives the
@@ -138,10 +141,10 @@ printf '%s\n' "$output" | sed '/Clean install a project/,$d' >&2
 # fails while `npm install` still finds the manifest by walking up and resolves
 # the whole tree unseeded, which is the rewrite warned about above.
 printf '\n    Refresh it, from the repository root, with:\n' >&2
-printf '      cp %s package-lock.json &&\n' "$LOCK" >&2
+printf '      cp %s package-lock.json &&\n' "$NIX_LOCK" >&2
 printf '        npm install --package-lock-only &&\n' >&2
-printf '        cp package-lock.json %s\n' "$LOCK" >&2
+printf '        cp package-lock.json %s\n' "$NIX_LOCK" >&2
 printf '    (this replaces the untracked root package-lock.json)\n' >&2
-printf '    then update npmDepsHash in flake.nix:\n' >&2
-printf '      prefetch-npm-deps %s\n' "$LOCK" >&2
+printf '    then update %s in %s:\n' "$NIX_HASH_FIELD" "$NIX_FLAKE" >&2
+printf '      %s %s\n' "$NIX_PREFETCH" "$NIX_LOCK" >&2
 exit 1

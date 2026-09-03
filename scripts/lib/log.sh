@@ -5,9 +5,10 @@
 # Shared helper, meant to be sourced (not run). The one place the terminal
 # styling of the shell scripts lives: four message shapes (a section heading, a
 # success, a warning, an error), each with its colour and glyph. Sourced by
-# scripts/install.sh, scripts/uninstall.sh, scripts/check-rule-consistency.sh
-# and scripts/check-npm-lock-sync.sh, so a change to how a message looks reaches
-# all of them at once instead of being hand-copied per script. Sourcing it
+# scripts/install.sh, scripts/uninstall.sh, scripts/check-rule-consistency.sh,
+# scripts/check-npm-lock-sync.sh and scripts/check-npm-deps-hash.sh, so a change
+# to how a message looks reaches all of them at once instead of being
+# hand-copied per script. Sourcing it
 # defines the four functions, the colour names they use and the error counter,
 # and does nothing else.
 #
