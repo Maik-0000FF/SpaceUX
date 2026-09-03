@@ -21,7 +21,10 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# readlink -f first: BASH_SOURCE holds the path the script was invoked by, so
+# for a symlink pointing into the checkout it names the link, and the shared
+# libraries below would be looked for beside that link instead.
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 cd "$ROOT"
 
 # The 046d PID parser is shared with scripts/check-rule-consistency.sh so the two

@@ -19,7 +19,10 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# readlink -f first: BASH_SOURCE holds the path the script was invoked by, so
+# for a symlink pointing into the checkout it names the link, and the shared
+# libraries below would be looked for beside that link instead.
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 cd "$ROOT"
 
 # Same PID parser scripts/install.sh uses, so the reference this check compares
@@ -37,19 +40,11 @@ NIX=nix/module.nix
 INSTALL=scripts/install.sh
 UNINSTALL=scripts/uninstall.sh
 
-# Every mismatch is reported before the script gives its verdict, so each one
-# is recorded for the exit status here instead of ending the run at the first.
-fail=0
-report_fail() {
-    err "$*"
-    fail=1
-}
-
 # The canonical 046d PID alternation (c603|c605|...|c640), from the shared parser
 # so the reference matches the installer's output exactly.
 canonical="$(spacemouse_046d_pid_alternation "$PID_SOURCE")"
 if [[ -z "$canonical" ]]; then
-    report_fail "no PIDs parsed from $PID_SOURCE"
+    err "no PIDs parsed from $PID_SOURCE"
     exit 1
 fi
 
@@ -58,11 +53,11 @@ fi
 # is a hand-copy of the source.
 mapfile -t docs_lits < <(grep -oE 'idProduct}=="[^"]+"' "$DOCS" | sed -E 's/^idProduct}=="//; s/"$//')
 if [[ ${#docs_lits[@]} -eq 0 ]]; then
-    report_fail "$DOCS: no idProduct==\"...\" rule found (expected the 046d SpaceMouse rules)"
+    err "$DOCS: no idProduct==\"...\" rule found (expected the 046d SpaceMouse rules)"
 fi
 for lit in "${docs_lits[@]}"; do
     if [[ "$lit" != "$canonical" ]]; then
-        report_fail "$DOCS: idProduct list drifted from $PID_SOURCE"
+        err "$DOCS: idProduct list drifted from $PID_SOURCE"
         printf '    docs:   %s\n    source: %s\n' "$lit" "$canonical" >&2
     fi
 done
@@ -70,13 +65,13 @@ done
 # ── 2. nix/module.nix: the logitechSpacemousePids literal must equal canonical ─
 nix_lit="$(grep -oE 'logitechSpacemousePids = "[^"]+"' "$NIX" | sed -E 's/^logitechSpacemousePids = "//; s/"$//' || true)"
 if [[ -z "$nix_lit" ]]; then
-    report_fail "$NIX: logitechSpacemousePids not found"
+    err "$NIX: logitechSpacemousePids not found"
 elif [[ "$nix_lit" != "$canonical" ]]; then
-    report_fail "$NIX: logitechSpacemousePids drifted from $PID_SOURCE"
+    err "$NIX: logitechSpacemousePids drifted from $PID_SOURCE"
     printf '    nix:    %s\n    source: %s\n' "$nix_lit" "$canonical" >&2
 fi
 
-[[ $fail -eq 0 ]] && ok "046d PID list is in sync across $PID_SOURCE, $DOCS and $NIX"
+[[ $LOG_ERRORS -eq 0 ]] && ok "046d PID list is in sync across $PID_SOURCE, $DOCS and $NIX"
 
 # ── 3. every rule install.sh writes is removed by uninstall.sh ────────────────
 # Match the NN-spaceux-*.rules filenames each script references. install.sh's
@@ -89,16 +84,21 @@ mapfile -t install_rules < <(grep -oE '[0-9]{2}-spaceux-[a-z-]+\.rules' "$INSTAL
 # assignment before the loop can report the specific missing rule.
 uninstall_rules="$(grep -oE '[0-9]{2}-spaceux-[a-z-]+\.rules' "$UNINSTALL" | sort -u || true)"
 if [[ ${#install_rules[@]} -eq 0 ]]; then
-    report_fail "$INSTALL: no NN-spaceux-*.rules filename found"
+    err "$INSTALL: no NN-spaceux-*.rules filename found"
     rules_fail=1
 fi
 for r in "${install_rules[@]}"; do
     if ! grep -qxF "$r" <<<"$uninstall_rules"; then
-        report_fail "$UNINSTALL does not remove $r (written by $INSTALL)"
+        err "$UNINSTALL does not remove $r (written by $INSTALL)"
         rules_fail=1
     fi
 done
 [[ $rules_fail -eq 0 && ${#install_rules[@]} -gt 0 ]] &&
     ok "every udev rule $INSTALL writes is removed by $UNINSTALL"
 
-exit $fail
+# err counts every mismatch it prints, so the verdict is simply whether any was
+# reported. The check reports them all instead of stopping at the first.
+if [[ $LOG_ERRORS -gt 0 ]]; then
+    exit 1
+fi
+exit 0

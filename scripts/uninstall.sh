@@ -21,7 +21,13 @@ set -euo pipefail
 # the check scripts all print alike and the styling lives in one place. Only the
 # path into the checkout is taken from here; unlike the installer this script
 # never cd's into it, because everything it removes lives outside.
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+#
+# readlink -f first: BASH_SOURCE holds the path the script was invoked by, so
+# for a symlink pointing into the checkout it names the link, and the logger
+# below would be looked for beside that link instead. Sourcing it is the first
+# thing this script does, so an unresolved path would abort the uninstall before
+# it removed anything.
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 # shellcheck source=scripts/lib/log.sh
 . "$ROOT/scripts/lib/log.sh"
 
