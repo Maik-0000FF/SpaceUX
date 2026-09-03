@@ -399,6 +399,33 @@ jobs:
       - name: Check udev-rule PID list and filenames are in sync
         run: ./scripts/check-rule-consistency.sh
 
+  # ─── Nix lockfile sync ──────────────────────────────────────────────
+  # The repo root stays lockfile-free, so nix/package-lock.json is the only
+  # tracked lock and the Nix package's `npm ci` is its only consumer. Every npm
+  # lane above runs `npm install` and would stay green if a dependency bump
+  # edited package.json alone, leaving `nix build` as the first thing to notice.
+  # This lane checks the pair the way that build does.
+  npm-lock-sync:
+    name: nix lockfile sync
+    runs-on: ubuntu-24.04
+    # A drift verdict always needs registry metadata (the runner's npm cache is
+    # cold, there being no tracked root lockfile for setup-node to restore), so
+    # the lane is only as fast as the registry answers. 5 would let a slow, not
+    # yet refused registry burn through npm's retries and kill the job on the
+    # generic Actions timeout instead of its own exit-2 diagnosis; the other npm
+    # lanes stand at 10 to 15 for the same reason.
+    timeout-minutes: 10
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+      - name: Check package.json and nix/package-lock.json are in sync
+        run: ./scripts/check-npm-lock-sync.sh
+
   # ─── No tracked binary artefacts ────────────────────────────────────
   # The C daemon/overlay/editor build into build/ and the core into
   # dist/ (both gitignored). A stray `git add -f` or a new, un-ignored

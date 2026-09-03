@@ -19,26 +19,28 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# BASH_SOURCE holds the path the script was invoked by, which is not necessarily
+# a path to the script itself: for a symlink pointing into the checkout it names
+# the link, and the shared libraries below would be looked for beside that link.
+# readlink -f resolves it to the real file, once, for everything that follows.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 cd "$ROOT"
 
 # Same PID parser scripts/install.sh uses, so the reference this check compares
 # against is byte-identical to what the installer writes.
 # shellcheck source=scripts/lib/spacemouse-pids.sh
 . "$ROOT/scripts/lib/spacemouse-pids.sh"
+# err/ok come from the shared logger, so this lane's output matches the other
+# scripts' and the styling lives in one place.
+# shellcheck source=scripts/lib/log.sh
+. "$ROOT/scripts/lib/log.sh"
 
 PID_SOURCE=data/spacemouse-046d-pids
 DOCS=docs/install.md
 NIX=nix/module.nix
 INSTALL=scripts/install.sh
 UNINSTALL=scripts/uninstall.sh
-
-fail=0
-err() {
-    printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2
-    fail=1
-}
-ok() { printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 
 # The canonical 046d PID alternation (c603|c605|...|c640), from the shared parser
 # so the reference matches the installer's output exactly.
@@ -71,7 +73,7 @@ elif [[ "$nix_lit" != "$canonical" ]]; then
     printf '    nix:    %s\n    source: %s\n' "$nix_lit" "$canonical" >&2
 fi
 
-[[ $fail -eq 0 ]] && ok "046d PID list is in sync across $PID_SOURCE, $DOCS and $NIX"
+[[ $LOG_ERRORS -eq 0 ]] && ok "046d PID list is in sync across $PID_SOURCE, $DOCS and $NIX"
 
 # ── 3. every rule install.sh writes is removed by uninstall.sh ────────────────
 # Match the NN-spaceux-*.rules filenames each script references. install.sh's
@@ -96,4 +98,9 @@ done
 [[ $rules_fail -eq 0 && ${#install_rules[@]} -gt 0 ]] &&
     ok "every udev rule $INSTALL writes is removed by $UNINSTALL"
 
-exit $fail
+# err counts every mismatch it prints, so the verdict is simply whether any was
+# reported. The check reports them all instead of stopping at the first.
+if [[ $LOG_ERRORS -gt 0 ]]; then
+    exit 1
+fi
+exit 0
