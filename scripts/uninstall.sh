@@ -17,6 +17,23 @@
 
 set -euo pipefail
 
+# say/warn come from the shared logger, so the installer, the uninstaller and
+# the check scripts all print alike and the styling lives in one place. Only the
+# path into the checkout is taken from here; unlike the installer this script
+# never cd's into it, because everything it removes lives outside.
+#
+# BASH_SOURCE holds the path the script was invoked by, which is not necessarily
+# a path to the script itself: for a symlink pointing into the checkout it names
+# the link, and the logger below would be looked for beside that link. Sourcing
+# it is the first thing this script does, so an unresolved path would abort the
+# uninstall before it removed anything. readlink -f resolves it to the real
+# file, once, for everything that follows: the logger, and --help reading this
+# file's own header.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
+# shellcheck source=scripts/lib/log.sh
+. "$ROOT/scripts/lib/log.sh"
+
 WITH_DATA=0
 ASSUME_YES=0
 for arg in "$@"; do
@@ -24,7 +41,7 @@ for arg in "$@"; do
         --data) WITH_DATA=1 ;;
         --yes | -y) ASSUME_YES=1 ;;
         -h | --help)
-            sed -n '4,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '4,16p' "$SELF" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -33,9 +50,6 @@ for arg in "$@"; do
             ;;
     esac
 done
-
-say() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
-warn() { printf '\033[1;33m! %s\033[0m\n' "$*" >&2; }
 
 LAUNCHER="$HOME/.local/bin/spaceux"
 DESKTOP_FILE="$HOME/.local/share/applications/spaceux.desktop"

@@ -21,13 +21,24 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# BASH_SOURCE holds the path the script was invoked by, which is not necessarily
+# a usable path to the script itself: for a symlink pointing into the checkout
+# it names the link, and it is relative whenever the caller wrote it that way,
+# which the cd below then invalidates. readlink -f resolves it to the real file,
+# once, for everything that follows: the shared libraries, and --help reading
+# this file's own header.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 cd "$ROOT"
 
 # The 046d PID parser is shared with scripts/check-rule-consistency.sh so the two
 # never drift; see that script's CI lane.
 # shellcheck source=scripts/lib/spacemouse-pids.sh
 . "$ROOT/scripts/lib/spacemouse-pids.sh"
+# say/warn come from the shared logger, so the installer, the uninstaller and
+# the check scripts all print alike and the styling lives in one place.
+# shellcheck source=scripts/lib/log.sh
+. "$ROOT/scripts/lib/log.sh"
 
 WITH_SPACENAVD=ask
 SKIP_DEPS=0
@@ -46,7 +57,7 @@ for arg in "$@"; do
         # container. Reads $OS_RELEASE_FILE (default /etc/os-release).
         --print-distro) PRINT_DISTRO=1 ;;
         -h | --help)
-            sed -n '4,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '4,20p' "$SELF" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
@@ -56,8 +67,6 @@ for arg in "$@"; do
     esac
 done
 
-say() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
-warn() { printf '\033[1;33m! %s\033[0m\n' "$*" >&2; }
 ask_yes() {
     # ask_yes "question" -> 0 on yes. Defaults to no on a bare Enter.
     local reply
