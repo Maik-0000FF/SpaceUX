@@ -475,10 +475,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
         with:
-          # The flake's nixpkgs input is a github: URL, fetched through the
-          # GitHub API, which allows 60 requests an hour to an anonymous caller
-          # and counts them against the runner's shared egress address. The
-          # workflow token lifts that to the authenticated rate.
+          # Authenticated GitHub API rate for the flake's nixpkgs input, for the
+          # reason spelled out in the deps-hash lane above.
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
       # No --extra-experimental-features here, unlike the check script, which
       # carries them because it also runs on machines whose nix.conf leaves

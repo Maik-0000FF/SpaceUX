@@ -27,9 +27,9 @@
 #
 #   lock and hash agree                    exit 0
 #   lock regenerated, hash left stale      exit 1, with nix's `got:` value
-#   the same, on a store that already      exit 1: the rebuild below is what
-#     holds the stale hash's output        makes this indistinguishable from a
-#                                          cold store, see there
+#   the same, on a store that already      exit 1: the probe below makes this
+#     holds the stale hash's output        case indistinguishable from a cold
+#                                          store, see there
 #   nix not installed                      exit 2, named as such
 #   nix-command/flakes not enabled         cannot arise: both are requested on
 #                                          the command line below
@@ -67,15 +67,19 @@ fi
 
 # --no-link so no result symlink is dropped in the checkout.
 #
-# --rebuild because without it this check answers nothing on a machine that has
-# built the package before. A fixed-output derivation's store path is derived
-# from its hash alone, so a stale hash names a path that is already there from
-# the build that hash was correct for; nix takes that as built, never runs the
-# fetcher and never compares. The result is a green tick on exactly the tree
-# that is wrong, and only by hand, which is where the tick is trusted most. The
-# flag realises the derivation again and compares. In CI it costs nothing, the
-# store being cold either way; by hand it re-fetches the tree, which is the only
-# way to have something to compare against.
+# The build alone answers nothing on a machine that has built the package
+# before. A fixed-output derivation's store path is derived from its hash alone,
+# so a stale hash names the path left behind by the build that hash was correct
+# for; nix takes that as already built, never runs the fetcher and never
+# compares. The result is a green tick on exactly the tree that is wrong, and it
+# appears only when run by hand, which is where the tick is trusted most.
+#
+# --rebuild forces the comparison, but it only ever re-checks an output that is
+# there: with the path absent it refuses outright ("not valid, so checking is
+# not possible"), which is every CI run. So the flag is added exactly when the
+# path is already in the store, and left off when it is not, which is when the
+# plain build fetches and compares by itself. Both ways compare the hash, and
+# both fetch the tree exactly once.
 #
 # --extra-experimental-features: nix-command and flakes are still opt-in on a
 # stock install, where this call would otherwise fail on the invocation instead
@@ -85,8 +89,26 @@ fi
 # NO_COLOR: nix colours its diagnosis when it believes it is writing to a
 # terminal, and the sentence below is matched literally. A command substitution
 # already hides the terminal, so this only pins what is otherwise incidental.
+# The path is pure evaluation, available without building anything. An
+# evaluation failure leaves it empty, and the build below then reports that
+# failure properly instead of this probe swallowing it.
+deps_path="$(nix eval --raw \
+    --extra-experimental-features 'nix-command flakes' \
+    "$DEPS_ATTR.outPath" 2>/dev/null || true)"
+
+# Validity, not existence: an interrupted or hash-rejected build leaves the
+# directory on disk while nix still counts the path as invalid, and --rebuild
+# wants what nix counts, not what the filesystem shows. path-info answers
+# exactly that question and builds nothing.
+rebuild=()
+if [[ -n "$deps_path" ]] && nix path-info \
+    --extra-experimental-features 'nix-command flakes' \
+    "$deps_path" >/dev/null 2>&1; then
+    rebuild=(--rebuild)
+fi
+
 status=0
-output="$(NO_COLOR=1 nix build --no-link --rebuild \
+output="$(NO_COLOR=1 nix build --no-link "${rebuild[@]}" \
     --extra-experimental-features 'nix-command flakes' \
     "$DEPS_ATTR" 2>&1)" || status=$?
 
@@ -106,7 +128,7 @@ if ! grep -qF "$MISMATCH_MESSAGE" <<<"$output"; then
     exit 2
 fi
 
-err "the npmDepsHash in $NIX_FLAKE is stale for $NIX_LOCK"
+err "the $NIX_HASH_FIELD in $NIX_FLAKE is stale for $NIX_LOCK"
 printf '%s\n' "$output" >&2
 # nix names both values, so the fix is a copy of the one it got. The second
 # route is for a lockfile that is about to change anyway, where the hash can be
