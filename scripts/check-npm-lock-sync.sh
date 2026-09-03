@@ -21,10 +21,13 @@
 #     dependency deleted from package.json does not: `npm ci` prunes the orphan
 #     from the tree instead of refusing it. The stale entry keeps feeding
 #     npmDepsHash until the lock is regenerated for another reason.
-#   * Resolving a newly added range needs the registry, so the run is not
-#     offline. Under the egress-audit policy the lanes use today that is fine;
-#     a block policy would have to allow the registry, or the run fails as an
-#     npm error rather than as drift (see the EUSAGE gate below).
+#   * Only the passing run is offline. Reaching any drift verdict needs the
+#     registry: on a cold cache npm fetches the drifted package's metadata
+#     before it compares, so an unreachable registry fails as ECONNREFUSED and
+#     never gets as far as EUSAGE. The gate below then reports that as an
+#     unrelated npm error on exactly the run where the lock is at fault. Under
+#     the egress-audit policy the lanes use today that cannot happen; a block
+#     policy would have to allow the registry.
 #
 # No arguments. Exits 0 when manifest and lock agree, 1 on drift, 2 when npm
 # failed for an unrelated reason. Runs in CI and by hand from anywhere in the
@@ -82,8 +85,10 @@ fi
 
 err "$LOCK is out of sync with $MANIFEST"
 # npm appends its full `npm ci` usage block after the diagnosis; drop it so the
-# mismatch line stays the visible part of a failing lane.
-printf '%s\n' "$output" | sed '/^npm error Clean install a project/,$d' >&2
+# mismatch line stays the visible part of a failing lane. Anchored on the usage
+# header's text alone, matching the EUSAGE grep above, so the trim survives the
+# `npm error` / `npm ERR!` prefix change and does not silently stop working.
+printf '%s\n' "$output" | sed '/Clean install a project/,$d' >&2
 # Seed the root lock from the tracked one first. Without that seed the refresh
 # starts from whatever untracked lock the working copy happens to hold (or from
 # nothing at all in a fresh clone) and npm re-resolves the whole tree, which
