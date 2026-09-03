@@ -17,10 +17,13 @@
 # so it stays exactly as strict as the build it protects. Two consequences of
 # borrowing npm's verdict are worth knowing:
 #
-#   * The check is one-directional. A changed or added dependency fails, but a
-#     dependency deleted from package.json does not: `npm ci` prunes the orphan
-#     from the tree instead of refusing it. The stale entry keeps feeding
-#     npmDepsHash until the lock is regenerated for another reason.
+#   * The check is one-directional, and it asks only what `npm ci` asks: does
+#     the locked version still satisfy the manifest. An added dependency or a
+#     range the lock no longer satisfies fails; a range merely widened around
+#     the locked version passes, and so does a dependency deleted from
+#     package.json, which `npm ci` prunes from the tree instead of refusing.
+#     That stale entry keeps feeding npmDepsHash until the lock is regenerated
+#     for another reason.
 #   * Only the passing run is offline. Reaching any drift verdict needs the
 #     registry: on a cold cache npm fetches the drifted package's metadata
 #     before it compares, so an unreachable registry fails as ECONNREFUSED and
@@ -70,9 +73,12 @@ if [[ -f "$NPMRC" ]]; then
 fi
 
 # --dry-run so nothing is written; --ignore-scripts because the verdict needs
-# only npm's manifest-vs-lock validation, not installed packages.
+# only npm's manifest-vs-lock validation, not installed packages. Nothing else
+# is passed: any flag that shapes resolution would have to be kept in step with
+# the npmFlags in nix/package.nix by hand, and this run has to resolve the way
+# that build does.
 status=0
-output="$(cd "$staged" && npm ci --dry-run --ignore-scripts --no-audit --no-fund 2>&1)" || status=$?
+output="$(cd "$staged" && npm ci --dry-run --ignore-scripts 2>&1)" || status=$?
 
 if [[ $status -eq 0 ]]; then
     ok "$LOCK is in sync with $MANIFEST"
@@ -110,15 +116,16 @@ printf '%s\n' "$output" | sed '/Clean install a project/,$d' >&2
 # turns a one-line bump into a wholesale lockfile rewrite and pulls untested
 # versions into the Nix build.
 #
-# The block opens with the cd because the paths in it are repo-relative while
-# the caller's shell may sit anywhere. Pasted from a subdirectory without it,
-# the seeding cp fails but `npm install` still finds the manifest by walking up,
-# and resolves the whole tree unseeded: exactly the rewrite warned about above.
-printf '\n    Refresh it with:\n' >&2
-printf "      cd '%s'\n" "$ROOT" >&2
-printf '      cp %s package-lock.json\n' "$LOCK" >&2
-printf '      npm install --package-lock-only\n' >&2
-printf '      cp package-lock.json %s\n' "$LOCK" >&2
+# The paths are repo-relative and the heading says so, rather than printing this
+# checkout's location: the line is read as often from a CI log, where that path
+# names a runner nobody can cd into. The steps are chained so a wrong working
+# directory stops the sequence at the failing cp. Unchained, the seeding cp
+# fails while `npm install` still finds the manifest by walking up and resolves
+# the whole tree unseeded, which is the rewrite warned about above.
+printf '\n    Refresh it, from the repository root, with:\n' >&2
+printf '      cp %s package-lock.json &&\n' "$LOCK" >&2
+printf '        npm install --package-lock-only &&\n' >&2
+printf '        cp package-lock.json %s\n' "$LOCK" >&2
 printf '    (this replaces the untracked root package-lock.json)\n' >&2
 printf '    then update npmDepsHash in flake.nix:\n' >&2
 printf '      prefetch-npm-deps %s\n' "$LOCK" >&2
