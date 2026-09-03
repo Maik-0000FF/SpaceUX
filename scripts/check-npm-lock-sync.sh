@@ -71,13 +71,17 @@ if [[ $status -eq 0 ]]; then
     exit 0
 fi
 
-# npm reports a manifest-vs-lock mismatch as EUSAGE and nothing else does. An
-# unreachable registry, a missing npm or a version that has been unpublished all
-# fail too, but say nothing about drift; reporting those as drift would send
-# someone off to regenerate a lockfile that is already correct. Matched loosely
-# because npm prefixes its diagnostics with `npm error` since 10 and `npm ERR!`
-# before that.
-if ! grep -q 'code EUSAGE' <<<"$output"; then
+# Only a manifest-vs-lock mismatch counts as drift. An unreachable registry, a
+# missing npm or a version that has been unpublished all fail too, but say
+# nothing about the lock; reporting those as drift would send someone off to
+# regenerate a lockfile that is already correct.
+#
+# EUSAGE alone is not that signal: it is npm's generic usage code, and a wholly
+# absent lockfile raises it just as well. So the sentence npm reserves for the
+# mismatch has to be there too. Both matched loosely, because npm prefixes its
+# diagnostics with `npm error` since 10 and `npm ERR!` before that.
+DRIFT_MESSAGE='can only install packages when your package.json and package-lock.json'
+if ! grep -q 'code EUSAGE' <<<"$output" || ! grep -qF "$DRIFT_MESSAGE" <<<"$output"; then
     err "npm ci failed for a reason unrelated to $LOCK"
     printf '%s\n' "$output" >&2
     exit 2
@@ -94,7 +98,13 @@ printf '%s\n' "$output" | sed '/Clean install a project/,$d' >&2
 # nothing at all in a fresh clone) and npm re-resolves the whole tree, which
 # turns a one-line bump into a wholesale lockfile rewrite and pulls untested
 # versions into the Nix build.
+#
+# The block opens with the cd because the paths in it are repo-relative while
+# the caller's shell may sit anywhere. Pasted from a subdirectory without it,
+# the seeding cp fails but `npm install` still finds the manifest by walking up,
+# and resolves the whole tree unseeded: exactly the rewrite warned about above.
 printf '\n    Refresh it with:\n' >&2
+printf '      cd %s\n' "$ROOT" >&2
 printf '      cp %s package-lock.json\n' "$LOCK" >&2
 printf '      npm install --package-lock-only\n' >&2
 printf '      cp package-lock.json %s\n' "$LOCK" >&2
