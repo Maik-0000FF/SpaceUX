@@ -78,18 +78,20 @@ fi
 # --dry-run so nothing is written; --ignore-scripts because the verdict needs
 # only npm's manifest-vs-lock validation, not installed packages.
 #
-# --loglevel=error pins the one thing the verdict below reads: npm's diagnosis.
-# The drift is recognised by the sentence npm prints, and a loglevel of silent
-# or a quieter one in the caller's ~/.npmrc prints nothing at all, which would
-# turn real drift into an unrelated-error exit with an empty diagnosis attached.
-# A command line beats the user config, so this holds whatever npm is configured
-# to do. It shapes only the output, never the resolution.
+# --loglevel=error and --no-color pin the one thing the verdict below reads:
+# the text of npm's diagnosis. It is matched literally, so both of the caller's
+# switches that reshape it would break the match and turn real drift into an
+# unrelated-error exit. A quiet loglevel in ~/.npmrc prints no diagnosis at all;
+# colour splits `code EUSAGE` with an escape sequence in the middle. A command
+# line beats the user config and the environment, so this holds however npm is
+# configured. Both shape the output only, never the resolution, which is why
+# neither has a counterpart in the npmFlags below.
 #
 # Nothing else is passed: any flag that shapes resolution would have to be kept
 # in step with the npmFlags in nix/package.nix by hand, and this run has to
 # resolve the way that build does.
 status=0
-output="$(cd "$staged" && npm ci --dry-run --ignore-scripts --loglevel=error 2>&1)" || status=$?
+output="$(cd "$staged" && npm ci --dry-run --ignore-scripts --loglevel=error --no-color 2>&1)" || status=$?
 
 if [[ $status -eq 0 ]]; then
     ok "$LOCK is in sync with $MANIFEST"

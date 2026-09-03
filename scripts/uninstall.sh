@@ -38,7 +38,7 @@ for arg in "$@"; do
         --data) WITH_DATA=1 ;;
         --yes | -y) ASSUME_YES=1 ;;
         -h | --help)
-            sed -n '4,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '4,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
