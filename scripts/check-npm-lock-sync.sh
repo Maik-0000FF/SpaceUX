@@ -72,9 +72,12 @@ if [[ $status -eq 0 ]]; then
 fi
 
 # Only a manifest-vs-lock mismatch counts as drift. An unreachable registry, a
-# missing npm or a version that has been unpublished all fail too, but say
-# nothing about the lock; reporting those as drift would send someone off to
-# regenerate a lockfile that is already correct.
+# missing npm or a version that no longer exists all fail too, and none of them
+# is an answer about the lock; reporting them as drift would send someone off to
+# regenerate a lockfile that is already correct. Some of them are not about the
+# lock but still real, a manifest pinning a version npm cannot resolve among
+# them, so the branch below says only that no verdict was reached and prints
+# npm's own diagnosis untrimmed rather than naming a culprit.
 #
 # EUSAGE alone is not that signal: it is npm's generic usage code, and a wholly
 # absent lockfile raises it just as well. So the sentence npm reserves for the
@@ -82,7 +85,7 @@ fi
 # diagnostics with `npm error` since 10 and `npm ERR!` before that.
 DRIFT_MESSAGE='can only install packages when your package.json and package-lock.json'
 if ! grep -q 'code EUSAGE' <<<"$output" || ! grep -qF "$DRIFT_MESSAGE" <<<"$output"; then
-    err "npm ci failed for a reason unrelated to $LOCK"
+    err "npm ci failed before it could compare $MANIFEST and $LOCK"
     printf '%s\n' "$output" >&2
     exit 2
 fi
@@ -104,7 +107,7 @@ printf '%s\n' "$output" | sed '/Clean install a project/,$d' >&2
 # the seeding cp fails but `npm install` still finds the manifest by walking up,
 # and resolves the whole tree unseeded: exactly the rewrite warned about above.
 printf '\n    Refresh it with:\n' >&2
-printf '      cd %s\n' "$ROOT" >&2
+printf "      cd '%s'\n" "$ROOT" >&2
 printf '      cp %s package-lock.json\n' "$LOCK" >&2
 printf '      npm install --package-lock-only\n' >&2
 printf '      cp package-lock.json %s\n' "$LOCK" >&2
