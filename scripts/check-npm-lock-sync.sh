@@ -60,6 +60,14 @@ staged="$(mktemp -d)"
 trap 'rm -rf "$staged"' EXIT
 cp "$MANIFEST" "$staged/package.json"
 cp "$LOCK" "$staged/package-lock.json"
+# nix/package.nix stages the whole tree, so npm reads a repo-level .npmrc there.
+# There is none today, but adding one (legacy-peer-deps, a registry override)
+# would change how npm resolves and this run would stop matching the build it
+# stands in for.
+NPMRC=.npmrc
+if [[ -f "$NPMRC" ]]; then
+    cp "$NPMRC" "$staged/$NPMRC"
+fi
 
 # --dry-run so nothing is written; --ignore-scripts because the verdict needs
 # only npm's manifest-vs-lock validation, not installed packages.
@@ -111,6 +119,7 @@ printf "      cd '%s'\n" "$ROOT" >&2
 printf '      cp %s package-lock.json\n' "$LOCK" >&2
 printf '      npm install --package-lock-only\n' >&2
 printf '      cp package-lock.json %s\n' "$LOCK" >&2
+printf '    (this replaces the untracked root package-lock.json)\n' >&2
 printf '    then update npmDepsHash in flake.nix:\n' >&2
 printf '      prefetch-npm-deps %s\n' "$LOCK" >&2
 exit 1
