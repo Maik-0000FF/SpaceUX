@@ -27,6 +27,9 @@
 #
 #   lock and hash agree                    exit 0
 #   lock regenerated, hash left stale      exit 1, with nix's `got:` value
+#   the same, on a store that already      exit 1: the rebuild below is what
+#     holds the stale hash's output        makes this indistinguishable from a
+#                                          cold store, see there
 #   nix not installed                      exit 2, named as such
 #   nix-command/flakes not enabled         cannot arise: both are requested on
 #                                          the command line below
@@ -49,9 +52,11 @@ cd "$ROOT"
 # scripts' and the styling lives in one place.
 # shellcheck source=scripts/lib/log.sh
 . "$ROOT/scripts/lib/log.sh"
+# The tracked files this guards are named in one place, shared with the other
+# npm check, so a rename cannot leave one of them behind.
+# shellcheck source=scripts/lib/nix-pins.sh
+. "$ROOT/scripts/lib/nix-pins.sh"
 
-FLAKE=flake.nix
-LOCK=nix/package-lock.json
 # The deps half of the package, which is the only part the hash pins.
 DEPS_ATTR='.#default.npmDeps'
 
@@ -62,6 +67,16 @@ fi
 
 # --no-link so no result symlink is dropped in the checkout.
 #
+# --rebuild because without it this check answers nothing on a machine that has
+# built the package before. A fixed-output derivation's store path is derived
+# from its hash alone, so a stale hash names a path that is already there from
+# the build that hash was correct for; nix takes that as built, never runs the
+# fetcher and never compares. The result is a green tick on exactly the tree
+# that is wrong, and only by hand, which is where the tick is trusted most. The
+# flag realises the derivation again and compares. In CI it costs nothing, the
+# store being cold either way; by hand it re-fetches the tree, which is the only
+# way to have something to compare against.
+#
 # --extra-experimental-features: nix-command and flakes are still opt-in on a
 # stock install, where this call would otherwise fail on the invocation instead
 # of on the hash. Requesting them here keeps the check runnable on a machine
@@ -71,12 +86,12 @@ fi
 # terminal, and the sentence below is matched literally. A command substitution
 # already hides the terminal, so this only pins what is otherwise incidental.
 status=0
-output="$(NO_COLOR=1 nix build --no-link \
+output="$(NO_COLOR=1 nix build --no-link --rebuild \
     --extra-experimental-features 'nix-command flakes' \
     "$DEPS_ATTR" 2>&1)" || status=$?
 
 if [[ $status -eq 0 ]]; then
-    ok "$FLAKE pins the hash $LOCK currently produces"
+    ok "$NIX_FLAKE pins the hash $NIX_LOCK currently produces"
     exit 0
 fi
 
@@ -86,17 +101,17 @@ fi
 # someone off to refresh a value that is already correct.
 MISMATCH_MESSAGE='hash mismatch in fixed-output derivation'
 if ! grep -qF "$MISMATCH_MESSAGE" <<<"$output"; then
-    err "nix build failed before it could check the hash in $FLAKE"
+    err "nix build failed before it could check the hash in $NIX_FLAKE"
     printf '%s\n' "$output" >&2
     exit 2
 fi
 
-err "the npmDepsHash in $FLAKE is stale for $LOCK"
+err "the npmDepsHash in $NIX_FLAKE is stale for $NIX_LOCK"
 printf '%s\n' "$output" >&2
 # nix names both values, so the fix is a copy of the one it got. The second
 # route is for a lockfile that is about to change anyway, where the hash can be
 # computed without waiting for this check to fail again.
-printf '\n    Put the `got:` value above into npmDepsHash in %s.\n' "$FLAKE" >&2
+printf '\n    Put the `got:` value above into %s in %s.\n' "$NIX_HASH_FIELD" "$NIX_FLAKE" >&2
 printf '    It can also be computed directly, from the repository root:\n' >&2
-printf '      prefetch-npm-deps %s\n' "$LOCK" >&2
+printf '      %s %s\n' "$NIX_PREFETCH" "$NIX_LOCK" >&2
 exit 1
