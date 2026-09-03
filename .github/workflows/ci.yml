@@ -456,18 +456,22 @@ jobs:
       - name: Check flake.nix pins the hash nix/package-lock.json produces
         run: ./scripts/check-npm-deps-hash.sh
 
-  # ─── Nix package build (weekly) ─────────────────────────────────────
+  # ─── Nix package build ──────────────────────────────────────────────
   # The lane above covers the npm half of the package. This one builds it end to
   # end, which is what notices a break in the derivation itself: the CMake and
-  # Qt halves, the launcher, and drift in the pinned nixpkgs. That costs the
-  # whole Qt closure, so it rides the weekly canary instead of every pull
-  # request; workflow_dispatch keeps it available by hand after a packaging
-  # change.
+  # Qt halves, the launcher, and drift in the pinned nixpkgs.
+  #
+  # Cheap enough to run on every change, at a bit over two minutes measured:
+  # almost the whole Qt closure arrives from cache.nixos.org as substitutes, and
+  # only this project's own derivations are built. The timeout is set far above
+  # that because the cheapness is the binary cache's doing, not the build's: a
+  # flake.lock moved to a revision the cache has not caught up with would build
+  # its share of that closure from source instead, and the lane should fail on
+  # the clock rather than hold a runner for an hour.
   nix-build:
     name: nix package build
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
