@@ -21,10 +21,14 @@
 
 set -euo pipefail
 
-# readlink -f first: BASH_SOURCE holds the path the script was invoked by, so
-# for a symlink pointing into the checkout it names the link, and the shared
-# libraries below would be looked for beside that link instead.
-ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+# BASH_SOURCE holds the path the script was invoked by, which is not necessarily
+# a usable path to the script itself: for a symlink pointing into the checkout
+# it names the link, and it is relative whenever the caller wrote it that way,
+# which the cd below then invalidates. readlink -f resolves it to the real file,
+# once, for everything that follows: the shared libraries, and --help reading
+# this file's own header.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 cd "$ROOT"
 
 # The 046d PID parser is shared with scripts/check-rule-consistency.sh so the two
@@ -53,7 +57,7 @@ for arg in "$@"; do
         # container. Reads $OS_RELEASE_FILE (default /etc/os-release).
         --print-distro) PRINT_DISTRO=1 ;;
         -h | --help)
-            sed -n '4,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '4,20p' "$SELF" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)

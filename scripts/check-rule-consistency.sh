@@ -19,10 +19,12 @@
 
 set -euo pipefail
 
-# readlink -f first: BASH_SOURCE holds the path the script was invoked by, so
-# for a symlink pointing into the checkout it names the link, and the shared
-# libraries below would be looked for beside that link instead.
-ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+# BASH_SOURCE holds the path the script was invoked by, which is not necessarily
+# a path to the script itself: for a symlink pointing into the checkout it names
+# the link, and the shared libraries below would be looked for beside that link.
+# readlink -f resolves it to the real file, once, for everything that follows.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 cd "$ROOT"
 
 # Same PID parser scripts/install.sh uses, so the reference this check compares

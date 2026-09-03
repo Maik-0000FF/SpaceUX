@@ -22,12 +22,15 @@ set -euo pipefail
 # path into the checkout is taken from here; unlike the installer this script
 # never cd's into it, because everything it removes lives outside.
 #
-# readlink -f first: BASH_SOURCE holds the path the script was invoked by, so
-# for a symlink pointing into the checkout it names the link, and the logger
-# below would be looked for beside that link instead. Sourcing it is the first
-# thing this script does, so an unresolved path would abort the uninstall before
-# it removed anything.
-ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+# BASH_SOURCE holds the path the script was invoked by, which is not necessarily
+# a path to the script itself: for a symlink pointing into the checkout it names
+# the link, and the logger below would be looked for beside that link. Sourcing
+# it is the first thing this script does, so an unresolved path would abort the
+# uninstall before it removed anything. readlink -f resolves it to the real
+# file, once, for everything that follows: the logger, and --help reading this
+# file's own header.
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 # shellcheck source=scripts/lib/log.sh
 . "$ROOT/scripts/lib/log.sh"
 
@@ -38,7 +41,7 @@ for arg in "$@"; do
         --data) WITH_DATA=1 ;;
         --yes | -y) ASSUME_YES=1 ;;
         -h | --help)
-            sed -n '4,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            sed -n '4,16p' "$SELF" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *)
