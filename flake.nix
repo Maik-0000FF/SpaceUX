@@ -50,7 +50,7 @@
         {
           default = pkgs.callPackage ./nix/package.nix {
             src = self;
-            npmDepsHash = "sha256-LnlO6LM/vhAakguhzGmE82RWoH+OdxG/FT8zCVRIBVo=";
+            npmDepsHash = "sha256-fWlJaP6slNmqDSnJ9s6MzynAaZvEDKonZt/cHg69ntc=";
           };
         }
       );
