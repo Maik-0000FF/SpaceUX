@@ -40,3 +40,7 @@ updates:
       # targets; still take 22.x minors and patches.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      # typescript-eslint accepts TypeScript <6.1.0 only, so a major bump fails
+      # npm install. Drop the entry once typescript-eslint supports 7.x.
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
